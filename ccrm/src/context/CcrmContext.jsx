@@ -24,34 +24,26 @@ export function useCcrm() {
 
 export function CcrmProvider({ children }) {
   // Helper to load initial state from local storage or fallback to mock data
-  const loadState = (key, fallback) => {
-    try {
-      const saved = localStorage.getItem(key)
-      return saved ? JSON.parse(saved) : fallback
-    } catch (e) {
-      console.error(`Failed to load state for ${key}`, e)
-      return fallback
-    }
-  }
-
   // Define states
-  const [leads, setLeads] = useState(() => loadState('ccrm_leads', LEADS))
-  const [applications, setApplications] = useState(() => loadState('ccrm_applications', APPLICATIONS))
-  const [counselors, setCounselors] = useState(() => loadState('ccrm_counselors', COUNSELORS))
-  const [campaigns, setCampaigns] = useState(() => loadState('ccrm_campaigns', CAMPAIGNS))
-  const [tasks, setTasks] = useState(() => loadState('ccrm_tasks', TASKS))
-  const [payments, setPayments] = useState(() => loadState('ccrm_payments', PAYMENTS))
-  const [queries, setQueries] = useState(() => loadState('ccrm_queries', QUERIES))
-  const [documents, setDocuments] = useState(() => loadState('ccrm_documents', DOCUMENTS))
-  const [events, setEvents] = useState(() => loadState('ccrm_events', EVENTS))
-  const [users, setUsers] = useState(() => loadState('ccrm_users', USERS))
-  const [currentUser, setCurrentUser] = useState(() => loadState('ccrm_current_user', null))
-  const [notifications, setNotifications] = useState(() => loadState('ccrm_notifications', [
-    { id: 1, text: 'New lead assigned: Ravi Kumar',          time: '2 min ago',  unread: true  },
-    { id: 2, text: 'Application submitted by Priya Sharma',  time: '15 min ago', unread: true  },
-    { id: 3, text: 'Follow-up reminder: Arjun Patel',        time: '1 hr ago',   unread: false },
-    { id: 4, text: 'Payment approved: Sneha Reddy',          time: '3 hrs ago',  unread: false },
-  ]))
+  const [leads, setLeads] = useState([])
+  const [applications, setApplications] = useState([])
+  const [counselors, setCounselors] = useState(COUNSELORS)
+  const [campaigns, setCampaigns] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [payments, setPayments] = useState([])
+  const [queries, setQueries] = useState([])
+  const [documents, setDocuments] = useState([])
+  const [events, setEvents] = useState([])
+  const [users, setUsers] = useState([])
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ccrm_current_user')
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
+  const [notifications, setNotifications] = useState([])
 
   // Toast system state
   const [toasts, setToasts] = useState([])
@@ -69,56 +61,117 @@ export function CcrmProvider({ children }) {
     setToasts(prev => prev.filter(t => t.id !== id))
   }
 
-  const addNotification = (text) => {
-    const nextId = notifications.length > 0 ? Math.max(...notifications.map(n => n.id)) + 1 : 1
-    const newNotif = {
-      id: nextId,
-      text,
-      time: 'Just now',
-      unread: true
+  // Unified API Loader with offline LocalStorage fallback
+  const fetchAllData = async () => {
+    const token = localStorage.getItem('ccrm_token')
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+
+    try {
+      const leadsRes = await fetch('/api/leads', { headers })
+      if (leadsRes.ok) setLeads(await leadsRes.json())
+      else throw new Error('Backend server is offline.')
+
+      const appsRes = await fetch('/api/applications', { headers })
+      if (appsRes.ok) setApplications(await appsRes.json())
+
+      const campRes = await fetch('/api/campaigns', { headers })
+      if (campRes.ok) setCampaigns(await campRes.json())
+
+      const tasksRes = await fetch('/api/tasks', { headers })
+      if (tasksRes.ok) setTasks(await tasksRes.json())
+
+      const payRes = await fetch('/api/payments', { headers })
+      if (payRes.ok) setPayments(await payRes.json())
+
+      const qRes = await fetch('/api/queries', { headers })
+      if (qRes.ok) setQueries(await qRes.json())
+
+      const docRes = await fetch('/api/documents', { headers })
+      if (docRes.ok) setDocuments(await docRes.json())
+
+      const evRes = await fetch('/api/events', { headers })
+      if (evRes.ok) setEvents(await evRes.json())
+
+      const uRes = await fetch('/api/users', { headers })
+      if (uRes.ok) setUsers(await uRes.json())
+
+      const notifRes = await fetch('/api/notifications', { headers })
+      if (notifRes.ok) setNotifications(await notifRes.json())
+      
+    } catch (e) {
+      console.warn('Backend API server offline. Gracefully falling back to client-side localStorage state.', e)
+      
+      const localLeads = localStorage.getItem('ccrm_leads')
+      setLeads(localLeads ? JSON.parse(localLeads) : LEADS)
+
+      const localApps = localStorage.getItem('ccrm_applications')
+      setApplications(localApps ? JSON.parse(localApps) : APPLICATIONS)
+
+      const localCamps = localStorage.getItem('ccrm_campaigns')
+      setCampaigns(localCamps ? JSON.parse(localCamps) : CAMPAIGNS)
+
+      const localTasks = localStorage.getItem('ccrm_tasks')
+      setTasks(localTasks ? JSON.parse(localTasks) : TASKS)
+
+      const localPayments = localStorage.getItem('ccrm_payments')
+      setPayments(localPayments ? JSON.parse(localPayments) : PAYMENTS)
+
+      const localQueries = localStorage.getItem('ccrm_queries')
+      setQueries(localQueries ? JSON.parse(localQueries) : QUERIES)
+
+      const localDocs = localStorage.getItem('ccrm_documents')
+      setDocuments(localDocs ? JSON.parse(localDocs) : DOCUMENTS)
+
+      const localEvents = localStorage.getItem('ccrm_events')
+      setEvents(localEvents ? JSON.parse(localEvents) : EVENTS)
+
+      const localUsers = localStorage.getItem('ccrm_users')
+      setUsers(localUsers ? JSON.parse(localUsers) : USERS)
+
+      const localNotif = localStorage.getItem('ccrm_notifications')
+      setNotifications(localNotif ? JSON.parse(localNotif) : [])
     }
-    setNotifications(prev => [newNotif, ...prev])
   }
 
-  // Sync to local storage when state changes
   useEffect(() => {
-    localStorage.setItem('ccrm_leads', JSON.stringify(leads))
+    fetchAllData()
+  }, [])
+
+  // Sync to local storage as fallback cache
+  useEffect(() => {
+    if (leads.length > 0) localStorage.setItem('ccrm_leads', JSON.stringify(leads))
   }, [leads])
 
   useEffect(() => {
-    localStorage.setItem('ccrm_applications', JSON.stringify(applications))
+    if (applications.length > 0) localStorage.setItem('ccrm_applications', JSON.stringify(applications))
   }, [applications])
 
   useEffect(() => {
-    localStorage.setItem('ccrm_counselors', JSON.stringify(counselors))
-  }, [counselors])
-
-  useEffect(() => {
-    localStorage.setItem('ccrm_campaigns', JSON.stringify(campaigns))
+    if (campaigns.length > 0) localStorage.setItem('ccrm_campaigns', JSON.stringify(campaigns))
   }, [campaigns])
 
   useEffect(() => {
-    localStorage.setItem('ccrm_tasks', JSON.stringify(tasks))
+    if (tasks.length > 0) localStorage.setItem('ccrm_tasks', JSON.stringify(tasks))
   }, [tasks])
 
   useEffect(() => {
-    localStorage.setItem('ccrm_payments', JSON.stringify(payments))
+    if (payments.length > 0) localStorage.setItem('ccrm_payments', JSON.stringify(payments))
   }, [payments])
 
   useEffect(() => {
-    localStorage.setItem('ccrm_queries', JSON.stringify(queries))
+    if (queries.length > 0) localStorage.setItem('ccrm_queries', JSON.stringify(queries))
   }, [queries])
 
   useEffect(() => {
-    localStorage.setItem('ccrm_documents', JSON.stringify(documents))
+    if (documents.length > 0) localStorage.setItem('ccrm_documents', JSON.stringify(documents))
   }, [documents])
 
   useEffect(() => {
-    localStorage.setItem('ccrm_events', JSON.stringify(events))
+    if (events.length > 0) localStorage.setItem('ccrm_events', JSON.stringify(events))
   }, [events])
 
   useEffect(() => {
-    localStorage.setItem('ccrm_users', JSON.stringify(users))
+    if (users.length > 0) localStorage.setItem('ccrm_users', JSON.stringify(users))
   }, [users])
 
   useEffect(() => {
@@ -130,35 +183,93 @@ export function CcrmProvider({ children }) {
   }, [currentUser])
 
   useEffect(() => {
-    localStorage.setItem('ccrm_notifications', JSON.stringify(notifications))
+    if (notifications.length > 0) localStorage.setItem('ccrm_notifications', JSON.stringify(notifications))
   }, [notifications])
+
+  const addNotification = async (text) => {
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      })
+      if (res.ok) {
+        const notifs = await fetch('/api/notifications')
+        if (notifs.ok) {
+          setNotifications(await notifs.json())
+          return
+        }
+      }
+    } catch {}
+
+    const nextId = notifications.length > 0 ? Math.max(...notifications.map(n => n.id)) + 1 : 1
+    const newNotif = {
+      id: nextId,
+      text,
+      time: 'Just now',
+      unread: true
+    }
+    setNotifications(prev => [newNotif, ...prev])
+  }
 
   // --- ACTIONS ---
 
   // User Actions
-  const handleLogin = (email, password) => {
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password)
-    if (!user) return { success: false, error: 'Invalid email or password.' }
-    if (user.status !== 'Active') return { success: false, error: 'This user account is inactive. Please contact support.' }
-    
-    const updatedUser = {
-      ...user,
-      lastLogin: new Date().toLocaleString('en-IN', { hour12: true })
+  const handleLogin = async (email, password) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        localStorage.setItem('ccrm_token', data.token)
+        setCurrentUser(data.user)
+        showToast(`Welcome back, ${data.user.name}!`, 'success')
+        fetchAllData()
+        return { success: true, user: data.user }
+      } else {
+        const err = await res.json()
+        return { success: false, error: err.error || 'Invalid email or password.' }
+      }
+    } catch {
+      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password)
+      if (!user) return { success: false, error: 'Invalid email or password.' }
+      if (user.status !== 'Active') return { success: false, error: 'This user account is inactive.' }
+      
+      const updatedUser = {
+        ...user,
+        lastLogin: new Date().toLocaleString('en-IN', { hour12: true })
+      }
+      setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u))
+      setCurrentUser(updatedUser)
+      showToast(`Welcome back, ${user.name}!`, 'success')
+      return { success: true, user: updatedUser }
     }
-    
-    // Update active users lists
-    setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u))
-    setCurrentUser(updatedUser)
-    showToast(`Welcome back, ${user.name}!`, 'success')
-    return { success: true, user: updatedUser }
   }
 
   const handleLogout = () => {
+    localStorage.removeItem('ccrm_token')
     setCurrentUser(null)
     showToast('Logged out successfully.', 'info')
   }
 
-  const addUser = (userData) => {
+  const addUser = async (userData) => {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      })
+      if (res.ok) {
+        const newUser = await res.json()
+        setUsers(prev => [newUser, ...prev])
+        showToast(`User ${userData.name} created successfully.`, 'success')
+        return
+      }
+    } catch {}
+
     const nextId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1
     const newUser = {
       ...userData,
@@ -169,22 +280,61 @@ export function CcrmProvider({ children }) {
     showToast(`User ${userData.name} created successfully.`, 'success')
   }
 
-  const updateUser = (id, data) => {
+  const updateUser = async (id, data) => {
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setUsers(prev => prev.map(u => u.id === id ? updated : u))
+        if (currentUser && currentUser.id === id) {
+          setCurrentUser(updated)
+        }
+        showToast('User updated successfully.', 'success')
+        return
+      }
+    } catch {}
+
     setUsers(prev => prev.map(u => u.id === id ? { ...u, ...data } : u))
-    // If updating current user's details
     if (currentUser && currentUser.id === id) {
       setCurrentUser(prev => ({ ...prev, ...data }))
     }
     showToast('User updated successfully.', 'success')
   }
 
-  const deleteUser = (id) => {
+  const deleteUser = async (id) => {
+    try {
+      const res = await fetch(`/api/users/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setUsers(prev => prev.filter(u => u.id !== id))
+        showToast('User deleted successfully.', 'success')
+        return
+      }
+    } catch {}
+
     setUsers(prev => prev.filter(u => u.id !== id))
     showToast('User deleted successfully.', 'success')
   }
 
   // Lead Actions
-  const addLead = (leadData) => {
+  const addLead = async (leadData) => {
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(leadData)
+      })
+      if (res.ok) {
+        const added = await res.json()
+        setLeads(prev => [added, ...prev])
+        showToast(`Lead for ${leadData.name} registered.`, 'success')
+        return added
+      }
+    } catch {}
+
     const nextId = leads.length > 0 ? Math.max(...leads.map(l => l.id)) + 1 : 1
     const newLead = {
       ...leadData,
@@ -200,18 +350,59 @@ export function CcrmProvider({ children }) {
     return newLead
   }
 
-  const updateLead = (id, data) => {
+  const updateLead = async (id, data) => {
+    try {
+      const res = await fetch(`/api/leads/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setLeads(prev => prev.map(l => l.id === id ? updated : l))
+        showToast('Lead details updated.', 'success')
+        return
+      }
+    } catch {}
+
     setLeads(prev => prev.map(l => l.id === id ? { ...l, ...data } : l))
     showToast('Lead details updated.', 'success')
   }
 
-  const deleteLead = (id) => {
+  const deleteLead = async (id) => {
+    try {
+      const res = await fetch(`/api/leads/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setLeads(prev => prev.filter(l => l.id !== id))
+        showToast('Lead deleted successfully.', 'success')
+        return
+      }
+    } catch {}
+
     setLeads(prev => prev.filter(l => l.id !== id))
     showToast('Lead deleted successfully.', 'success')
   }
 
   // Application Actions
-  const addApplication = (appData) => {
+  const addApplication = async (appData) => {
+    try {
+      const res = await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appData)
+      })
+      if (res.ok) {
+        const added = await res.json()
+        setApplications(prev => [added, ...prev])
+        showToast(`Application ${added.appNo} submitted.`, 'success')
+        
+        const pays = await fetch('/api/payments')
+        if (pays.ok) setPayments(await pays.json())
+
+        return added
+      }
+    } catch {}
+
     const nextId = applications.length > 0 ? Math.max(...applications.map(a => a.id)) + 1 : 1
     const newApp = {
       ...appData,
@@ -232,9 +423,9 @@ export function CcrmProvider({ children }) {
         id: nextPayId,
         name: newApp.name,
         appNo: newApp.appNo,
-        amount: 25000, // standard form fee
+        amount: 25000,
         method: newApp.payMethod,
-        status: newApp.payStatus === 'Approved' ? 'Approved' : (newApp.payStatus === 'Payment Approved' ? 'Approved' : 'Pending'),
+        status: newApp.payStatus === 'Approved' ? 'Approved' : 'Pending',
         date: newApp.payStatus === 'Approved' ? new Date().toLocaleDateString('en-IN') : '',
         txnId: newApp.payStatus === 'Approved' ? `TXN${Math.floor(100000 + Math.random() * 900000)}` : ''
       }
@@ -246,10 +437,27 @@ export function CcrmProvider({ children }) {
     return newApp
   }
 
-  const updateApplication = (id, data) => {
+  const updateApplication = async (id, data) => {
+    try {
+      const res = await fetch(`/api/applications/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setApplications(prev => prev.map(a => a.id === id ? updated : a))
+        showToast('Application updated.', 'success')
+
+        const pays = await fetch('/api/payments')
+        if (pays.ok) setPayments(await pays.json())
+
+        return
+      }
+    } catch {}
+
     setApplications(prev => prev.map(a => a.id === id ? { ...a, ...data } : a))
     
-    // Sync to payments if application status changes
     if (data.payStatus) {
       const app = applications.find(a => a.id === id)
       if (app) {
@@ -272,7 +480,25 @@ export function CcrmProvider({ children }) {
   }
 
   // Task Actions
-  const addTask = (taskData) => {
+  const addTask = async (taskData) => {
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskData)
+      })
+      if (res.ok) {
+        const added = await res.json()
+        setTasks(prev => [...prev, added])
+        showToast('Task added and synced with calendar.', 'success')
+
+        const evs = await fetch('/api/events')
+        if (evs.ok) setEvents(await evs.json())
+
+        return added
+      }
+    } catch {}
+
     const nextId = tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1
     const newTask = {
       ...taskData,
@@ -281,9 +507,8 @@ export function CcrmProvider({ children }) {
     }
     setTasks(prev => [...prev, newTask])
     
-    // Auto-schedule an event in the calendar as well!
     const nextEventId = events.length > 0 ? Math.max(...events.map(e => e.id)) + 1 : 1
-    const eventDate = taskData.due ? taskData.due.split(' ')[0].split('/').reverse().join('-') : new Date().toISOString().split('T')[0] // 'DD/MM/YYYY' -> 'YYYY-MM-DD'
+    const eventDate = taskData.due ? taskData.due.split(' ')[0].split('/').reverse().join('-') : new Date().toISOString().split('T')[0]
     const eventTime = taskData.due ? taskData.due.split(' ')[1] + ' ' + taskData.due.split(' ')[2] : '10:00 AM'
     const newEvent = {
       id: nextEventId,
@@ -301,19 +526,48 @@ export function CcrmProvider({ children }) {
     return newTask
   }
 
-  const toggleTaskComplete = (id) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id === id) {
-        const nextStatus = t.status === 'Completed' ? 'Pending' : 'Completed'
+  const toggleTaskComplete = async (id) => {
+    const t = tasks.find(item => item.id === id)
+    if (!t) return
+    const nextStatus = t.status === 'Completed' ? 'Pending' : 'Completed'
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      })
+      if (res.ok) {
+        setTasks(prev => prev.map(item => item.id === id ? { ...item, status: nextStatus } : item))
         showToast(nextStatus === 'Completed' ? 'Task marked as completed!' : 'Task active again.', 'info')
-        return { ...t, status: nextStatus }
+        return
       }
-      return t
+    } catch {}
+
+    setTasks(prev => prev.map(item => {
+      if (item.id === id) {
+        showToast(nextStatus === 'Completed' ? 'Task marked as completed!' : 'Task active again.', 'info')
+        return { ...item, status: nextStatus }
+      }
+      return item
     }))
   }
 
   // Query/Tickets Actions
-  const addQuery = (queryData) => {
+  const addQuery = async (queryData) => {
+    try {
+      const res = await fetch('/api/queries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(queryData)
+      })
+      if (res.ok) {
+        const added = await res.json()
+        setQueries(prev => [added, ...prev])
+        showToast('Support ticket raised.', 'success')
+        return added
+      }
+    } catch {}
+
     const nextId = queries.length > 0 ? Math.max(...queries.map(q => q.id)) + 1 : 1
     const newQuery = {
       ...queryData,
@@ -326,31 +580,76 @@ export function CcrmProvider({ children }) {
     return newQuery
   }
 
-  const updateQueryStatus = (id, status) => {
+  const updateQueryStatus = async (id, status) => {
+    try {
+      const res = await fetch(`/api/queries/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      })
+      if (res.ok) {
+        setQueries(prev => prev.map(q => q.id === id ? { ...q, status } : q))
+        showToast(`Ticket status changed to ${status}.`, 'info')
+        return
+      }
+    } catch {}
+
     setQueries(prev => prev.map(q => q.id === id ? { ...q, status } : q))
     showToast(`Ticket status changed to ${status}.`, 'info')
   }
 
-  const addQueryReply = (id, replyText) => {
-    // Queries in our model don't have replies nested, but we can update its status to "In Progress" or log a toast.
-    // In a fully working system, we can store reply logs in localStorage as well.
-    // Let's mark it as In Progress or Resolved
-    setQueries(prev => prev.map(q => {
-      if (q.id === id) {
-        return { ...q, status: 'In Progress' }
+  const addQueryReply = async (id, replyText) => {
+    try {
+      const res = await fetch(`/api/queries/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'In Progress' })
+      })
+      if (res.ok) {
+        setQueries(prev => prev.map(q => q.id === id ? { ...q, status: 'In Progress' } : q))
+        showToast('Reply submitted to student.', 'success')
+        return
       }
-      return q
-    }))
+    } catch {}
+
+    setQueries(prev => prev.map(q => q.id === id ? { ...q, status: 'In Progress' } : q))
     showToast('Reply submitted to student.', 'success')
   }
 
   // Document Verification Actions
-  const updateDocStatus = (id, status) => {
+  const updateDocStatus = async (id, status) => {
+    try {
+      const res = await fetch(`/api/documents/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      })
+      if (res.ok) {
+        setDocuments(prev => prev.map(d => d.id === id ? { ...d, status } : d))
+        showToast(`Document status marked as ${status}.`, 'info')
+        return
+      }
+    } catch {}
+
     setDocuments(prev => prev.map(d => d.id === id ? { ...d, status } : d))
     showToast(`Document status marked as ${status}.`, 'info')
   }
 
-  const uploadDocument = (docData) => {
+  const uploadDocument = async (docData) => {
+    try {
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(docData)
+      })
+      if (res.ok) {
+        const added = await res.json()
+        setDocuments(prev => [added, ...prev])
+        showToast('Document uploaded successfully.', 'success')
+        return added
+      }
+    } catch {}
+
     const nextId = documents.length > 0 ? Math.max(...documents.map(d => d.id)) + 1 : 1
     const newDoc = {
       ...docData,
@@ -364,7 +663,21 @@ export function CcrmProvider({ children }) {
   }
 
   // Payment Actions
-  const addPayment = (payData) => {
+  const addPayment = async (payData) => {
+    try {
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payData)
+      })
+      if (res.ok) {
+        const added = await res.json()
+        setPayments(prev => [added, ...prev])
+        showToast('Payment link generated.', 'success')
+        return added
+      }
+    } catch {}
+
     const nextId = payments.length > 0 ? Math.max(...payments.map(p => p.id)) + 1 : 1
     const newPay = {
       ...payData,
@@ -376,7 +689,21 @@ export function CcrmProvider({ children }) {
     return newPay
   }
 
-  const updatePaymentStatus = (id, status) => {
+  const updatePaymentStatus = async (id, status) => {
+    try {
+      const res = await fetch(`/api/payments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setPayments(prev => prev.map(p => p.id === id ? updated : p))
+        showToast(`Payment status updated to ${status}.`, 'info')
+        return
+      }
+    } catch {}
+
     setPayments(prev => prev.map(p => {
       if (p.id === id) {
         const isApproved = status === 'Approved'
@@ -393,7 +720,21 @@ export function CcrmProvider({ children }) {
   }
 
   // Campaign Actions
-  const addCampaign = (campData) => {
+  const addCampaign = async (campData) => {
+    try {
+      const res = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(campData)
+      })
+      if (res.ok) {
+        const added = await res.json()
+        setCampaigns(prev => [added, ...prev])
+        showToast(`Campaign "${campData.name}" created.`, 'success')
+        return added
+      }
+    } catch {}
+
     const nextId = campaigns.length > 0 ? Math.max(...campaigns.map(c => c.id)) + 1 : 1
     const newCamp = {
       ...campData,
@@ -408,19 +749,48 @@ export function CcrmProvider({ children }) {
     return newCamp
   }
 
-  const toggleCampaignStatus = (id) => {
-    setCampaigns(prev => prev.map(c => {
-      if (c.id === id) {
-        const nextStatus = c.status === 'Active' ? 'Paused' : 'Active'
+  const toggleCampaignStatus = async (id) => {
+    const c = campaigns.find(item => item.id === id)
+    if (!c) return
+    const nextStatus = c.status === 'Active' ? 'Paused' : 'Active'
+    try {
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      })
+      if (res.ok) {
+        setCampaigns(prev => prev.map(item => item.id === id ? { ...item, status: nextStatus } : item))
         showToast(`Campaign ${nextStatus === 'Active' ? 'Resumed' : 'Paused'}.`, 'info')
-        return { ...c, status: nextStatus }
+        return
       }
-      return c
+    } catch {}
+
+    setCampaigns(prev => prev.map(item => {
+      if (item.id === id) {
+        showToast(`Campaign ${nextStatus === 'Active' ? 'Resumed' : 'Paused'}.`, 'info')
+        return { ...item, status: nextStatus }
+      }
+      return item
     }))
   }
 
   // Event/Calendar Actions
-  const addEvent = (eventData) => {
+  const addEvent = async (eventData) => {
+    try {
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventData)
+      })
+      if (res.ok) {
+        const added = await res.json()
+        setEvents(prev => [...prev, added])
+        showToast(`Scheduled event: ${eventData.title}`, 'success')
+        return added
+      }
+    } catch {}
+
     const nextId = events.length > 0 ? Math.max(...events.map(e => e.id)) + 1 : 1
     const newEvent = {
       ...eventData,
