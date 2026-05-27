@@ -118,9 +118,14 @@ export async function initDb() {
         student VARCHAR(100) NOT NULL,
         type VARCHAR(100) NOT NULL,
         status VARCHAR(50) DEFAULT 'Pending',
-        upload_date VARCHAR(100)
+        upload_date VARCHAR(100),
+        file_url TEXT DEFAULT ''
       );
     `)
+    // Migration: add file_url column if it doesn't exist yet (for existing DBs)
+    await client.query(`
+      ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_url TEXT DEFAULT '';
+    `).catch(() => {})
 
     // 8. Events Table
     await client.query(`

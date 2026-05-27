@@ -3,23 +3,24 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, FileText, CheckSquare, Megaphone,
   BarChart2, Settings, LogOut, CreditCard,
-  HelpCircle, Calendar, Shield, FileCheck,
+  HelpCircle, Calendar, Shield, FileCheck, Puzzle,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: 'Dashboard',    to: '/dashboard',    roles: null },
-  { icon: Users,           label: 'Leads',        to: '/leads',        roles: null },
-  { icon: FileText,        label: 'Applications', to: '/applications', roles: null },
-  { icon: CheckSquare,     label: 'Tasks',        to: '/tasks',        roles: null },
-  { icon: Megaphone,       label: 'Campaigns',    to: '/campaigns',    roles: null },
-  { icon: CreditCard,      label: 'Payments',     to: '/payments',     roles: null },
-  { icon: Calendar,        label: 'Calendar',     to: '/calendar',     roles: null },
-  { icon: FileCheck,       label: 'Documents',    to: '/documents',    roles: null },
-  { icon: HelpCircle,      label: 'Queries',      to: '/queries',      roles: null },
-  { icon: BarChart2,       label: 'Reports',      to: '/reports',      roles: null },
+  { icon: LayoutDashboard, label: 'Dashboard',     to: '/dashboard',     roles: null },
+  { icon: Users,           label: 'Leads',         to: '/leads',         roles: null },
+  { icon: FileText,        label: 'Applications',  to: '/applications',  roles: null },
+  { icon: CheckSquare,     label: 'Tasks',         to: '/tasks',         roles: null },
+  { icon: Megaphone,       label: 'Campaigns',     to: '/campaigns',     roles: null },
+  { icon: CreditCard,      label: 'Payments',      to: '/payments',      roles: null },
+  { icon: Calendar,        label: 'Calendar',      to: '/calendar',      roles: null },
+  { icon: FileCheck,       label: 'Documents',     to: '/documents',     roles: null },
+  { icon: HelpCircle,      label: 'Queries',       to: '/queries',       roles: null },
+  { icon: BarChart2,       label: 'Reports',       to: '/reports',       roles: null },
   // Admin-only
-  { icon: Shield,          label: 'Users',        to: '/users',        roles: ['Admin'] },
-  { icon: Settings,        label: 'Settings',     to: '/settings',     roles: null },
+  { icon: Shield,          label: 'Users',         to: '/users',         roles: ['Admin'] },
+  { icon: Puzzle,          label: 'Integrations',  to: '/integrations',  roles: ['Admin', 'Manager'] },
+  { icon: Settings,        label: 'Settings',      to: '/settings',      roles: null },
 ]
 
 export default function Sidebar({ onLogout, user }) {

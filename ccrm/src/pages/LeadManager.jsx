@@ -4,7 +4,7 @@ import {
   Search, Filter, Download, RefreshCw, ChevronDown,
   ChevronLeft, ChevronRight, MessageCircle, MoreHorizontal,
   Plus, SlidersHorizontal, X, Save, Upload, AlertCircle,
-  CheckCircle2, FileSpreadsheet, HelpCircle
+  CheckCircle2, FileSpreadsheet, HelpCircle, Trash2
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
@@ -57,7 +57,7 @@ const AUTO_MAP_KEYWORDS = {
 
 export default function LeadManager() {
   const navigate = useNavigate()
-  const { leads, setLeads, addLead, currentUser, counselors, campaigns, showToast, fetchAllData } = useCcrm()
+  const { leads, setLeads, addLead, deleteLead, currentUser, counselors, campaigns, showToast, fetchAllData } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
   const [quickView, setQuickView] = useState('All Leads')
@@ -87,6 +87,25 @@ export default function LeadManager() {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadCount, setUploadCount] = useState(0)
   const [dragOver, setDragOver] = useState(false)
+
+  // Delete state
+  const [deleteConfirm, setDeleteConfirm] = useState(null) // id of lead to delete
+
+  const handleDeleteLead = (id, e) => {
+    e.stopPropagation()
+    setDeleteConfirm(id)
+  }
+
+  const confirmDelete = () => {
+    if (deleteConfirm === 'bulk') {
+      selectedRows.forEach(id => deleteLead(id))
+      setSelectedRows([])
+      showToast(`${selectedRows.length} leads deleted successfully.`, 'success')
+    } else {
+      deleteLead(deleteConfirm)
+    }
+    setDeleteConfirm(null)
+  }
 
   const rowsPerPage = 10
 
@@ -457,10 +476,15 @@ export default function LeadManager() {
             )}
           </span>
           <div className="flex items-center gap-2">
-            <button className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
-              <MoreHorizontal size={14} />
-              Actions
-            </button>
+            {selectedRows.length > 0 && (
+              <button
+                onClick={() => setDeleteConfirm('bulk')}
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-lg px-2.5 py-1 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={13} />
+                Delete Selected ({selectedRows.length})
+              </button>
+            )}
           </div>
         </div>
 
@@ -483,6 +507,7 @@ export default function LeadManager() {
                 <th className="table-th">City</th>
                 <th className="table-th">Registration Date</th>
                 <th className="table-th">Lead Stage</th>
+                <th className="table-th w-12">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -532,12 +557,21 @@ export default function LeadManager() {
                         {lead.stage}
                       </span>
                     </td>
+                    <td className="table-td" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => handleDeleteLead(lead.id, e)}
+                        className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                        title="Delete lead"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
               {pageData.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-gray-400 text-sm">
+                  <td colSpan={9} className="text-center py-10 text-gray-400 text-sm">
                     No leads found matching your criteria.
                   </td>
                 </tr>
@@ -714,6 +748,41 @@ export default function LeadManager() {
         </div>
       )}
       
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm !== null && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 animate-scale-up">
+            <div className="flex flex-col items-center text-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <Trash2 size={22} className="text-red-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">Delete Lead{deleteConfirm === 'bulk' ? 's' : ''}</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {deleteConfirm === 'bulk'
+                    ? `Are you sure you want to permanently delete ${selectedRows.length} selected leads? This cannot be undone.`
+                    : 'Are you sure you want to permanently delete this lead? This cannot be undone.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 btn-secondary py-2 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 text-sm font-semibold rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bulk Upload Modal */}
       {showBulkModal && (
         <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-50 p-4 backdrop-blur-sm">

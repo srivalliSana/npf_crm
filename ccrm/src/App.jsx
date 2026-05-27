@@ -17,6 +17,7 @@ import CalendarPro from './pages/CalendarPro'
 import UserManagement from './pages/UserManagement'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
+import Integrations from './pages/Integrations'
 
 // ── Role-gated route: renders children only if user has required role ─────────
 function RequireRole({ user, roles, children }) {
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="documents"        element={<Documents />} />
           <Route path="calendar"         element={<CalendarPro />} />
           <Route path="settings"         element={<Settings />} />
+          <Route path="integrations"     element={<Integrations />} />
           {/* Admin-only route */}
           <Route
             path="users"
