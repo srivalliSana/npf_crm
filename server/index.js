@@ -633,12 +633,12 @@ app.post('/api/leads/bulk-upload', uploadDoc.single('file'), async (req, res) =>
     
     console.log(`[Bulk Upload] Parsed ${rawData.length} rows. Initiating database batch insert...`)
     
-    // 2. Perform batched SQL multi-row insert transactions (5000 rows/query)
+    // 2. Perform batched SQL multi-row insert transactions (2000 rows/query to stay safe under PostgreSQL 65,535 parameters limit)
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
       
-      const batchSize = 5000
+      const batchSize = 2000
       let rowIdx = 0
       
       while (rowIdx < rawData.length) {
@@ -648,19 +648,21 @@ app.post('/api/leads/bulk-upload', uploadDoc.single('file'), async (req, res) =>
         let paramIdx = 1
         
         for (const row of batchRows) {
-          const name = row.Name || row.name || row['Student Name'] || 'Unnamed Lead'
-          const email = row.Email || row.email || `lead_${Date.now()}_${Math.floor(Math.random()*100000)}@cutm.ac.in`
-          const mobile = row.Mobile || row.mobile || row['Mobile Number'] || '0000000000'
-          const state = row.State || row.state || 'Odisha'
-          const city = row.City || row.city || 'Bhubaneswar'
-          const course = row.Course || row.course || 'B.Tech CSE'
-          const source = row.Source || row.source || 'Website'
-          const owner = row.Owner || row.owner || 'Vikram Kumar'
-          const regDate = row.regDate || row.reg_date || row['Registration Date'] || new Date().toLocaleString('en-IN', { hour12: true })
-          const score = Number(row.Score || row.score || 0)
+          const name = String(row.Name || row.name || row['Student Name'] || 'Unnamed Lead').substring(0, 100)
+          const email = String(row.Email || row.email || `lead_${Date.now()}_${Math.floor(Math.random()*100000)}@cutm.ac.in`).substring(0, 100)
+          const mobile = String(row.Mobile || row.mobile || row['Mobile Number'] || '0000000000').substring(0, 50)
+          const state = String(row.State || row.state || 'Odisha').substring(0, 100)
+          const city = String(row.City || row.city || 'Bhubaneswar').substring(0, 100)
+          const course = String(row.Course || row.course || 'B.Tech CSE').substring(0, 100)
+          const source = String(row.Source || row.source || 'Website').substring(0, 100)
+          const owner = String(row.Owner || row.owner || 'Vikram Kumar').substring(0, 100)
+          const regDate = String(row.regDate || row.reg_date || row['Registration Date'] || new Date().toLocaleString('en-IN', { hour12: true })).substring(0, 100)
           
-          let stage = row.Stage || row.stage || 'Untouched'
-          let stageColor = row.stageColor || row.stage_color || 'red'
+          let score = Number(row.Score || row.score || 0)
+          if (isNaN(score)) score = 0
+          
+          let stage = String(row.Stage || row.stage || 'Untouched').substring(0, 50)
+          let stageColor = String(row.stageColor || row.stage_color || 'red').substring(0, 50)
           
           // Map stage to styling colors
           if (stage === 'Qualified Leads' || stage === 'Converted') stageColor = 'green'
@@ -710,14 +712,32 @@ app.post('/api/leads/bulk-upload', uploadDoc.single('file'), async (req, res) =>
   }
 })
 
+// --- SERVE REACT FRONTEND (production) ---
+// Must be placed AFTER all /api routes so API routes take priority
+const distPath = path.join(__dirname, '..', 'ccrm', 'dist')
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath))
+  // Catch-all: send index.html for any non-API route (React Router support)
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'))
+  })
+  console.log(`[Static] Serving React build from: ${distPath}`)
+} else {
+  console.warn(`[Static] dist folder not found at ${distPath}. Run: cd ccrm && npm run build`)
+  // Fallback catch-all so "/" doesn't return "Cannot GET /"
+  app.get('*', (req, res) => {
+    res.status(503).send('Frontend not built. Run: cd ccrm && npm run build')
+  })
+}
+
 // --- SERVER LAUNCH BOOTSTRAP ---
 async function startServer() {
   await initDb()
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`====================================================`)
     console.log(`CCRM Backend Server is successfully running!`)
-    console.log(`Access API on: http://localhost:${PORT}`)
-    console.log(`Serving static uploads on: http://localhost:${PORT}/uploads`)
+    console.log(`Access on: http://localhost:${PORT}`)
+    console.log(`Production: https://crm.cutmap.ac.in`)
     console.log(`====================================================`)
   })
 }
