@@ -135,8 +135,7 @@ export function CcrmProvider({ children }) {
       // Derive counselors from local users + leads/apps/payments
       const localLeadsData = localLeads ? JSON.parse(localLeads) : LEADS
       const localAppsData  = localApps  ? JSON.parse(localApps)  : APPLICATIONS
-      const localPayData   = localStorage.getItem('ccrm_payments')
-      const localPayments  = localPayData ? JSON.parse(localPayData) : PAYMENTS
+      const parsedPayments = localPayments ? JSON.parse(localPayments) : PAYMENTS
       const derivedCounselors = localUsersData
         .filter(u => u.status === 'Active')
         .map(u => {
@@ -144,7 +143,7 @@ export function CcrmProvider({ children }) {
           const cLeads = localLeadsData.filter(l => l.owner === u.name || l.owner?.startsWith(simplName))
           const untouched = cLeads.filter(l => l.stage === 'Untouched').length
           const cApps = localAppsData.filter(a => a.owner === u.name || a.owner?.startsWith(simplName))
-          const payApproved = localPayments.filter(p => {
+          const payApproved = parsedPayments.filter(p => {
             if (p.status !== 'Approved' && p.status !== 'Payment Approved') return false
             const app = localAppsData.find(a => a.appNo === p.appNo)
             return app && (app.owner === u.name || app.owner?.startsWith(simplName))
