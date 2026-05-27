@@ -1,0 +1,12 @@
+node_modules/
+dist/
+ccrm/node_modules/
+ccrm/dist/
+.env
+.env.local
+.env.development
+.env.production
+ccrm/.env
+ccrm/.env.local
+ccrm/.env.development
+ccrm/.env.production
