@@ -31,7 +31,7 @@ export default function Login() {
   const domainValid = !typedDomain || ALLOWED_DOMAINS.includes(typedDomain)
 
   // ── Email/password login ───────────────────────────────────────────────────
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!email || !password) { setError('Please enter your email and password.'); return }
     if (!email.includes('@')) { setError('Please enter a valid email address.'); return }
@@ -42,13 +42,16 @@ export default function Login() {
     }
     setError('')
     setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-      const res = handleLogin(email, password)
-      if (!res.success) {
-        setError(res.error)
+    try {
+      const res = await handleLogin(email, password)
+      if (res && !res.success) {
+        setError(res.error || 'Invalid email or password.')
       }
-    }, 900)
+    } catch {
+      setError('Login failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   // ── Google OAuth login ─────────────────────────────────────────────────────

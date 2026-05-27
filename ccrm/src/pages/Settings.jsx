@@ -31,7 +31,6 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   const [showPass, setShowPass] = useState(false)
 
-  // Profile Form States initialized from currentUser context
   const initialName = currentUser?.name || 'User'
   const first = initialName.split(' ')[0] || ''
   const last = initialName.split(' ').slice(1).join(' ') || ''
@@ -53,6 +52,7 @@ export default function Settings() {
   })
 
   const handleSave = () => {
+    if (!currentUser) { showToast('Not logged in.', 'error'); return }
     if (activeSection === 'profile') {
       const mergedName = `${profileForm.firstName} ${profileForm.lastName}`.trim()
       updateUser(currentUser.id, {
@@ -83,6 +83,7 @@ export default function Settings() {
   }
 
   const handlePhotoUpload = (e) => {
+    if (!currentUser) return
     const file = e.target.files?.[0]
     if (!file) return
     if (!file.type.startsWith('image/')) {
