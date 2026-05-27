@@ -96,53 +96,126 @@ export default function LeadManager() {
     processFile(selected)
   }
 
-  const processFile = async (file) => {
+  // ── Client-side CSV parser ─────────────────────────────────────────────────
+  const parseCSVText = (text) => {
+    const lines = text.split(/\r?\n/).filter(l => l.trim())
+    if (lines.length < 2) return []
+
+    // Parse a single CSV line respecting quoted fields
+    const parseLine = (line) => {
+      const result = []
+      let cur = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') { cur += '"'; i++ }
+          else inQuotes = !inQuotes
+        } else if (ch === ',' && !inQuotes) {
+          result.push(cur.trim()); cur = ''
+        } else {
+          cur += ch
+        }
+      }
+      result.push(cur.trim())
+      return result
+    }
+
+    const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''))
+    const rows = []
+
+    // Map header index to CRM field using AUTO_MAP_KEYWORDS
+    const fieldIndex = {}
+    Object.entries(AUTO_MAP_KEYWORDS).forEach(([field, keywords]) => {
+      const idx = headers.findIndex(h => keywords.some(kw => h.includes(kw.replace(/[^a-z0-9]/g, ''))))
+      if (idx !== -1) fieldIndex[field] = idx
+    })
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseLine(lines[i])
+      if (cols.every(c => !c)) continue
+      const row = {}
+      Object.entries(fieldIndex).forEach(([field, idx]) => {
+        row[field] = cols[idx] || ''
+      })
+      if (row.name || row.email || row.mobile) rows.push(row)
+    }
+    return rows
+  }
+
+  const processFile = (file) => {
     const validExtensions = ['.csv', '.xlsx', '.xls']
-    const hasValidExtension = validExtensions.some(ext => file.name.endsWith(ext))
+    const hasValidExtension = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
     if (!hasValidExtension) {
       showToast('Please upload a standard Excel (.xlsx, .xls) or CSV (.csv) file.', 'error')
       return
     }
 
+    // Only CSV is supported client-side without a library; .xlsx shows a helpful message
+    if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+      showToast('Excel files require a backend. Please save as CSV (.csv) and re-upload.', 'error')
+      return
+    }
+
     setBulkFile(file)
-    setBulkStep(2) // Transition to Step 2: Processing spinner
+    setBulkStep(2)
     setIsUploading(true)
+    showToast(`Processing "${file.name}"...`, 'info')
 
-    const formData = new FormData()
-    formData.append('file', file)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result
+        const rows = parseCSVText(text)
 
-    try {
-      showToast(`Uploading and processing "${file.name}"...`, 'info')
-
-      const res = await fetch('/api/leads/bulk-upload', {
-        method: 'POST',
-        body: formData
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        setIsUploading(false)
-        setUploadCount(data.count)
-        setBulkStep(3) // Transition to Step 3: Success Screen
-        showToast(`Successfully imported ${data.count.toLocaleString()} leads!`, 'success')
-
-        // Refresh all dynamic lead datasets instantly
-        if (typeof fetchAllData === 'function') {
-          fetchAllData()
+        if (rows.length === 0) {
+          setIsUploading(false)
+          setBulkStep(1)
+          showToast('No valid rows found. Check that your CSV has Name, Email, and Mobile columns.', 'error')
+          return
         }
-      } else {
-        const err = await res.json()
+
+        // Batch-insert all rows via addLead (uses context, falls back to localStorage)
+        let imported = 0
+        const now = new Date().toLocaleString('en-IN', { hour12: true })
+        const nextId = leads.length > 0 ? Math.max(...leads.map(l => l.id)) + 1 : 1
+
+        const newLeads = rows.map((row, i) => ({
+          id: nextId + i,
+          name:       row.name    || 'Unknown',
+          email:      row.email   || '',
+          mobile:     row.mobile  || '',
+          state:      row.state   || '',
+          city:       row.city    || '',
+          course:     row.course  || '',
+          source:     row.source  || 'Bulk Import',
+          owner:      row.owner   || 'Unassigned',
+          regDate:    now,
+          stage:      'Untouched',
+          stageColor: 'red',
+          score:      0,
+        }))
+
+        imported = newLeads.length
+        setLeads(prev => [...newLeads, ...prev])
+
         setIsUploading(false)
-        setBulkStep(1) // Reset to Step 1: Upload Zone
-        showToast(err.error || 'Failed to process bulk upload.', 'error')
+        setUploadCount(imported)
+        setBulkStep(3)
+        showToast(`Successfully imported ${imported.toLocaleString()} leads!`, 'success')
+      } catch (err) {
+        console.error(err)
+        setIsUploading(false)
+        setBulkStep(1)
+        showToast('Failed to parse the file. Please check the format and try again.', 'error')
       }
-    } catch (e) {
-      console.error(e)
-      setIsUploading(true) // prevent clicking while resetting
+    }
+    reader.onerror = () => {
       setIsUploading(false)
       setBulkStep(1)
-      showToast('Connection error. Failed to connect to the bulk uploader API.', 'error')
+      showToast('Could not read the file. Please try again.', 'error')
     }
+    reader.readAsText(file)
   }
 
   const downloadSampleCSV = () => {
@@ -310,8 +383,6 @@ export default function LeadManager() {
             onClick={() => {
               setBulkStep(1)
               setBulkFile(null)
-              setParsedData([])
-              setFileHeaders([])
               setShowBulkModal(true)
             }}
             className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
@@ -776,7 +847,7 @@ export default function LeadManager() {
                   <div>
                     <h3 className="font-bold text-lg text-gray-800">Processing Bulk Upload...</h3>
                     <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto leading-relaxed">
-                      Parsing spreadsheet sheets, validating column fields, and executing high-performance multi-row batch inserts inside PostgreSQL. This will take about 3 seconds. Please do not refresh.
+                      Parsing your CSV, mapping columns, and importing leads. This will take a moment. Please do not close this window.
                     </p>
                   </div>
                 </div>
@@ -791,7 +862,7 @@ export default function LeadManager() {
                   <div>
                     <h3 className="font-bold text-lg text-gray-805">Leads Uploaded Successfully!</h3>
                     <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto leading-relaxed">
-                      Spreadsheet records from <span className="font-bold text-gray-750">"{bulkFile?.name}"</span> have been parsed and bulk-inserted into the PostgreSQL database registry successfully.
+                      Spreadsheet records from <span className="font-bold text-gray-700">"{bulkFile?.name}"</span> have been parsed and imported into the lead registry successfully.
                     </p>
                   </div>
                   <div className="inline-flex items-center gap-4 py-2.5 px-6 bg-emerald-50 border border-emerald-100 rounded-2xl text-xs text-emerald-800 font-semibold shadow-sm">
