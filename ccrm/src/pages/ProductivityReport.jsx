@@ -25,34 +25,32 @@ export default function ProductivityReport() {
   const [dateFilter, setDateFilter] = useState('Last 30 Days')
   const [currentPage, setCurrentPage] = useState(1)
 
-  // 1. Compile REPORT_DATA dynamically
+  // 1. Compile REPORT_DATA — use live stats from counselors API directly
   const REPORT_DATA = counselors.map(c => {
     const simplName = c.name.split(' ')[0]
-    
-    const assignedLeads = leads.filter(l => l.owner === c.name || l.owner?.split(' ')[0] === simplName).length
-    const untouchedCount = leads.filter(l => (l.owner === c.name || l.owner?.split(' ')[0] === simplName) && l.stage === 'Untouched').length
-    const engagedCount = assignedLeads - untouchedCount
-    
-    const assignedApps = applications.filter(app => {
+
+    // Use pre-computed stats from /api/counselors if available (non-zero)
+    // Fall back to cross-referencing local leads/apps/payments arrays
+    const assignedLeads  = c.leads   > 0 ? c.leads   : leads.filter(l => l.owner === c.name || l.owner?.split(' ')[0] === simplName).length
+    const untouchedCount = c.untouched > 0 ? c.untouched : leads.filter(l => (l.owner === c.name || l.owner?.split(' ')[0] === simplName) && l.stage === 'Untouched').length
+    const engagedCount   = c.engaged  > 0 ? c.engaged  : assignedLeads - untouchedCount
+    const assignedApps   = c.apps     > 0 ? c.apps     : applications.filter(app => {
       const lead = leads.find(l => l.name === app.name)
       return lead && (lead.owner === c.name || lead.owner?.split(' ')[0] === simplName)
     }).length
-
-    const approvedCount = payments.filter(p => {
+    const approvedCount  = c.payApproved > 0 ? c.payApproved : payments.filter(p => {
       if (p.status !== 'Approved' && p.status !== 'Payment Approved') return false
       const app = applications.find(a => a.appNo === p.appNo)
       if (!app) return false
       const lead = leads.find(l => l.name === app.name)
       return lead && (lead.owner === c.name || lead.owner?.split(' ')[0] === simplName)
     }).length
-
-    const submittedCount = applications.filter(app => {
+    const submittedCount = c.submitted > 0 ? c.submitted : applications.filter(app => {
       if (app.stage !== 'Application Submitted') return false
       const lead = leads.find(l => l.name === app.name)
       return lead && (lead.owner === c.name || lead.owner?.split(' ')[0] === simplName)
     }).length
-
-    const enrolledCount = applications.filter(app => {
+    const enrolledCount  = c.enrolled  > 0 ? c.enrolled  : applications.filter(app => {
       if (app.stage !== 'Enrolment' && app.stage !== 'Enrolments') return false
       const lead = leads.find(l => l.name === app.name)
       return lead && (lead.owner === c.name || lead.owner?.split(' ')[0] === simplName)
@@ -61,14 +59,14 @@ export default function ProductivityReport() {
     return {
       owner: c.name,
       email: c.email || `${simplName.toLowerCase()}@cutm.ac.in`,
-      leadAssigned: assignedLeads || Math.floor(c.leads / 8),
-      leadsNotEngaged: untouchedCount || Math.floor(c.untouched / 8),
-      leadsEngaged: engagedCount || Math.floor(c.engaged / 8),
-      untouched: untouchedCount || Math.floor(c.untouched / 8),
-      appAssigned: assignedApps || Math.floor(c.apps / 8),
-      payApproved: approvedCount || Math.floor(c.payApproved / 8),
-      appSubmitted: submittedCount || Math.floor(c.submitted / 8),
-      enrolment: enrolledCount || Math.floor(c.enrolled / 8)
+      leadAssigned:    assignedLeads,
+      leadsNotEngaged: untouchedCount,
+      leadsEngaged:    engagedCount,
+      untouched:       untouchedCount,
+      appAssigned:     assignedApps,
+      payApproved:     approvedCount,
+      appSubmitted:    submittedCount,
+      enrolment:       enrolledCount,
     }
   })
 
