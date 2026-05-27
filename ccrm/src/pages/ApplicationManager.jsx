@@ -7,7 +7,12 @@ import {
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
-const EXAM_OPTIONS = ['CUEE Application 2026', 'CUEE Application 2025', 'CUTM MBA 2026', 'CUTM PhD 2026']
+const EXAM_OPTIONS = [
+  { label: 'CUEE Application 2026', courses: ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'B.Com', 'B.Tech Civil', 'B.Tech Mech'], year: '2026' },
+  { label: 'CUEE Application 2025', courses: ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'B.Com'], year: '2025' },
+  { label: 'CUTM MBA 2026',         courses: ['MBA', 'MBA (Finance)', 'MBA (Marketing)', 'MBA (HR)'], year: '2026' },
+  { label: 'CUTM PhD 2026',         courses: ['M.Tech', 'M.Sc Agriculture (Genetics)', 'M.Sc', 'PhD'], year: '2026' },
+]
 const QUICK_VIEWS = ['All Applications', 'My Applications', 'Payment Pending', 'Approved', 'Submitted']
 
 export default function ApplicationManager() {
@@ -16,6 +21,7 @@ export default function ApplicationManager() {
 
   const [selectedRows, setSelectedRows] = useState([])
   const [exam, setExam] = useState('CUEE Application 2026')
+  const selectedExamObj = EXAM_OPTIONS.find(e => e.label === exam) || EXAM_OPTIONS[0]
   const [quickView, setQuickView] = useState('All Applications')
   const [currentPage, setCurrentPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -93,8 +99,14 @@ export default function ApplicationManager() {
                           a.appNo.toLowerCase().includes(search.toLowerCase()) ||
                           a.email.toLowerCase().includes(search.toLowerCase()) ||
                           a.mobile.toLowerCase().includes(search.toLowerCase())
-    
-    return matchesSearch && matchQuickView(a) && matchSelectFilters(a)
+
+    // Exam/application type filter — match course to selected exam bucket
+    const matchesExam = selectedExamObj.courses.some(c =>
+      a.course?.toLowerCase().includes(c.toLowerCase()) ||
+      c.toLowerCase().includes(a.course?.toLowerCase() || '')
+    )
+
+    return matchesSearch && matchesExam && matchQuickView(a) && matchSelectFilters(a)
   })
 
   const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1
@@ -192,16 +204,26 @@ export default function ApplicationManager() {
       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-bold text-gray-900">Application Manager</h1>
-          {/* Exam selector */}
-          <div className="relative">
-            <select
-              value={exam}
-              onChange={e => setExam(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-primary-300 rounded-lg bg-primary-50 text-primary-700 font-medium focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer"
-            >
-              {EXAM_OPTIONS.map(o => <option key={o}>{o}</option>)}
-            </select>
-            <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-500 pointer-events-none" />
+          {/* Exam/Application-type selector */}
+          <div className="relative flex items-center gap-2">
+            <div className="relative">
+              <select
+                value={exam}
+                onChange={e => { setExam(e.target.value); setCurrentPage(1); }}
+                className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-primary-300 rounded-lg bg-primary-50 text-primary-700 font-medium focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer"
+              >
+                {EXAM_OPTIONS.map(o => {
+                  const cnt = applications.filter(a =>
+                    o.courses.some(c =>
+                      a.course?.toLowerCase().includes(c.toLowerCase()) ||
+                      c.toLowerCase().includes(a.course?.toLowerCase() || '')
+                    )
+                  ).length
+                  return <option key={o.label} value={o.label}>{o.label} ({cnt})</option>
+                })}
+              </select>
+              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-500 pointer-events-none" />
+            </div>
           </div>
           {/* Quick views */}
           <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-lg p-1">
@@ -498,7 +520,7 @@ export default function ApplicationManager() {
                     onChange={e => setNewApp(p => ({ ...p, course: e.target.value }))}
                     className="input-field text-sm"
                   >
-                    {['B.Tech CSE', 'B.Tech ECE', 'MBA', 'BCA', 'B.Com', 'M.Sc Agriculture (Genetics)', 'M.Tech'].map(c => (
+                    {['B.Tech CSE', 'B.Tech ECE', 'B.Tech Civil', 'B.Tech Mech', 'MBA', 'MBA (Finance)', 'MBA (Marketing)', 'MBA (HR)', 'BCA', 'BBA', 'B.Com', 'M.Sc Agriculture (Genetics)', 'M.Tech', 'PhD'].map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>

@@ -52,7 +52,7 @@ const REPORT_TYPES = [
 ]
 
 export default function Reports() {
-  const { leads, applications, payments, showToast } = useCcrm()
+  const { leads, applications, payments, campaigns, counselors, showToast } = useCcrm()
   const [activeReport, setActiveReport] = useState('Lead Summary')
   const [dateRange, setDateRange] = useState('Last 30 Days')
 
@@ -66,8 +66,8 @@ export default function Reports() {
   const totalRevenue = payments.filter(p => p.status === 'Approved' || p.status === 'Payment Approved').reduce((s, p) => s + Number(p.amount || 0), 0)
 
   // 2. Compute dynamic sources
-  const leadSources = ['Facebook Ads', 'Google Ads', 'LinkedIn', 'WhatsApp', 'Referral', 'Walk-in', 'Website', 'SMS Campaign']
-  const sourceData = leadSources.map(src => {
+  const allSources = Array.from(new Set(leads.map(l => l.source).filter(Boolean)))
+  const sourceData = allSources.map(src => {
     const count = leads.filter(l => l.source === src).length
     return {
       source: src,
@@ -85,24 +85,60 @@ export default function Reports() {
 
   const funnelData = [
     { name: 'Total Leads',          value: totalLeads, fill: '#003087' },
-    { name: 'Contacted',            value: contacted, fill: '#1d4ed8' },
+    { name: 'Contacted',            value: contacted,  fill: '#1d4ed8' },
     { name: 'Interested',           value: interested, fill: '#3b82f6' },
-    { name: 'Application Started',  value: started, fill: '#60a5fa' },
-    { name: 'Payment Done',         value: paid,  fill: '#93c5fd' },
-    { name: 'Enrolled',             value: enrolled,  fill: '#bfdbfe' },
+    { name: 'Application Started',  value: started,    fill: '#60a5fa' },
+    { name: 'Payment Done',         value: paid,       fill: '#93c5fd' },
+    { name: 'Enrolled',             value: enrolled,   fill: '#bfdbfe' },
   ]
 
-  // 4. Compute dynamic courses
-  const courses = ['B.Tech CSE', 'MBA', 'B.Tech ECE', 'BCA', 'M.Tech', 'B.Com']
-  const courseData = courses.map(c => {
+  // 4. Compute dynamic courses (from actual application data)
+  const allCourses = Array.from(new Set(applications.map(a => a.course).filter(Boolean)))
+  const courseData = allCourses.map(c => {
     const cApps = applications.filter(a => a.course === c).length
     const cEnrolled = applications.filter(a => a.course === c && (a.stage === 'Enrolment' || a.stage === 'Enrolments')).length
-    return {
-      course: c,
-      apps: cApps,
-      enrolled: cEnrolled
-    }
-  })
+    const cPaid = payments.filter(p => {
+      const app = applications.find(a => a.appNo === p.appNo && a.course === c)
+      return app && (p.status === 'Approved' || p.status === 'Payment Approved')
+    }).length
+    return { course: c, apps: cApps, enrolled: cEnrolled, paid: cPaid }
+  }).sort((a, b) => b.apps - a.apps)
+
+  // 5. Campaign performance data (from live campaigns)
+  const campaignData = campaigns.map(c => ({
+    name: c.name.length > 20 ? c.name.slice(0, 20) + '…' : c.name,
+    fullName: c.name,
+    channel: c.channel,
+    budget: Number(c.budget || 0),
+    spent: Number(c.spent || 0),
+    leads: Number(c.leads || 0),
+    conversions: Number(c.conversions || 0),
+    roi: c.spent > 0 ? Math.round(((c.conversions * 25000 - c.spent) / c.spent) * 100) : 0,
+    cpl: c.leads > 0 ? Math.round(c.spent / c.leads) : 0,
+    status: c.status
+  }))
+
+  // 6. Team productivity data (from live counselors)
+  const teamData = counselors.map(c => ({
+    name: c.name.split(' ')[0],
+    fullName: c.name,
+    leads: c.leads || 0,
+    apps: c.apps || 0,
+    enrolled: c.enrolled || 0,
+    submitted: c.submitted || 0,
+    payApproved: c.payApproved || 0,
+    convRate: c.leads > 0 ? Math.round((c.apps / c.leads) * 100) : 0,
+  })).filter(c => c.leads > 0).sort((a, b) => b.leads - a.leads)
+
+  // 7. Payment breakdown
+  const payApproved = payments.filter(p => p.status === 'Approved' || p.status === 'Payment Approved')
+  const payPending  = payments.filter(p => p.status === 'Pending')
+  const payFailed   = payments.filter(p => p.status === 'Failed')
+  const payMethodData = [
+    { method: 'Online',  count: payments.filter(p => p.method === 'Online').length,  amount: payments.filter(p => p.method === 'Online').reduce((s,p) => s+Number(p.amount||0), 0) },
+    { method: 'Offline', count: payments.filter(p => p.method === 'Offline').length, amount: payments.filter(p => p.method === 'Offline').reduce((s,p) => s+Number(p.amount||0), 0) },
+    { method: 'Pending', count: payPending.length, amount: payPending.reduce((s,p) => s+Number(p.amount||0), 0) },
+  ].filter(m => m.count > 0)
 
   const handleExport = () => {
     showToast('Preparing custom PDF and CSV report bundle for ' + activeReport + '...', 'info')
@@ -252,6 +288,276 @@ export default function Reports() {
             </div>
           </div>
         )
+      case 'Campaign Performance':
+        return (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Campaign ROI & Lead Generation</h3>
+              {campaignData.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No campaigns found.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={campaignData} margin={{ top: 5, right: 20, left: 0, bottom: 40 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} angle={-30} textAnchor="end" interval={0} />
+                    <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                    <Tooltip formatter={(v, n) => [v.toLocaleString(), n]} />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
+                    <Bar dataKey="leads" name="Leads Generated" fill="#003087" radius={[4,4,0,0]} />
+                    <Bar dataKey="conversions" name="Conversions" fill="#f5a623" radius={[4,4,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div className="overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm">
+              <table className="w-full">
+                <thead><tr className="bg-gray-50">
+                  {['Campaign','Channel','Status','Budget','Spent','Leads','Conv.','CPL','ROI%'].map(h => (
+                    <th key={h} className="table-th text-xs">{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {campaignData.map((c, i) => (
+                    <tr key={i} className="hover:bg-gray-50 border-t border-gray-100">
+                      <td className="table-td text-xs font-medium text-gray-800 max-w-32 truncate" title={c.fullName}>{c.name}</td>
+                      <td className="table-td text-xs text-gray-500">{c.channel}</td>
+                      <td className="table-td"><span className={`badge text-[10px] font-bold ${c.status === 'Active' ? 'bg-green-100 text-green-700' : c.status === 'Paused' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>{c.status}</span></td>
+                      <td className="table-td text-xs text-gray-600">₹{c.budget.toLocaleString()}</td>
+                      <td className="table-td text-xs text-gray-600">₹{c.spent.toLocaleString()}</td>
+                      <td className="table-td text-xs font-semibold text-primary-600">{c.leads.toLocaleString()}</td>
+                      <td className="table-td text-xs font-semibold text-green-600">{c.conversions}</td>
+                      <td className="table-td text-xs text-gray-600">₹{c.cpl.toLocaleString()}</td>
+                      <td className="table-td text-xs font-bold text-emerald-600">{c.roi}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+
+      case 'Team Productivity':
+        return (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Counselor Performance Comparison</h3>
+              {teamData.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No counselor data found.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={teamData.slice(0, 10)} margin={{ top: 5, right: 20, left: 0, bottom: 40 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                    <Tooltip formatter={(v, n) => [v.toLocaleString(), n]} />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
+                    <Bar dataKey="leads" name="Total Leads" fill="#003087" radius={[4,4,0,0]} />
+                    <Bar dataKey="apps" name="Applications" fill="#f5a623" radius={[4,4,0,0]} />
+                    <Bar dataKey="enrolled" name="Enrolled" fill="#10b981" radius={[4,4,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div className="overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm">
+              <table className="w-full">
+                <thead><tr className="bg-gray-50">
+                  {['Counselor','Leads','Apps','Submitted','Enrolled','Pay Approved','Conv. Rate'].map(h => (
+                    <th key={h} className="table-th text-xs">{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {teamData.map((c, i) => (
+                    <tr key={i} className="hover:bg-gray-50 border-t border-gray-100">
+                      <td className="table-td font-semibold text-sm text-gray-800">{c.fullName}</td>
+                      <td className="table-td text-xs font-semibold text-primary-600">{c.leads.toLocaleString()}</td>
+                      <td className="table-td text-xs text-gray-600">{c.apps}</td>
+                      <td className="table-td text-xs text-purple-600 font-medium">{c.submitted}</td>
+                      <td className="table-td text-xs font-bold text-emerald-600">{c.enrolled}</td>
+                      <td className="table-td text-xs font-bold text-green-600">{c.payApproved}</td>
+                      <td className="table-td">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-gray-100 rounded-full h-1.5 min-w-12">
+                            <div className="bg-primary-500 h-1.5 rounded-full" style={{ width: `${Math.min(c.convRate, 100)}%` }} />
+                          </div>
+                          <span className="text-xs font-semibold text-gray-700">{c.convRate}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+
+      case 'Course-wise Report':
+        return (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Course-wise Applications & Enrollments</h3>
+              {courseData.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No application data found.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={courseData} layout="vertical" margin={{ top: 5, right: 20, left: 80, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="course" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} width={80} />
+                    <Tooltip />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
+                    <Bar dataKey="apps" name="Applications" fill="#003087" radius={[0,4,4,0]} />
+                    <Bar dataKey="enrolled" name="Enrolled" fill="#10b981" radius={[0,4,4,0]} />
+                    <Bar dataKey="paid" name="Payment Approved" fill="#f5a623" radius={[0,4,4,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        )
+
+      case 'Payment Report':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Payment Status Overview</h3>
+              <div className="space-y-3 mt-2">
+                {[
+                  { label: 'Approved', count: payApproved.length, amount: payApproved.reduce((s,p) => s+Number(p.amount||0),0), color: '#10b981', bg: 'bg-green-50', text: 'text-green-700' },
+                  { label: 'Pending',  count: payPending.length,  amount: payPending.reduce((s,p) => s+Number(p.amount||0),0),  color: '#f5a623', bg: 'bg-yellow-50',text: 'text-yellow-700' },
+                  { label: 'Failed',   count: payFailed.length,   amount: payFailed.reduce((s,p) => s+Number(p.amount||0),0),   color: '#ef4444', bg: 'bg-red-50',   text: 'text-red-700'   },
+                ].map(row => (
+                  <div key={row.label} className={`flex items-center justify-between p-3 ${row.bg} rounded-lg`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full" style={{ background: row.color }} />
+                      <span className={`text-sm font-semibold ${row.text}`}>{row.label}</span>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-bold ${row.text}`}>{row.count} transactions</p>
+                      <p className="text-xs text-gray-500">₹{row.amount.toLocaleString()}</p>
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="flex justify-between text-sm font-bold text-gray-900">
+                    <span>Total Collected</span>
+                    <span className="text-primary-600">₹{totalRevenue.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Payment Method Breakdown</h3>
+              {payMethodData.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No payment data found.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={payMethodData} dataKey="count" nameKey="method" cx="50%" cy="50%" outerRadius={75} innerRadius={40}>
+                      {payMethodData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v, n) => [v, n]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+              <div className="mt-3 space-y-1.5">
+                {payMethodData.map((m, i) => (
+                  <div key={m.method} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
+                      <span className="text-gray-600 font-medium">{m.method}</span>
+                    </div>
+                    <span className="font-semibold text-gray-700">₹{m.amount.toLocaleString()} ({m.count})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Recent approved payments table */}
+            <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50">
+                <h3 className="font-semibold text-gray-800 text-sm">Recent Approved Payments</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead><tr className="bg-gray-50">
+                    {['Student','App No','Amount','Method','Date','Txn ID'].map(h => <th key={h} className="table-th text-xs">{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {payApproved.slice(0, 8).map(p => (
+                      <tr key={p.id} className="hover:bg-gray-50 border-t border-gray-100">
+                        <td className="table-td font-medium text-sm text-gray-800">{p.name}</td>
+                        <td className="table-td font-mono text-xs text-gray-600">{p.appNo}</td>
+                        <td className="table-td text-sm font-bold text-green-600">₹{Number(p.amount).toLocaleString()}</td>
+                        <td className="table-td text-xs text-gray-600">{p.method || '—'}</td>
+                        <td className="table-td text-xs text-gray-600">{p.date}</td>
+                        <td className="table-td font-mono text-xs text-gray-500">{p.txnId || '—'}</td>
+                      </tr>
+                    ))}
+                    {payApproved.length === 0 && (
+                      <tr><td colSpan={6} className="text-center py-8 text-gray-400 text-sm">No approved payments yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+
+      case 'Enrollment Report':
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: 'Total Applications',  value: totalApps,    color: 'text-blue-600',   bg: 'bg-blue-50'   },
+                { label: 'Payment Approved',     value: paid,          color: 'text-green-600',  bg: 'bg-green-50'  },
+                { label: 'Submitted',            value: applications.filter(a => a.stage === 'Application Submitted').length, color: 'text-purple-600', bg: 'bg-purple-50' },
+                { label: 'Enrolled',             value: enrolledCount, color: 'text-emerald-600',bg: 'bg-emerald-50'},
+              ].map(card => (
+                <div key={card.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-center">
+                  <div className={`text-2xl font-extrabold ${card.color}`}>{card.value}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{card.label}</div>
+                  <div className={`w-full mt-2 ${card.bg} h-1.5 rounded-full`}>
+                    <div className={`h-1.5 rounded-full ${card.color.replace('text','bg')}`}
+                      style={{ width: `${Math.min((card.value / (totalApps || 1)) * 100, 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Application Stage Distribution</h3>
+              {(() => {
+                const stagesMap = {}
+                applications.forEach(a => {
+                  stagesMap[a.stage] = (stagesMap[a.stage] || 0) + 1
+                })
+                const stagesArr = Object.entries(stagesMap).map(([stage, count]) => ({ stage, count })).sort((a,b) => b.count - a.count)
+                return stagesArr.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-8">No application data found.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {stagesArr.map((s, i) => {
+                      const pct = Math.round((s.count / (totalApps || 1)) * 100)
+                      return (
+                        <div key={s.stage}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-gray-600 font-medium">{s.stage}</span>
+                            <span className="text-xs font-semibold text-gray-700">{s.count} ({pct}%)</span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-4">
+                            <div className="h-4 rounded-full transition-all" style={{ width: `${pct}%`, background: COLORS[i % COLORS.length] }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )
+
       default:
         return (
           <div className="flex flex-col items-center justify-center p-16 bg-white rounded-2xl border border-gray-200 shadow-sm text-center">

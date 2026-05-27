@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useGoogleLogin } from '@react-oauth/google'
-import { Eye, EyeOff, GraduationCap, AlertCircle, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, GraduationCap, AlertCircle, ShieldCheck, X, CheckCircle2, Mail } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
 // ── Env config ────────────────────────────────────────────────────────────────
@@ -27,8 +27,72 @@ export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError]               = useState('')
 
+  // Forgot password state
+  const [showForgot, setShowForgot]     = useState(false)
+  const [fpStep, setFpStep]             = useState(1)   // 1: enter email, 2: enter OTP+new pw
+  const [fpEmail, setFpEmail]           = useState('')
+  const [fpOtp, setFpOtp]               = useState('')
+  const [fpNewPw, setFpNewPw]           = useState('')
+  const [fpConfirmPw, setFpConfirmPw]   = useState('')
+  const [fpLoading, setFpLoading]       = useState(false)
+  const [fpError, setFpError]           = useState('')
+  const [fpSuccess, setFpSuccess]       = useState(false)
+  const [showFpPw, setShowFpPw]         = useState(false)
+
   const typedDomain = getEmailDomain(email)
   const domainValid = !typedDomain || ALLOWED_DOMAINS.includes(typedDomain)
+
+  // ── Forgot Password handlers ──────────────────────────────────────────────
+  const handleForgotSubmitEmail = async (e) => {
+    e.preventDefault()
+    setFpError('')
+    if (!fpEmail || !fpEmail.includes('@')) { setFpError('Enter a valid email address.'); return }
+    setFpLoading(true)
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: fpEmail })
+      })
+      const data = await res.json()
+      if (!res.ok) { setFpError(data.error || 'Failed to send OTP.'); }
+      else { setFpStep(2) }
+    } catch {
+      // Offline fallback: still advance (OTP won't be sent but user can try)
+      setFpStep(2)
+    } finally {
+      setFpLoading(false)
+    }
+  }
+
+  const handleForgotResetPassword = async (e) => {
+    e.preventDefault()
+    setFpError('')
+    if (!fpOtp.trim()) { setFpError('Enter the OTP sent to your email.'); return }
+    if (fpNewPw.length < MIN_PASSWORD_LEN) { setFpError(`Password must be at least ${MIN_PASSWORD_LEN} characters.`); return }
+    if (fpNewPw !== fpConfirmPw) { setFpError('Passwords do not match.'); return }
+    setFpLoading(true)
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: fpEmail, otp: fpOtp, newPassword: fpNewPw })
+      })
+      const data = await res.json()
+      if (!res.ok) { setFpError(data.error || 'Failed to reset password.') }
+      else { setFpSuccess(true) }
+    } catch {
+      setFpError('Unable to connect to server. Please try again.')
+    } finally {
+      setFpLoading(false)
+    }
+  }
+
+  const closeForgot = () => {
+    setShowForgot(false)
+    setFpStep(1); setFpEmail(''); setFpOtp(''); setFpNewPw(''); setFpConfirmPw('')
+    setFpError(''); setFpLoading(false); setFpSuccess(false)
+  }
 
   // ── Email/password login ───────────────────────────────────────────────────
   const handleSubmit = async (e) => {
@@ -325,7 +389,7 @@ export default function Login() {
                 <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-400" />
                 <span className="text-sm text-gray-600">Remember me</span>
               </label>
-              <button type="button" className="text-sm text-primary-500 hover:text-primary-600 font-medium">
+              <button type="button" onClick={() => setShowForgot(true)} className="text-sm text-primary-500 hover:text-primary-600 font-medium">
                 Forgot Password?
               </button>
             </div>
@@ -357,6 +421,166 @@ export default function Login() {
           </div>
         </div>
       </div>
+
+      {/* ── Forgot Password Modal ─────────────────────────────────────────────── */}
+      {showForgot && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
+                  <Mail size={16} className="text-primary-500" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Forgot Password</h2>
+                  <p className="text-xs text-gray-500">Reset your CCRM account password</p>
+                </div>
+              </div>
+              <button onClick={closeForgot} className="text-gray-400 hover:text-gray-600 p-1">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Step indicator */}
+            <div className="flex px-6 py-2.5 border-b border-gray-100 bg-gray-50/30 gap-4 text-xs font-semibold">
+              {['Enter Email', 'Verify & Reset'].map((label, i) => (
+                <div key={label} className={`flex items-center gap-1.5 ${fpStep > i+1 ? 'text-green-600' : fpStep === i+1 ? 'text-primary-600' : 'text-gray-400'}`}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border ${
+                    fpStep > i+1 ? 'bg-green-500 border-green-500 text-white' :
+                    fpStep === i+1 ? 'bg-primary-500 border-primary-500 text-white' :
+                    'bg-white border-gray-300 text-gray-400'
+                  }`}>
+                    {fpStep > i+1 ? '✓' : i+1}
+                  </div>
+                  {label}
+                  {i === 0 && <div className="w-8 h-0.5 bg-gray-200 mx-0.5" />}
+                </div>
+              ))}
+            </div>
+
+            <div className="p-6">
+              {fpSuccess ? (
+                <div className="text-center py-4 space-y-3">
+                  <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                    <CheckCircle2 size={32} className="text-green-500" />
+                  </div>
+                  <h3 className="font-bold text-gray-900">Password Reset Successful!</h3>
+                  <p className="text-sm text-gray-500">Your password has been updated. You can now log in with your new password.</p>
+                  <button onClick={closeForgot} className="btn-primary px-6 py-2 text-sm mt-2">
+                    Back to Login
+                  </button>
+                </div>
+              ) : fpStep === 1 ? (
+                <form onSubmit={handleForgotSubmitEmail} className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Enter your official email address. An OTP will be sent to reset your password.
+                  </p>
+                  {fpError && (
+                    <div className="bg-red-50 border border-red-200 text-red-600 text-xs px-3 py-2 rounded-lg flex gap-2">
+                      <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                      {fpError}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+                    <input
+                      type="email"
+                      value={fpEmail}
+                      onChange={e => setFpEmail(e.target.value)}
+                      placeholder={`you@${ALLOWED_DOMAINS[0]}`}
+                      className="input-field"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={fpLoading}
+                    className="w-full btn-primary py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {fpLoading ? (
+                      <><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Sending OTP...</>
+                    ) : 'Send OTP to Email'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleForgotResetPassword} className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 text-blue-700 text-xs px-3 py-2 rounded-lg">
+                    OTP sent to <strong>{fpEmail}</strong>. Check your inbox (and spam folder).
+                  </div>
+                  {fpError && (
+                    <div className="bg-red-50 border border-red-200 text-red-600 text-xs px-3 py-2 rounded-lg flex gap-2">
+                      <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                      {fpError}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Enter OTP</label>
+                    <input
+                      type="text"
+                      value={fpOtp}
+                      onChange={e => setFpOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="6-digit OTP"
+                      className="input-field tracking-widest text-center text-lg font-bold"
+                      maxLength={6}
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showFpPw ? 'text' : 'password'}
+                        value={fpNewPw}
+                        onChange={e => setFpNewPw(e.target.value)}
+                        placeholder={`Min ${MIN_PASSWORD_LEN} characters`}
+                        className="input-field pr-10"
+                        required
+                      />
+                      <button type="button" onClick={() => setShowFpPw(!showFpPw)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showFpPw ? <EyeOff size={16}/> : <Eye size={16}/>}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm New Password</label>
+                    <input
+                      type="password"
+                      value={fpConfirmPw}
+                      onChange={e => setFpConfirmPw(e.target.value)}
+                      placeholder="Re-enter new password"
+                      className={`input-field ${fpConfirmPw && fpNewPw !== fpConfirmPw ? 'border-red-400' : ''}`}
+                      required
+                    />
+                    {fpConfirmPw && fpNewPw !== fpConfirmPw && (
+                      <p className="text-xs text-red-500 mt-1">Passwords do not match.</p>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => { setFpStep(1); setFpError('') }}
+                      className="flex-1 btn-secondary py-2.5 text-sm">
+                      ← Back
+                    </button>
+                    <button type="submit" disabled={fpLoading}
+                      className="flex-1 btn-primary py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+                      {fpLoading ? (
+                        <><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Resetting...</>
+                      ) : 'Reset Password'}
+                    </button>
+                  </div>
+                  <button type="button" onClick={() => { setFpStep(1); handleForgotSubmitEmail({ preventDefault: () => {} }) }}
+                    className="w-full text-xs text-primary-500 hover:text-primary-700 text-center mt-1">
+                    Didn't receive OTP? Resend
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

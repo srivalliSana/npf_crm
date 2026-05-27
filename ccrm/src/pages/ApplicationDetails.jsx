@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
-const STAGES = [
+const APP_STAGES = [
   'Unverified',
   'Verified',
   'Application Started',
@@ -16,6 +16,18 @@ const STAGES = [
   'Application Submitted',
   'Enrolment',
 ]
+
+const LEAD_STAGES = [
+  'Untouched',
+  'Contacted',
+  'Follow Up',
+  'Interested',
+  'Qualified Leads',
+  'Converted',
+]
+
+// Alias used generically (kept for backward compat)
+const STAGES = APP_STAGES
 
 const TABS = [
   'Lead Details',
@@ -141,7 +153,10 @@ export default function ApplicationDetails() {
     venue: 'Online Google Meet'
   })
 
-  const stageIdx = STAGES.indexOf(appStage) !== -1 ? STAGES.indexOf(appStage) : 0
+  // Use correct stage list depending on whether viewing lead or application
+  const activeStages = isApp ? APP_STAGES : LEAD_STAGES
+  const activeCurrentStage = isApp ? appStage : leadStage
+  const stageIdx = activeStages.indexOf(activeCurrentStage) !== -1 ? activeStages.indexOf(activeCurrentStage) : 0
 
   const stageBadgeColor = (stage) => {
     const map = {
@@ -202,52 +217,65 @@ export default function ApplicationDetails() {
 
   const handleStageClick = (stageName, stageIndex) => {
     const dateStr = new Date().toLocaleString('en-IN', { hour12: true })
-    
+
     // Add timeline event
     const changeLog = {
       date: dateStr,
       type: 'stage',
-      text: `Stage progressed: ${appStage} → ${stageName}`
+      text: `Stage updated: ${activeCurrentStage} → ${stageName}`
     }
-    
+
     const newTimeline = [changeLog, ...localTimeline]
     setLocalTimeline(newTimeline)
 
-    if (isApp && associatedApp) {
+    if (!isApp) {
+      // ---- Lead stage update ----
+      const stageColorMap = {
+        'Untouched': 'red',
+        'Contacted': 'blue',
+        'Follow Up': 'yellow',
+        'Interested': 'green',
+        'Qualified Leads': 'green',
+        'Converted': 'emerald',
+      }
+      updateLead(associatedLead.id, {
+        stage: stageName,
+        stageColor: stageColorMap[stageName] || 'blue',
+        timeline: newTimeline
+      })
+      showToast(`Lead stage updated to "${stageName}"`, 'success')
+      return
+    }
+
+    // ---- Application stage update ----
+    if (associatedApp) {
       updateApplication(associatedApp.id, {
         stage: stageName,
         timeline: newTimeline
       })
     } else if (associatedLead) {
-      // If progressing stage in CRM, let's create a dynamic student application automatically!
-      if (!associatedApp) {
-        const newCreatedApp = addApplication({
-          name: studentName,
-          email: studentEmail,
-          mobile: studentMobile,
-          campus: campus,
-          course: course,
-          formStatus: 'Complete',
-          payStatus: stageIndex >= 3 ? 'Approved' : 'Payment Pending',
-          payMethod: stageIndex >= 3 ? 'Online' : '',
-          stage: stageName,
-          timeline: newTimeline
-        })
-        showToast(`Created matching student Application: ${newCreatedApp.appNo}`, 'success')
-      } else {
-        updateApplication(associatedApp.id, {
-          stage: stageName,
-          timeline: newTimeline
-        })
-      }
-      
+      // Auto-create application if none exists when pushing through app stages from lead view
+      const newCreatedApp = addApplication({
+        name: studentName,
+        email: studentEmail,
+        mobile: studentMobile,
+        campus: campus,
+        course: course,
+        formStatus: 'Complete',
+        payStatus: stageIndex >= 3 ? 'Approved' : 'Payment Pending',
+        payMethod: stageIndex >= 3 ? 'Online' : '',
+        stage: stageName,
+        timeline: newTimeline
+      })
+      showToast(`Created matching Application: ${newCreatedApp?.appNo || ''}`, 'success')
+
       updateLead(associatedLead.id, {
         stage: stageIndex >= 4 ? 'Converted' : 'Qualified Leads',
         timeline: newTimeline
       })
     }
 
-    showToast(`Application stage updated to ${stageName}`, 'success')
+    showToast(`Application stage updated to "${stageName}"`, 'success')
   }
 
   const handleAddNote = () => {
@@ -494,15 +522,15 @@ export default function ApplicationDetails() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold text-gray-700">Application Progress</h3>
-              <span className="text-xs text-gray-400 font-semibold">Stage {stageIdx + 1} of {STAGES.length}</span>
+              <span className="text-xs text-gray-400 font-semibold">{isApp ? 'Application' : 'Lead'} Stage {stageIdx + 1} of {activeStages.length}</span>
             </div>
             
             {/* Interactive stage bubbles */}
             <div className="flex items-center mt-3 overflow-x-auto pb-2">
-              {STAGES.map((stage, idx) => {
+              {activeStages.map((stage, idx) => {
                 const isCompleted = idx < stageIdx
                 const isCurrent = idx === stageIdx
-                const isLast = idx === STAGES.length - 1
+                const isLast = idx === activeStages.length - 1
                 return (
                   <React.Fragment key={stage}>
                     <button

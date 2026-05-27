@@ -132,6 +132,62 @@ app.post('/api/auth/login', async (req, res) => {
   }
 })
 
+// --- FORGOT PASSWORD (OTP-based reset) ---
+const otpStore = {} // { email: { otp, expires } } — in-memory for simplicity
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body
+  if (!email) return res.status(400).json({ error: 'Email is required.' })
+  try {
+    const userRes = await pool.query('SELECT id, name FROM users WHERE LOWER(email) = LOWER($1);', [email])
+    if (userRes.rows.length === 0) {
+      // Return success even if not found (security: don't reveal account existence)
+      return res.json({ message: 'If the email exists, a reset OTP has been sent.' })
+    }
+    const user = userRes.rows[0]
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    otpStore[email.toLowerCase()] = { otp, expires: Date.now() + 10 * 60 * 1000 } // 10 min
+
+    // Send OTP via SMTP mail
+    sendSystemMailAlert(
+      email,
+      'CCRM Password Reset OTP',
+      `Hello ${user.name},\n\nYour CCRM password reset OTP is: ${otp}\n\nThis OTP is valid for 10 minutes.\n\nIf you did not request this, please ignore this email.\n\nBest regards,\nCCRM Admin`
+    )
+    console.log(`[ForgotPassword] OTP for ${email}: ${otp}`) // Dev only
+    res.json({ message: 'If the email exists, a reset OTP has been sent.' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to process forgot password request.' })
+  }
+})
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { email, otp, newPassword } = req.body
+  if (!email || !otp || !newPassword) return res.status(400).json({ error: 'All fields required.' })
+  if (newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' })
+
+  const stored = otpStore[email.toLowerCase()]
+  if (!stored) return res.status(400).json({ error: 'No OTP requested for this email.' })
+  if (Date.now() > stored.expires) {
+    delete otpStore[email.toLowerCase()]
+    return res.status(400).json({ error: 'OTP has expired. Please request a new one.' })
+  }
+  if (stored.otp !== otp.trim()) {
+    return res.status(400).json({ error: 'Invalid OTP. Please check and try again.' })
+  }
+
+  try {
+    const updateRes = await pool.query('UPDATE users SET password = $1 WHERE LOWER(email) = LOWER($2) RETURNING id;', [newPassword, email])
+    if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Account not found.' })
+    delete otpStore[email.toLowerCase()]
+    res.json({ message: 'Password reset successfully. You can now log in.' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to reset password.' })
+  }
+})
+
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const userRes = await pool.query('SELECT id, name, email, role, team, status, picture, last_login AS "lastLogin" FROM users WHERE id = $1;', [req.user.id])
@@ -415,7 +471,7 @@ app.put('/api/queries/:id', async (req, res) => {
 // --- DOCUMENTS ROUTERS ---
 app.get('/api/documents', async (req, res) => {
   try {
-    const docsRes = await pool.query('SELECT id, student, type, status, upload_date AS "uploadDate" FROM documents ORDER BY id DESC;')
+    const docsRes = await pool.query('SELECT id, student, type, status, upload_date AS "uploadDate", file_url AS "fileUrl" FROM documents ORDER BY id DESC;')
     res.json(docsRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch documents.' })
@@ -423,18 +479,19 @@ app.get('/api/documents', async (req, res) => {
 })
 
 app.post('/api/documents', async (req, res) => {
-  const { student, type, status } = req.body
+  const { student, type, status, fileUrl } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO documents (student, type, status, upload_date)
-      VALUES ($1, $2, $3, $4)
-      RETURNING id, student, type, status, upload_date AS "uploadDate";
-    `, [student, type, status || 'Pending', new Date().toLocaleDateString('en-IN')])
+      INSERT INTO documents (student, type, status, upload_date, file_url)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, student, type, status, upload_date AS "uploadDate", file_url AS "fileUrl";
+    `, [student, type, status || 'Pending', new Date().toLocaleDateString('en-IN'), fileUrl || ''])
 
     await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Student uploaded document for verification: ${type}`, 'Just now'])
 
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
+    console.error(err)
     res.status(500).json({ error: 'Failed to register document upload.' })
   }
 })
