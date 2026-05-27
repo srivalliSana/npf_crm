@@ -97,6 +97,148 @@ export default function Reports() {
     }, 1000)
   }
 
+  const renderActiveReport = () => {
+    switch (activeReport) {
+      case 'Lead Summary':
+        return (
+          <div className="grid grid-cols-1 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Monthly Lead Trend</h3>
+              <ResponsiveContainer width="100%" height={320}>
+                <AreaChart data={monthlyData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="leadsGradOnly" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#003087" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#003087" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
+                  <Area type="monotone" dataKey="leads" name="Leads Registered" stroke="#003087" fill="url(#leadsGradOnly)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )
+      case 'Application Summary':
+        return (
+          <div className="grid grid-cols-1 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Course-wise Applications Breakdown</h3>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={courseData} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="course" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
+                  <Bar dataKey="apps" name="Applications Started" fill="#003087" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )
+      case 'Conversion Report':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Monthly Lead &amp; Enrollment Trend</h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart data={monthlyData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="leadsGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#003087" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#003087" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="enrollGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f5a623" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#f5a623" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
+                  <Area type="monotone" dataKey="leads" name="Leads" stroke="#003087" fill="url(#leadsGrad)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="enrolled" name="Enrolled" stroke="#f5a623" fill="url(#enrollGrad)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Enrollment Conversion Funnel</h3>
+              <div className="space-y-2 mt-2">
+                {funnelData.map((stage, i) => {
+                  const pct = Math.round((stage.value / (funnelData[0].value || 1)) * 100)
+                  return (
+                    <div key={stage.name}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-gray-600 font-medium">{stage.name}</span>
+                        <span className="text-xs font-semibold text-gray-700">{stage.value.toLocaleString()} ({pct}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-5 relative overflow-hidden">
+                        <div className="h-5 rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: stage.fill }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )
+      case 'Source Performance':
+        return (
+          <div className="grid grid-cols-1 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Lead Source Distribution</h3>
+              <div className="flex items-center gap-8 flex-col md:flex-row">
+                <ResponsiveContainer width="100%" height={240} className="md:w-1/2">
+                  <PieChart>
+                    <Pie data={sourceData} dataKey="leads" nameKey="source" cx="50%" cy="50%" outerRadius={85} innerRadius={45}>
+                      {sourceData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v, n) => [v.toLocaleString(), n]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex-1 space-y-3 w-full">
+                  {sourceData.map((s, i) => (
+                    <div key={s.source} className="flex items-center justify-between border-b border-gray-50 pb-1.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-3 h-3 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
+                        <span className="text-xs text-gray-600 font-semibold truncate max-w-40">{s.source}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-400 font-medium">{s.leads} leads</span>
+                        <span className="text-xs font-bold text-gray-750">{s.pct}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center p-16 bg-white rounded-2xl border border-gray-200 shadow-sm text-center">
+            <div className="w-16 h-16 bg-blue-50/50 text-blue-500 rounded-2xl flex items-center justify-center mb-4 border border-blue-100">
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m-9 1V4a2 2 0 012-2h6l2 2h6a2 2 0 012 2v7m-18 0h18" />
+              </svg>
+            </div>
+            <h3 className="text-base font-bold text-gray-805">No Data Logs Found</h3>
+            <p className="text-xs text-gray-400 mt-1 max-w-sm font-medium">
+              There are currently no analytic records compiled under <strong>"{activeReport}"</strong>. Nothing is there to show yet.
+            </p>
+          </div>
+        )
+    }
+  }
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -147,98 +289,9 @@ export default function Reports() {
         ))}
       </div>
 
-      {/* Charts grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        {/* Monthly trend */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Monthly Lead &amp; Enrollment Trend</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={monthlyData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-              <defs>
-                <linearGradient id="leadsGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#003087" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#003087" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="enrollGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f5a623" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#f5a623" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
-              <Area type="monotone" dataKey="leads" name="Leads" stroke="#003087" fill="url(#leadsGrad)" strokeWidth={2} />
-              <Area type="monotone" dataKey="enrolled" name="Enrolled" stroke="#f5a623" fill="url(#enrollGrad)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Lead source pie */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Lead Source Distribution</h3>
-          <div className="flex items-center gap-4 flex-col sm:flex-row">
-            <ResponsiveContainer width="100%" height={200} className="sm:w-1/2">
-              <PieChart>
-                <Pie data={sourceData} dataKey="leads" nameKey="source" cx="50%" cy="50%" outerRadius={70} innerRadius={35}>
-                  {sourceData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip formatter={(v, n) => [v.toLocaleString(), n]} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="flex-1 space-y-2 w-full">
-              {sourceData.slice(0, 5).map((s, i) => (
-                <div key={s.source} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
-                    <span className="text-xs text-gray-600 font-medium truncate max-w-28">{s.source}</span>
-                  </div>
-                  <span className="text-xs font-semibold text-gray-700">{s.pct}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Course-wise */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Course-wise Applications vs Enrollments</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={courseData} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="course" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
-              <Bar dataKey="apps" name="Applications" fill="#003087" radius={[0, 4, 4, 0]} />
-              <Bar dataKey="enrolled" name="Enrolled" fill="#f5a623" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Conversion funnel */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Enrollment Conversion Funnel</h3>
-          <div className="space-y-2 mt-2">
-            {funnelData.map((stage, i) => {
-              const pct = Math.round((stage.value / (funnelData[0].value || 1)) * 100)
-              return (
-                <div key={stage.name}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-gray-600 font-medium">{stage.name}</span>
-                    <span className="text-xs font-semibold text-gray-700">{stage.value.toLocaleString()} ({pct}%)</span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-5 relative overflow-hidden">
-                    <div className="h-5 rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: stage.fill }} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+      {/* Dynamic Report View Container */}
+      <div className="mt-4">
+        {renderActiveReport()}
       </div>
     </div>
   )

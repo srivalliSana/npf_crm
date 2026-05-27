@@ -5,6 +5,7 @@ import {
   Legend, ResponsiveContainer,
 } from 'recharts'
 import { ChevronDown, TrendingUp, Users, FileText, CheckCircle } from 'lucide-react'
+import ProductivityReport from './ProductivityReport'
 
 const TABS = ['User Dashboard', 'Productivity Report']
 
@@ -89,23 +90,25 @@ export default function Dashboard() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">User Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Overview of team performance and lead activity</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <select className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer">
-              <option>Last 30 Days</option>
-              <option>Last 7 Days</option>
-              <option>This Month</option>
-              <option>This Quarter</option>
-            </select>
-            <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      {activeTab === 'User Dashboard' && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">User Dashboard</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Overview of team performance and lead activity</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <select className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer">
+                <option>Last 30 Days</option>
+                <option>Last 7 Days</option>
+                <option>This Month</option>
+                <option>This Quarter</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6">
@@ -124,135 +127,141 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {SUMMARY_CARDS.map(card => {
-          const Icon = card.icon
-          return (
-            <div key={card.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className={`w-10 h-10 rounded-xl ${card.light} flex items-center justify-center`}>
-                  <Icon size={20} className={card.text} />
+      {activeTab === 'User Dashboard' ? (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {SUMMARY_CARDS.map(card => {
+              const Icon = card.icon
+              return (
+                <div key={card.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`w-10 h-10 rounded-xl ${card.light} flex items-center justify-center`}>
+                      <Icon size={20} className={card.text} />
+                    </div>
+                    <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full select-none">
+                      {card.change}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-extrabold text-gray-900">{card.value}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{card.label}</div>
                 </div>
-                <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full select-none">
-                  {card.change}
-                </span>
+              )
+            })}
+          </div>
+
+          {/* Bar chart */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+              <div>
+                <h2 className="font-semibold text-gray-800 text-sm md:text-base">User Wise Lead and Application Count</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Performance breakdown by counselor</p>
               </div>
-              <div className="text-2xl font-extrabold text-gray-900">{card.value}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{card.label}</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { value: leadsFilter, setter: setLeadsFilter, opts: ['Leads Assigned', 'Leads Engaged'] },
+                  { value: appsFilter, setter: setAppsFilter, opts: ['Application Assigned', 'Payment Approved'] },
+                  { value: countFilter, setter: setCountFilter, opts: ['10 Selected', '5 Selected', 'All'] },
+                ].map((f, i) => (
+                  <div key={i} className="relative">
+                    <select
+                      value={f.value}
+                      onChange={e => f.setter(e.target.value)}
+                      className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-300 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer"
+                    >
+                      {f.opts.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                    <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                ))}
+              </div>
             </div>
-          )
-        })}
-      </div>
 
-      {/* Bar chart */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div>
-            <h2 className="font-semibold text-gray-800 text-sm md:text-base">User Wise Lead and Application Count</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Performance breakdown by counselor</p>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart
+                data={counselorData.slice(0, countFilter === '5 Selected' ? 5 : countFilter === '10 Selected' ? 10 : counselorData.length)}
+                margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+                barCategoryGap="30%"
+                barGap={4}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend
+                  wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
+                  iconType="circle"
+                  iconSize={8}
+                />
+                <Bar dataKey="leads" name="Leads" fill="#003087" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="apps"  name="Applications" fill="#f5a623" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {[
-              { value: leadsFilter, setter: setLeadsFilter, opts: ['Leads Assigned', 'Leads Engaged'] },
-              { value: appsFilter, setter: setAppsFilter, opts: ['Application Assigned', 'Payment Approved'] },
-              { value: countFilter, setter: setCountFilter, opts: ['10 Selected', '5 Selected', 'All'] },
-            ].map((f, i) => (
-              <div key={i} className="relative">
-                <select
-                  value={f.value}
-                  onChange={e => f.setter(e.target.value)}
-                  className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-300 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer"
-                >
-                  {f.opts.map(o => <option key={o}>{o}</option>)}
-                </select>
-                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              </div>
-            ))}
-          </div>
-        </div>
 
-        <ResponsiveContainer width="100%" height={320}>
-          <BarChart
-            data={counselorData.slice(0, countFilter === '5 Selected' ? 5 : countFilter === '10 Selected' ? 10 : counselorData.length)}
-            margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
-            barCategoryGap="30%"
-            barGap={4}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 11, fill: '#6b7280' }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: '#6b7280' }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
-              iconType="circle"
-              iconSize={8}
-            />
-            <Bar dataKey="leads" name="Leads" fill="#003087" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="apps"  name="Applications" fill="#f5a623" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Bottom row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-        {/* Top performers */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Top Performers</h3>
-          <div className="space-y-3">
-            {sortedCounselors.slice(0, 5).map((c, idx) => (
-              <div key={c.name} className="flex items-center gap-3">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                  idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                  idx === 1 ? 'bg-gray-100 text-gray-600' :
-                  idx === 2 ? 'bg-orange-100 text-orange-700' :
-                  'bg-gray-50 text-gray-500'
-                }`}>{idx + 1}</span>
-                <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold select-none">
-                  {c.name.split(' ').map(n => n[0]).join('')}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">{c.name}</span>
-                    <span className="text-xs text-gray-500 font-bold">{c.leads} leads</span>
+          {/* Bottom row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+            {/* Top performers */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Top Performers</h3>
+              <div className="space-y-3">
+                {sortedCounselors.slice(0, 5).map((c, idx) => (
+                  <div key={c.name} className="flex items-center gap-3">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                      idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                      idx === 1 ? 'bg-gray-100 text-gray-600' :
+                      idx === 2 ? 'bg-orange-100 text-orange-700' :
+                      'bg-gray-50 text-gray-500'
+                    }`}>{idx + 1}</span>
+                    <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold select-none">
+                      {c.name.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">{c.name}</span>
+                        <span className="text-xs text-gray-500 font-bold">{c.leads} leads</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
+                        <div
+                          className="bg-primary-500 h-1.5 rounded-full transition-all"
+                          style={{ width: `${(c.leads / maxLeads) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
-                    <div
-                      className="bg-primary-500 h-1.5 rounded-full transition-all"
-                      style={{ width: `${(c.leads / maxLeads) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* Stage distribution */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Lead Stage Distribution</h3>
-          <div className="space-y-3">
-            {STAGES_DIST.map(s => (
-              <div key={s.stage} className="flex items-center gap-3">
-                <span className="text-xs text-gray-505 w-20 flex-shrink-0 font-medium">{s.stage}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-2">
-                  <div className={`${s.color} h-2 rounded-full transition-all duration-500`} style={{ width: `${s.pct}%` }}></div>
-                </div>
-                <span className="text-xs font-bold text-gray-700 w-8 text-right">{s.count}</span>
+            {/* Lead Stage Distribution */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Lead Stage Distribution</h3>
+              <div className="space-y-3">
+                {STAGES_DIST.map(s => (
+                  <div key={s.stage} className="flex items-center gap-3">
+                    <span className="text-xs text-gray-505 w-20 flex-shrink-0 font-medium">{s.stage}</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                      <div className={`${s.color} h-2 rounded-full transition-all duration-500`} style={{ width: `${s.pct}%` }}></div>
+                    </div>
+                    <span className="text-xs font-bold text-gray-700 w-8 text-right">{s.count}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      ) : (
+        <ProductivityReport />
+      )}
     </div>
   )
 }
