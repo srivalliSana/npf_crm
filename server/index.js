@@ -511,7 +511,63 @@ app.put('/api/campaigns/:id', async (req, res) => {
   }
 })
 
-// --- USERS MANAGEMENT ROUTERS ---
+// --- COUNSELORS (derived from users + live lead/app/payment stats) ---
+app.get('/api/counselors', async (req, res) => {
+  try {
+    const usersRes = await pool.query(
+      "SELECT id, name, email FROM users WHERE status = 'Active' ORDER BY name;"
+    )
+    const counselors = []
+    for (const u of usersRes.rows) {
+      const simplName = u.name.split(' ')[0]
+
+      const leadsRes = await pool.query(
+        "SELECT COUNT(*) FROM leads WHERE owner = $1 OR owner LIKE $2;",
+        [u.name, `${simplName}%`]
+      )
+      const untouchedRes = await pool.query(
+        "SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND stage = 'Untouched';",
+        [u.name, `${simplName}%`]
+      )
+      const appsRes = await pool.query(
+        "SELECT COUNT(*) FROM applications WHERE owner = $1 OR owner LIKE $2;",
+        [u.name, `${simplName}%`]
+      )
+      const payRes = await pool.query(
+        "SELECT COUNT(*) FROM payments p JOIN applications a ON p.app_no = a.app_no WHERE (a.owner = $1 OR a.owner LIKE $2) AND (p.status = 'Approved' OR p.status = 'Payment Approved');",
+        [u.name, `${simplName}%`]
+      )
+      const submittedRes = await pool.query(
+        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND stage = 'Application Submitted';",
+        [u.name, `${simplName}%`]
+      )
+      const enrolledRes = await pool.query(
+        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND (stage = 'Enrolment' OR stage = 'Enrolments');",
+        [u.name, `${simplName}%`]
+      )
+
+      const leads = parseInt(leadsRes.rows[0].count)
+      const untouched = parseInt(untouchedRes.rows[0].count)
+      counselors.push({
+        name:       u.name,
+        email:      u.email,
+        leads,
+        apps:       parseInt(appsRes.rows[0].count),
+        engaged:    leads - untouched,
+        untouched,
+        payApproved: parseInt(payRes.rows[0].count),
+        submitted:  parseInt(submittedRes.rows[0].count),
+        enrolled:   parseInt(enrolledRes.rows[0].count),
+      })
+    }
+    res.json(counselors)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to fetch counselor stats.' })
+  }
+})
+
+
 app.get('/api/users', async (req, res) => {
   try {
     const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, last_login AS "lastLogin" FROM users ORDER BY id DESC;')

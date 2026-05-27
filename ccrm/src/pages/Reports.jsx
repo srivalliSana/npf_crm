@@ -10,13 +10,40 @@ import { Users, FileText, TrendingUp, DollarSign } from 'lucide-react'
 
 const COLORS = ['#003087','#f5a623','#10b981','#ef4444','#8b5cf6','#06b6d4']
 
-const monthlyData = [
-  { month: 'Jan', leads: 420,  apps: 180, enrolled: 45  },
-  { month: 'Feb', leads: 580,  apps: 240, enrolled: 62  },
-  { month: 'Mar', leads: 720,  apps: 310, enrolled: 88  },
-  { month: 'Apr', leads: 890,  apps: 380, enrolled: 105 },
-  { month: 'May', leads: 1050, apps: 450, enrolled: 128 },
-]
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function buildMonthlyData(leads, applications) {
+  // Group by month using regDate / date fields (format: DD/MM/YYYY or DD/MM/YYYY, HH:MM AM/PM)
+  const parseMonth = (dateStr) => {
+    if (!dateStr) return null
+    // Try DD/MM/YYYY format
+    const parts = dateStr.split(/[/,\s]/)
+    if (parts.length >= 3) {
+      const month = parseInt(parts[1], 10)
+      if (month >= 1 && month <= 12) return month - 1 // 0-indexed
+    }
+    return null
+  }
+
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  // Show last 6 months
+  const months = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(currentYear, now.getMonth() - i, 1)
+    months.push({ monthIdx: d.getMonth(), label: MONTH_LABELS[d.getMonth()] })
+  }
+
+  return months.map(({ monthIdx, label }) => {
+    const leadsCount = leads.filter(l => parseMonth(l.regDate) === monthIdx).length
+    const appsCount  = applications.filter(a => parseMonth(a.date) === monthIdx).length
+    const enrolled   = applications.filter(a =>
+      parseMonth(a.date) === monthIdx &&
+      (a.stage === 'Enrolment' || a.stage === 'Enrolments')
+    ).length
+    return { month: label, leads: leadsCount, apps: appsCount, enrolled }
+  })
+}
 
 const REPORT_TYPES = [
   'Lead Summary', 'Application Summary', 'Conversion Report',
@@ -28,6 +55,9 @@ export default function Reports() {
   const { leads, applications, payments, showToast } = useCcrm()
   const [activeReport, setActiveReport] = useState('Lead Summary')
   const [dateRange, setDateRange] = useState('Last 30 Days')
+
+  // Build monthly trend from real data
+  const monthlyData = buildMonthlyData(leads, applications)
 
   // 1. Calculate KPI Metrics dynamically
   const totalLeads = leads.length

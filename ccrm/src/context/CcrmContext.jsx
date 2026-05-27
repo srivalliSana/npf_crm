@@ -27,7 +27,7 @@ export function CcrmProvider({ children }) {
   // Define states
   const [leads, setLeads] = useState([])
   const [applications, setApplications] = useState([])
-  const [counselors, setCounselors] = useState(COUNSELORS)
+  const [counselors, setCounselors] = useState([])
   const [campaigns, setCampaigns] = useState([])
   const [tasks, setTasks] = useState([])
   const [payments, setPayments] = useState([])
@@ -95,6 +95,9 @@ export function CcrmProvider({ children }) {
       const uRes = await fetch('/api/users', { headers })
       if (uRes.ok) setUsers(await uRes.json())
 
+      const cnsRes = await fetch('/api/counselors', { headers })
+      if (cnsRes.ok) setCounselors(await cnsRes.json())
+
       const notifRes = await fetch('/api/notifications', { headers })
       if (notifRes.ok) setNotifications(await notifRes.json())
       
@@ -126,7 +129,39 @@ export function CcrmProvider({ children }) {
       setEvents(localEvents ? JSON.parse(localEvents) : EVENTS)
 
       const localUsers = localStorage.getItem('ccrm_users')
-      setUsers(localUsers ? JSON.parse(localUsers) : USERS)
+      const localUsersData = localUsers ? JSON.parse(localUsers) : USERS
+      setUsers(localUsersData)
+
+      // Derive counselors from local users + leads/apps/payments
+      const localLeadsData = localLeads ? JSON.parse(localLeads) : LEADS
+      const localAppsData  = localApps  ? JSON.parse(localApps)  : APPLICATIONS
+      const localPayData   = localStorage.getItem('ccrm_payments')
+      const localPayments  = localPayData ? JSON.parse(localPayData) : PAYMENTS
+      const derivedCounselors = localUsersData
+        .filter(u => u.status === 'Active')
+        .map(u => {
+          const simplName = u.name.split(' ')[0]
+          const cLeads = localLeadsData.filter(l => l.owner === u.name || l.owner?.startsWith(simplName))
+          const untouched = cLeads.filter(l => l.stage === 'Untouched').length
+          const cApps = localAppsData.filter(a => a.owner === u.name || a.owner?.startsWith(simplName))
+          const payApproved = localPayments.filter(p => {
+            if (p.status !== 'Approved' && p.status !== 'Payment Approved') return false
+            const app = localAppsData.find(a => a.appNo === p.appNo)
+            return app && (app.owner === u.name || app.owner?.startsWith(simplName))
+          }).length
+          return {
+            name: u.name,
+            email: u.email,
+            leads: cLeads.length,
+            apps: cApps.length,
+            engaged: cLeads.length - untouched,
+            untouched,
+            payApproved,
+            submitted: cApps.filter(a => a.stage === 'Application Submitted').length,
+            enrolled: cApps.filter(a => a.stage === 'Enrolment' || a.stage === 'Enrolments').length,
+          }
+        })
+      setCounselors(derivedCounselors)
 
       const localNotif = localStorage.getItem('ccrm_notifications')
       setNotifications(localNotif ? JSON.parse(localNotif) : [])
@@ -319,6 +354,14 @@ export function CcrmProvider({ children }) {
     showToast('User deleted successfully.', 'success')
   }
 
+  // Refresh counselor stats from API (called after lead/app changes)
+  const refreshCounselors = async () => {
+    try {
+      const res = await fetch('/api/counselors')
+      if (res.ok) setCounselors(await res.json())
+    } catch {}
+  }
+
   // Lead Actions
   const addLead = async (leadData) => {
     try {
@@ -347,6 +390,7 @@ export function CcrmProvider({ children }) {
     setLeads(prev => [newLead, ...prev])
     showToast(`Lead for ${leadData.name} registered.`, 'success')
     addNotification(`New lead assigned: ${leadData.name} (${leadData.course || 'B.Tech CSE'})`)
+    refreshCounselors()
     return newLead
   }
 
@@ -434,6 +478,7 @@ export function CcrmProvider({ children }) {
 
     showToast(`Application ${newApp.appNo} submitted.`, 'success')
     addNotification(`Application submitted: ${newApp.name} (${newApp.appNo})`)
+    refreshCounselors()
     return newApp
   }
 
@@ -805,7 +850,7 @@ export function CcrmProvider({ children }) {
   return (
     <CcrmContext.Provider value={{
       leads, setLeads, addLead, updateLead, deleteLead,
-      fetchAllData,
+      fetchAllData, refreshCounselors,
       applications, setApplications, addApplication, updateApplication,
       counselors, setCounselors,
       campaigns, setCampaigns, addCampaign, toggleCampaignStatus,
