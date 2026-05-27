@@ -805,6 +805,7 @@ export function CcrmProvider({ children }) {
   return (
     <CcrmContext.Provider value={{
       leads, setLeads, addLead, updateLead, deleteLead,
+      fetchAllData,
       applications, setApplications, addApplication, updateApplication,
       counselors, setCounselors,
       campaigns, setCampaigns, addCampaign, toggleCampaignStatus,

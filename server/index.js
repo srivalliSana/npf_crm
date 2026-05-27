@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import * as XLSX from 'xlsx'
 import { fileURLToPath } from 'url'
 import { pool, initDb } from './db.js'
 
@@ -610,6 +611,103 @@ app.post('/api/upload/document', uploadDoc.single('document'), async (req, res) 
   if (!req.file) return res.status(400).json({ error: 'No document file uploaded.' })
   const fileUrl = `/uploads/documents/${req.file.filename}`
   res.json({ fileUrl })
+})
+
+// --- BULK UPLOAD LEADS (100,000+ ROWS HIGH PERFORMANCE) ---
+app.post('/api/leads/bulk-upload', uploadDoc.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
+  
+  const filePath = req.file.path
+  
+  try {
+    // 1. Read Workbook using SheetJS
+    const workbook = XLSX.readFile(filePath)
+    const sheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[sheetName]
+    
+    // Convert to JSON array of objects
+    const rawData = XLSX.utils.sheet_to_json(worksheet)
+    if (!rawData || rawData.length === 0) {
+      return res.status(400).json({ error: 'Spreadsheet is empty or invalid.' })
+    }
+    
+    console.log(`[Bulk Upload] Parsed ${rawData.length} rows. Initiating database batch insert...`)
+    
+    // 2. Perform batched SQL multi-row insert transactions (5000 rows/query)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      
+      const batchSize = 5000
+      let rowIdx = 0
+      
+      while (rowIdx < rawData.length) {
+        const batchRows = rawData.slice(rowIdx, rowIdx + batchSize)
+        const valuePlaceholders = []
+        const queryParams = []
+        let paramIdx = 1
+        
+        for (const row of batchRows) {
+          const name = row.Name || row.name || row['Student Name'] || 'Unnamed Lead'
+          const email = row.Email || row.email || `lead_${Date.now()}_${Math.floor(Math.random()*100000)}@cutm.ac.in`
+          const mobile = row.Mobile || row.mobile || row['Mobile Number'] || '0000000000'
+          const state = row.State || row.state || 'Odisha'
+          const city = row.City || row.city || 'Bhubaneswar'
+          const course = row.Course || row.course || 'B.Tech CSE'
+          const source = row.Source || row.source || 'Website'
+          const owner = row.Owner || row.owner || 'Vikram Kumar'
+          const regDate = row.regDate || row.reg_date || row['Registration Date'] || new Date().toLocaleString('en-IN', { hour12: true })
+          const score = Number(row.Score || row.score || 0)
+          
+          let stage = row.Stage || row.stage || 'Untouched'
+          let stageColor = row.stageColor || row.stage_color || 'red'
+          
+          // Map stage to styling colors
+          if (stage === 'Qualified Leads' || stage === 'Converted') stageColor = 'green'
+          else if (stage === 'Unqualified Leads') stageColor = 'orange'
+          else if (stage === 'Contacted' || stage === 'Follow Up') stageColor = 'blue'
+          
+          valuePlaceholders.push(`($${paramIdx}, $${paramIdx+1}, $${paramIdx+2}, $${paramIdx+3}, $${paramIdx+4}, $${paramIdx+5}, $${paramIdx+6}, $${paramIdx+7}, $${paramIdx+8}, $${paramIdx+9}, $${paramIdx+10}, $${paramIdx+11})`)
+          queryParams.push(name, email, mobile, state, city, course, source, owner, regDate, score, stage, stageColor)
+          paramIdx += 12
+        }
+        
+        const bulkQuery = `
+          INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
+          VALUES ${valuePlaceholders.join(', ')}
+          RETURNING id;
+        `
+        
+        await client.query(bulkQuery, queryParams)
+        rowIdx += batchSize
+        console.log(`[Bulk Upload] Successfully bulk inserted batch up to index ${rowIdx}`)
+      }
+      
+      // Post success uploader system notification
+      await client.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Bulk upload complete: ${rawData.length} leads imported successfully.`, 'Just now'])
+      
+      await client.query('COMMIT')
+      res.json({ success: true, count: rawData.length })
+    } catch (dbErr) {
+      await client.query('ROLLBACK')
+      console.error('Database bulk insert transaction failed, rolling back:', dbErr)
+      throw dbErr
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error('Bulk upload handler failed:', err)
+    res.status(500).json({ error: err.message || 'Failed to process bulk upload spreadsheet.' })
+  } finally {
+    // 3. Clean up the temp file
+    if (fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath)
+      } catch (err) {
+        console.warn('Failed to delete temp bulk upload file:', err)
+      }
+    }
+  }
 })
 
 // --- SERVER LAUNCH BOOTSTRAP ---
