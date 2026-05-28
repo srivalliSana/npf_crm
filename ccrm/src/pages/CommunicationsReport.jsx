@@ -66,11 +66,35 @@ export default function CommunicationsReport() {
     setLogsLoading(false)
   }
 
-  const exportCsv = (rows, filename, headers) => {
-    const csv = 'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map(r => Object.values(r).map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(','))].join('\n')
-    const a = document.createElement('a'); a.href = encodeURI(csv); a.download = filename
+  // fields = array of object keys matching the headers order
+  const exportCsv = (rows, filename, headers, fields) => {
+    if (!rows || rows.length === 0) {
+      alert('No data to export yet. Load the data first.')
+      return
+    }
+    const csvRows = rows.map(r =>
+      fields.map(f => `"${String(r[f] ?? '').replace(/"/g, '""')}"`).join(',')
+    )
+    const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...csvRows].join('\n')
+    const a = document.createElement('a')
+    a.href = encodeURI(csv)
+    a.download = filename
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  }
+
+  // Export email logs for a specific campaign — fetch if not already loaded
+  const exportCampaignLogs = async (camp) => {
+    let logs = (activeCamp?.campaignId === camp.campaignId) ? emailLogs : null
+    if (!logs || logs.length === 0) {
+      try {
+        const r = await fetch(`/api/reports/email-logs/${camp.campaignId}`).then(x => x.json())
+        logs = Array.isArray(r) ? r : []
+      } catch { logs = [] }
+    }
+    exportCsv(logs, `${camp.campaignName}_email_logs.csv`,
+      ['Email', 'Name', 'Status', 'Error', 'Sent At'],
+      ['email', 'name', 'status', 'error', 'sentAt']
+    )
   }
 
   return (
@@ -153,7 +177,7 @@ export default function CommunicationsReport() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={e => { e.stopPropagation(); exportCsv(emailLogs, `${camp.campaignName}_logs.csv`, ['Email','Name','Status','Error','Sent At']) }}
+                      <button onClick={e => { e.stopPropagation(); exportCampaignLogs(camp) }}
                         className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2 py-1 hover:bg-gray-50 flex items-center gap-1">
                         <Download size={11} /> Export
                       </button>
@@ -233,7 +257,9 @@ export default function CommunicationsReport() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
               <h3 className="font-semibold text-gray-800 text-sm">WhatsApp Bulk Send History</h3>
-              <button onClick={() => exportCsv(waLogs, 'whatsapp_history.csv', ['Campaign','Template','Recipients','Status','Sent At'])}
+              <button onClick={() => exportCsv(waLogs, 'whatsapp_history.csv',
+                ['Campaign','Template','Recipients','Status','Sent At'],
+                ['campaignName','template','recipientCount','status','sentAt'])}
                 className="flex items-center gap-1 text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">
                 <Download size={11} /> Export
               </button>
@@ -334,7 +360,9 @@ export default function CommunicationsReport() {
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
                 <h3 className="font-semibold text-gray-800 text-sm">Recent Call Logs ({callData.logs.length})</h3>
-                <button onClick={() => exportCsv(callData.logs, 'call_logs.csv', ['Lead','Mobile','Counselor','Duration','Outcome','Notes','Called At'])}
+                <button onClick={() => exportCsv(callData.logs, 'call_logs.csv',
+                  ['Lead','Mobile','Counselor','Duration','Outcome','Notes','Called At'],
+                  ['leadName','mobile','counselor','duration','outcome','notes','calledAt'])}
                   className="flex items-center gap-1 text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">
                   <Download size={11} /> Export
                 </button>
