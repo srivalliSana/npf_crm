@@ -479,6 +479,19 @@ app.delete('/api/leads/:id', async (req, res) => {
 })
 
 // --- APPLICATIONS ROUTERS ---
+// Generate next sequential Application ID: CUEEAP26XXXX (12 chars total)
+app.get('/api/applications/next-app-id', async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT lpad(nextval('cueeap_seq')::text, 4, '0') AS num;`)
+    const appNo = `CUEEAP26${r.rows[0].num}`
+    res.json({ appNo })
+  } catch (err) {
+    // Fallback if sequence not ready
+    const fallback = `CUEEAP26${String(Math.floor(1 + Math.random() * 9999)).padStart(4, '0')}`
+    res.json({ appNo: fallback })
+  }
+})
+
 app.get('/api/applications', async (req, res) => {
   try {
     const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date FROM applications ORDER BY id DESC;')
@@ -490,7 +503,16 @@ app.get('/api/applications', async (req, res) => {
 
 app.post('/api/applications', async (req, res) => {
   const { name, appNo, email, mobile, formStatus, payStatus, payMethod, campus, course, stage, owner, date } = req.body
-  const finalAppNo = appNo || `CUEE2026${Math.floor(1000 + Math.random() * 9000)}`
+  // Use provided appNo, or generate CUEEAP26XXXX format
+  let finalAppNo = appNo
+  if (!finalAppNo) {
+    try {
+      const r = await pool.query(`SELECT lpad(nextval('cueeap_seq')::text, 4, '0') AS num;`)
+      finalAppNo = `CUEEAP26${r.rows[0].num}`
+    } catch {
+      finalAppNo = `CUEEAP26${String(Math.floor(1 + Math.random() * 9999)).padStart(4, '0')}`
+    }
+  }
   const finalDate = date || new Date().toLocaleDateString('en-IN')
   try {
     const insertRes = await pool.query(`
