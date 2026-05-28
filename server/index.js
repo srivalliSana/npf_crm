@@ -4,7 +4,6 @@ import jwt from 'jsonwebtoken'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
-import nodemailer from 'nodemailer'
 import XLSXPkg from 'xlsx'
 const XLSX = XLSXPkg.default ?? XLSXPkg
 import { fileURLToPath } from 'url'
@@ -82,22 +81,30 @@ function authenticateToken(req, res, next) {
 }
 
 // --- SMTP ALERT MAILER SENDER ---
-// ── Nodemailer transporter — built from integration_settings at call time ────
+// ── Nodemailer transporter — lazy-loaded so missing package won't crash server ─
 async function createMailTransporter() {
-  const host     = await getIntegrationSetting('smtp_host')     || process.env.SMTP_HOST
+  const host     = await getIntegrationSetting('smtp_host')      || process.env.SMTP_HOST
   const port     = parseInt(await getIntegrationSetting('smtp_port') || process.env.SMTP_PORT || '587')
-  const user     = await getIntegrationSetting('smtp_user')     || process.env.SMTP_USER
-  const pass     = await getIntegrationSetting('smtp_pass')     || process.env.SMTP_PASS
-  const fromName = await getIntegrationSetting('smtp_from_name')|| 'CUTM Admissions'
+  const user     = await getIntegrationSetting('smtp_user')      || process.env.SMTP_USER
+  const pass     = await getIntegrationSetting('smtp_pass')      || process.env.SMTP_PASS
+  const fromName = await getIntegrationSetting('smtp_from_name') || 'CUTM Admissions'
 
   if (!host || !user || !pass) return null
+
+  let nodemailer
+  try {
+    nodemailer = (await import('nodemailer')).default
+  } catch {
+    console.warn('[Mail] nodemailer not installed — run: npm install in /server')
+    return null
+  }
 
   const transporter = nodemailer.createTransport({
     host,
     port,
     secure: port === 465,
     auth: { user, pass },
-    tls:  { rejectUnauthorized: false }
+    tls: { rejectUnauthorized: false }
   })
   return { transporter, from: `"${fromName}" <${user}>` }
 }
