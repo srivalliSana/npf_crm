@@ -903,6 +903,23 @@ export function CcrmProvider({ children }) {
     return { sent: 0, total: leadIds.length }
   }
 
+  const sendBulkSMS = async (leadIds, message) => {
+    try {
+      const res = await fetch('/api/leads/bulk-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds, message })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        showToast(`SMS sent to ${data.sent} of ${data.total} leads.`, 'success')
+        return data
+      }
+    } catch {}
+    showToast('SMS bulk send failed.', 'error')
+    return { sent: 0, total: leadIds.length }
+  }
+
   // Feature 6: Drip sequences
   const [dripSequences, setDripSequences] = useState([])
   const enrollDrip = async (lead) => {
@@ -1078,7 +1095,7 @@ export function CcrmProvider({ children }) {
       notifications, setNotifications, addNotification, markNotificationRead, markAllNotificationsRead, fetchNotifications,
       // New features
       checkDuplicate, getNextAssignee,
-      sendBulkWhatsApp,
+      sendBulkWhatsApp, sendBulkSMS,
       dripSequences, setDripSequences, enrollDrip,
       generatePaymentLink,
       callLogs, setCallLogs, logCall,

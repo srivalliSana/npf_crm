@@ -1,0 +1,19 @@
+{
+  "name": "CCRM – Centurion University CRM",
+  "short_name": "CCRM",
+  "description": "Centurion University Admissions & Lead Management CRM",
+  "start_url": "/login",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#003087",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    { "name": "Leads",        "url": "/leads",        "description": "Open Lead Manager"        },
+    { "name": "Applications", "url": "/applications", "description": "Open Application Manager" },
+    { "name": "Dashboard",    "url": "/dashboard",    "description": "Open Dashboard"           }
+  ]
+}

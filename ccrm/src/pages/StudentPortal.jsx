@@ -1,5 +1,10 @@
-import React, { useState } from 'react'
-import { GraduationCap, Search, CheckCircle, Clock, AlertCircle, FileText, CreditCard, Shield, Phone, Download } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { GraduationCap, Search, CheckCircle, Clock, AlertCircle, FileText, CreditCard, Shield, Phone, Upload, ExternalLink, ChevronRight } from 'lucide-react'
+
+const DOC_CHECKLIST = [
+  '10th Marksheet', '12th Marksheet', 'Aadhaar Card',
+  'Passport Photo', 'Transfer Certificate', 'Character Certificate'
+]
 
 const STAGE_ORDER = ['Unverified', 'Verified', 'Application Started', 'Payment Approved', 'Application Submitted', 'Enrolment']
 
@@ -19,6 +24,9 @@ export default function StudentPortal() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadedDoc, setUploadedDoc] = useState(null)
+  const fileRef = useRef(null)
 
   const handleSearch = async (e) => {
     e.preventDefault()
@@ -234,6 +242,79 @@ export default function StudentPortal() {
                 </div>
               </div>
             )}
+
+            {/* Pay Now — only when payment pending */}
+            {result.payment && result.payment.status !== 'Approved' && (
+              <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-yellow-200">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-2">
+                  <CreditCard size={18} className="text-yellow-500" /> Complete Your Payment
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Application fee of <strong className="text-gray-800">₹{Number(result.payment.amount || 25000).toLocaleString('en-IN')}</strong> is pending. Pay online to confirm your seat.
+                </p>
+                <a href="https://cutm.ac.in/admission/fee"
+                  target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 rounded-xl text-sm transition">
+                  <CreditCard size={16} /> Pay Now — ₹{Number(result.payment.amount || 25000).toLocaleString('en-IN')}
+                  <ExternalLink size={13} />
+                </a>
+                <p className="text-xs text-gray-400 text-center mt-2">Secure payment via Razorpay / PayU · UPI, Net Banking, Cards accepted</p>
+              </div>
+            )}
+
+            {/* Document Upload */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2 mb-1">
+                <Upload size={18} className="text-primary-500" /> Upload Documents
+              </h3>
+              <p className="text-xs text-slate-500 mb-4">Upload your documents for verification. Accepted: PDF, JPG, PNG (max 5 MB each).</p>
+
+              {/* Required checklist */}
+              <div className="grid grid-cols-2 gap-1.5 mb-4">
+                {DOC_CHECKLIST.map(doc => {
+                  const uploaded = result.documents?.some(d => d.type === doc)
+                  return (
+                    <div key={doc} className={`flex items-center gap-2 text-xs px-2.5 py-2 rounded-lg border ${uploaded ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                      {uploaded ? <CheckCircle size={12} className="text-green-500 flex-shrink-0" /> : <Clock size={12} className="text-slate-400 flex-shrink-0" />}
+                      <span className="truncate">{doc}</span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {uploadedDoc && (
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-sm text-green-700 font-medium mb-3 flex items-center gap-2">
+                  <CheckCircle size={15} /> {uploadedDoc} uploaded successfully!
+                </div>
+              )}
+
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="w-full flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-400 text-white font-semibold py-3 rounded-xl text-sm transition">
+                {uploading ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <Upload size={16} />}
+                {uploading ? 'Uploading...' : 'Select & Upload Document'}
+              </button>
+              <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  if (file.size > 5 * 1024 * 1024) { alert('File must be under 5MB.'); return }
+                  setUploading(true)
+                  try {
+                    const fd = new FormData()
+                    fd.append('document', file)
+                    fd.append('student', result.application.name)
+                    fd.append('appNo', result.application.appNo)
+                    fd.append('type', file.name.split('.')[0].replace(/_/g, ' '))
+                    await fetch('/api/upload/document', { method: 'POST', body: fd })
+                    setUploadedDoc(file.name)
+                  } catch {}
+                  setUploading(false)
+                  e.target.value = ''
+                }}
+              />
+            </div>
 
             {/* Contact */}
             <div className="bg-primary-600 rounded-2xl p-6 text-white text-center">

@@ -1331,6 +1331,53 @@ app.post('/api/leads/bulk-whatsapp', async (req, res) => {
   }
 })
 
+app.post('/api/leads/bulk-sms', async (req, res) => {
+  const { leadIds, message } = req.body
+  if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
+
+  try {
+    const smsApiKey    = await getIntegrationSetting('sms_api_key')
+    const smsSenderId  = await getIntegrationSetting('sms_sender_id')
+
+    const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
+    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
+    const leads = leadsRes.rows
+
+    let sentCount = 0
+    for (const lead of leads) {
+      const mobile = `91${lead.mobile.replace(/\D/g, '').slice(-10)}`
+      const personalizedMsg = message.replace(/\{name\}/g, lead.name)
+
+      if (!smsApiKey) {
+        console.log(`[SMS Bulk] Simulating SMS to ${lead.name} (${mobile})`)
+        sentCount++
+        continue
+      }
+
+      // MSG91 flow API
+      try {
+        const smsRes = await fetch('https://api.msg91.com/api/sendhttp.php?' + new URLSearchParams({
+          authkey: smsApiKey,
+          mobiles: mobile,
+          message: personalizedMsg,
+          sender: smsSenderId || 'CUTMAD',
+          route: '4',
+          country: '91',
+        }))
+        if (smsRes.ok) sentCount++
+      } catch (e) {
+        console.error(`[SMS] Failed for ${mobile}:`, e.message)
+      }
+    }
+
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`SMS bulk sent: ${sentCount} messages dispatched`, 'Just now'])
+    res.json({ success: true, sent: sentCount, total: leads.length })
+  } catch (err) {
+    console.error('[SMS Bulk]', err)
+    res.status(500).json({ error: 'Bulk SMS failed.', sent: 0 })
+  }
+})
+
 // --- FEATURE 6: AUTOMATED DRIP SEQUENCES ---
 app.post('/api/drip/enroll', async (req, res) => {
   const { leadId, leadName, leadEmail, leadMobile, sequenceName } = req.body

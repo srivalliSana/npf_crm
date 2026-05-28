@@ -49,8 +49,17 @@ const REPORT_TYPES = [
   'Lead Summary', 'Application Summary', 'Conversion Report',
   'Campaign Performance', 'Source Performance', 'Team Productivity',
   'Course-wise Report', 'Payment Report', 'Enrollment Report',
-  'Source-to-Enrollment Funnel'
+  'Source-to-Enrollment Funnel',
+  'Predictive Analytics', 'Publisher Benchmarking'
 ]
+
+// Lead qualification category based on score
+export function qualifyLead(score) {
+  if (score >= 75) return { label: 'Hot',         color: 'bg-red-100 text-red-700',    dot: 'bg-red-500'    }
+  if (score >= 50) return { label: 'Warm',        color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500' }
+  if (score >= 25) return { label: 'Nurture',     color: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-500' }
+  return               { label: 'Cold',         color: 'bg-slate-100 text-slate-600',  dot: 'bg-slate-400'  }
+}
 
 export default function Reports() {
   const { leads, applications, payments, campaigns, counselors, showToast } = useCcrm()
@@ -629,6 +638,248 @@ export default function Reports() {
                           </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )
+        })()
+
+      case 'Predictive Analytics':
+        return (() => {
+          // Bottleneck: count leads per stage
+          const stageCounts = {}
+          leads.forEach(l => { stageCounts[l.stage] = (stageCounts[l.stage] || 0) + 1 })
+          const stageArr = Object.entries(stageCounts).map(([stage, count]) => ({ stage, count })).sort((a, b) => b.count - a.count)
+
+          // At-risk: score >= 50 but still Untouched / Contacted for more than a few days
+          const atRisk = leads.filter(l => (l.score || 0) >= 50 && ['Untouched', 'Contacted', 'Unverified'].includes(l.stage))
+            .sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 10)
+
+          // Qualification distribution
+          const qualBuckets = { Hot: 0, Warm: 0, Nurture: 0, Cold: 0 }
+          leads.forEach(l => {
+            const s = l.score || 0
+            if (s >= 75) qualBuckets.Hot++
+            else if (s >= 50) qualBuckets.Warm++
+            else if (s >= 25) qualBuckets.Nurture++
+            else qualBuckets.Cold++
+          })
+          const qualData = Object.entries(qualBuckets).map(([label, count]) => ({ label, count, pct: Math.round((count / (leads.length || 1)) * 100) }))
+
+          // Conversion prediction: of qualified (Warm+Hot) leads, % that became applications
+          const qualifiedLeads = leads.filter(l => (l.score || 0) >= 50)
+          const qualifiedWithApp = qualifiedLeads.filter(l => applications.some(a => a.name === l.name || a.mobile === l.mobile))
+          const predConvRate = qualifiedLeads.length > 0 ? ((qualifiedWithApp.length / qualifiedLeads.length) * 100).toFixed(1) : '0.0'
+
+          const QUAL_COLORS = { Hot: '#ef4444', Warm: '#f97316', Nurture: '#eab308', Cold: '#94a3b8' }
+
+          return (
+            <div className="space-y-4">
+              {/* KPI row */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: 'Hot Leads', value: qualBuckets.Hot, color: 'text-red-600', bg: 'bg-red-50', desc: 'Score ≥ 75' },
+                  { label: 'Warm Leads', value: qualBuckets.Warm, color: 'text-orange-600', bg: 'bg-orange-50', desc: 'Score 50–74' },
+                  { label: 'At Risk', value: atRisk.length, color: 'text-yellow-700', bg: 'bg-yellow-50', desc: 'High score, no progress' },
+                  { label: 'Pred. Conv. Rate', value: `${predConvRate}%`, color: 'text-primary-600', bg: 'bg-primary-50', desc: 'Qualified → Application' },
+                ].map(c => (
+                  <div key={c.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                    <div className={`text-2xl font-extrabold ${c.color}`}>{c.value}</div>
+                    <div className="text-sm font-semibold text-gray-700 mt-0.5">{c.label}</div>
+                    <div className="text-xs text-gray-400">{c.desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Stage Bottleneck */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                  <h3 className="font-semibold text-gray-800 mb-1">Stage Bottleneck Detection</h3>
+                  <p className="text-xs text-gray-400 mb-4">Stages with the most leads stuck — prioritise follow-up here</p>
+                  <div className="space-y-2">
+                    {stageArr.map((s, i) => {
+                      const pct = Math.round((s.count / (leads.length || 1)) * 100)
+                      const isBottleneck = i === 0
+                      return (
+                        <div key={s.stage}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              {isBottleneck && <span className="text-[10px] bg-red-100 text-red-600 font-bold px-1.5 py-0.5 rounded">BOTTLENECK</span>}
+                              <span className="text-xs font-medium text-gray-700">{s.stage}</span>
+                            </div>
+                            <span className="text-xs font-semibold text-gray-600">{s.count} leads ({pct}%)</span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                            <div className={`h-4 rounded-full transition-all ${isBottleneck ? 'bg-red-400' : 'bg-primary-400'}`} style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Qualification Distribution */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                  <h3 className="font-semibold text-gray-800 mb-1">Lead Qualification Distribution</h3>
+                  <p className="text-xs text-gray-400 mb-4">AI score buckets across your full pipeline</p>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <PieChart>
+                      <Pie data={qualData} dataKey="count" nameKey="label" cx="50%" cy="50%" outerRadius={65} innerRadius={30}>
+                        {qualData.map((q) => <Cell key={q.label} fill={QUAL_COLORS[q.label]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v, n) => [v, n]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    {qualData.map(q => (
+                      <div key={q.label} className="flex items-center gap-2 text-xs">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: QUAL_COLORS[q.label] }} />
+                        <span className="text-gray-600 font-medium">{q.label}</span>
+                        <span className="ml-auto font-bold text-gray-700">{q.count} ({q.pct}%)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* At-Risk leads table */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-gray-100 bg-amber-50">
+                  <h3 className="font-semibold text-amber-800 text-sm">⚠️ At-Risk Leads — High Score, No Stage Progression</h3>
+                  <p className="text-xs text-amber-600 mt-0.5">These leads have strong intent signals but are still in early stages. Follow up immediately.</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead><tr className="bg-gray-50">
+                      {['Name','Mobile','Course','Stage','Score','Owner','Action'].map(h => <th key={h} className="table-th text-xs">{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {atRisk.length === 0 ? (
+                        <tr><td colSpan={7} className="text-center py-8 text-gray-400 text-sm">No at-risk leads detected. Great pipeline health!</td></tr>
+                      ) : atRisk.map(l => (
+                        <tr key={l.id} className="hover:bg-amber-50/30 border-t border-gray-100">
+                          <td className="table-td font-semibold text-sm text-gray-800">{l.name}</td>
+                          <td className="table-td font-mono text-xs text-gray-600">{l.mobile}</td>
+                          <td className="table-td text-xs text-gray-500">{l.course || '—'}</td>
+                          <td className="table-td"><span className="badge bg-yellow-100 text-yellow-700 text-[10px] font-bold">{l.stage}</span></td>
+                          <td className="table-td"><span className="text-sm font-extrabold text-red-500">{l.score}</span></td>
+                          <td className="table-td text-xs text-gray-500">{l.owner || 'Unassigned'}</td>
+                          <td className="table-td">
+                            <a href={`https://wa.me/91${l.mobile}`} target="_blank" rel="noopener noreferrer"
+                              className="text-xs text-green-600 border border-green-200 rounded-lg px-2 py-1 hover:bg-green-50 transition-colors">
+                              WA Now
+                            </a>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )
+        })()
+
+      case 'Publisher Benchmarking':
+        return (() => {
+          // Source quality matrix
+          const sourceMatrix = allSources.map(src => {
+            const srcLeads = leads.filter(l => l.source === src)
+            const srcApps = applications.filter(a => srcLeads.some(l => l.name === a.name || l.mobile === a.mobile))
+            const srcEnrolled = srcApps.filter(a => a.stage === 'Enrolment' || a.stage === 'Enrolments')
+            const srcPaid = payments.filter(p => {
+              const app = applications.find(a => a.appNo === p.appNo)
+              return app && srcLeads.some(l => l.name === app.name || l.mobile === app.mobile) && (p.status === 'Approved' || p.status === 'Payment Approved')
+            })
+            const avgScore = srcLeads.length > 0 ? Math.round(srcLeads.reduce((s, l) => s + (l.score || 0), 0) / srcLeads.length) : 0
+            const appRate = srcLeads.length > 0 ? ((srcApps.length / srcLeads.length) * 100).toFixed(1) : '0.0'
+            const enrollRate = srcLeads.length > 0 ? ((srcEnrolled.length / srcLeads.length) * 100).toFixed(1) : '0.0'
+            const revenue = srcPaid.reduce((s, p) => s + Number(p.amount || 0), 0)
+            const hotLeads = srcLeads.filter(l => (l.score || 0) >= 75).length
+            return { source: src, leads: srcLeads.length, apps: srcApps.length, enrolled: srcEnrolled.length,
+              avgScore, appRate, enrollRate, revenue, hotLeads }
+          }).sort((a, b) => b.leads - a.leads)
+
+          // Quality score = weighted: 40% enrol rate + 30% app rate + 30% avg lead score
+          const qualityScore = (s) => Math.round((parseFloat(s.enrollRate) * 0.4) + (parseFloat(s.appRate) * 0.3) + (s.avgScore / 100 * 30))
+
+          return (
+            <div className="space-y-4">
+              {/* Charts side by side */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                  <h3 className="font-semibold text-gray-800 mb-4">Lead Volume by Source</h3>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={sourceMatrix.slice(0, 8)} layout="vertical" margin={{ left: 60, right: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="source" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip />
+                      <Bar dataKey="leads" name="Total Leads" fill="#003087" radius={[0,4,4,0]} />
+                      <Bar dataKey="enrolled" name="Enrolled" fill="#10b981" radius={[0,4,4,0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                  <h3 className="font-semibold text-gray-800 mb-4">Application Rate by Source (%)</h3>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={sourceMatrix.slice(0, 8)} layout="vertical" margin={{ left: 60, right: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                      <XAxis type="number" unit="%" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="source" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip formatter={(v) => [`${v}%`]} />
+                      <Bar dataKey="appRate" name="App Rate %" fill="#f5a623" radius={[0,4,4,0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Full matrix table */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
+                  <h3 className="font-semibold text-gray-800 text-sm">Publisher Performance Matrix</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Quality Score = weighted blend of enrolment rate, application rate, and average lead score</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead><tr className="bg-gray-50">
+                      {['Source','Leads','Hot','Apps','Enrolled','App Rate','Enrol Rate','Avg Score','Revenue','Quality ★'].map(h => (
+                        <th key={h} className="table-th text-xs whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {sourceMatrix.map((s, i) => {
+                        const qs = qualityScore(s)
+                        const rank = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''
+                        return (
+                          <tr key={s.source} className="hover:bg-gray-50 border-t border-gray-100">
+                            <td className="table-td font-semibold text-sm text-gray-800">{rank} {s.source}</td>
+                            <td className="table-td text-xs font-bold text-primary-600">{s.leads}</td>
+                            <td className="table-td text-xs font-semibold text-red-500">{s.hotLeads}</td>
+                            <td className="table-td text-xs text-orange-600 font-medium">{s.apps}</td>
+                            <td className="table-td text-xs font-bold text-emerald-600">{s.enrolled}</td>
+                            <td className="table-td text-xs font-medium text-gray-700">{s.appRate}%</td>
+                            <td className="table-td text-xs font-medium text-gray-700">{s.enrollRate}%</td>
+                            <td className="table-td">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-12 bg-gray-100 rounded-full h-1.5">
+                                  <div className="h-1.5 rounded-full bg-primary-400" style={{ width: `${s.avgScore}%` }} />
+                                </div>
+                                <span className="text-xs font-semibold text-gray-600">{s.avgScore}</span>
+                              </div>
+                            </td>
+                            <td className="table-td text-xs font-semibold text-green-700">₹{s.revenue.toLocaleString()}</td>
+                            <td className="table-td">
+                              <span className={`badge text-xs font-bold ${qs >= 15 ? 'bg-green-100 text-green-700' : qs >= 8 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                                {qs} / 30
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
