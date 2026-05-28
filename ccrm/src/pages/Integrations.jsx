@@ -3,14 +3,16 @@ import {
   CheckCircle2, AlertCircle, ExternalLink, RefreshCw,
   MessageCircle, CreditCard, Mail, BarChart2, Phone,
   Globe, Lock, Save, X, Eye, EyeOff, ChevronDown, ChevronRight,
-  Share2, Zap, Copy, CheckCheck, Bell
+  Share2, Zap, Copy, CheckCheck, Bell, Linkedin, Search, PhoneCall,
+  Wallet
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
 const INTEGRATIONS = [
+  // ── Social Media & Ads ──────────────────────────────────────────────────────
   {
     id: 'meta',
-    name: 'Meta / Facebook & Instagram Lead Ads',
+    name: 'Facebook Lead Ads',
     description: 'Auto-import leads from Facebook & Instagram Lead Ad campaigns. Uses Graph API to fetch full lead form data when a lead submits.',
     icon: Share2,
     color: 'text-blue-600',
@@ -24,6 +26,43 @@ const INTEGRATIONS = [
       { key: 'meta_app_secret',        label: 'App Secret',         placeholder: 'Your Meta App Secret (for webhook verification)', secret: true },
     ]
   },
+  {
+    id: 'googleads',
+    name: 'Google Ads',
+    description: 'Capture leads from Google search and display ad campaigns. Lead form extensions post directly to CCRM via webhook.',
+    icon: Search,
+    color: 'text-red-500',
+    bg: 'bg-red-50',
+    border: 'border-red-200',
+    category: 'Ads',
+    docsUrl: 'https://support.google.com/google-ads/answer/9423234',
+    fields: [
+      { key: 'googleads_developer_token', label: 'Developer Token',  placeholder: 'Your Google Ads developer token', secret: true },
+      { key: 'googleads_client_id',       label: 'OAuth Client ID',  placeholder: 'From Google Cloud Console', secret: false },
+      { key: 'googleads_client_secret',   label: 'Client Secret',    placeholder: 'OAuth client secret', secret: true },
+      { key: 'googleads_refresh_token',   label: 'Refresh Token',    placeholder: 'Generated via OAuth flow', secret: true },
+      { key: 'googleads_customer_id',     label: 'Customer ID',      placeholder: 'e.g. 123-456-7890', secret: false },
+    ]
+  },
+  {
+    id: 'linkedin',
+    name: 'LinkedIn Lead Gen',
+    description: 'Import leads from LinkedIn Lead Gen Forms. Auto-sync when prospects fill out forms on your LinkedIn ad campaigns.',
+    icon: Linkedin,
+    color: 'text-sky-600',
+    bg: 'bg-sky-50',
+    border: 'border-sky-200',
+    category: 'Social Media',
+    docsUrl: 'https://learn.microsoft.com/en-us/linkedin/marketing/lead-sync',
+    fields: [
+      { key: 'linkedin_client_id',     label: 'App Client ID',   placeholder: 'LinkedIn App Client ID', secret: false },
+      { key: 'linkedin_client_secret', label: 'Client Secret',   placeholder: 'LinkedIn App Client Secret', secret: true },
+      { key: 'linkedin_access_token',  label: 'Access Token',    placeholder: 'Generated via OAuth 2.0', secret: true },
+      { key: 'linkedin_org_id',        label: 'Organization ID', placeholder: 'urn:li:organization:XXXXXXX', secret: false },
+    ]
+  },
+
+  // ── Messaging ───────────────────────────────────────────────────────────────
   {
     id: 'whatsapp',
     name: 'WhatsApp Business API',
@@ -41,56 +80,6 @@ const INTEGRATIONS = [
     ]
   },
   {
-    id: 'razorpay',
-    name: 'Razorpay Payment Gateway',
-    description: 'Accept online payments for application fees. Auto-update payment status on successful transactions.',
-    icon: CreditCard,
-    color: 'text-indigo-600',
-    bg: 'bg-indigo-50',
-    border: 'border-indigo-200',
-    category: 'Payments',
-    docsUrl: 'https://razorpay.com/docs/',
-    fields: [
-      { key: 'razorpay_key_id',       label: 'Key ID',          placeholder: 'rzp_live_xxxxxxxxxxxx', secret: false },
-      { key: 'razorpay_key_secret',   label: 'Key Secret',      placeholder: 'Your Razorpay secret', secret: true },
-      { key: 'razorpay_webhook_secret', label: 'Webhook Secret', placeholder: 'Used to verify webhook events', secret: true },
-    ]
-  },
-  {
-    id: 'smtp',
-    name: 'SMTP Email Alerts',
-    description: 'Send automated email alerts to counselors when leads are assigned, and transactional emails (OTPs, payment receipts).',
-    icon: Mail,
-    color: 'text-purple-600',
-    bg: 'bg-purple-50',
-    border: 'border-purple-200',
-    category: 'Email',
-    docsUrl: 'https://nodemailer.com/about/',
-    fields: [
-      { key: 'smtp_host',      label: 'SMTP Host',     placeholder: 'e.g. smtp.gmail.com', secret: false },
-      { key: 'smtp_port',      label: 'SMTP Port',     placeholder: '587', secret: false },
-      { key: 'smtp_user',      label: 'SMTP Username', placeholder: 'noreply@cutm.ac.in', secret: false },
-      { key: 'smtp_pass',      label: 'SMTP Password', placeholder: 'App password or SMTP password', secret: true },
-      { key: 'smtp_from_name', label: 'From Name',     placeholder: 'CUTM Admissions', secret: false },
-    ]
-  },
-  {
-    id: 'googlesheets',
-    name: 'Google Sheets Sync',
-    description: 'Sync leads from a Google Sheet into CCRM. Ideal for manually collected lead data.',
-    icon: BarChart2,
-    color: 'text-emerald-600',
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    category: 'Productivity',
-    docsUrl: 'https://developers.google.com/sheets/api',
-    fields: [
-      { key: 'sheets_spreadsheet_id', label: 'Spreadsheet ID',       placeholder: 'From the Google Sheets URL', secret: false },
-      { key: 'sheets_service_email',  label: 'Service Account Email', placeholder: 'mybot@project.iam.gserviceaccount.com', secret: false },
-      { key: 'sheets_api_key',        label: 'API Key',               placeholder: 'Google Sheets API Key', secret: true },
-    ]
-  },
-  {
     id: 'sms',
     name: 'SMS Gateway (MSG91 / Twilio)',
     description: 'Send SMS OTPs, payment reminders and admission alerts to students via bulk SMS.',
@@ -105,6 +94,97 @@ const INTEGRATIONS = [
       { key: 'sms_api_key',     label: 'API Key',     placeholder: 'Your SMS API key', secret: true },
       { key: 'sms_sender_id',   label: 'Sender ID',   placeholder: 'e.g. CUTMAD', secret: false },
       { key: 'sms_template_id', label: 'Template ID', placeholder: 'DLT-approved template ID', secret: false },
+    ]
+  },
+
+  // ── Payments ────────────────────────────────────────────────────────────────
+  {
+    id: 'razorpay',
+    name: 'Razorpay',
+    description: 'Accept online payments for application fees. Auto-update payment status on successful transactions.',
+    icon: CreditCard,
+    color: 'text-indigo-600',
+    bg: 'bg-indigo-50',
+    border: 'border-indigo-200',
+    category: 'Payments',
+    docsUrl: 'https://razorpay.com/docs/',
+    fields: [
+      { key: 'razorpay_key_id',         label: 'Key ID',          placeholder: 'rzp_live_xxxxxxxxxxxx', secret: false },
+      { key: 'razorpay_key_secret',     label: 'Key Secret',      placeholder: 'Your Razorpay secret', secret: true },
+      { key: 'razorpay_webhook_secret', label: 'Webhook Secret',  placeholder: 'Used to verify webhook events', secret: true },
+    ]
+  },
+  {
+    id: 'payu',
+    name: 'PayU',
+    description: 'Alternative online payment gateway for application fees. Supports UPI, net banking, credit/debit cards.',
+    icon: Wallet,
+    color: 'text-teal-600',
+    bg: 'bg-teal-50',
+    border: 'border-teal-200',
+    category: 'Payments',
+    docsUrl: 'https://devguide.payu.in/',
+    fields: [
+      { key: 'payu_merchant_key',  label: 'Merchant Key',  placeholder: 'Your PayU Merchant Key', secret: false },
+      { key: 'payu_merchant_salt', label: 'Merchant Salt', placeholder: 'Your PayU Salt (keep secret)', secret: true },
+      { key: 'payu_env',           label: 'Environment',   placeholder: 'production or test', secret: false },
+    ]
+  },
+
+  // ── Telephony ───────────────────────────────────────────────────────────────
+  {
+    id: 'ameyo',
+    name: 'Ameyo (Telephony)',
+    description: 'Cloud telephony, call recording, and auto-dialer. Counselors can click-to-call leads and recordings sync back to CCRM.',
+    icon: PhoneCall,
+    color: 'text-violet-600',
+    bg: 'bg-violet-50',
+    border: 'border-violet-200',
+    category: 'Telephony',
+    docsUrl: 'https://www.ameyo.com/developers/',
+    fields: [
+      { key: 'ameyo_api_url',     label: 'API URL',      placeholder: 'https://yourorg.ameyo.com/api', secret: false },
+      { key: 'ameyo_username',    label: 'Username',     placeholder: 'Your Ameyo username', secret: false },
+      { key: 'ameyo_password',    label: 'Password',     placeholder: 'Your Ameyo password', secret: true },
+      { key: 'ameyo_campaign_id', label: 'Campaign ID',  placeholder: 'Ameyo dialer campaign ID', secret: false },
+    ]
+  },
+
+  // ── Email ───────────────────────────────────────────────────────────────────
+  {
+    id: 'smtp',
+    name: 'Gmail / SMTP Email',
+    description: 'Send automated email alerts to counselors when leads are assigned, and transactional emails (OTPs, payment receipts). Use Gmail App Password or any SMTP provider.',
+    icon: Mail,
+    color: 'text-purple-600',
+    bg: 'bg-purple-50',
+    border: 'border-purple-200',
+    category: 'Email',
+    docsUrl: 'https://support.google.com/accounts/answer/185833',
+    fields: [
+      { key: 'smtp_host',      label: 'SMTP Host',     placeholder: 'smtp.gmail.com', secret: false },
+      { key: 'smtp_port',      label: 'SMTP Port',     placeholder: '587', secret: false },
+      { key: 'smtp_user',      label: 'Gmail Address', placeholder: 'noreply@cutm.ac.in', secret: false },
+      { key: 'smtp_pass',      label: 'App Password',  placeholder: 'Google App Password (16 chars)', secret: true },
+      { key: 'smtp_from_name', label: 'From Name',     placeholder: 'CUTM Admissions', secret: false },
+    ]
+  },
+
+  // ── Productivity ─────────────────────────────────────────────────────────────
+  {
+    id: 'googlesheets',
+    name: 'Google Sheets Sync',
+    description: 'Sync leads from a Google Sheet into CCRM. Ideal for manually collected lead data.',
+    icon: BarChart2,
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-200',
+    category: 'Productivity',
+    docsUrl: 'https://developers.google.com/sheets/api',
+    fields: [
+      { key: 'sheets_spreadsheet_id', label: 'Spreadsheet ID',       placeholder: 'From the Google Sheets URL', secret: false },
+      { key: 'sheets_service_email',  label: 'Service Account Email', placeholder: 'mybot@project.iam.gserviceaccount.com', secret: false },
+      { key: 'sheets_api_key',        label: 'API Key',               placeholder: 'Google Sheets API Key', secret: true },
     ]
   },
   {
@@ -126,8 +206,10 @@ const INTEGRATIONS = [
 
 const CATEGORY_COLORS = {
   'Social Media': 'bg-blue-100 text-blue-700',
+  Ads:            'bg-red-100 text-red-600',
   Messaging:      'bg-green-100 text-green-700',
   Payments:       'bg-indigo-100 text-indigo-700',
+  Telephony:      'bg-violet-100 text-violet-700',
   Email:          'bg-purple-100 text-purple-700',
   Productivity:   'bg-emerald-100 text-emerald-700',
   Analytics:      'bg-yellow-100 text-yellow-700',
@@ -149,7 +231,7 @@ const WEBHOOK_INFO = [
   },
   {
     id: 'google',
-    label: 'Google Lead Form Ads',
+    label: 'Google Ads Lead Forms',
     url: 'https://crm.cutmap.ac.in/api/webhooks/google-leads',
     verify: '',
     docs: 'https://support.google.com/google-ads/answer/9423234',
@@ -157,6 +239,19 @@ const WEBHOOK_INFO = [
       'Open Google Ads → Lead Forms → Lead Delivery',
       'Set Webhook URL above',
       'Google will POST lead data on every form submission',
+    ]
+  },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn Lead Gen Forms',
+    url: 'https://crm.cutmap.ac.in/api/webhooks/linkedin-leads',
+    verify: '',
+    docs: 'https://learn.microsoft.com/en-us/linkedin/marketing/lead-sync',
+    steps: [
+      'Go to LinkedIn Campaign Manager → Account Assets → Lead Gen Forms',
+      'Open your Lead Gen Form → Integrations tab',
+      'Add a CRM integration → select "Other" → paste the Webhook URL above',
+      'LinkedIn will POST lead data when a user submits the form',
     ]
   },
   {
