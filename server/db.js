@@ -277,6 +277,20 @@ export async function initDb() {
     // Users: add mobile field for WhatsApp alerts to counselors
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile VARCHAR(50) DEFAULT '';`).catch(() => {})
 
+    // Application number sequence — CUEEAP260001, CUEEAP260002, ...
+    await client.query(`CREATE SEQUENCE IF NOT EXISTS cueeap_seq START 1;`).catch(() => {})
+    // Sync sequence to current max to avoid conflicts with existing apps
+    await client.query(`
+      SELECT setval('cueeap_seq',
+        GREATEST(
+          (SELECT COALESCE(MAX(CAST(NULLIF(REGEXP_REPLACE(app_no, '[^0-9]', '', 'g'), '') AS INTEGER)), 0)
+           FROM applications WHERE app_no LIKE 'CUEEAP26%'),
+          (SELECT COALESCE(MAX(id), 0) FROM applications),
+          0
+        )
+      );
+    `).catch(() => {})
+
     // Email delivery logs (per-recipient tracking for campaigns)
     await client.query(`
       CREATE TABLE IF NOT EXISTS email_logs (

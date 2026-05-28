@@ -392,6 +392,7 @@ export default function LeadManager() {
             <thead>
               <tr>
                 <th className="table-th w-10"><input type="checkbox" checked={selectedRows.length === pageData.length && pageData.length > 0} onChange={toggleAll} className="w-4 h-4 rounded border-gray-300 text-primary-500" /></th>
+                <th className="table-th">Lead ID</th>
                 <th className="table-th">Name</th>
                 <th className="table-th">Email</th>
                 <th className="table-th">Mobile</th>
@@ -413,6 +414,11 @@ export default function LeadManager() {
                     onClick={() => navigate(`/leads/${lead.id}`)}>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedRows.includes(lead.id)} onChange={() => toggleRow(lead.id)} className="w-4 h-4 rounded border-gray-300 text-primary-500" />
+                    </td>
+                    <td className="table-td">
+                      <span className="font-mono text-[11px] bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded">
+                        CUTMLD26{String(lead.id).padStart(4, '0')}
+                      </span>
                     </td>
                     <td className="table-td">
                       <span className="text-primary-500 hover:text-primary-700 font-medium hover:underline">{lead.name}</span>

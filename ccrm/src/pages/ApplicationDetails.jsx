@@ -67,6 +67,7 @@ export default function ApplicationDetails() {
     tasks, addTask,
     queries, addQuery, updateQueryStatus, addQueryReply,
     events, addEvent,
+    generatePaymentLink,
     showToast, currentUser
   } = useCcrm()
 
@@ -243,28 +244,22 @@ export default function ApplicationDetails() {
     showToast('Student information successfully saved.', 'success')
   }
 
-  const handleStageClick = (stageName, stageIndex) => {
+  const handleStageClick = async (stageName, stageIndex) => {
     const dateStr = new Date().toLocaleString('en-IN', { hour12: true })
 
-    // Add timeline event
     const changeLog = {
       date: dateStr,
       type: 'stage',
       text: `Stage updated: ${activeCurrentStage} → ${stageName}`
     }
-
     const newTimeline = [changeLog, ...localTimeline]
     setLocalTimeline(newTimeline)
 
     if (!isApp) {
       // ---- Lead stage update ----
       const stageColorMap = {
-        'Untouched': 'red',
-        'Contacted': 'blue',
-        'Follow Up': 'yellow',
-        'Interested': 'green',
-        'Qualified Leads': 'green',
-        'Converted': 'emerald',
+        'Untouched': 'red', 'Contacted': 'blue', 'Follow Up': 'yellow',
+        'Interested': 'green', 'Qualified Leads': 'green', 'Converted': 'emerald',
       }
       updateLead(associatedLead.id, {
         stage: stageName,
@@ -272,6 +267,30 @@ export default function ApplicationDetails() {
         timeline: newTimeline
       })
       showToast(`Lead stage updated to "${stageName}"`, 'success')
+
+      // ── Auto-create Application when lead reaches Qualified Leads ──────────
+      if (stageName === 'Qualified Leads' && !associatedApp) {
+        try {
+          const idRes = await fetch('/api/applications/next-app-id')
+          const { appNo } = await idRes.json()
+          await addApplication({
+            name: studentName,
+            email: studentEmail,
+            mobile: studentMobile,
+            campus,
+            course,
+            formStatus: 'Incomplete',
+            payStatus:  'Payment Pending',
+            payMethod:  '',
+            stage:      'Application Started',
+            appNo,
+            owner: record.owner || ''
+          })
+          showToast(`Application ID ${appNo} generated for ${studentName}!`, 'success')
+        } catch (e) {
+          showToast('Application auto-creation failed — create manually.', 'warning')
+        }
+      }
       return
     }
 
@@ -505,6 +524,42 @@ export default function ApplicationDetails() {
                 <MapPin size={14} className="text-gray-400 flex-shrink-0" />
                 <span>{studentCity}, {studentState}</span>
               </div>
+            </div>
+
+            {/* Lead ID + Application ID */}
+            <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
+              {/* Lead Reference ID */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400 font-medium">Lead ID</span>
+                <span className="font-mono text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded select-all">
+                  CUTMLD26{String(associatedLead?.id || record.id || 0).padStart(4,'0')}
+                </span>
+              </div>
+              {/* Application ID — show if application exists */}
+              {associatedApp?.appNo && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400 font-medium">App ID</span>
+                  <span className="font-mono text-xs bg-green-50 text-green-700 border border-green-100 px-2 py-0.5 rounded select-all font-bold">
+                    {associatedApp.appNo}
+                  </span>
+                </div>
+              )}
+              {/* Payment link — show when app exists and payment pending */}
+              {associatedApp && (associatedApp.payStatus === 'Payment Pending' || associatedApp.payStatus === 'Pending') && (
+                <button
+                  onClick={async () => {
+                    try {
+                      const link = await generatePaymentLink(
+                        associatedApp.appNo, studentName, studentEmail, studentMobile, 25000
+                      )
+                      if (link) showToast(`Payment link generated for ${associatedApp.appNo}`, 'success')
+                    } catch { showToast('Failed to generate payment link.', 'error') }
+                  }}
+                  className="w-full text-xs bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  💳 Generate Payment Link
+                </button>
+              )}
             </div>
 
             {/* Score */}
