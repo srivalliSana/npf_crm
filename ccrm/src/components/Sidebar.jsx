@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, FileText, CheckSquare, Megaphone,
   BarChart2, Settings, LogOut, CreditCard,
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
-  Trophy, Mail, Globe, ExternalLink
+  Trophy, Mail, Globe, ExternalLink, Zap
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { icon: Trophy,          label: 'Leaderboard',   to: '/leaderboard',      roles: null },
   // Admin/Manager only
   { icon: Mail,            label: 'Email Camps',   to: '/email-campaigns',  roles: ['Admin', 'Manager'] },
+  { icon: Zap,             label: 'Drip Flows',    to: '/drip-workflows',   roles: ['Admin', 'Manager'] },
   { icon: Shield,          label: 'Users',         to: '/users',            roles: ['Admin'] },
   { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin', 'Manager'] },
   { icon: Settings,        label: 'Settings',      to: '/settings',         roles: null },

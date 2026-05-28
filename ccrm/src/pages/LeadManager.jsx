@@ -38,7 +38,7 @@ const WA_TEMPLATES = [
 export default function LeadManager() {
   const navigate = useNavigate()
   const { leads, setLeads, addLead, deleteLead, currentUser, counselors, showToast, fetchAllData,
-          checkDuplicate, getNextAssignee, sendBulkWhatsApp, enrollDrip, logCall } = useCcrm()
+          checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, enrollDrip, logCall } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
   const [quickView, setQuickView] = useState('All Leads')
@@ -53,11 +53,12 @@ export default function LeadManager() {
   const [addLoading, setAddLoading] = useState(false)
   const [dupWarning, setDupWarning] = useState(null) // {duplicates, hasDuplicate}
 
-  // Bulk WhatsApp modal
-  const [showWAModal, setShowWAModal] = useState(false)
-  const [waTemplate, setWaTemplate] = useState(0)
-  const [waCustomMsg, setWaCustomMsg] = useState('')
-  const [waSending, setWaSending] = useState(false)
+  // Multi-channel send modal
+  const [showWAModal, setShowWAModal]   = useState(false)
+  const [waTemplate, setWaTemplate]     = useState(0)
+  const [waCustomMsg, setWaCustomMsg]   = useState('')
+  const [waSending, setWaSending]       = useState(false)
+  const [sendChannels, setSendChannels] = useState({ whatsapp: true, sms: false })
 
   // Drip enroll
   const [dripLoading, setDripLoading] = useState(false)
@@ -131,7 +132,7 @@ export default function LeadManager() {
       owner,
       stage: 'Untouched',
       stageColor: 'red',
-      score: calcScore(newLead.source, newLead.course)
+      score: calcScore(newLead.source, newLead.course, newLead)
     }
     await addLead(leadData)
     setDupWarning(null)
@@ -140,19 +141,43 @@ export default function LeadManager() {
     setNewLead({ name:'', email:'', mobile:'', state:'', city:'', course:'B.Tech CSE', source:'Google Ads', owner:'' })
   }
 
-  function calcScore(source, course) {
-    const src = { 'Referral':30,'Walk-in':28,'Education Fair':25,'Google Ads':20,'Facebook Ads':18,'LinkedIn':22,'Website':15,'WhatsApp':12,'SMS Campaign':10,'Instagram':12 }
-    const crs = ['MBA','M.Tech','B.Tech CSE','B.Tech ECE'].includes(course) ? 15 : 10
-    return Math.min((src[source] || 10) + crs + 15, 100)
+  function calcScore(source, course, lead = {}) {
+    // Source quality (0-30)
+    const srcScore = { 'Referral':30,'Walk-in':28,'Education Fair':25,'LinkedIn':22,'Google Ads':20,'Facebook Ads':18,'Instagram':14,'Website':13,'WhatsApp':12,'SMS Campaign':10 }[source] || 10
+
+    // Course demand/fee tier (0-25)
+    const highCourses = ['MBA','MBA (Finance)','MBA (Marketing)','MBA (HR)','M.Tech','MCA']
+    const midCourses  = ['B.Tech CSE','B.Tech ECE','B.Tech CSE (AI/ML)','B.Tech CSE (Cyber Security)','B.Sc Agriculture']
+    const crsScore = highCourses.includes(course) ? 25 : midCourses.includes(course) ? 18 : 12
+
+    // Profile completeness (0-25)
+    let profileScore = 0
+    if (lead.email) profileScore += 10
+    if (lead.state) profileScore += 8
+    if (lead.city)  profileScore += 7
+
+    // Stage engagement bonus (0-20) — set at creation; updated when stage changes
+    const stageBonus = { 'Interested':20,'Qualified Leads':20,'Follow Up':15,'Contacted':10,'Untouched':0,'Unverified':2,'Converted':20,'Unqualified Leads':0 }[lead.stage] || 0
+
+    return Math.min(srcScore + crsScore + profileScore + stageBonus, 100)
   }
 
-  // ----------- BULK WHATSAPP -----------
+  function getQualCategory(score) {
+    if (score >= 75) return { label: 'Hot',     bg: 'bg-red-100',    text: 'text-red-700'    }
+    if (score >= 50) return { label: 'Warm',    bg: 'bg-orange-100', text: 'text-orange-700' }
+    if (score >= 25) return { label: 'Nurture', bg: 'bg-yellow-100', text: 'text-yellow-700' }
+    return               { label: 'Cold',    bg: 'bg-slate-100',  text: 'text-slate-500'  }
+  }
+
+  // ----------- MULTI-CHANNEL SEND -----------
   const handleSendWA = async () => {
     if (!selectedRows.length) return showToast('Select at least one lead.', 'warning')
+    if (!sendChannels.whatsapp && !sendChannels.sms) return showToast('Select at least one channel.', 'warning')
     const tmpl = waCustomMsg || WA_TEMPLATES[waTemplate].msg
     if (!tmpl) return showToast('Please enter a message.', 'error')
     setWaSending(true)
-    await sendBulkWhatsApp(selectedRows, tmpl, WA_TEMPLATES[waTemplate].label)
+    if (sendChannels.whatsapp) await sendBulkWhatsApp(selectedRows, tmpl, WA_TEMPLATES[waTemplate].label)
+    if (sendChannels.sms) await sendBulkSMS(selectedRows, tmpl)
     setWaSending(false)
     setShowWAModal(false)
     setSelectedRows([])
@@ -393,7 +418,12 @@ export default function LeadManager() {
                       <span className={`badge ${colors.bg} ${colors.text}`}>{lead.stage}</span>
                     </td>
                     <td className="table-td">
-                      <span className={`text-xs font-bold ${scoreColor}`}>{score}</span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className={`text-xs font-bold ${scoreColor}`}>{score}</span>
+                        <span className={`badge text-[9px] font-bold px-1.5 ${getQualCategory(score).bg} ${getQualCategory(score).text}`}>
+                          {getQualCategory(score).label}
+                        </span>
+                      </div>
                     </td>
                     <td className="table-td text-gray-500 text-xs">{lead.owner || 'Unassigned'}</td>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
@@ -534,11 +564,26 @@ export default function LeadManager() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-                <MessageSquare className="text-green-500" size={22} /> WhatsApp Bulk Message
+                <MessageSquare className="text-green-500" size={22} /> Multi-Channel Outreach
               </h2>
               <button onClick={() => setShowWAModal(false)}><X size={20} className="text-gray-400" /></button>
             </div>
-            <p className="text-sm text-gray-500 mb-4">Sending to <strong className="text-gray-800">{selectedRows.length} leads</strong></p>
+            <p className="text-sm text-gray-500 mb-3">Sending to <strong className="text-gray-800">{selectedRows.length} leads</strong></p>
+
+            {/* Channel toggles */}
+            <div className="flex gap-3 mb-4">
+              {[
+                { key: 'whatsapp', label: 'WhatsApp', icon: '💬', color: 'border-green-400 bg-green-50 text-green-700' },
+                { key: 'sms',      label: 'SMS',       icon: '📱', color: 'border-blue-400 bg-blue-50 text-blue-700'  },
+              ].map(ch => (
+                <button key={ch.key} type="button"
+                  onClick={() => setSendChannels(p => ({ ...p, [ch.key]: !p[ch.key] }))}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${sendChannels[ch.key] ? ch.color : 'border-gray-200 bg-white text-gray-400'}`}>
+                  <span>{ch.icon}</span> {ch.label}
+                  {sendChannels[ch.key] && <span className="text-[10px] bg-current/20 rounded px-1">ON</span>}
+                </button>
+              ))}
+            </div>
 
             <div className="space-y-3 mb-4">
               <label className="block text-xs font-semibold text-gray-500 uppercase">Quick Template</label>
