@@ -32,7 +32,7 @@
     @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
   }
   .sidebar-icon {
-    @apply flex flex-col items-center justify-center w-full py-3 text-gray-400 hover:text-white hover:bg-primary-600 cursor-pointer transition-colors duration-150 relative;
+    @apply flex flex-col items-center justify-center w-full py-3.5 text-gray-400 hover:text-white hover:bg-primary-600 cursor-pointer transition-colors duration-150 relative;
   }
   .sidebar-icon.active {
     @apply text-white bg-primary-600;

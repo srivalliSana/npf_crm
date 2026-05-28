@@ -36,14 +36,14 @@ export default function Sidebar({ onLogout, user }) {
   )
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-14 bg-primary-500 flex flex-col items-center z-40 shadow-lg">
+    <aside className="fixed left-0 top-0 h-screen w-20 bg-primary-500 flex flex-col items-center z-40 shadow-lg">
       {/* Logo */}
       <div
-        className="w-full flex items-center justify-center h-14 cursor-pointer border-b border-primary-600"
+        className="w-full flex items-center justify-center h-16 cursor-pointer border-b border-primary-600"
         onClick={() => navigate('/dashboard')}
       >
-        <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shadow">
-          <span className="text-primary-500 font-extrabold text-xl leading-none">C</span>
+        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow">
+          <span className="text-primary-500 font-extrabold text-2xl leading-none">C</span>
         </div>
       </div>
 
@@ -57,14 +57,14 @@ export default function Sidebar({ onLogout, user }) {
               `sidebar-icon${isActive ? ' active' : ''}`
             }
           >
-            <Icon size={19} strokeWidth={1.8} />
-            <span className="text-[9px] mt-0.5 font-medium leading-tight">{label}</span>
+            <Icon size={22} strokeWidth={1.8} />
+            <span className="text-[11px] mt-1 font-medium leading-tight text-center">{label}</span>
             <span className="sidebar-tooltip">{label}</span>
           </NavLink>
         ))}
 
         {/* Public Links divider */}
-        <div className="w-8 h-px bg-primary-400 my-1" />
+        <div className="w-10 h-px bg-primary-400 my-1" />
         <a
           href="/apply"
           target="_blank"
@@ -72,8 +72,8 @@ export default function Sidebar({ onLogout, user }) {
           className="sidebar-icon"
           title="Public Inquiry Form"
         >
-          <Globe size={19} strokeWidth={1.8} />
-          <span className="text-[9px] mt-0.5 font-medium leading-tight">Inquiry</span>
+          <Globe size={22} strokeWidth={1.8} />
+          <span className="text-[11px] mt-1 font-medium leading-tight text-center">Inquiry</span>
           <span className="sidebar-tooltip">Public Inquiry Form</span>
         </a>
       </nav>
@@ -84,8 +84,8 @@ export default function Sidebar({ onLogout, user }) {
         className="sidebar-icon mb-2 border-t border-primary-600 w-full"
         title="Logout"
       >
-        <LogOut size={19} strokeWidth={1.8} />
-        <span className="text-[9px] mt-0.5 font-medium leading-tight">Logout</span>
+        <LogOut size={22} strokeWidth={1.8} />
+        <span className="text-[11px] mt-1 font-medium leading-tight text-center">Logout</span>
         <span className="sidebar-tooltip">Logout</span>
       </button>
     </aside>
