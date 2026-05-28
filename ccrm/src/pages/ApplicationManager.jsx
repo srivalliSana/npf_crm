@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Search, Download, RefreshCw, ChevronDown,
   ChevronLeft, ChevronRight, MessageCircle, Plus,
-  X, Save, Trash2, Edit2, Mail, Eye
+  X, Save, Trash2, Edit2, Mail, Eye, Link as LinkIcon, Copy
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
@@ -18,7 +18,7 @@ const QUICK_VIEWS = ['All Applications', 'My Applications', 'Payment Pending', '
 
 export default function ApplicationManager() {
   const navigate = useNavigate()
-  const { applications, addApplication, updateApplication, deleteApplication, leads, currentUser, showToast } = useCcrm()
+  const { applications, addApplication, updateApplication, deleteApplication, leads, currentUser, showToast, generatePaymentLink } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
   const [exam, setExam] = useState('All Programs')
@@ -48,6 +48,69 @@ export default function ApplicationManager() {
   const [editForm, setEditForm]       = useState({})
   const [editSaving, setEditSaving]   = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null) // app id to delete
+
+  // Payment link modal
+  const [linkApp, setLinkApp]       = useState(null)  // app for which link is being generated
+  const [payAmount, setPayAmount]   = useState('25000')
+  const [payMode, setPayMode]       = useState('Online')   // Online | Offline
+  const [linkResult, setLinkResult] = useState(null)       // { paymentLink, offlineRef }
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [offlineUtr, setOfflineUtr] = useState('')
+
+  const handleGenerateLink = async () => {
+    if (!linkApp) return
+    setLinkLoading(true)
+    try {
+      if (payMode === 'Online') {
+        const result = await generatePaymentLink(linkApp.appNo, linkApp.name, linkApp.email, linkApp.mobile, Number(payAmount))
+        if (result?.paymentLink) {
+          setLinkResult({ ...result, mode: 'Online' })
+          showToast(`Razorpay link generated for ${linkApp.appNo}`, 'success')
+        } else {
+          showToast('Razorpay link generation failed — check integration.', 'error')
+        }
+      } else {
+        // Offline — show UTR entry form
+        setLinkResult({ mode: 'Offline', appNo: linkApp.appNo, amount: payAmount })
+      }
+    } catch { showToast('Failed to generate.', 'error') }
+    setLinkLoading(false)
+  }
+
+  const handleSubmitOfflineUtr = async () => {
+    if (!offlineUtr.trim()) return showToast('Please enter UTR / reference number.', 'error')
+    try {
+      // Find pending payment for this app
+      const payRes = await fetch(`/api/payments?appNo=${linkApp.appNo}`).then(r => r.json()).catch(() => [])
+      const payment = Array.isArray(payRes) ? payRes.find(p => p.appNo === linkApp.appNo && p.status === 'Pending') : null
+      const paymentId = payment?.id
+
+      if (paymentId) {
+        const res = await fetch(`/api/payments/${paymentId}/submit-utr`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ utrNumber: offlineUtr.trim(), payMode: 'offline' })
+        })
+        if (res.ok) {
+          showToast(`UTR submitted — application marked as Payment Done`, 'success')
+          // Refresh applications
+          await updateApplication(linkApp.id, { payStatus: 'Payment Done', payMethod: 'Offline' })
+        } else {
+          showToast('UTR submission failed.', 'error')
+        }
+      } else {
+        // No payment row yet — update application directly
+        await updateApplication(linkApp.id, { payStatus: 'Payment Done', payMethod: 'Offline' })
+        showToast(`UTR ${offlineUtr} recorded`, 'success')
+      }
+      setLinkApp(null); setLinkResult(null); setOfflineUtr('')
+    } catch { showToast('Network error — try again.', 'error') }
+  }
+
+  const handleCopy = (text) => {
+    navigator.clipboard?.writeText(text)
+    showToast('Copied to clipboard!', 'success')
+  }
 
   const rowsPerPage = 10
 
@@ -417,6 +480,19 @@ export default function ApplicationManager() {
                   </td>
                   <td className="table-td" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
+                      {/* Generate Payment Link — only when Payment Pending */}
+                      {(app.payStatus === 'Payment Pending' || app.payStatus === 'Pending') && (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation()
+                            setLinkApp(app); setLinkResult(null); setPayAmount('25000'); setPayMode('Online'); setOfflineUtr('')
+                          }}
+                          className="p-1.5 rounded hover:bg-yellow-50 text-yellow-500 hover:text-yellow-600 border border-yellow-200"
+                          title="Generate Payment Link"
+                        >
+                          <LinkIcon size={14} />
+                        </button>
+                      )}
                       {/* View */}
                       <button
                         onClick={() => navigate(`/applications/${app.id}`)}
@@ -567,6 +643,109 @@ export default function ApplicationManager() {
                   <Save size={15} /> {editSaving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Link Modal */}
+      {linkApp && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <LinkIcon size={18} className="text-yellow-500" /> Generate Payment Link
+              </h2>
+              <button onClick={() => { setLinkApp(null); setLinkResult(null) }}><X size={18} className="text-gray-400" /></button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Student info */}
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                <p className="text-sm font-semibold text-blue-800">{linkApp.name}</p>
+                <p className="text-xs text-blue-600 mt-0.5">
+                  App ID: <span className="font-mono font-bold">{linkApp.appNo}</span> · {linkApp.email} · {linkApp.mobile}
+                </p>
+              </div>
+
+              {!linkResult ? (
+                <>
+                  {/* Amount */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Fee Amount (₹)</label>
+                    <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)}
+                      className="input-field text-sm" placeholder="25000" />
+                  </div>
+
+                  {/* Mode toggle */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Payment Mode</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { v: 'Online',  label: 'Online (Razorpay)',  desc: 'UTR auto-fetched on success', emoji: '💳' },
+                        { v: 'Offline', label: 'Offline (Bank/Cash)', desc: 'Enter UTR/Ref manually',     emoji: '🏦' },
+                      ].map(m => (
+                        <button key={m.v} type="button" onClick={() => setPayMode(m.v)}
+                          className={`text-left p-2.5 rounded-xl border-2 text-xs transition ${payMode === m.v ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-primary-300'}`}>
+                          <div className="flex items-center gap-1.5 font-semibold text-gray-700">
+                            <span>{m.emoji}</span> {m.label}
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{m.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button onClick={handleGenerateLink} disabled={linkLoading}
+                    className="w-full btn-primary py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+                    {linkLoading ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <LinkIcon size={14} />}
+                    {linkLoading ? 'Generating...' : payMode === 'Online' ? 'Generate Razorpay Link' : 'Proceed to Manual Entry'}
+                  </button>
+                </>
+              ) : linkResult.mode === 'Online' && linkResult.paymentLink ? (
+                <>
+                  {/* Razorpay link result */}
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
+                    <p className="text-sm font-semibold text-green-800 flex items-center gap-1.5">
+                      <span className="text-green-500">✓</span> Razorpay link created
+                    </p>
+                    <div className="bg-white border border-green-100 rounded-lg p-2 flex items-center gap-2">
+                      <code className="flex-1 text-xs text-gray-700 truncate">{linkResult.paymentLink}</code>
+                      <button onClick={() => handleCopy(linkResult.paymentLink)} className="p-1 hover:bg-green-100 rounded text-green-600">
+                        <Copy size={12} />
+                      </button>
+                    </div>
+                    <a href={linkResult.paymentLink} target="_blank" rel="noopener noreferrer"
+                      className="block text-center text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg py-2 transition-colors font-medium">
+                      Open Payment Page →
+                    </a>
+                    <p className="text-[10px] text-green-700 text-center">UTR will be auto-fetched on successful payment.</p>
+                  </div>
+                  <a href={`https://wa.me/91${linkApp.mobile}?text=${encodeURIComponent(`Dear ${linkApp.name}, please complete your CUTM admission fee payment:\n${linkResult.paymentLink}\n\nApp ID: ${linkApp.appNo}`)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="w-full block text-center bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                    📱 Send via WhatsApp
+                  </a>
+                </>
+              ) : (
+                <>
+                  {/* Offline UTR entry */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <p className="text-sm font-semibold text-amber-800 mb-2">📋 Enter Bank Reference</p>
+                    <p className="text-xs text-amber-700 mb-3">
+                      Student paid via NEFT/IMPS/UPI/Cash. Enter the UTR or reference number from the bank/receipt.
+                    </p>
+                    <input type="text" value={offlineUtr} onChange={e => setOfflineUtr(e.target.value.toUpperCase())}
+                      placeholder="e.g. UTR1234567890 / RECEIPT2026-0042"
+                      className="w-full input-field text-sm font-mono" />
+                  </div>
+                  <button onClick={handleSubmitOfflineUtr}
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 text-sm rounded-lg">
+                    Save UTR → Mark as Payment Done
+                  </button>
+                  <p className="text-[10px] text-gray-400 text-center">Accounts team will approve to mark as Paid.</p>
+                </>
+              )}
             </div>
           </div>
         </div>

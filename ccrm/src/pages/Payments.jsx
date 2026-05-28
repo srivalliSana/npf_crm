@@ -1,19 +1,21 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useCcrm } from '../context/CcrmContext'
 import {
   CreditCard, DollarSign, CheckCircle, Clock, XCircle,
   Search, Download, Plus, Filter, Send, RefreshCw, MoreHorizontal, X, Save,
-  Link, Copy, MessageCircle, ExternalLink
+  Link, Copy, MessageCircle, ExternalLink, FileSpreadsheet, Upload, ThumbsUp, AlertCircle
 } from 'lucide-react'
 
 const STATUS_COLORS = {
-  Approved: { bg: 'bg-green-100',  text: 'text-green-700'  },
-  Pending:  { bg: 'bg-yellow-100', text: 'text-yellow-700' },
-  Failed:   { bg: 'bg-red-100',    text: 'text-red-700'    },
+  Paid:           { bg: 'bg-green-100',   text: 'text-green-700'   },
+  Approved:       { bg: 'bg-green-100',   text: 'text-green-700'   },
+  'Payment Done': { bg: 'bg-blue-100',    text: 'text-blue-700'    },
+  Pending:        { bg: 'bg-yellow-100',  text: 'text-yellow-700'  },
+  Failed:         { bg: 'bg-red-100',     text: 'text-red-700'     },
 }
 
 export default function Payments() {
-  const { payments, addPayment, updatePaymentStatus, applications, showToast, generatePaymentLink } = useCcrm()
+  const { payments, setPayments, addPayment, updatePaymentStatus, applications, currentUser, showToast, generatePaymentLink, fetchAllData } = useCcrm()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All')
   const [showLink, setShowLink] = useState(false)
@@ -25,7 +27,84 @@ export default function Payments() {
   const [payAmount, setPayAmount] = useState('25000')
   const [payMethod, setPayMethod] = useState('Online')
 
-  const tabs = ['All', 'Approved', 'Pending', 'Failed']
+  // UTR submit modal (per-row)
+  const [utrPayment, setUtrPayment] = useState(null)
+  const [utrInput, setUtrInput]     = useState('')
+
+  // Bulk approve modal
+  const [showBulk, setShowBulk]       = useState(false)
+  const [bulkResult, setBulkResult]   = useState(null)
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const bulkRef = useRef(null)
+
+  const isFinance = ['Admin', 'Finance', 'Manager'].includes(currentUser?.role)
+
+  const submitUtr = async () => {
+    if (!utrInput.trim()) return showToast('Enter UTR / reference number', 'error')
+    try {
+      const res = await fetch(`/api/payments/${utrPayment.id}/submit-utr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ utrNumber: utrInput.trim(), payMode: 'offline' })
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setPayments(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
+        showToast('UTR saved — payment marked as Payment Done', 'success')
+      } else {
+        showToast('Failed to save UTR.', 'error')
+      }
+    } catch { showToast('Network error.', 'error') }
+    setUtrPayment(null); setUtrInput('')
+  }
+
+  const approveSingle = async (payment) => {
+    try {
+      const res = await fetch(`/api/payments/${payment.id}/approve`, { method: 'POST' })
+      if (res.ok) {
+        const updated = await res.json()
+        setPayments(prev => prev.map(p => p.id === updated.id ? { ...p, status: 'Paid' } : p))
+        showToast(`✓ Approved ${payment.appNo} — marked as Paid`, 'success')
+      } else {
+        const err = await res.json()
+        showToast(err.error || 'Approval failed.', 'error')
+      }
+    } catch { showToast('Network error.', 'error') }
+  }
+
+  const handleBulkApproveFile = async (file) => {
+    if (!file) return
+    if (!/\.(csv|xlsx|xls)$/i.test(file.name)) return showToast('Only CSV or Excel files.', 'error')
+    setBulkLoading(true); setBulkResult(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/payments/bulk-approve', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (res.ok) {
+        setBulkResult(data)
+        fetchAllData()
+        showToast(`${data.approved} payments approved, ${data.skipped} skipped.`, 'success')
+      } else showToast(data.error || 'Bulk approval failed.', 'error')
+    } catch { showToast('Network error.', 'error') }
+    setBulkLoading(false)
+  }
+
+  const downloadApprovalTemplate = () => {
+    const headers = ['App ID', 'UTR']
+    const samples = [
+      ['CUEEAP260001', 'UTR1234567890'],
+      ['CUEEAP260002', 'UTR9876543210'],
+      ['CUEESM260003', 'NEFT-2026-0042'],
+    ]
+    const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...samples.map(r => r.map(v => `"${v}"`).join(','))].join('\n')
+    const a = document.createElement('a')
+    a.href = encodeURI(csv); a.download = 'CCRM_Payment_Approval_Template.csv'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    showToast('Template downloaded!', 'success')
+  }
+
+  const tabs = ['All', 'Pending', 'Payment Done', 'Paid', 'Failed']
   
   const filtered = payments.filter(p =>
     (filter === 'All' || p.status === filter) &&
@@ -117,6 +196,12 @@ export default function Payments() {
           <button onClick={handleExport} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
             <Download size={14} /> Export
           </button>
+          {isFinance && (
+            <button onClick={() => { setShowBulk(true); setBulkResult(null) }}
+              className="flex items-center gap-1.5 text-sm text-green-700 border border-green-300 bg-green-50 hover:bg-green-100 rounded-lg px-3 py-1.5 transition-colors">
+              <ThumbsUp size={14} /> Bulk Approve
+            </button>
+          )}
           <button onClick={() => setShowLink(true)}
             className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 transition-colors focus:outline-none">
             <Plus size={14} /> Generate Payment Link
@@ -185,13 +270,31 @@ export default function Payments() {
                     <td className="table-td text-gray-600">{p.date || '—'}</td>
                     <td className="table-td text-xs font-mono text-gray-500">{p.txnId || '—'}</td>
                     <td className="table-td">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {p.status === 'Pending' && (
+                          <>
+                            <button
+                              onClick={() => handleSendLink(p)}
+                              className="flex items-center gap-1 text-xs text-primary-600 hover:text-white border border-primary-200 hover:bg-primary-500 rounded px-2 py-1 font-semibold transition-colors focus:outline-none"
+                            >
+                              <Send size={11} /> Send Link
+                            </button>
+                            <button
+                              onClick={() => { setUtrPayment(p); setUtrInput('') }}
+                              className="flex items-center gap-1 text-xs text-amber-700 hover:text-white border border-amber-300 hover:bg-amber-500 rounded px-2 py-1 font-semibold transition-colors"
+                              title="Enter UTR for offline payment"
+                            >
+                              📋 UTR
+                            </button>
+                          </>
+                        )}
+                        {p.status === 'Payment Done' && isFinance && (
                           <button
-                            onClick={() => handleSendLink(p)}
-                            className="flex items-center gap-1 text-xs text-primary-600 hover:text-white border border-primary-200 hover:bg-primary-500 rounded px-2 py-1 font-semibold transition-colors focus:outline-none"
+                            onClick={() => approveSingle(p)}
+                            className="flex items-center gap-1 text-xs text-green-700 hover:text-white border border-green-300 hover:bg-green-500 rounded px-2 py-1 font-semibold transition-colors"
+                            title={`Approve — UTR: ${p.utrNumber || 'none'}`}
                           >
-                            <Send size={11} /> Send Link
+                            <ThumbsUp size={11} /> Approve
                           </button>
                         )}
                         {p.status === 'Failed' && (
@@ -312,6 +415,135 @@ export default function Payments() {
                 </div>
               )}
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* UTR Submit Modal */}
+      {utrPayment && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                📋 Submit UTR / Reference
+              </h2>
+              <button onClick={() => setUtrPayment(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4">
+              <p className="text-sm font-semibold text-blue-800">{utrPayment.name}</p>
+              <p className="text-xs text-blue-600 mt-0.5">
+                App: <span className="font-mono font-bold">{utrPayment.appNo}</span> · Amount: ₹{Number(utrPayment.amount).toLocaleString()}
+              </p>
+            </div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">
+              UTR / Bank Reference Number
+            </label>
+            <input
+              type="text" value={utrInput} onChange={e => setUtrInput(e.target.value.toUpperCase())}
+              placeholder="e.g. UTR1234567890 or NEFT-2026-0042"
+              className="input-field text-sm font-mono mb-1"
+              autoFocus
+            />
+            <p className="text-xs text-gray-400 mb-4">
+              Entered by counsellor/student for offline (NEFT, IMPS, UPI, cash receipt) payments.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setUtrPayment(null)} className="flex-1 btn-secondary py-2 text-sm">Cancel</button>
+              <button onClick={submitUtr} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2 text-sm font-semibold rounded-lg">
+                Save → Payment Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Approve Modal */}
+      {showBulk && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <ThumbsUp size={18} className="text-green-500" /> Bulk Payment Approval
+              </h2>
+              <button onClick={() => { setShowBulk(false); setBulkResult(null) }}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Template */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-800 flex items-center gap-1.5">
+                    <Download size={13} /> Download Approval Template
+                  </p>
+                  <p className="text-xs text-emerald-600 mt-0.5">Columns: <strong>App ID</strong>, <strong>UTR</strong></p>
+                </div>
+                <button onClick={downloadApprovalTemplate}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-1.5 font-medium">
+                  Template
+                </button>
+              </div>
+
+              {/* Info */}
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+                <p className="font-semibold mb-1">How it works:</p>
+                <ul className="space-y-0.5 list-disc list-inside text-blue-600">
+                  <li>Upload Excel/CSV with reconciled UTRs from your bank</li>
+                  <li>System finds matching pending payments by <strong>App ID</strong></li>
+                  <li>Marks each as <strong>Paid</strong> and stores the UTR</li>
+                </ul>
+              </div>
+
+              {!bulkResult ? (
+                <div
+                  onClick={() => bulkRef.current?.click()}
+                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-green-400 transition-colors"
+                >
+                  {bulkLoading ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="animate-spin w-7 h-7 border-4 border-green-200 border-t-green-500 rounded-full" />
+                      <p className="text-sm text-gray-500 font-medium">Approving payments…</p>
+                    </div>
+                  ) : (
+                    <>
+                      <FileSpreadsheet size={36} className="mx-auto text-gray-300 mb-2" />
+                      <p className="text-sm font-semibold text-gray-600">Click to upload approval Excel/CSV</p>
+                      <p className="text-xs text-gray-400 mt-1">.csv, .xlsx, .xls</p>
+                    </>
+                  )}
+                  <input ref={bulkRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
+                    onChange={e => handleBulkApproveFile(e.target.files?.[0])} />
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-extrabold text-green-700">{bulkResult.approved}</div>
+                      <div className="text-xs text-green-600">Approved</div>
+                    </div>
+                    <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-extrabold text-yellow-700">{bulkResult.skipped}</div>
+                      <div className="text-xs text-yellow-600">Skipped</div>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-extrabold text-blue-700">{bulkResult.total}</div>
+                      <div className="text-xs text-blue-600">Total Rows</div>
+                    </div>
+                  </div>
+                  {bulkResult.errors?.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 max-h-32 overflow-y-auto">
+                      <p className="text-xs font-semibold text-red-700 mb-1">Issues (first 10):</p>
+                      {bulkResult.errors.map((e, i) => <p key={i} className="text-xs text-red-600">{e}</p>)}
+                    </div>
+                  )}
+                  <button onClick={() => setBulkResult(null)}
+                    className="w-full text-sm text-primary-600 border border-primary-200 rounded-lg py-2 hover:bg-primary-50">
+                    Upload Another File
+                  </button>
+                </>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+              <button onClick={() => { setShowBulk(false); setBulkResult(null) }} className="btn-secondary text-sm px-4 py-2">Close</button>
+            </div>
           </div>
         </div>
       )}
