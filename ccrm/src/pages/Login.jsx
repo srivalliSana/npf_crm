@@ -325,7 +325,7 @@ export default function Login() {
           )}
 
           {/* Google SSO — primary CTA */}
-          <div className="space-y-3 mb-6">
+          <div className="mb-6">
             {isGoogleConfigured ? (
               <button
                 onClick={() => { setError(''); googleLogin() }}
@@ -345,16 +345,6 @@ export default function Login() {
                 Continue with Google
               </button>
             )}
-
-            {/* Microsoft – placeholder */}
-            <button disabled
-              className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-400 cursor-not-allowed opacity-60"
-              title="Microsoft SSO coming soon">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="#9ca3af">
-                <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zM24 11.4H12.6V0H24v11.4z"/>
-              </svg>
-              Microsoft SSO (Coming Soon)
-            </button>
           </div>
 
           {/* Divider */}

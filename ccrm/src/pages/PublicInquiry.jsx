@@ -201,7 +201,7 @@ export default function PublicInquiry() {
             <div className="hidden md:flex items-center gap-3">
               <a href="/login"
                 className={`text-sm font-medium px-4 py-2 rounded-lg transition ${scrolled ? 'text-gray-700 hover:bg-gray-100' : 'text-white/85 hover:text-white hover:bg-white/10'}`}>
-                Staff Login
+                Login
               </a>
               <a href="#apply"
                 className="text-sm font-bold px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/30 transition">
@@ -228,7 +228,7 @@ export default function PublicInquiry() {
                 </a>
               ))}
               <div className="border-t border-gray-100 pt-3 mt-3 flex flex-col gap-2">
-                <a href="/login" className="py-2.5 text-sm text-center font-medium text-gray-600 hover:text-primary-600">Staff Login</a>
+                <a href="/login" className="py-2.5 text-sm text-center font-medium text-gray-600 hover:text-primary-600">Login</a>
                 <a href="#apply" className="py-3 bg-primary-600 text-white text-sm font-bold text-center rounded-xl">Apply Now</a>
               </div>
             </div>
@@ -586,7 +586,7 @@ export default function PublicInquiry() {
                 </li>
                 <li className="pt-2">
                   <a href="/login" className="text-primary-400 hover:text-primary-300 font-medium transition">
-                    Staff / Admin Login →
+                    Staff Login →
                   </a>
                 </li>
               </ul>
