@@ -177,14 +177,13 @@ export default function PublicInquiry() {
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <a href="#" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center shadow-md">
-                <GraduationCap size={20} className="text-white" />
-              </div>
-              <div>
-                <div className={`font-extrabold text-lg leading-none transition-colors ${scrolled ? 'text-gray-900' : 'text-white'}`}>CUTM</div>
-                <div className={`text-[10px] font-medium transition-colors ${scrolled ? 'text-gray-500' : 'text-blue-200'}`}>Admissions 2026</div>
-              </div>
+            <a href="#" className="flex items-center">
+              <img
+                src="https://cutmap.ac.in/wp-content/themes/centurion/images/logo.svg"
+                alt="Centurion University of Technology and Management"
+                className="h-10 w-auto transition-all duration-300"
+                style={{ filter: scrolled ? 'none' : 'brightness(0) invert(1)' }}
+              />
             </a>
 
             {/* Desktop links */}
@@ -530,14 +529,12 @@ export default function PublicInquiry() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
             {/* Brand */}
             <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center">
-                  <GraduationCap size={20} className="text-white"/>
-                </div>
-                <div>
-                  <div className="text-white font-extrabold text-base">CUTM</div>
-                  <div className="text-gray-500 text-[10px]">Centurion University</div>
-                </div>
+              <div className="mb-4">
+                <img
+                  src="https://cutmap.ac.in/wp-content/themes/centurion/images/logo.svg"
+                  alt="Centurion University"
+                  className="h-10 w-auto brightness-0 invert opacity-80"
+                />
               </div>
               <p className="text-xs leading-relaxed text-gray-500">
                 Centurion University of Technology and Management — Building careers, transforming lives since 2010.
