@@ -4,23 +4,26 @@ import {
   LayoutDashboard, Users, FileText, CheckSquare, Megaphone,
   BarChart2, Settings, LogOut, CreditCard,
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
+  Trophy, Mail, Globe, ExternalLink
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: 'Dashboard',     to: '/dashboard',     roles: null },
-  { icon: Users,           label: 'Leads',         to: '/leads',         roles: null },
-  { icon: FileText,        label: 'Applications',  to: '/applications',  roles: null },
-  { icon: CheckSquare,     label: 'Tasks',         to: '/tasks',         roles: null },
-  { icon: Megaphone,       label: 'Campaigns',     to: '/campaigns',     roles: null },
-  { icon: CreditCard,      label: 'Payments',      to: '/payments',      roles: null },
-  { icon: Calendar,        label: 'Calendar',      to: '/calendar',      roles: null },
-  { icon: FileCheck,       label: 'Documents',     to: '/documents',     roles: null },
-  { icon: HelpCircle,      label: 'Queries',       to: '/queries',       roles: null },
-  { icon: BarChart2,       label: 'Reports',       to: '/reports',       roles: null },
-  // Admin-only
-  { icon: Shield,          label: 'Users',         to: '/users',         roles: ['Admin'] },
-  { icon: Puzzle,          label: 'Integrations',  to: '/integrations',  roles: ['Admin', 'Manager'] },
-  { icon: Settings,        label: 'Settings',      to: '/settings',      roles: null },
+  { icon: LayoutDashboard, label: 'Dashboard',     to: '/dashboard',        roles: null },
+  { icon: Users,           label: 'Leads',         to: '/leads',            roles: null },
+  { icon: FileText,        label: 'Applications',  to: '/applications',     roles: null },
+  { icon: CheckSquare,     label: 'Tasks',         to: '/tasks',            roles: null },
+  { icon: Megaphone,       label: 'Campaigns',     to: '/campaigns',        roles: null },
+  { icon: CreditCard,      label: 'Payments',      to: '/payments',         roles: null },
+  { icon: Calendar,        label: 'Calendar',      to: '/calendar',         roles: null },
+  { icon: FileCheck,       label: 'Documents',     to: '/documents',        roles: null },
+  { icon: HelpCircle,      label: 'Queries',       to: '/queries',          roles: null },
+  { icon: BarChart2,       label: 'Reports',       to: '/reports',          roles: null },
+  { icon: Trophy,          label: 'Leaderboard',   to: '/leaderboard',      roles: null },
+  // Admin/Manager only
+  { icon: Mail,            label: 'Email Camps',   to: '/email-campaigns',  roles: ['Admin', 'Manager'] },
+  { icon: Shield,          label: 'Users',         to: '/users',            roles: ['Admin'] },
+  { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin', 'Manager'] },
+  { icon: Settings,        label: 'Settings',      to: '/settings',         roles: null },
 ]
 
 export default function Sidebar({ onLogout, user }) {
@@ -58,6 +61,20 @@ export default function Sidebar({ onLogout, user }) {
             <span className="sidebar-tooltip">{label}</span>
           </NavLink>
         ))}
+
+        {/* Public Links divider */}
+        <div className="w-8 h-px bg-primary-400 my-1" />
+        <a
+          href="/apply"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="sidebar-icon"
+          title="Public Inquiry Form"
+        >
+          <Globe size={19} strokeWidth={1.8} />
+          <span className="text-[9px] mt-0.5 font-medium leading-tight">Inquiry</span>
+          <span className="sidebar-tooltip">Public Inquiry Form</span>
+        </a>
       </nav>
 
       {/* Logout */}

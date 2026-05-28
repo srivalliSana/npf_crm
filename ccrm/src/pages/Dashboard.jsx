@@ -1,13 +1,15 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer,
 } from 'recharts'
-import { ChevronDown, TrendingUp, Users, FileText, CheckCircle } from 'lucide-react'
+import { ChevronDown, TrendingUp, Users, FileText, CheckCircle, Target, MapPin, Trophy } from 'lucide-react'
 import ProductivityReport from './ProductivityReport'
 
 const TABS = ['User Dashboard', 'Productivity Report']
+const CAMPUSES = ['All', 'Bhubaneswar', 'Vizianagaram', 'Paralakhemundi', 'Balasore']
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -28,11 +30,40 @@ const CustomTooltip = ({ active, payload, label }) => {
 }
 
 export default function Dashboard() {
-  const { leads, applications, payments, counselors } = useCcrm()
+  const { leads, applications, payments, counselors, activeCampus, setActiveCampus, targets, setTargets, saveTarget, currentUser } = useCcrm()
   const [activeTab, setActiveTab] = useState('User Dashboard')
   const [leadsFilter, setLeadsFilter] = useState('Leads Assigned')
   const [appsFilter, setAppsFilter] = useState('Application Assigned')
   const [countFilter, setCountFilter] = useState('10 Selected')
+  const [showTargetModal, setShowTargetModal] = useState(false)
+  const [targetForm, setTargetForm] = useState({ month: MONTHS[new Date().getMonth()], year: new Date().getFullYear(), campus: 'All', targetLeads: 100, targetApplications: 30, targetEnrollments: 10 })
+  const [achievement, setAchievement] = useState(null)
+  const [campusStats, setCampusStats] = useState([])
+
+  useEffect(() => {
+    // Fetch achievement data
+    const m = MONTHS[new Date().getMonth()]
+    fetch(`/api/targets/achievement?month=${m}&year=${new Date().getFullYear()}&campus=All`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setAchievement(data) })
+      .catch(() => {})
+
+    // Fetch campus stats
+    fetch('/api/campus/stats')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setCampusStats(data))
+      .catch(() => {})
+  }, [])
+
+  const handleSaveTarget = async (e) => {
+    e.preventDefault()
+    await saveTarget(targetForm)
+    setShowTargetModal(false)
+    // Refresh achievement
+    fetch(`/api/targets/achievement?month=${targetForm.month}&year=${targetForm.year}&campus=All`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setAchievement(data) })
+  }
 
   // 1. Calculate Summary Cards
   const totalLeads = leads.length
@@ -150,6 +181,69 @@ export default function Dashboard() {
             })}
           </div>
 
+          {/* Campus Filter Bar */}
+          <div className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 p-3 shadow-sm">
+            <MapPin size={14} className="text-primary-500 flex-shrink-0" />
+            <span className="text-xs font-semibold text-gray-500 mr-1">Campus:</span>
+            {CAMPUSES.map(c => (
+              <button key={c} onClick={() => setActiveCampus(c)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition ${activeCampus === c ? 'bg-primary-500 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+                {c}
+              </button>
+            ))}
+            {campusStats.length > 0 && activeCampus !== 'All' && (() => {
+              const stat = campusStats.find(s => s.campus === activeCampus)
+              return stat ? (
+                <div className="ml-auto flex items-center gap-4 text-xs text-gray-500">
+                  <span>Apps: <strong className="text-gray-700">{stat.applications}</strong></span>
+                  <span>Enrolled: <strong className="text-green-600">{stat.enrolled}</strong></span>
+                  <span>Paid: <strong className="text-primary-600">{stat.paid}</strong></span>
+                </div>
+              ) : null
+            })()}
+          </div>
+
+          {/* Admission Target Tracker */}
+          {achievement && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Target size={18} className="text-primary-500" />
+                  <h2 className="font-semibold text-gray-800">Admission Target Tracker — {achievement.month} {achievement.year}</h2>
+                </div>
+                {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
+                  <button onClick={() => setShowTargetModal(true)}
+                    className="text-xs text-primary-600 border border-primary-200 rounded-lg px-3 py-1 hover:bg-primary-50">
+                    Set Target
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Leads', achieved: achievement.achieved.leads, target: achievement.targets.leads, color: 'blue' },
+                  { label: 'Applications', achieved: achievement.achieved.applications, target: achievement.targets.applications, color: 'orange' },
+                  { label: 'Enrollments', achieved: achievement.achieved.enrollments, target: achievement.targets.enrollments, color: 'green' },
+                ].map(item => {
+                  const pct = item.target > 0 ? Math.min((item.achieved / item.target) * 100, 100) : 0
+                  const colorMap = { blue: 'bg-blue-500', orange: 'bg-orange-500', green: 'bg-green-500' }
+                  const textMap = { blue: 'text-blue-600', orange: 'text-orange-600', green: 'text-green-600' }
+                  return (
+                    <div key={item.label} className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 font-medium">{item.label}</span>
+                        <span className={`font-bold ${textMap[item.color]}`}>{item.achieved} / {item.target || '—'}</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2.5">
+                        <div className={`h-2.5 rounded-full transition-all ${colorMap[item.color]}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="text-xs text-gray-400">{pct.toFixed(0)}% of target achieved</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Bar chart */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -261,6 +355,58 @@ export default function Dashboard() {
         </>
       ) : (
         <ProductivityReport />
+      )}
+
+      {/* Target Setting Modal */}
+      {showTargetModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2"><Target size={18} className="text-primary-500" /> Set Admission Targets</h2>
+              <button onClick={() => setShowTargetModal(false)} className="text-gray-400 hover:text-gray-600">×</button>
+            </div>
+            <form onSubmit={handleSaveTarget} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Month</label>
+                  <select value={targetForm.month} onChange={e => setTargetForm(p => ({ ...p, month: e.target.value }))} className="input-field text-sm">
+                    {MONTHS.map(m => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Year</label>
+                  <input type="number" value={targetForm.year} onChange={e => setTargetForm(p => ({ ...p, year: parseInt(e.target.value) }))} className="input-field text-sm" min="2024" max="2030" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Campus</label>
+                <select value={targetForm.campus} onChange={e => setTargetForm(p => ({ ...p, campus: e.target.value }))} className="input-field text-sm">
+                  {CAMPUSES.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Target Leads</label>
+                  <input type="number" value={targetForm.targetLeads} onChange={e => setTargetForm(p => ({ ...p, targetLeads: parseInt(e.target.value) || 0 }))} className="input-field text-sm" min="0" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Applications</label>
+                  <input type="number" value={targetForm.targetApplications} onChange={e => setTargetForm(p => ({ ...p, targetApplications: parseInt(e.target.value) || 0 }))} className="input-field text-sm" min="0" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Enrollments</label>
+                  <input type="number" value={targetForm.targetEnrollments} onChange={e => setTargetForm(p => ({ ...p, targetEnrollments: parseInt(e.target.value) || 0 }))} className="input-field text-sm" min="0" />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-3 border-t border-gray-100">
+                <button type="button" onClick={() => setShowTargetModal(false)} className="flex-1 btn-secondary text-sm py-2.5">Cancel</button>
+                <button type="submit" className="flex-1 btn-primary text-sm py-2.5 flex items-center justify-center gap-2">
+                  <Target size={15} /> Save Targets
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )

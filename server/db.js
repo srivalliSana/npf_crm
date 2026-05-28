@@ -166,6 +166,95 @@ export async function initDb() {
       );
     `)
 
+    // 11. Lead Assignment Counter (round-robin auto-assign)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lead_assignment_counter (
+        id SERIAL PRIMARY KEY,
+        counselor_name VARCHAR(100) NOT NULL UNIQUE,
+        counselor_email VARCHAR(100),
+        assignment_count INTEGER DEFAULT 0,
+        last_assigned TIMESTAMP DEFAULT NOW()
+      );
+    `)
+
+    // 12. Drip Sequences (automated follow-up)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS drip_sequences (
+        id SERIAL PRIMARY KEY,
+        lead_id INTEGER,
+        lead_name VARCHAR(100),
+        lead_email VARCHAR(100),
+        lead_mobile VARCHAR(50),
+        sequence_name VARCHAR(100) DEFAULT 'Standard Admission',
+        current_step INTEGER DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'Active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        next_action_at TIMESTAMP DEFAULT NOW()
+      );
+    `)
+
+    // 13. Call Logs (click-to-call)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS call_logs (
+        id SERIAL PRIMARY KEY,
+        lead_name VARCHAR(100),
+        lead_mobile VARCHAR(50),
+        counselor VARCHAR(100),
+        duration VARCHAR(50) DEFAULT '0:00',
+        outcome VARCHAR(100) DEFAULT 'No Answer',
+        notes TEXT DEFAULT '',
+        called_at TIMESTAMP DEFAULT NOW()
+      );
+    `)
+
+    // 14. Admission Targets (target vs achievement)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admission_targets (
+        id SERIAL PRIMARY KEY,
+        month VARCHAR(20) NOT NULL,
+        year INTEGER NOT NULL,
+        campus VARCHAR(100) DEFAULT 'All',
+        target_leads INTEGER DEFAULT 0,
+        target_applications INTEGER DEFAULT 0,
+        target_enrollments INTEGER DEFAULT 0,
+        UNIQUE(month, year, campus)
+      );
+    `)
+
+    // 15. Email Campaigns Builder
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_campaigns (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        subject VARCHAR(255) DEFAULT '',
+        template TEXT DEFAULT '',
+        segment VARCHAR(100) DEFAULT 'All Leads',
+        status VARCHAR(50) DEFAULT 'Draft',
+        sent_count INTEGER DEFAULT 0,
+        open_count INTEGER DEFAULT 0,
+        click_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        sent_at TIMESTAMP
+      );
+    `)
+
+    // 16. WhatsApp Bulk Message Logs
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_logs (
+        id SERIAL PRIMARY KEY,
+        campaign_name VARCHAR(255),
+        message_template TEXT,
+        recipient_count INTEGER DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'Sent',
+        sent_at TIMESTAMP DEFAULT NOW()
+      );
+    `)
+
+    // Migrations: add campus column to leads if not exists
+    await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS campus VARCHAR(100) DEFAULT 'Bhubaneswar';`).catch(() => {})
+    // Migrations: add score column update on leads
+    await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS auto_score INTEGER DEFAULT 0;`).catch(() => {})
+
     console.log('Schema tables created successfully.')
 
     // --- SEED INITIAL MOCK DATA IF TABLES ARE EMPTY ---

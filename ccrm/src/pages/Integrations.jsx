@@ -167,6 +167,41 @@ export default function Integrations() {
     showToast(`Connection test for ${integ.name} completed.`, 'success')
   }
 
+  const [sheetsSyncing, setSheetsSyncing] = useState(false)
+  const [sheetsSyncResult, setSheetsSyncResult] = useState(null)
+
+  const handleSheetsSync = async () => {
+    const cfg = configs['googlesheets'] || {}
+    if (!cfg.spreadsheetId) return showToast('Please configure Google Sheets with a Spreadsheet ID first.', 'error')
+    setSheetsSyncing(true)
+    setSheetsSyncResult(null)
+    try {
+      const res = await fetch('/api/integrations/sheets-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetId: cfg.spreadsheetId, apiKey: cfg.privateKey || cfg.serviceEmail })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSheetsSyncResult({ success: true, synced: data.synced, skipped: data.skipped })
+        showToast(`Google Sheets synced: ${data.synced} new leads imported!`, 'success')
+      } else {
+        setSheetsSyncResult({ success: false, error: data.error })
+        showToast(data.error || 'Sync failed.', 'error')
+      }
+    } catch (e) {
+      showToast('Sheets sync failed — check your configuration.', 'error')
+    } finally {
+      setSheetsSyncing(false)
+    }
+  }
+
+  const WEBHOOK_INFO = [
+    { id: 'meta', label: 'Meta/Facebook Lead Ads', url: 'https://crm.cutmap.ac.in/api/webhooks/meta-leads', verify: 'ccrm_meta_verify_2026', docs: 'https://developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving' },
+    { id: 'google', label: 'Google Lead Form Ads', url: 'https://crm.cutmap.ac.in/api/webhooks/google-leads', verify: '', docs: 'https://support.google.com/google-ads/answer/9423234' },
+    { id: 'wachat', label: 'WhatsApp Chatbot (WABA)', url: 'https://crm.cutmap.ac.in/api/webhooks/whatsapp-bot', verify: 'ccrm_wa_verify_2026', docs: 'https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks' },
+  ]
+
   const connectedCount = INTEGRATIONS.filter(i => isConnected(i.id)).length
 
   return (
@@ -361,6 +396,57 @@ export default function Integrations() {
             </div>
           )
         })}
+      </div>
+
+      {/* Google Sheets Sync Action */}
+      {isConnected('googlesheets') && (
+        <div className="mt-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-emerald-800 text-sm">Google Sheets → Lead Import</h3>
+              <p className="text-xs text-emerald-600">Sync new rows from your connected Google Sheet as leads (deduplication included)</p>
+            </div>
+            <button onClick={handleSheetsSync} disabled={sheetsSyncing}
+              className="flex items-center gap-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 disabled:opacity-50">
+              {sheetsSyncing ? <><span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> Syncing...</> : <><RefreshCw size={15} /> Sync Now</>}
+            </button>
+          </div>
+          {sheetsSyncResult && (
+            <div className={`mt-2 p-3 rounded-lg text-sm ${sheetsSyncResult.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
+              {sheetsSyncResult.success
+                ? `✓ Synced ${sheetsSyncResult.synced} new leads (${sheetsSyncResult.skipped} duplicates skipped)`
+                : `✗ ${sheetsSyncResult.error}`}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Webhook Configuration */}
+      <div className="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+          <h2 className="font-semibold text-gray-800">Webhook Endpoints (Lead Auto-Import)</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Configure these URLs in your ad platforms to auto-create leads from Meta, Google Ads and WhatsApp</p>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {WEBHOOK_INFO.map(w => (
+            <div key={w.id} className="px-5 py-4">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                <h3 className="font-medium text-gray-800 text-sm">{w.label}</h3>
+                <a href={w.docs} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 border border-blue-200 rounded px-2 py-0.5">
+                  <ExternalLink size={11} /> Setup Guide
+                </a>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <code className="text-xs text-slate-700 font-mono break-all">{w.url}</code>
+                <button onClick={() => { navigator.clipboard?.writeText(w.url); showToast('URL copied!', 'success') }}
+                  className="text-xs text-slate-500 hover:text-slate-700 flex-shrink-0 border border-slate-200 rounded px-2 py-1">Copy</button>
+              </div>
+              {w.verify && (
+                <p className="text-xs text-gray-400 mt-1.5">Verify Token: <code className="bg-gray-100 px-1 rounded font-mono">{w.verify}</code></p>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Footer note */}
