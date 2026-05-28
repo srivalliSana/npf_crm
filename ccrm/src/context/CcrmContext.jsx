@@ -171,6 +171,23 @@ export function CcrmProvider({ children }) {
     fetchAllData()
   }, [])
 
+  // Poll notifications every 30 seconds when user is logged in
+  const fetchNotifications = async () => {
+    const token = localStorage.getItem('ccrm_token')
+    if (!token) return
+    try {
+      const r = await fetch('/api/notifications', { headers: { 'Authorization': `Bearer ${token}` } })
+      if (r.ok) setNotifications(await r.json())
+    } catch {}
+  }
+
+  useEffect(() => {
+    if (!currentUser) return
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [currentUser])
+
   // Sync to local storage as fallback cache
   useEffect(() => {
     if (leads.length > 0) localStorage.setItem('ccrm_leads', JSON.stringify(leads))
@@ -220,30 +237,33 @@ export function CcrmProvider({ children }) {
     if (notifications.length > 0) localStorage.setItem('ccrm_notifications', JSON.stringify(notifications))
   }, [notifications])
 
-  const addNotification = async (text) => {
-    try {
-      const res = await fetch('/api/notifications', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
-      })
-      if (res.ok) {
-        const notifs = await fetch('/api/notifications')
-        if (notifs.ok) {
-          setNotifications(await notifs.json())
-          return
-        }
-      }
-    } catch {}
-
-    const nextId = notifications.length > 0 ? Math.max(...notifications.map(n => n.id)) + 1 : 1
-    const newNotif = {
-      id: nextId,
-      text,
-      time: 'Just now',
-      unread: true
-    }
+  const addNotification = (text) => {
+    // Optimistically add to local state; server creates it via createNotification() on actions
+    const nextId = Date.now()
+    const newNotif = { id: nextId, text, title: text, time: 'Just now', unread: true }
     setNotifications(prev => [newNotif, ...prev])
+  }
+
+  const markNotificationRead = async (id) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, unread: false } : n))
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      await fetch(`/api/notifications/${id}/read`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+    } catch {}
+  }
+
+  const markAllNotificationsRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, unread: false })))
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      await fetch('/api/notifications/read-all', {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+    } catch {}
   }
 
   // --- ACTIONS ---
@@ -1039,7 +1059,7 @@ export function CcrmProvider({ children }) {
       users, setUsers, addUser, updateUser, deleteUser,
       currentUser, setCurrentUser, handleLogin, handleLogout,
       toasts, showToast, removeToast,
-      notifications, setNotifications, addNotification,
+      notifications, setNotifications, addNotification, markNotificationRead, markAllNotificationsRead, fetchNotifications,
       // New features
       checkDuplicate, getNextAssignee,
       sendBulkWhatsApp,

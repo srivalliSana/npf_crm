@@ -20,20 +20,15 @@ function initials(name = '') {
 
 export default function Navbar({ onToggleSidebar, onLogout, user }) {
   const navigate = useNavigate()
-  const { notifications, setNotifications } = useCcrm()
+  const { notifications, markNotificationRead, markAllNotificationsRead } = useCcrm()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile]             = useState(false)
   const [showMioAI, setShowMioAI]                 = useState(false)
 
   const unreadCount = notifications.filter(n => n.unread).length
 
-  const handleMarkAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, unread: false })))
-  }
-
-  const handleToggleRead = (id) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, unread: !n.unread } : n))
-  }
+  const handleMarkAllRead = () => markAllNotificationsRead()
+  const handleToggleRead = (id) => markNotificationRead(id)
 
   const displayName = user?.name  || 'User'
   const displayEmail = user?.email || ''
@@ -97,7 +92,10 @@ export default function Navbar({ onToggleSidebar, onLogout, user }) {
                       className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50/75 cursor-pointer flex justify-between gap-2 items-start transition-colors ${n.unread ? 'bg-blue-50/30 border-l-2 border-primary-500' : ''}`}
                     >
                       <div>
-                        <p className="text-sm text-gray-700 font-medium">{n.text}</p>
+                        <p className="text-sm text-gray-700 font-medium">{n.title || n.text}</p>
+                        {n.title && n.text !== n.title && (
+                          <p className="text-xs text-gray-500 mt-0.5">{n.text}</p>
+                        )}
                         <p className="text-[10px] text-gray-400 mt-1">{n.time}</p>
                       </div>
                       {n.unread && <span className="w-1.5 h-1.5 bg-primary-500 rounded-full shrink-0 mt-1.5"></span>}

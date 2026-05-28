@@ -21,7 +21,7 @@ const PERMISSIONS = {
 
 const ROLES  = ['Admin','Manager','Counselor','Finance']
 const TEAMS  = ['Management','Admissions','Sales','Marketing','Finance']
-const EMPTY_FORM = { name: '', email: '', role: 'Counselor', team: 'Admissions', status: 'Active', password: '' }
+const EMPTY_FORM = { name: '', email: '', mobile: '', role: 'Counselor', team: 'Admissions', status: 'Active', password: '' }
 
 function initials(name = '') {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -59,7 +59,7 @@ export default function UserManagement({ currentUser }) {
   // ── Open edit modal ────────────────────────────────────────────────────────
   function openEdit(u) {
     setEditingUser(u)
-    setForm({ name: u.name, email: u.email, role: u.role, team: u.team, status: u.status, password: '' })
+    setForm({ name: u.name, email: u.email, mobile: u.mobile || '', role: u.role, team: u.team, status: u.status, password: '' })
     setFormError('')
     setShowModal(true)
   }
@@ -75,6 +75,7 @@ export default function UserManagement({ currentUser }) {
       updateUser(editingUser.id, {
         name: form.name,
         email: form.email,
+        mobile: form.mobile,
         role: form.role,
         team: form.team,
         status: form.status
@@ -83,6 +84,7 @@ export default function UserManagement({ currentUser }) {
       addUser({
         name: form.name,
         email: form.email,
+        mobile: form.mobile,
         role: form.role,
         team: form.team,
         status: form.status,
@@ -356,6 +358,22 @@ export default function UserManagement({ currentUser }) {
                 >
                   {TEAMS.map(t => <option key={t}>{t}</option>)}
                 </select>
+              </div>
+
+              {/* Mobile (for WhatsApp alerts) */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Mobile Number
+                  <span className="ml-1 text-[10px] text-green-600 font-medium">(for WhatsApp alerts)</span>
+                </label>
+                <input
+                  type="tel"
+                  value={form.mobile}
+                  onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))}
+                  placeholder="e.g. 9876543210"
+                  className="input-field text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-0.5">WhatsApp notifications will be sent to this number when a lead is assigned.</p>
               </div>
 
               {/* Status */}
