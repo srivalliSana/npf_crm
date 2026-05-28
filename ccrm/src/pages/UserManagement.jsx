@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useCcrm } from '../context/CcrmContext'
 import {
   Users, Plus, Search, Shield, Edit, Trash2,
-  CheckCircle, XCircle, Key, X, Save, AlertTriangle,
+  CheckCircle, XCircle, X, Save, AlertTriangle,
+  Upload, Download, FileSpreadsheet,
 } from 'lucide-react'
 
 const ROLE_COLORS = {
@@ -28,15 +29,66 @@ function initials(name = '') {
 }
 
 export default function UserManagement({ currentUser }) {
-  const { users, addUser, updateUser, deleteUser } = useCcrm()
+  const { users, addUser, updateUser, deleteUser, fetchAllData, showToast } = useCcrm()
   const [search, setSearch]           = useState('')
   const [filter, setFilter]           = useState('All')
   const [selectedUser, setSelectedUser] = useState(null)
   const [showModal, setShowModal]     = useState(false)
-  const [editingUser, setEditingUser] = useState(null)   // null = create, object = edit
+  const [editingUser, setEditingUser] = useState(null)
   const [form, setForm]               = useState(EMPTY_FORM)
   const [formError, setFormError]     = useState('')
-  const [deleteConfirm, setDeleteConfirm] = useState(null) // user to delete
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
+
+  // Bulk upload state
+  const [showBulkModal, setShowBulkModal] = useState(false)
+  const [bulkUploading, setBulkUploading] = useState(false)
+  const [bulkResult, setBulkResult]       = useState(null)
+  const [dragOver, setDragOver]           = useState(false)
+  const fileInputRef = useRef(null)
+
+  const handleDownloadTemplate = () => {
+    const headers = ['Name','Email','Mobile','Role','Team','Password','Status']
+    const samples = [
+      ['Rahul Sharma',  'rahul.sharma@cutm.ac.in',  '9876543210', 'Counselor', 'Admissions', 'CUTM@2026', 'Active'  ],
+      ['Priya Patel',   'priya.patel@cutm.ac.in',   '9123456789', 'Manager',   'Admissions', 'CUTM@2026', 'Active'  ],
+      ['Amit Kumar',    'amit.kumar@cutm.ac.in',     '8765432109', 'Counselor', 'Sales',      'CUTM@2026', 'Active'  ],
+      ['Sneha Rao',     'sneha.rao@cutm.ac.in',      '9012345678', 'Finance',   'Finance',    'CUTM@2026', 'Active'  ],
+      ['Vikram Singh',  'vikram.singh@cutm.ac.in',   '7890123456', 'Counselor', 'Admissions', 'CUTM@2026', 'Inactive'],
+    ]
+    const csv = 'data:text/csv;charset=utf-8,'
+      + [headers.join(','), ...samples.map(r => r.map(v => `"${v}"`).join(','))].join('\n')
+    const a = document.createElement('a')
+    a.href = encodeURI(csv)
+    a.download = 'CCRM_User_Upload_Template.csv'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    showToast('Template downloaded!', 'success')
+  }
+
+  const handleBulkFile = async (file) => {
+    if (!file) return
+    if (!/\.(csv|xlsx|xls)$/i.test(file.name)) {
+      showToast('Only CSV or Excel files are supported.', 'error'); return
+    }
+    setBulkUploading(true)
+    setBulkResult(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/users/bulk-upload', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (res.ok) {
+        setBulkResult(data)
+        fetchAllData()
+        showToast(`${data.inserted} users created, ${data.skipped} skipped.`, 'success')
+      } else {
+        showToast(data.error || 'Upload failed.', 'error')
+      }
+    } catch {
+      showToast('Network error. Please try again.', 'error')
+    } finally {
+      setBulkUploading(false)
+    }
+  }
 
   const tabs     = ['All', ...ROLES]
   const filtered = users.filter(u =>
@@ -121,12 +173,20 @@ export default function UserManagement({ currentUser }) {
           <h1 className="text-xl font-bold text-gray-900">User Management</h1>
           <p className="text-sm text-gray-500 mt-0.5">Role-based access control, teams &amp; hierarchy management</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5"
-        >
-          <Plus size={14} /> Add User
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowBulkModal(true); setBulkResult(null) }}
+            className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50"
+          >
+            <Upload size={14} /> Bulk Upload
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5"
+          >
+            <Plus size={14} /> Add User
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -411,6 +471,115 @@ export default function UserManagement({ currentUser }) {
               <button onClick={handleSave} className="flex-1 btn-primary text-sm flex items-center justify-center gap-1.5">
                 <Save size={14} />
                 {editingUser ? 'Save Changes' : 'Create User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk Upload Modal ───────────────────────────────────────────────── */}
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-primary-50 rounded-lg"><FileSpreadsheet size={18} className="text-primary-600" /></div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Bulk User Upload</h2>
+                  <p className="text-xs text-gray-500">Upload CSV or Excel — existing emails are skipped</p>
+                </div>
+              </div>
+              <button onClick={() => setShowBulkModal(false)}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Download template */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-800 flex items-center gap-1.5">
+                    <Download size={14} /> Download CSV Template
+                  </p>
+                  <p className="text-xs text-emerald-600 mt-0.5">
+                    Columns: Name, Email, Mobile, Role, Team, Password, Status
+                  </p>
+                </div>
+                <button onClick={handleDownloadTemplate}
+                  className="flex-shrink-0 flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 transition-colors font-medium">
+                  <Download size={14} /> Template
+                </button>
+              </div>
+
+              {/* Roles & valid values note */}
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+                <p className="font-semibold">Valid values:</p>
+                <p><strong>Role:</strong> Admin · Manager · Counselor · Finance (default: Counselor)</p>
+                <p><strong>Team:</strong> Management · Admissions · Sales · Marketing · Finance (default: Admissions)</p>
+                <p><strong>Status:</strong> Active · Inactive (default: Active)</p>
+                <p><strong>Password:</strong> Temporary password — user can change after first login</p>
+              </div>
+
+              {/* Drop zone */}
+              {!bulkResult && (
+                <div
+                  onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={e => { e.preventDefault(); setDragOver(false); handleBulkFile(e.dataTransfer.files?.[0]) }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition ${dragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-primary-400'}`}
+                >
+                  {bulkUploading ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <span className="animate-spin w-8 h-8 border-4 border-primary-200 border-t-primary-500 rounded-full" />
+                      <p className="text-sm text-gray-500 font-medium">Uploading & creating users…</p>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload size={36} className="mx-auto text-gray-300 mb-3" />
+                      <p className="text-sm font-semibold text-gray-600">Drag & drop or click to select file</p>
+                      <p className="text-xs text-gray-400 mt-1">Supports .csv, .xlsx, .xls</p>
+                    </>
+                  )}
+                  <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
+                    onChange={e => handleBulkFile(e.target.files?.[0])} />
+                </div>
+              )}
+
+              {/* Result */}
+              {bulkResult && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-extrabold text-green-700">{bulkResult.inserted}</div>
+                      <div className="text-xs text-green-600">Created</div>
+                    </div>
+                    <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-extrabold text-yellow-700">{bulkResult.skipped}</div>
+                      <div className="text-xs text-yellow-600">Skipped</div>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-extrabold text-blue-700">{bulkResult.total}</div>
+                      <div className="text-xs text-blue-600">Total Rows</div>
+                    </div>
+                  </div>
+                  {bulkResult.errors?.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-red-700 mb-1">Row errors (first 10):</p>
+                      {bulkResult.errors.map((e, i) => (
+                        <p key={i} className="text-xs text-red-600">{e}</p>
+                      ))}
+                    </div>
+                  )}
+                  <button onClick={() => setBulkResult(null)}
+                    className="w-full text-sm text-primary-600 border border-primary-200 rounded-lg py-2 hover:bg-primary-50 transition-colors">
+                    Upload Another File
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+              <button onClick={() => setShowBulkModal(false)} className="btn-secondary text-sm px-4 py-2">
+                Close
               </button>
             </div>
           </div>
