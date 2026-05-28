@@ -37,19 +37,23 @@ export default function Sidebar({ onLogout, user }) {
   )
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-20 bg-primary-500 flex flex-col items-center z-40 shadow-lg">
+    <aside className="fixed left-0 top-0 h-screen w-40 bg-primary-500 flex flex-col z-40 shadow-lg">
       {/* Logo */}
       <div
-        className="w-full flex items-center justify-center h-16 cursor-pointer border-b border-primary-600"
+        className="w-full flex items-center gap-3 px-4 h-16 cursor-pointer border-b border-primary-600"
         onClick={() => navigate('/dashboard')}
       >
-        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow">
-          <span className="text-primary-500 font-extrabold text-2xl leading-none">C</span>
+        <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow flex-shrink-0">
+          <span className="text-primary-500 font-extrabold text-xl leading-none">C</span>
+        </div>
+        <div>
+          <div className="text-white font-extrabold text-sm leading-tight">CCRM</div>
+          <div className="text-primary-200 text-[10px] leading-tight">Admissions</div>
         </div>
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 flex flex-col items-center w-full mt-1 overflow-y-auto scrollbar-hide">
+      <nav className="flex-1 flex flex-col w-full mt-1 overflow-y-auto scrollbar-hide">
         {visibleItems.map(({ icon: Icon, label, to }) => (
           <NavLink
             key={to}
@@ -58,14 +62,13 @@ export default function Sidebar({ onLogout, user }) {
               `sidebar-icon${isActive ? ' active' : ''}`
             }
           >
-            <Icon size={22} strokeWidth={1.8} />
-            <span className="text-[11px] mt-1 font-medium leading-tight text-center">{label}</span>
-            <span className="sidebar-tooltip">{label}</span>
+            <Icon size={20} strokeWidth={1.8} className="flex-shrink-0" />
+            <span className="text-[13px] font-medium">{label}</span>
           </NavLink>
         ))}
 
-        {/* Public Links divider */}
-        <div className="w-10 h-px bg-primary-400 my-1" />
+        {/* Divider */}
+        <div className="mx-4 h-px bg-primary-400 my-1" />
         <a
           href="/apply"
           target="_blank"
@@ -73,9 +76,8 @@ export default function Sidebar({ onLogout, user }) {
           className="sidebar-icon"
           title="Public Inquiry Form"
         >
-          <Globe size={22} strokeWidth={1.8} />
-          <span className="text-[11px] mt-1 font-medium leading-tight text-center">Inquiry</span>
-          <span className="sidebar-tooltip">Public Inquiry Form</span>
+          <Globe size={20} strokeWidth={1.8} className="flex-shrink-0" />
+          <span className="text-[13px] font-medium">Inquiry</span>
         </a>
       </nav>
 
@@ -83,11 +85,9 @@ export default function Sidebar({ onLogout, user }) {
       <button
         onClick={onLogout}
         className="sidebar-icon mb-2 border-t border-primary-600 w-full"
-        title="Logout"
       >
-        <LogOut size={22} strokeWidth={1.8} />
-        <span className="text-[11px] mt-1 font-medium leading-tight text-center">Logout</span>
-        <span className="sidebar-tooltip">Logout</span>
+        <LogOut size={20} strokeWidth={1.8} className="flex-shrink-0" />
+        <span className="text-[13px] font-medium">Logout</span>
       </button>
     </aside>
   )
