@@ -1,4 +1,4 @@
-const CACHE = 'ccrm-v1'
+const CACHE = 'ccrm-v3'
 const STATIC = ['/','index.html']
 
 self.addEventListener('install', e => {
