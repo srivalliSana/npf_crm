@@ -261,6 +261,24 @@ export default function LeadManager() {
     }
   }
 
+  const handleDownloadTemplate = () => {
+    const headers = ['Name', 'Email', 'Mobile', 'State', 'City', 'Course', 'Source', 'Owner']
+    const samples = [
+      ['Rahul Sharma',  'rahul.sharma@gmail.com',  '9876543210', 'Odisha',       'Bhubaneswar', 'B.Tech CSE',  'Google Ads',   'Counselor 1'],
+      ['Priya Patel',   'priya.patel@yahoo.com',   '9123456789', 'Andhra Pradesh','Vizianagaram','MBA',         'Facebook Ads', 'Counselor 2'],
+      ['Amit Kumar',    'amit.kumar@outlook.com',  '8765432109', 'Jharkhand',    'Ranchi',      'BCA',         'Referral',     ''],
+      ['Sneha Rao',     '',                        '9012345678', 'Telangana',    'Hyderabad',   'B.Sc Agriculture','Education Fair',''],
+      ['Vikram Singh',  'vikram@gmail.com',        '7890123456', 'Bihar',        'Patna',       'B.Tech ECE',  'Walk-in',      'Counselor 1'],
+    ]
+    const csv = "data:text/csv;charset=utf-8,"
+      + [headers.join(','), ...samples.map(r => r.map(v => `"${v}"`).join(','))].join('\n')
+    const a = document.createElement('a')
+    a.href = encodeURI(csv)
+    a.download = 'CCRM_Lead_Upload_Template.csv'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    showToast('Template downloaded — fill it in and upload!', 'success')
+  }
+
   const closeBulkModal = () => {
     setShowBulkModal(false); setBulkStep(1); setBulkFile(null); setPreviewData(null)
     setColumnMap({}); setUploadResult(null); setDupHandling('skip')
@@ -723,10 +741,29 @@ export default function LeadManager() {
                       <input type="file" accept=".csv,.xlsx,.xls" onChange={e => handleFileSelect(e.target.files?.[0])} className="hidden" />
                     </label>
                   </div>
+                  {/* Download Template */}
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-800 flex items-center gap-1.5">
+                        <Download size={14} /> Download CSV Template
+                      </p>
+                      <p className="text-xs text-emerald-600 mt-0.5">
+                        Pre-formatted template with sample rows and correct column headers (Name, Email, Mobile, State, City, Course, Source, Owner)
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleDownloadTemplate}
+                      className="flex-shrink-0 flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 transition-colors font-medium"
+                    >
+                      <Download size={14} /> Template
+                    </button>
+                  </div>
+
                   <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600">
                     <p className="font-semibold mb-2 flex items-center gap-2"><HelpCircle size={14} className="text-primary-500" /> How it works</p>
                     <ul className="space-y-1 text-xs list-disc list-inside text-slate-500">
-                      <li>Upload any Excel or CSV — column names are auto-detected</li>
+                      <li>Download the template above, fill in your leads, then upload it here</li>
+                      <li>Or upload any Excel/CSV — column names are auto-detected</li>
                       <li>Preview and remap columns if needed before import</li>
                       <li>Duplicate mobile numbers are flagged before import</li>
                       <li>All leads get auto-scored based on source and profile</li>
