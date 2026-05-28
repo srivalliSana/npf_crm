@@ -45,6 +45,24 @@ const docStorage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, `doc_${Date.now()}${path.extname(file.originalname)}`)
 })
 
+// Dedicated multer for bulk CSV/Excel uploads — saved to /uploads/bulk-temp
+const bulkTempDir = path.join(__dirname, 'uploads', 'bulk-temp')
+if (!fs.existsSync(bulkTempDir)) fs.mkdirSync(bulkTempDir, { recursive: true })
+
+const bulkStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, bulkTempDir),
+  filename: (req, file, cb) => cb(null, `bulk_${Date.now()}_${Math.random().toString(36).slice(2)}${path.extname(file.originalname)}`)
+})
+const uploadBulk = multer({
+  storage: bulkStorage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+  fileFilter: (req, file, cb) => {
+    const ok = /\.(csv|xlsx|xls)$/i.test(file.originalname)
+    if (!ok) return cb(new Error('Only CSV and Excel files (.csv, .xlsx, .xls) are allowed.'))
+    cb(null, true)
+  }
+})
+
 const uploadAvatar = multer({ storage: avatarStorage })
 const uploadDoc = multer({ storage: docStorage })
 
@@ -1749,14 +1767,29 @@ app.post('/api/payments/generate-link', async (req, res) => {
 })
 
 // --- FEATURE 12 & 13: EXCEL PREVIEW / COLUMN MAPPER + DUPLICATE DETECTION ---
-app.post('/api/leads/preview-upload', uploadDoc.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
+app.post('/api/leads/preview-upload', (req, res, next) => {
+  uploadBulk.single('file')(req, res, (err) => {
+    if (err) {
+      console.error('[Preview Upload] Multer error:', err.message)
+      return res.status(400).json({ error: err.message || 'File upload failed.' })
+    }
+    next()
+  })
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded. Make sure you are sending a CSV or Excel file.' })
   const filePath = req.file.path
   try {
-    const workbook = XLSX.readFile(filePath)
+    let workbook
+    try {
+      workbook = XLSX.readFile(filePath, { cellDates: true, raw: false })
+    } catch (xlsxErr) {
+      console.error('[Preview Upload] XLSX parse error:', xlsxErr.message, '| file:', filePath)
+      return res.status(400).json({ error: `Could not read file: ${xlsxErr.message}. Ensure it is a valid .csv, .xlsx, or .xls file.` })
+    }
+
     const sheetName = workbook.SheetNames[0]
     const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' })
-    if (!rawData || rawData.length === 0) return res.status(400).json({ error: 'Spreadsheet is empty.' })
+    if (!rawData || rawData.length === 0) return res.status(400).json({ error: 'Spreadsheet is empty or has no data rows.' })
 
     const headers = Object.keys(rawData[0])
     const preview = rawData.slice(0, 5)
@@ -1764,14 +1797,13 @@ app.post('/api/leads/preview-upload', uploadDoc.single('file'), async (req, res)
     // Auto-detect column mapping
     const autoMap = {}
     const fieldPatterns = {
-      name: /name|student|full.?name/i,
-      email: /email|mail/i,
+      name:   /name|student|full.?name/i,
+      email:  /email|mail/i,
       mobile: /mobile|phone|contact|number/i,
-      state: /state|province/i,
-      city: /city|district|town/i,
+      state:  /state|province/i,
+      city:   /city|district|town/i,
       course: /course|program|stream/i,
       source: /source|channel|medium/i,
-      owner: /owner|counselor|assigned/i,
     }
     for (const h of headers) {
       for (const [field, pattern] of Object.entries(fieldPatterns)) {
@@ -1779,11 +1811,11 @@ app.post('/api/leads/preview-upload', uploadDoc.single('file'), async (req, res)
       }
     }
 
-    // Duplicate detection check (check first 20 rows)
-    const sampleMobiles = rawData.slice(0, 20).map(r => {
-      const mobileCol = autoMap.mobile || headers.find(h => /mobile|phone/i.test(h))
-      return String(r[mobileCol] || '').replace(/\D/g, '')
-    }).filter(m => m.length > 0)
+    // Duplicate detection (sample first 20 rows)
+    const mobileCol = autoMap.mobile || headers.find(h => /mobile|phone/i.test(h))
+    const sampleMobiles = rawData.slice(0, 20)
+      .map(r => String(r[mobileCol] || '').replace(/\D/g, ''))
+      .filter(m => m.length >= 10)
 
     let duplicateCount = 0
     if (sampleMobiles.length > 0) {
@@ -1791,34 +1823,43 @@ app.post('/api/leads/preview-upload', uploadDoc.single('file'), async (req, res)
       const dupRes = await pool.query(`SELECT COUNT(*) FROM leads WHERE mobile IN (${placeholders});`, sampleMobiles)
       duplicateCount = parseInt(dupRes.rows[0].count)
     }
-    const estimatedDupRate = rawData.length > 0 ? ((duplicateCount / Math.min(20, rawData.length)) * 100).toFixed(0) : 0
+    const estimatedDupRate = rawData.length > 0
+      ? ((duplicateCount / Math.min(20, rawData.length)) * 100).toFixed(0)
+      : 0
 
-    res.json({
-      headers,
-      preview,
-      totalRows: rawData.length,
-      autoMap,
-      duplicateCount,
-      estimatedDupRate: parseFloat(estimatedDupRate),
-    })
+    res.json({ headers, preview, totalRows: rawData.length, autoMap, duplicateCount, estimatedDupRate: parseFloat(estimatedDupRate) })
   } catch (err) {
-    console.error('[Preview Upload]', err)
-    res.status(500).json({ error: 'Preview failed.' })
+    console.error('[Preview Upload] Unexpected error:', err)
+    res.status(500).json({ error: `Server error: ${err.message}` })
   } finally {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath) } catch {}
   }
 })
 
 // Enhanced bulk upload with column mapping + skip/update duplicates
-app.post('/api/leads/bulk-upload-mapped', uploadDoc.single('file'), async (req, res) => {
+app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
+  uploadBulk.single('file')(req, res, (err) => {
+    if (err) {
+      console.error('[Bulk Upload] Multer error:', err.message)
+      return res.status(400).json({ error: err.message || 'File upload failed.' })
+    }
+    next()
+  })
+}, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
   const filePath = req.file.path
   let columnMap = {}
   try { columnMap = JSON.parse(req.body.columnMap || '{}') } catch {}
-  const dupHandling = req.body.dupHandling || 'skip' // skip | update | import
+  const dupHandling = req.body.dupHandling || 'skip'
 
   try {
-    const workbook = XLSX.readFile(filePath)
+    let workbook
+    try {
+      workbook = XLSX.readFile(filePath, { cellDates: true, raw: false })
+    } catch (xlsxErr) {
+      console.error('[Bulk Upload] XLSX parse error:', xlsxErr.message)
+      return res.status(400).json({ error: `Could not read file: ${xlsxErr.message}` })
+    }
     const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' })
 
     // Pre-fetch round-robin counselor list once for the whole batch
@@ -1898,7 +1939,7 @@ app.post('/api/leads/bulk-upload-mapped', uploadDoc.single('file'), async (req, 
     console.error('[Bulk Mapped]', err)
     res.status(500).json({ error: err.message || 'Bulk upload failed.' })
   } finally {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath) } catch {}
   }
 })
 
