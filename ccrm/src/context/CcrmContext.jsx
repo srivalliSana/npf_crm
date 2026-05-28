@@ -699,6 +699,22 @@ export function CcrmProvider({ children }) {
     showToast(`Document status marked as ${status}.`, 'info')
   }
 
+  const deleteApplication = async (id) => {
+    try {
+      await fetch(`/api/applications/${id}`, { method: 'DELETE' })
+    } catch {}
+    setApplications(prev => prev.filter(a => a.id !== id))
+    showToast('Application deleted.', 'success')
+  }
+
+  const deleteDocument = async (id) => {
+    try {
+      await fetch(`/api/documents/${id}`, { method: 'DELETE' })
+    } catch {}
+    setDocuments(prev => prev.filter(d => d.id !== id))
+    showToast('Document deleted.', 'success')
+  }
+
   const uploadDocument = async (docData) => {
     try {
       const res = await fetch('/api/documents', {
@@ -1048,13 +1064,13 @@ export function CcrmProvider({ children }) {
     <CcrmContext.Provider value={{
       leads, setLeads, addLead, updateLead, deleteLead,
       fetchAllData, refreshCounselors,
-      applications, setApplications, addApplication, updateApplication,
+      applications, setApplications, addApplication, updateApplication, deleteApplication,
       counselors, setCounselors,
       campaigns, setCampaigns, addCampaign, toggleCampaignStatus,
       tasks, setTasks, addTask, toggleTaskComplete,
       payments, setPayments, addPayment, updatePaymentStatus,
       queries, setQueries, addQuery, updateQueryStatus, addQueryReply,
-      documents, setDocuments, updateDocStatus, uploadDocument,
+      documents, setDocuments, updateDocStatus, uploadDocument, deleteDocument,
       events, setEvents, addEvent,
       users, setUsers, addUser, updateUser, deleteUser,
       currentUser, setCurrentUser, handleLogin, handleLogout,

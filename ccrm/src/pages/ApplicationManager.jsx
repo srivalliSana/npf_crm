@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Search, Download, RefreshCw, ChevronDown,
   ChevronLeft, ChevronRight, MessageCircle, Plus,
-  SlidersHorizontal, MoreHorizontal, X, Save
+  X, Save, Trash2, Edit2, Mail, Eye
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
@@ -17,7 +17,7 @@ const QUICK_VIEWS = ['All Applications', 'My Applications', 'Payment Pending', '
 
 export default function ApplicationManager() {
   const navigate = useNavigate()
-  const { applications, addApplication, leads, currentUser, showToast } = useCcrm()
+  const { applications, addApplication, updateApplication, deleteApplication, leads, currentUser, showToast } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
   const [exam, setExam] = useState('CUEE Application 2026')
@@ -42,7 +42,36 @@ export default function ApplicationManager() {
     stage: 'Application Started'
   })
 
+  // Edit modal state
+  const [editApp, setEditApp]         = useState(null) // app being edited
+  const [editForm, setEditForm]       = useState({})
+  const [editSaving, setEditSaving]   = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(null) // app id to delete
+
   const rowsPerPage = 10
+
+  const handleOpenEdit = (e, app) => {
+    e.stopPropagation()
+    setEditApp(app)
+    setEditForm({
+      name: app.name, email: app.email, mobile: app.mobile,
+      campus: app.campus || 'Bhubaneswar', course: app.course || 'B.Tech CSE',
+      formStatus: app.formStatus, payStatus: app.payStatus,
+      payMethod: app.payMethod || '', stage: app.stage
+    })
+  }
+
+  const handleSaveEdit = async () => {
+    setEditSaving(true)
+    await updateApplication(editApp.id, { ...editForm, appNo: editApp.appNo })
+    setEditSaving(false)
+    setEditApp(null)
+  }
+
+  const handleConfirmDelete = async () => {
+    await deleteApplication(deleteConfirm)
+    setDeleteConfirm(null)
+  }
 
   const handleLeadSelect = (leadId) => {
     setChooseLeadId(leadId)
@@ -310,10 +339,7 @@ export default function ApplicationManager() {
               <span className="ml-2 text-primary-600 font-medium">· {selectedRows.length} selected</span>
             )}
           </span>
-          <button className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
-            <MoreHorizontal size={14} />
-            Actions
-          </button>
+          <span className="text-xs text-gray-400">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -335,6 +361,7 @@ export default function ApplicationManager() {
                 <th className="table-th">Form Status</th>
                 <th className="table-th">Payment Status</th>
                 <th className="table-th">Payment Method</th>
+                <th className="table-th w-28">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -387,6 +414,45 @@ export default function ApplicationManager() {
                   <td className="table-td">
                     <span className={`badge ${payMethodBadge(app.payMethod)}`}>{app.payMethod || 'None'}</span>
                   </td>
+                  <td className="table-td" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1">
+                      {/* View */}
+                      <button
+                        onClick={() => navigate(`/applications/${app.id}`)}
+                        className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500"
+                        title="View profile"
+                      >
+                        <Eye size={14} />
+                      </button>
+                      {/* Mail */}
+                      <a
+                        href={`mailto:${app.email}`}
+                        onClick={e => e.stopPropagation()}
+                        className="p-1.5 rounded hover:bg-purple-50 text-gray-400 hover:text-purple-500"
+                        title="Send email"
+                      >
+                        <Mail size={14} />
+                      </a>
+                      {/* Edit */}
+                      <button
+                        onClick={e => handleOpenEdit(e, app)}
+                        className="p-1.5 rounded hover:bg-yellow-50 text-gray-400 hover:text-yellow-600"
+                        title="Edit application"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      {/* Delete — Admin only */}
+                      {currentUser?.role === 'Admin' && (
+                        <button
+                          onClick={e => { e.stopPropagation(); setDeleteConfirm(app.id) }}
+                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
+                          title="Delete application"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
               {pageData.length === 0 && (
@@ -434,6 +500,93 @@ export default function ApplicationManager() {
           </div>
         </div>
       </div>
+
+      {/* Edit Application Modal */}
+      {editApp && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Edit2 className="text-primary-500" size={18} /> Edit Application
+              </h2>
+              <button onClick={() => setEditApp(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { key: 'name',   label: 'Student Name',    type: 'text'  },
+                  { key: 'email',  label: 'Email Address',   type: 'email' },
+                  { key: 'mobile', label: 'Mobile Number',   type: 'text'  },
+                ].map(f => (
+                  <div key={f.key}>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{f.label}</label>
+                    <input type={f.type} value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} className="input-field text-sm" />
+                  </div>
+                ))}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Campus</label>
+                  <select value={editForm.campus || ''} onChange={e => setEditForm(p => ({ ...p, campus: e.target.value }))} className="input-field text-sm">
+                    {['Bhubaneswar','Paralakhemundi','Vizianagaram','Rayagada','Balasore'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Course</label>
+                  <select value={editForm.course || ''} onChange={e => setEditForm(p => ({ ...p, course: e.target.value }))} className="input-field text-sm">
+                    {['B.Tech CSE','B.Tech ECE','B.Tech Civil','B.Tech Mech','MBA','MBA (Finance)','MBA (Marketing)','MBA (HR)','BCA','BBA','B.Com','M.Sc Agriculture (Genetics)','M.Tech','PhD'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Form Status</label>
+                  <select value={editForm.formStatus || ''} onChange={e => setEditForm(p => ({ ...p, formStatus: e.target.value }))} className="input-field text-sm">
+                    <option>Complete</option><option>Incomplete</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Status</label>
+                  <select value={editForm.payStatus || ''} onChange={e => setEditForm(p => ({ ...p, payStatus: e.target.value }))} className="input-field text-sm">
+                    <option>Payment Pending</option><option>Approved</option><option>Failed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Method</label>
+                  <select value={editForm.payMethod || ''} onChange={e => setEditForm(p => ({ ...p, payMethod: e.target.value }))} className="input-field text-sm">
+                    <option value="">None / Pending</option><option>Online</option><option>Offline</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Application Stage</label>
+                  <select value={editForm.stage || ''} onChange={e => setEditForm(p => ({ ...p, stage: e.target.value }))} className="input-field text-sm">
+                    {['Application Started','Application Submitted','Payment Pending','Payment Approved','Enrolment','Rejected'].map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
+                <button onClick={() => setEditApp(null)} className="flex-1 btn-secondary py-2.5 text-sm">Cancel</button>
+                <button onClick={handleSaveEdit} disabled={editSaving} className="flex-1 btn-primary py-2.5 text-sm flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  <Save size={15} /> {editSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deleteConfirm !== null && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex flex-col items-center text-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center"><Trash2 size={22} className="text-red-500" /></div>
+              <h3 className="font-bold text-gray-900 text-base">Delete Application</h3>
+              <p className="text-sm text-gray-500">This will permanently delete the application and cannot be undone.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 btn-secondary py-2 text-sm">Cancel</button>
+              <button onClick={handleConfirmDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 text-sm font-semibold rounded-lg">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Application Modal */}
       {showAddModal && (

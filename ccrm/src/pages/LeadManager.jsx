@@ -334,10 +334,12 @@ export default function LeadManager() {
                 className="flex items-center gap-1 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-2.5 py-1 disabled:opacity-50">
                 <Zap size={13} /> {dripLoading ? 'Enrolling...' : 'Drip Enroll'}
               </button>
-              <button onClick={() => setDeleteConfirm('bulk')}
-                className="flex items-center gap-1 text-xs text-red-500 border border-red-200 rounded-lg px-2.5 py-1 hover:bg-red-50">
-                <Trash2 size={13} /> Delete ({selectedRows.length})
-              </button>
+              {currentUser?.role === 'Admin' && (
+                <button onClick={() => setDeleteConfirm('bulk')}
+                  className="flex items-center gap-1 text-xs text-red-500 border border-red-200 rounded-lg px-2.5 py-1 hover:bg-red-50">
+                  <Trash2 size={13} /> Delete ({selectedRows.length})
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -395,10 +397,12 @@ export default function LeadManager() {
                     </td>
                     <td className="table-td text-gray-500 text-xs">{lead.owner || 'Unassigned'}</td>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(lead.id) }}
-                        className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500" title="Delete">
-                        <Trash2 size={14} />
-                      </button>
+                      {currentUser?.role === 'Admin' && (
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(lead.id) }}
+                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500" title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )

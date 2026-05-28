@@ -2,8 +2,8 @@ import React, { useState, useRef } from 'react'
 import { useCcrm } from '../context/CcrmContext'
 import {
   FileText, Upload, CheckCircle, Clock, XCircle,
-  Search, Download, Eye, MoreHorizontal, Plus, Filter, X, Save,
-  ZoomIn, ExternalLink, AlertCircle
+  Search, Download, Eye, X, Save,
+  ExternalLink, AlertCircle, Trash2
 } from 'lucide-react'
 
 const STATUS_COLORS = {
@@ -20,11 +20,12 @@ const DOC_TYPES = [
 ]
 
 export default function Documents() {
-  const { documents, updateDocStatus, uploadDocument, leads, showToast } = useCcrm()
+  const { documents, updateDocStatus, uploadDocument, deleteDocument, leads, currentUser, showToast } = useCcrm()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All')
   const [showUpload, setShowUpload] = useState(false)
   const [viewDoc, setViewDoc] = useState(null) // document to preview
+  const [deleteConfirm, setDeleteConfirm] = useState(null) // doc id to delete
   const fileInputRef = useRef(null)
   const [selectedFile, setSelectedFile] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -267,6 +268,11 @@ export default function Documents() {
                             <XCircle size={14} />
                           </button>
                         )}
+                        {currentUser?.role === 'Admin' && (
+                          <button onClick={() => setDeleteConfirm(d.id)} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 focus:outline-none" title="Delete document">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -283,6 +289,24 @@ export default function Documents() {
           </table>
         </div>
       </div>
+
+      {/* Delete Confirm Modal */}
+      {deleteConfirm !== null && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex flex-col items-center text-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center"><Trash2 size={22} className="text-red-500" /></div>
+              <h3 className="font-bold text-gray-900 text-base">Delete Document</h3>
+              <p className="text-sm text-gray-500">This will permanently delete the document record. Cannot be undone.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 btn-secondary py-2 text-sm">Cancel</button>
+              <button onClick={() => { deleteDocument(deleteConfirm); setDeleteConfirm(null) }}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 text-sm font-semibold rounded-lg">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Upload Modal */}
       {showUpload && (
