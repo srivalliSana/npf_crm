@@ -134,19 +134,21 @@ const INTEGRATIONS = [
   // ── Telephony ───────────────────────────────────────────────────────────────
   {
     id: 'ameyo',
-    name: 'Ameyo (Telephony)',
-    description: 'Cloud telephony, call recording, and auto-dialer. Counselors can click-to-call leads and recordings sync back to CCRM.',
+    name: 'Telephony (Ameyo / Exotel)',
+    description: 'Click-to-call counselors via Ameyo or Exotel. Supports both providers — detected automatically from the API URL.',
     icon: PhoneCall,
     color: 'text-violet-600',
     bg: 'bg-violet-50',
     border: 'border-violet-200',
     category: 'Telephony',
-    docsUrl: 'https://www.ameyo.com/developers/',
+    docsUrl: 'https://developer.exotel.com/api/',
     fields: [
-      { key: 'ameyo_api_url',     label: 'API URL',      placeholder: 'https://yourorg.ameyo.com/api', secret: false },
-      { key: 'ameyo_username',    label: 'Username',     placeholder: 'Your Ameyo username', secret: false },
-      { key: 'ameyo_password',    label: 'Password',     placeholder: 'Your Ameyo password', secret: true },
-      { key: 'ameyo_campaign_id', label: 'Campaign ID',  placeholder: 'Ameyo dialer campaign ID', secret: false },
+      { key: 'ameyo_api_url',       label: 'API URL',                   placeholder: 'https://api.exotel.com  OR  https://yourorg.ameyo.com', secret: false },
+      { key: 'ameyo_username',      label: 'Account SID / Username',    placeholder: 'Exotel Account SID  OR  Ameyo username', secret: false },
+      { key: 'ameyo_password',      label: 'Auth Token / Password',     placeholder: 'Exotel Auth Token  OR  Ameyo password', secret: true },
+      { key: 'ameyo_virtual_number',label: 'Virtual Number (Exotel)',   placeholder: 'Exotel VN e.g. 08068xxxxxx', secret: false },
+      { key: 'ameyo_agent_number',  label: 'Agent Number (Exotel)',     placeholder: 'Counselor\'s mobile number e.g. 9876543210', secret: false },
+      { key: 'ameyo_campaign_id',   label: 'Campaign ID (Ameyo only)',  placeholder: 'Ameyo dialer campaign ID', secret: false },
     ]
   },
 
