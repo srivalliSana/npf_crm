@@ -935,6 +935,80 @@ app.put('/api/users/:id', async (req, res) => {
   }
 })
 
+// --- BULK USER UPLOAD ---
+app.post('/api/users/bulk-upload', (req, res, next) => {
+  uploadBulk.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'File upload failed.' })
+    next()
+  })
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
+  const filePath = req.file.path
+  try {
+    let workbook
+    try {
+      workbook = XLSX.readFile(filePath, { cellDates: true, raw: false })
+    } catch (e) {
+      return res.status(400).json({ error: `Cannot read file: ${e.message}` })
+    }
+    const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' })
+    if (!rawData.length) return res.status(400).json({ error: 'File is empty.' })
+
+    const VALID_ROLES  = ['Admin','Manager','Counselor','Finance']
+    const VALID_TEAMS  = ['Management','Admissions','Sales','Marketing','Finance']
+
+    let inserted = 0, skipped = 0, errors = []
+
+    for (const [i, row] of rawData.entries()) {
+      const rowNum = i + 2 // 1-based + header row
+      const name     = String(row.Name  || row.name  || '').trim()
+      const email    = String(row.Email || row.email || '').trim().toLowerCase()
+      const mobile   = String(row.Mobile || row.mobile || row['Mobile Number'] || '').replace(/\D/g, '').slice(-10)
+      const role     = VALID_ROLES.includes(row.Role  || row.role)  ? (row.Role  || row.role)  : 'Counselor'
+      const team     = VALID_TEAMS.includes(row.Team  || row.team)  ? (row.Team  || row.team)  : 'Admissions'
+      const password = String(row.Password || row.password || 'CUTM@2026').trim()
+      const status   = (row.Status || row.status || 'Active') === 'Inactive' ? 'Inactive' : 'Active'
+
+      if (!name)  { errors.push(`Row ${rowNum}: Name is required.`);  skipped++; continue }
+      if (!email || !email.includes('@')) { errors.push(`Row ${rowNum}: Valid email required.`); skipped++; continue }
+
+      // Skip if email already exists
+      const exists = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1;', [email])
+      if (exists.rows.length > 0) { skipped++; continue }
+
+      try {
+        const newUser = await pool.query(`
+          INSERT INTO users (name, email, mobile, password, role, team, status)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id, name;
+        `, [name, email, mobile || null, password, role, team, status])
+
+        // Add to round-robin counter if counselor/manager
+        if (['Counselor','Manager'].includes(role)) {
+          await pool.query(
+            'INSERT INTO lead_assignment_counter (counselor_name, counselor_email) VALUES ($1, $2) ON CONFLICT DO NOTHING;',
+            [name, email]
+          )
+        }
+        inserted++
+      } catch (e) {
+        errors.push(`Row ${rowNum} (${email}): ${e.message}`)
+        skipped++
+      }
+    }
+
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+      [`Bulk user upload: ${inserted} created, ${skipped} skipped`, 'Just now'])
+
+    res.json({ success: true, inserted, skipped, total: rawData.length, errors: errors.slice(0, 10) })
+  } catch (err) {
+    console.error('[User Bulk Upload]', err)
+    res.status(500).json({ error: err.message || 'Bulk user upload failed.' })
+  } finally {
+    try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath) } catch {}
+  }
+})
+
 app.delete('/api/users/:id', async (req, res) => {
   const { id } = req.params
   try {
