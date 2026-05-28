@@ -401,16 +401,42 @@ app.put('/api/leads/:id', async (req, res) => {
   const { id } = req.params
   const { name, email, mobile, state, city, course, source, owner, score, stage, stageColor } = req.body
   try {
+    // COALESCE keeps existing DB value when a field is not sent (partial updates)
     const updateRes = await pool.query(`
       UPDATE leads
-      SET name = $1, email = $2, mobile = $3, state = $4, city = $5, course = $6, source = $7, owner = $8, score = $9, stage = $10, stage_color = $11
+      SET
+        name        = COALESCE($1,  name),
+        email       = COALESCE($2,  email),
+        mobile      = COALESCE($3,  mobile),
+        state       = COALESCE($4,  state),
+        city        = COALESCE($5,  city),
+        course      = COALESCE($6,  course),
+        source      = COALESCE($7,  source),
+        owner       = COALESCE($8,  owner),
+        score       = COALESCE($9,  score),
+        stage       = COALESCE($10, stage),
+        stage_color = COALESCE($11, stage_color)
       WHERE id = $12
-      RETURNING id, name, email, mobile, state, city, course, source, owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor";
-    `, [name, email, mobile, state, city, course, source, owner, score, stage, stageColor, id])
-    
+      RETURNING id, name, email, mobile, state, city, course, source, owner,
+                reg_date AS "regDate", score, stage, stage_color AS "stageColor";
+    `, [
+      name       ?? null,
+      email      ?? null,
+      mobile     ?? null,
+      state      ?? null,
+      city       ?? null,
+      course     ?? null,
+      source     ?? null,
+      owner      ?? null,
+      score      ?? null,
+      stage      ?? null,
+      stageColor ?? null,
+      id
+    ])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
     res.json(updateRes.rows[0])
   } catch (err) {
+    console.error('[PUT /api/leads/:id]', err.message)
     res.status(500).json({ error: 'Failed to update lead details.' })
   }
 })
