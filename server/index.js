@@ -1711,15 +1711,18 @@ app.delete('/api/email-campaigns/:id', async (req, res) => {
 // Must be placed AFTER all /api routes so API routes take priority
 const distPath = path.join(__dirname, '..', 'ccrm', 'dist')
 if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath))
-  // Catch-all: send index.html for any non-API route (React Router support)
+  // Serve hashed static assets (JS/CSS) with long-term cache — safe because filenames change on rebuild
+  app.use(express.static(distPath, { etag: true, maxAge: '1y', index: false }))
+  // Catch-all: always serve index.html fresh — NO etag/cache so browser never gets a stale 304
   app.get('*', (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'))
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    res.set('Pragma', 'no-cache')
+    res.set('Expires', '0')
+    res.sendFile(path.join(distPath, 'index.html'), { etag: false, lastModified: false })
   })
   console.log(`[Static] Serving React build from: ${distPath}`)
 } else {
   console.warn(`[Static] dist folder not found at ${distPath}. Run: cd ccrm && npm run build`)
-  // Fallback catch-all so "/" doesn't return "Cannot GET /"
   app.get('*', (req, res) => {
     res.status(503).send('Frontend not built. Run: cd ccrm && npm run build')
   })
