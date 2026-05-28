@@ -815,6 +815,68 @@ app.post('/api/payments/:id/approve', async (req, res) => {
   }
 })
 
+// Bulk approve payments via Excel/CSV — accepts UTR list, marks each as Paid
+app.post('/api/payments/bulk-approve', (req, res, next) => {
+  uploadBulk.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message })
+    next()
+  })
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
+  const filePath = req.file.path
+  try {
+    let workbook
+    try { workbook = XLSX.readFile(filePath, { cellDates: true, raw: false }) }
+    catch (e) { return res.status(400).json({ error: `Cannot read file: ${e.message}` }) }
+
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' })
+    if (!rows.length) return res.status(400).json({ error: 'File is empty.' })
+
+    let approved = 0, skipped = 0, errors = []
+    for (const [i, row] of rows.entries()) {
+      const rowNum = i + 2
+      const appNo = String(row['App ID'] || row['AppNo'] || row['Application ID'] || row.appNo || '').trim()
+      const utr   = String(row['UTR'] || row['UTR Number'] || row['Reference'] || row.utrNumber || '').trim()
+      if (!appNo) { errors.push(`Row ${rowNum}: missing App ID`); skipped++; continue }
+
+      try {
+        // Approve any payment that matches appNo and is in Payment Done OR has matching UTR
+        const result = await pool.query(`
+          UPDATE payments SET status = 'Paid'
+          WHERE app_no = $1 AND status IN ('Payment Done','Pending')
+          RETURNING id, name, app_no AS "appNo", utr_number AS "utrNumber";
+        `, [appNo])
+
+        if (result.rows.length === 0) {
+          errors.push(`Row ${rowNum} (${appNo}): no pending payment found`)
+          skipped++; continue
+        }
+
+        // If UTR provided in the CSV and not already set, save it
+        if (utr) {
+          await pool.query('UPDATE payments SET utr_number = COALESCE(NULLIF(utr_number,\'\'), $1) WHERE app_no = $2;', [utr, appNo])
+        }
+
+        // Sync application
+        await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1;`, [appNo])
+        approved++
+      } catch (e) {
+        errors.push(`Row ${rowNum} (${appNo}): ${e.message}`)
+        skipped++
+      }
+    }
+
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+      [`Bulk payment approval: ${approved} marked as Paid, ${skipped} skipped`, 'Just now'])
+    res.json({ success: true, approved, skipped, total: rows.length, errors: errors.slice(0, 10) })
+  } catch (err) {
+    console.error('[Bulk Approve]', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath) } catch {}
+  }
+})
+
 // --- QUERIES/TICKETS ROUTERS ---
 app.get('/api/queries', async (req, res) => {
   try {
