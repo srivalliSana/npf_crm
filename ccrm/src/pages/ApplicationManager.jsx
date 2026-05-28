@@ -8,6 +8,7 @@ import {
 import { useCcrm } from '../context/CcrmContext'
 
 const EXAM_OPTIONS = [
+  { label: 'All Programs',          courses: [],   year: 'all' }, // shows everything
   { label: 'CUEE Application 2026', courses: ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'B.Com', 'B.Tech Civil', 'B.Tech Mech'], year: '2026' },
   { label: 'CUEE Application 2025', courses: ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'B.Com'], year: '2025' },
   { label: 'CUTM MBA 2026',         courses: ['MBA', 'MBA (Finance)', 'MBA (Marketing)', 'MBA (HR)'], year: '2026' },
@@ -20,7 +21,7 @@ export default function ApplicationManager() {
   const { applications, addApplication, updateApplication, deleteApplication, leads, currentUser, showToast } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
-  const [exam, setExam] = useState('CUEE Application 2026')
+  const [exam, setExam] = useState('All Programs')
   const selectedExamObj = EXAM_OPTIONS.find(e => e.label === exam) || EXAM_OPTIONS[0]
   const [quickView, setQuickView] = useState('All Applications')
   const [currentPage, setCurrentPage] = useState(1)
@@ -129,11 +130,13 @@ export default function ApplicationManager() {
                           a.email.toLowerCase().includes(search.toLowerCase()) ||
                           a.mobile.toLowerCase().includes(search.toLowerCase())
 
-    // Exam/application type filter — match course to selected exam bucket
-    const matchesExam = selectedExamObj.courses.some(c =>
-      a.course?.toLowerCase().includes(c.toLowerCase()) ||
-      c.toLowerCase().includes(a.course?.toLowerCase() || '')
-    )
+    // Exam/application type filter — bypass when "All Programs" selected
+    const matchesExam = selectedExamObj.year === 'all' || selectedExamObj.courses.length === 0
+      ? true
+      : selectedExamObj.courses.some(c =>
+          a.course?.toLowerCase().includes(c.toLowerCase()) ||
+          c.toLowerCase().includes(a.course?.toLowerCase() || '')
+        )
 
     return matchesSearch && matchesExam && matchQuickView(a) && matchSelectFilters(a)
   })
@@ -354,13 +357,12 @@ export default function ApplicationManager() {
                     className="w-4 h-4 rounded border-gray-300 text-primary-500"
                   />
                 </th>
-                <th className="table-th">Registered Name</th>
-                <th className="table-th">Application No</th>
-                <th className="table-th">Registered Email</th>
-                <th className="table-th">Registered Mobile</th>
+                <th className="table-th">Application ID</th>
+                <th className="table-th">Student Name</th>
+                <th className="table-th">Course</th>
+                <th className="table-th">Email / Mobile</th>
                 <th className="table-th">Form Status</th>
                 <th className="table-th">Payment Status</th>
-                <th className="table-th">Payment Method</th>
                 <th className="table-th w-28">Actions</th>
               </tr>
             </thead>
@@ -379,40 +381,39 @@ export default function ApplicationManager() {
                       className="w-4 h-4 rounded border-gray-300 text-primary-500"
                     />
                   </td>
+                  {/* Application ID — highlighted */}
+                  <td className="table-td">
+                    <span className="font-mono text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded select-all">
+                      {app.appNo}
+                    </span>
+                  </td>
+                  {/* Student name */}
                   <td className="table-td">
                     <span className="text-primary-500 hover:text-primary-700 font-medium hover:underline">
                       {app.name}
                     </span>
                   </td>
+                  {/* Course */}
+                  <td className="table-td text-xs text-gray-600">{app.course || '—'}</td>
+                  {/* Email + Mobile + WA */}
                   <td className="table-td">
-                    <span className="font-mono text-xs text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
-                      {app.appNo}
-                    </span>
-                  </td>
-                  <td className="table-td text-gray-600">{app.email}</td>
-                  <td className="table-td">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-gray-700">{app.mobile}</span>
-                      <a
-                        href={`https://wa.me/91${app.mobile}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        className="text-green-500 hover:text-green-600"
-                        title="WhatsApp"
-                      >
-                        <MessageCircle size={14} />
+                    <div className="text-xs text-gray-600 truncate max-w-36">{app.email}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-xs text-gray-500">{app.mobile}</span>
+                      <a href={`https://wa.me/91${app.mobile}`} target="_blank" rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()} className="text-green-500 hover:text-green-600" title="WhatsApp">
+                        <MessageCircle size={12} />
                       </a>
                     </div>
                   </td>
                   <td className="table-td">
                     <span className={`badge ${formStatusBadge(app.formStatus)}`}>{app.formStatus}</span>
                   </td>
+                  {/* Payment Status — yellow highlight for pending */}
                   <td className="table-td">
-                    <span className={`badge ${payStatusBadge(app.payStatus)}`}>{app.payStatus}</span>
-                  </td>
-                  <td className="table-td">
-                    <span className={`badge ${payMethodBadge(app.payMethod)}`}>{app.payMethod || 'None'}</span>
+                    <span className={`badge font-semibold ${payStatusBadge(app.payStatus)} ${app.payStatus === 'Payment Pending' ? 'ring-1 ring-yellow-400' : ''}`}>
+                      {app.payStatus}
+                    </span>
                   </td>
                   <td className="table-td" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
