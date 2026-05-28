@@ -32,7 +32,7 @@
     @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
   }
   .sidebar-icon {
-    @apply flex flex-col items-center justify-center w-full py-3.5 text-gray-400 hover:text-white hover:bg-primary-600 cursor-pointer transition-colors duration-150 relative;
+    @apply flex flex-row items-center gap-3 w-full px-4 py-3 text-primary-100 hover:text-white hover:bg-primary-600 cursor-pointer transition-colors duration-150 relative;
   }
   .sidebar-icon.active {
     @apply text-white bg-primary-600;
@@ -55,25 +55,8 @@
   background: #94a3b8;
 }
 
-/* Tooltip */
-.sidebar-tooltip {
-  position: absolute;
-  left: 100%;
-  margin-left: 8px;
-  padding: 2px 8px;
-  background: #1f2937;
-  color: white;
-  font-size: 12px;
-  border-radius: 4px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s;
-  z-index: 50;
-}
-.sidebar-icon:hover .sidebar-tooltip {
-  opacity: 1;
-}
+/* Tooltip (hidden — labels now always visible) */
+.sidebar-tooltip { display: none; }
 
 /* Premium Animations & Transitions */
 @keyframes slide-in {
