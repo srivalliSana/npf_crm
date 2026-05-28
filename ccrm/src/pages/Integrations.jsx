@@ -362,9 +362,21 @@ export default function Integrations() {
 
   const handleTest = async (integ) => {
     setTesting(integ.id)
-    await new Promise(r => setTimeout(r, 1500))
+    try {
+      if (integ.id === 'smtp') {
+        // Real SMTP verification via backend
+        const res = await fetch('/api/integration-settings/test-smtp', { method: 'POST' })
+        const data = await res.json()
+        if (data.ok) showToast(`✓ ${data.message}`, 'success')
+        else         showToast(`✗ ${data.error}`, 'error')
+      } else {
+        await new Promise(r => setTimeout(r, 1000))
+        showToast(`${integ.name} configuration saved — live test requires API credentials.`, 'info')
+      }
+    } catch {
+      showToast('Test failed — server unreachable.', 'error')
+    }
     setTesting(null)
-    showToast(`${integ.name} connection test completed.`, 'success')
   }
 
   const handleCopy = (text, id) => {

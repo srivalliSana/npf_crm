@@ -83,20 +83,28 @@ function authenticateToken(req, res, next) {
 // --- SMTP ALERT MAILER SENDER ---
 // ── Nodemailer transporter — lazy-loaded so missing package won't crash server ─
 async function createMailTransporter() {
-  const host     = await getIntegrationSetting('smtp_host')      || process.env.SMTP_HOST
+  const host     = await getIntegrationSetting('smtp_host')      || process.env.SMTP_HOST     || ''
   const port     = parseInt(await getIntegrationSetting('smtp_port') || process.env.SMTP_PORT || '587')
-  const user     = await getIntegrationSetting('smtp_user')      || process.env.SMTP_USER
-  const pass     = await getIntegrationSetting('smtp_pass')      || process.env.SMTP_PASS
+  const user     = await getIntegrationSetting('smtp_user')      || process.env.SMTP_USER     || ''
+  const pass     = await getIntegrationSetting('smtp_pass')      || process.env.SMTP_PASS     || ''
   const fromName = await getIntegrationSetting('smtp_from_name') || 'CUTM Admissions'
 
-  if (!host || !user || !pass) return null
+  // Return specific missing-field info so errors are actionable
+  const missing = []
+  if (!host) missing.push('SMTP Host (smtp.gmail.com)')
+  if (!user) missing.push('Gmail Address')
+  if (!pass) missing.push('App Password')
+  if (missing.length > 0) {
+    const msg = `Missing SMTP fields: ${missing.join(', ')} — go to Integrations → Gmail/SMTP Email and re-save`
+    console.warn('[Mail]', msg)
+    return { error: msg }
+  }
 
   let nodemailer
   try {
     nodemailer = (await import('nodemailer')).default
   } catch {
-    console.warn('[Mail] nodemailer not installed — run: npm install in /server')
-    return null
+    return { error: 'nodemailer not installed on server — run: cd /var/www/ccrm/server && npm install' }
   }
 
   const transporter = nodemailer.createTransport({
@@ -106,7 +114,7 @@ async function createMailTransporter() {
     auth: { user, pass },
     tls: { rejectUnauthorized: false }
   })
-  return { transporter, from: `"${fromName}" <${user}>` }
+  return { transporter, from: `"${fromName}" <${user}>`, error: null }
 }
 
 // Fire-and-forget alert email (counselor notifications, OTPs, etc.)
@@ -114,7 +122,7 @@ async function sendSystemMailAlert(recipient, subject, messageBody) {
   console.log(`[Mail] To: ${recipient} | Sub: ${subject}`)
   try {
     const cfg = await createMailTransporter()
-    if (!cfg) { console.warn('[Mail] SMTP not configured in Integrations — skipping'); return }
+    if (cfg.error) { console.warn('[Mail] Skipped —', cfg.error); return }
     await cfg.transporter.sendMail({ from: cfg.from, to: recipient, subject, text: messageBody })
     console.log(`[Mail] Sent to ${recipient}`)
   } catch (e) {
@@ -124,16 +132,16 @@ async function sendSystemMailAlert(recipient, subject, messageBody) {
 
 // Tracked campaign send — writes result to email_logs
 async function sendTrackedMail(recipient, recipientName, subject, messageBody, campaignId, campaignName) {
-  console.log(`[Tracked Mail] To: ${recipient}`)
+  const logErr = async (err) => pool.query(
+    'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
+    [campaignId, campaignName, recipient, recipientName, 'Failed', err]
+  ).catch(() => {})
+
   try {
     const cfg = await createMailTransporter()
-    if (!cfg) {
-      const err = 'SMTP not configured — add Gmail credentials in Integrations → Gmail/SMTP Email'
-      await pool.query(
-        'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
-        [campaignId, campaignName, recipient, recipientName, 'Failed', err]
-      ).catch(() => {})
-      return { success: false, error: err }
+    if (cfg.error) {
+      await logErr(cfg.error)
+      return { success: false, error: cfg.error }
     }
     await cfg.transporter.sendMail({ from: cfg.from, to: recipient, subject, text: messageBody })
     await pool.query(
@@ -144,10 +152,7 @@ async function sendTrackedMail(recipient, recipientName, subject, messageBody, c
   } catch (e) {
     const errMsg = e.message.substring(0, 500)
     console.error(`[Tracked Mail] Failed for ${recipient}:`, errMsg)
-    await pool.query(
-      'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
-      [campaignId, campaignName, recipient, recipientName, 'Failed', errMsg]
-    ).catch(() => {})
+    await logErr(errMsg)
     return { success: false, error: errMsg }
   }
 }
@@ -2386,6 +2391,20 @@ app.get('/api/reports/call-logs', async (req, res) => {
     )
     res.json({ logs: logs.rows, outcomeStats: stats.rows, byCounselor: byCounselor.rows })
   } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Test SMTP connection — called from Integrations page
+app.post('/api/integration-settings/test-smtp', async (req, res) => {
+  try {
+    const cfg = await createMailTransporter()
+    if (cfg.error) return res.status(400).json({ ok: false, error: cfg.error })
+    // Send a test email to the configured address itself
+    const user = await getIntegrationSetting('smtp_user') || ''
+    await cfg.transporter.verify()
+    res.json({ ok: true, message: `SMTP connection verified (${user}) — credentials are correct!` })
+  } catch (e) {
+    res.status(400).json({ ok: false, error: `Connection failed: ${e.message}` })
+  }
 })
 
 app.put('/api/email-campaigns/:id', async (req, res) => {

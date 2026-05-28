@@ -1033,8 +1033,7 @@ export function CcrmProvider({ children }) {
       if (res.ok) {
         const data = await res.json()
         setEmailCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'Sent', sentCount: data.sent } : c))
-        showToast(`Campaign sent to ${data.sent} leads!`, 'success')
-        return data
+        return data  // toast handled in EmailCampaigns.jsx to show sent/failed breakdown
       }
     } catch {}
     showToast('Failed to send campaign.', 'error')
