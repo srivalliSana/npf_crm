@@ -20,12 +20,16 @@ const STAGE_COLORS = {
 
 const getStageColorName = (stage) => ({
   'Untouched': 'red', 'Unverified': 'red', 'Contacted': 'blue',
-  'Unqualified Leads': 'orange', 'Follow Up': 'yellow', 'Interested': 'green',
-  'Qualified Leads': 'green', 'Converted': 'emerald'
+  'Unqualified Leads': 'orange', 'Follow Up': 'yellow',
+  'Interested': 'green', 'Not Interested': 'red',
+  'Process for Payment': 'orange', 'Payment Success': 'emerald',
+  // legacy
+  'Qualified Leads': 'orange', 'Converted': 'emerald',
 }[stage] || 'blue')
 
 const QUICK_VIEWS = ['All Leads', 'My Leads', 'Untouched', 'Follow Up Today', 'Hot Leads']
-const COURSES = ['B.Tech CSE', 'B.Tech ECE', 'MBA', 'BCA', 'BBA', 'M.Sc Agriculture', 'B.Tech Civil', 'M.Tech', 'B.Com']
+// Course is now free-text (counsellor enters); kept here as autocomplete suggestions
+const COURSE_SUGGESTIONS = ['B.Tech CSE', 'B.Tech ECE', 'MBA', 'BCA', 'BBA', 'M.Sc Agriculture', 'B.Tech Civil', 'M.Tech', 'B.Com']
 const SOURCES = ['Google Ads', 'Facebook Ads', 'LinkedIn', 'Walk-in', 'Referral', 'Website', 'WhatsApp', 'Education Fair', 'SMS Campaign', 'Instagram']
 const CRM_FIELDS = ['name', 'email', 'mobile', 'state', 'city', 'course', 'source', 'owner']
 const WA_TEMPLATES = [
@@ -48,7 +52,7 @@ export default function LeadManager() {
 
   // Add Lead modal
   const [showAddModal, setShowAddModal] = useState(false)
-  const [newLead, setNewLead] = useState({ name:'', email:'', mobile:'', state:'', city:'', course:'B.Tech CSE', source:'Google Ads', owner:'' })
+  const [newLead, setNewLead] = useState({ name:'', email:'', mobile:'', state:'', city:'', course:'', source:'Google Ads', owner:'' })
   const [autoAssign, setAutoAssign] = useState(true)
   const [addLoading, setAddLoading] = useState(false)
   const [dupWarning, setDupWarning] = useState(null) // {duplicates, hasDuplicate}
@@ -111,7 +115,7 @@ export default function LeadManager() {
     if (quickView === 'All Leads') return true
     if (quickView === 'My Leads') return l.owner?.toLowerCase().includes(currentUser?.name?.split(' ')[0]?.toLowerCase() || '')
     if (quickView === 'Untouched') return l.stage === 'Untouched'
-    if (quickView === 'Follow Up Today') return l.stage === 'Follow Up' || l.stage === 'Qualified Leads'
+    if (quickView === 'Follow Up Today') return l.stage === 'Follow Up' || l.stage === 'Process for Payment'
     if (quickView === 'Hot Leads') return (l.score || 0) > 70
     return true
   }
@@ -142,6 +146,7 @@ export default function LeadManager() {
   const handleCreateLead = async (e, forceSave = false) => {
     e?.preventDefault()
     if (!newLead.name || !newLead.mobile) return showToast('Name and Mobile are required.', 'error')
+    if (!newLead.course?.trim()) return showToast('Course is required.', 'error')
     if (dupWarning && !forceSave) return // show warning first
 
     setAddLoading(true)
@@ -161,7 +166,7 @@ export default function LeadManager() {
     setDupWarning(null)
     setAddLoading(false)
     setShowAddModal(false)
-    setNewLead({ name:'', email:'', mobile:'', state:'', city:'', course:'B.Tech CSE', source:'Google Ads', owner:'' })
+    setNewLead({ name:'', email:'', mobile:'', state:'', city:'', course:'', source:'Google Ads', owner:'' })
   }
 
   function calcScore(source, course, lead = {}) {
@@ -180,7 +185,13 @@ export default function LeadManager() {
     if (lead.city)  profileScore += 7
 
     // Stage engagement bonus (0-20) — set at creation; updated when stage changes
-    const stageBonus = { 'Interested':20,'Qualified Leads':20,'Follow Up':15,'Contacted':10,'Untouched':0,'Unverified':2,'Converted':20,'Unqualified Leads':0 }[lead.stage] || 0
+    const stageBonus = {
+      'Interested':20,'Process for Payment':20,'Payment Success':25,
+      'Follow Up':15,'Contacted':10,'Untouched':0,'Unverified':2,
+      'Not Interested':0,'Unqualified Leads':0,
+      // legacy
+      'Qualified Leads':20,'Converted':25
+    }[lead.stage] || 0
 
     return Math.min(srcScore + crsScore + profileScore + stageBonus, 100)
   }
@@ -487,22 +498,22 @@ export default function LeadManager() {
                     <td className="table-td text-gray-500 text-xs">{lead.owner || 'Unassigned'}</td>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
-                        {/* Interested */}
-                        {lead.stage !== 'Interested' && lead.stage !== 'Not Interested' && (
+                        {/* Interested — green pill */}
+                        {!['Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
                           <button
                             onClick={e => { e.stopPropagation(); navigate(`/leads/${lead.id}`) }}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200 font-medium"
-                            title="Mark Interested / View">
-                            ✓
+                            className="text-[10px] px-2 py-1 rounded-md bg-green-100 text-green-700 hover:bg-green-200 font-semibold whitespace-nowrap"
+                            title="Open lead to mark Interested or change stage">
+                            ✓ Interested
                           </button>
                         )}
-                        {/* Not Interested */}
-                        {lead.stage !== 'Not Interested' && (
+                        {/* Not Interested — red pill */}
+                        {lead.stage !== 'Not Interested' && lead.stage !== 'Payment Success' && (
                           <button
                             onClick={e => { e.stopPropagation(); setNiLead(lead); setNiReason(''); setNiOther('') }}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-600 hover:bg-red-200 font-medium"
-                            title="Not Interested">
-                            ✗
+                            className="text-[10px] px-2 py-1 rounded-md bg-red-100 text-red-600 hover:bg-red-200 font-semibold whitespace-nowrap"
+                            title="Mark as Not Interested with reason">
+                            ✗ Not Interested
                           </button>
                         )}
                         {currentUser?.role === 'Admin' && (
@@ -591,9 +602,18 @@ export default function LeadManager() {
                 ))}
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Course</label>
-                  <select value={newLead.course} onChange={e => setNewLead(p => ({ ...p, course: e.target.value }))} className="input-field text-sm">
-                    {COURSES.map(c => <option key={c}>{c}</option>)}
-                  </select>
+                  <input
+                    type="text"
+                    value={newLead.course}
+                    onChange={e => setNewLead(p => ({ ...p, course: e.target.value }))}
+                    list="course-suggestions"
+                    placeholder="Enter course (e.g. B.Tech CSE)"
+                    required
+                    className="input-field text-sm"
+                  />
+                  <datalist id="course-suggestions">
+                    {COURSE_SUGGESTIONS.map(c => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Lead Source</label>
