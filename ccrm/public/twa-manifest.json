@@ -1,0 +1,25 @@
+{
+  "packageId": "ac.cutm.ccrm",
+  "host": "crm.cutmap.ac.in",
+  "name": "CCRM",
+  "launcherName": "CCRM",
+  "display": "standalone",
+  "themeColor": "#003087",
+  "navigationColor": "#003087",
+  "backgroundColor": "#ffffff",
+  "enableNotifications": true,
+  "startUrl": "/login",
+  "iconUrl": "https://crm.cutmap.ac.in/favicon.svg",
+  "maskableIconUrl": "https://crm.cutmap.ac.in/favicon.svg",
+  "appVersionCode": 1,
+  "appVersionName": "1.0.0",
+  "signingKey": {
+    "path": "./release.keystore",
+    "alias": "ccrm-key"
+  },
+  "shortcuts": [
+    { "name": "Leads",        "shortName": "Leads",   "url": "/leads",        "icons": [] },
+    { "name": "Applications", "shortName": "Apps",    "url": "/applications", "icons": [] },
+    { "name": "Dashboard",    "shortName": "Dash",    "url": "/dashboard",    "icons": [] }
+  ]
+}

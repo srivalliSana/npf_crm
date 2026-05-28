@@ -1928,23 +1928,34 @@ app.post('/api/email-campaigns/:id/send', async (req, res) => {
     const campRes = await pool.query('SELECT * FROM email_campaigns WHERE id = $1;', [id])
     if (!campRes.rows[0]) return res.status(404).json({ error: 'Campaign not found.' })
     const camp = campRes.rows[0]
+    const segment = camp.segment || 'All Leads'
 
-    // Get recipients based on segment
-    let leadsQuery = 'SELECT email, name FROM leads WHERE email NOT LIKE $1 AND email != $2;'
-    const leadsRes = await pool.query(leadsQuery, ['%noemail%', ''])
+    // Build segment-aware query
+    let segWhere = "email NOT LIKE '%noemail%' AND email != '' AND email IS NOT NULL"
+    if (segment === 'Untouched Leads')      segWhere += " AND stage = 'Untouched'"
+    else if (segment === 'Qualified Leads') segWhere += " AND stage = 'Qualified Leads'"
+    else if (segment === 'Application Started') segWhere += " AND stage IN ('Application Started','Contacted','Follow Up')"
+    else if (segment === 'Payment Pending') segWhere += " AND stage IN ('Payment Pending','Application Submitted','Payment Approved')"
+    else if (segment === 'Hot Leads')       segWhere += " AND score >= 75"
+
+    const leadsRes = await pool.query(`SELECT email, name FROM leads WHERE ${segWhere};`)
     const recipients = leadsRes.rows
     let sentCount = 0
 
     for (const lead of recipients) {
       const personalizedSubject = camp.subject.replace(/\{name\}/g, lead.name)
-      const personalizedBody = camp.template.replace(/\{name\}/g, lead.name)
-      sendSystemMailAlert(lead.email, personalizedSubject, personalizedBody)
-      sentCount++
+      const personalizedBody    = camp.template.replace(/\{name\}/g, lead.name)
+      try {
+        sendSystemMailAlert(lead.email, personalizedSubject, personalizedBody)
+        sentCount++
+      } catch (e) {
+        console.error('[Email Campaign] Failed for', lead.email, e.message)
+      }
     }
 
     await pool.query(`UPDATE email_campaigns SET status = 'Sent', sent_count = $1, sent_at = NOW() WHERE id = $2;`, [sentCount, id])
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Email campaign "${camp.name}" sent to ${sentCount} leads`, 'Just now'])
-    res.json({ success: true, sent: sentCount })
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Email campaign "${camp.name}" sent to ${sentCount} recipients (${segment})`, 'Just now'])
+    res.json({ success: true, sent: sentCount, total: recipients.length, segment })
   } catch (err) {
     console.error('[Email Campaign Send]', err)
     res.status(500).json({ error: 'Failed to send campaign.' })

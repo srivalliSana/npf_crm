@@ -1,12 +1,29 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, MessageCircle, Mail, Share2, Edit3,
   Calendar, ArrowRightLeft, Star, Phone, MapPin,
   User, BookOpen, Building2, GraduationCap, ChevronRight,
-  Clock, CheckCircle2, Circle, AlertCircle, Plus, Send, HelpCircle
+  Clock, CheckCircle2, Circle, AlertCircle, Plus, Send, HelpCircle, PhoneCall
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
+
+async function initiateAmeyoCall(mobile) {
+  try {
+    const [urlRes, userRes, passRes, campRes] = await Promise.all([
+      fetch('/api/integration-settings').then(r => r.json()),
+    ])
+    const cfg = urlRes
+    if (!cfg.ameyo_api_url || !cfg.ameyo_username || !cfg.ameyo_password) return false
+    await fetch(`${cfg.ameyo_api_url}/rest/api/agent/click2call`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: cfg.ameyo_username, password: cfg.ameyo_password,
+        campaignId: cfg.ameyo_campaign_id || '', phone: `91${mobile.replace(/\D/g,'')}` })
+    })
+    return true
+  } catch { return false }
+}
 
 const APP_STAGES = [
   'Unverified',
@@ -102,6 +119,14 @@ export default function ApplicationDetails() {
   const lastActive = record.lastActive || associatedLead?.lastActive || 'Today'
 
   const [activeTab, setActiveTab] = useState('Lead Details')
+  const [ameyoCalling, setAmeyoCalling] = useState(false)
+  const [ameyoReady, setAmeyoReady] = useState(null) // null=unknown, true/false
+
+  useEffect(() => {
+    fetch('/api/integration-settings').then(r => r.json())
+      .then(cfg => setAmeyoReady(!!(cfg.ameyo_api_url && cfg.ameyo_username)))
+      .catch(() => setAmeyoReady(false))
+  }, [])
   const [editMode, setEditMode] = useState(false)
   const [formData, setFormData] = useState({
     formInterest,
@@ -421,15 +446,34 @@ export default function ApplicationDetails() {
               <div className="flex items-center gap-2 text-gray-600">
                 <Phone size={14} className="text-gray-400 flex-shrink-0" />
                 <span>{studentMobile}</span>
-                <a
-                  href={`https://wa.me/91${studentMobile}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-green-500 hover:text-green-600 ml-auto"
-                  title="WhatsApp"
-                >
-                  <MessageCircle size={14} />
-                </a>
+                <div className="flex items-center gap-1.5 ml-auto">
+                  {/* WhatsApp */}
+                  <a href={`https://wa.me/91${studentMobile}`} target="_blank" rel="noopener noreferrer"
+                    className="text-green-500 hover:text-green-600" title="WhatsApp">
+                    <MessageCircle size={14} />
+                  </a>
+                  {/* Click-to-Call: Ameyo if configured, else tel: fallback */}
+                  {ameyoReady ? (
+                    <button
+                      disabled={ameyoCalling}
+                      onClick={async () => {
+                        setAmeyoCalling(true)
+                        const ok = await initiateAmeyoCall(studentMobile)
+                        setAmeyoCalling(false)
+                        if (ok) showToast(`Ameyo call initiated to ${studentMobile}`, 'success')
+                        else showToast('Ameyo call failed — check integration settings.', 'error')
+                      }}
+                      className="text-violet-500 hover:text-violet-700 disabled:opacity-50"
+                      title="Click-to-Call via Ameyo"
+                    >
+                      {ameyoCalling ? <span className="animate-spin inline-block w-3.5 h-3.5 border border-violet-400 border-t-violet-700 rounded-full" /> : <PhoneCall size={14} />}
+                    </button>
+                  ) : (
+                    <a href={`tel:${studentMobile}`} className="text-blue-400 hover:text-blue-600" title="Call">
+                      <PhoneCall size={14} />
+                    </a>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2 text-gray-600">
                 <MapPin size={14} className="text-gray-400 flex-shrink-0" />

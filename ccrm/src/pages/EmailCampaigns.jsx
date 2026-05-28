@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
 import { Mail, Plus, Send, Trash2, Edit2, Users, BarChart2, Eye, EyeOff, Save, X, ChevronDown } from 'lucide-react'
 
-const SEGMENTS = ['All Leads', 'Untouched Leads', 'Qualified Leads', 'Application Started', 'Payment Pending']
+const SEGMENTS = ['All Leads', 'Hot Leads', 'Untouched Leads', 'Qualified Leads', 'Application Started', 'Payment Pending']
 const TEMPLATES = {
   blank: { subject: '', body: '' },
   admission: {
@@ -119,10 +119,13 @@ export default function EmailCampaigns() {
   }
 
   const handleSend = async (id) => {
-    if (!confirm('Send this campaign to all matching leads? This cannot be undone.')) return
+    const camp = emailCampaigns.find(c => c.id === id)
+    const count = recipientCount(camp?.segment || 'All Leads')
+    if (!confirm(`Send "${camp?.name}" to ${count} leads in segment "${camp?.segment}"?\n\nThis action cannot be undone.`)) return
     setSendingId(id)
-    await sendEmailCampaign(id)
+    const result = await sendEmailCampaign(id)
     setSendingId(null)
+    if (result?.sent !== undefined) showToast(`Campaign sent to ${result.sent} recipients.`, 'success')
   }
 
   const openEdit = (camp) => {
@@ -133,10 +136,14 @@ export default function EmailCampaigns() {
 
   const recipientCount = (segment) => {
     if (!leads) return 0
-    if (segment === 'All Leads') return leads.filter(l => l.email && !l.email.includes('noemail')).length
-    if (segment === 'Untouched Leads') return leads.filter(l => l.stage === 'Untouched' && l.email && !l.email.includes('noemail')).length
-    if (segment === 'Qualified Leads') return leads.filter(l => l.stage === 'Qualified Leads' && l.email && !l.email.includes('noemail')).length
-    return leads.filter(l => l.email && !l.email.includes('noemail')).length
+    const hasEmail = l => l.email && !l.email.includes('noemail') && l.email.trim() !== ''
+    if (segment === 'All Leads')          return leads.filter(hasEmail).length
+    if (segment === 'Hot Leads')          return leads.filter(l => hasEmail(l) && (l.score || 0) >= 75).length
+    if (segment === 'Untouched Leads')    return leads.filter(l => hasEmail(l) && l.stage === 'Untouched').length
+    if (segment === 'Qualified Leads')    return leads.filter(l => hasEmail(l) && l.stage === 'Qualified Leads').length
+    if (segment === 'Application Started') return leads.filter(l => hasEmail(l) && ['Application Started','Contacted','Follow Up'].includes(l.stage)).length
+    if (segment === 'Payment Pending')    return leads.filter(l => hasEmail(l) && ['Payment Pending','Application Submitted','Payment Approved'].includes(l.stage)).length
+    return leads.filter(hasEmail).length
   }
 
   const stats = {

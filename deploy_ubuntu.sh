@@ -107,6 +107,13 @@ server {
     listen 80;
     server_name _;
 
+    # Serve .well-known/assetlinks.json for TWA / Play Store verification
+    location /.well-known/ {
+        root $DEPLOY_DIR/ccrm/dist;
+        try_files \$uri =404;
+        add_header Content-Type application/json;
+    }
+
     # React Static Assets Frontend
     location / {
         root $DEPLOY_DIR/ccrm/dist;
