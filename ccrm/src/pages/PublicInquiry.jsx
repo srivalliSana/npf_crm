@@ -122,7 +122,7 @@ export default function PublicInquiry() {
   // ── Success screen ──────────────────────────────────────────────────────────
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #0f4c81 100%)' }}>
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #065f46 40%, #0d9488 100%)' }}>
         <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full text-center space-y-6">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
             <CheckCircle size={42} className="text-green-500" />
@@ -237,7 +237,7 @@ export default function PublicInquiry() {
 
       {/* ══════════════════════ HERO ══════════════════════ */}
       <section className="relative min-h-screen flex items-center pt-16" style={{
-        background: 'linear-gradient(135deg, #0b1929 0%, #0f2a4a 35%, #0d3b6e 65%, #0f4c81 100%)'
+        background: 'linear-gradient(135deg, #064e3b 0%, #065f46 20%, #0d9488 50%, #0369a1 75%, #1e40af 100%)'
       }}>
         {/* Grid pattern overlay */}
         <div className="absolute inset-0 pointer-events-none" style={{
@@ -245,8 +245,8 @@ export default function PublicInquiry() {
           backgroundSize: '44px 44px'
         }} />
         {/* Glows */}
-        <div className="absolute top-1/4 right-1/4 w-72 h-72 rounded-full bg-blue-500/15 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/3 left-1/5 w-56 h-56 rounded-full bg-cyan-400/10 blur-3xl pointer-events-none" />
+        <div className="absolute top-1/4 right-1/4 w-72 h-72 rounded-full bg-teal-300/20 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/3 left-1/5 w-56 h-56 rounded-full bg-emerald-300/15 blur-3xl pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-5 lg:px-8 py-24 relative z-10 w-full">
           <div className="grid lg:grid-cols-2 gap-14 items-center">
@@ -257,7 +257,7 @@ export default function PublicInquiry() {
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-6 tracking-tight">
                 Shape Your<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-300">Future</span> with<br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-emerald-300">Future</span> with<br />
                 World-Class Education
               </h1>
               <p className="text-blue-200 text-lg leading-relaxed mb-10 max-w-xl">
@@ -302,7 +302,7 @@ export default function PublicInquiry() {
             <div id="apply">
               <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
                 {/* Form header */}
-                <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-7 py-5">
+                <div className="bg-gradient-to-r from-teal-600 to-emerald-600 px-7 py-5">
                   <h3 className="text-white font-bold text-lg">Apply for CUEE 2026</h3>
                   <p className="text-primary-100 text-xs mt-1">Free counseling · No application fee · Quick process</p>
                 </div>
@@ -458,7 +458,7 @@ export default function PublicInquiry() {
       </section>
 
       {/* ══════════════════════ CAMPUSES ══════════════════════ */}
-      <section id="campuses" className="py-20 bg-gradient-to-br from-slate-900 to-slate-800">
+      <section id="campuses" className="py-20 bg-gradient-to-br from-emerald-950 to-teal-900">
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
           <div className="text-center mb-12">
             <span className="inline-flex items-center gap-2 text-xs font-bold text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-4 py-2 rounded-full mb-4">
@@ -498,7 +498,7 @@ export default function PublicInquiry() {
       </section>
 
       {/* ══════════════════════ FINAL CTA ══════════════════════ */}
-      <section className="py-20 bg-gradient-to-br from-primary-600 to-primary-800">
+      <section className="py-20 bg-gradient-to-br from-teal-600 to-emerald-700">
         <div className="max-w-3xl mx-auto px-5 lg:px-8 text-center">
           <div className="flex items-center justify-center gap-1 mb-4">
             {[1,2,3,4,5].map(s => <Star key={s} size={18} className="text-yellow-400 fill-yellow-400"/>)}
