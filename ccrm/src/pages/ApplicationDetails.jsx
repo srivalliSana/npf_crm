@@ -114,12 +114,20 @@ export default function ApplicationDetails() {
   const lastActive = record.lastActive || associatedLead?.lastActive || 'Today'
 
   const [activeTab, setActiveTab] = useState('Lead Details')
-  const [ameyoCalling, setAmeyoCalling] = useState(false)
-  const [ameyoReady, setAmeyoReady] = useState(null) // null=unknown, true/false
+  const [ameyoCalling, setAmeyoCalling]   = useState(false)
+  const [ameyoReady, setAmeyoReady]       = useState(null)
+  const [ameyoCfg, setAmeyoCfg]           = useState(null)
 
   useEffect(() => {
     fetch('/api/integration-settings').then(r => r.json())
-      .then(cfg => setAmeyoReady(!!(cfg.ameyo_api_url && cfg.ameyo_username)))
+      .then(cfg => {
+        setAmeyoCfg(cfg)
+        const isExotel = (cfg.ameyo_api_url || '').toLowerCase().includes('exotel')
+        const ready = isExotel
+          ? !!(cfg.ameyo_api_url && cfg.ameyo_username && cfg.ameyo_password && cfg.ameyo_virtual_number && cfg.ameyo_agent_number)
+          : !!(cfg.ameyo_api_url && cfg.ameyo_username && cfg.ameyo_password)
+        setAmeyoReady(ready)
+      })
       .catch(() => setAmeyoReady(false))
   }, [])
   const [editMode, setEditMode] = useState(false)
@@ -447,26 +455,46 @@ export default function ApplicationDetails() {
                     className="text-green-500 hover:text-green-600" title="WhatsApp">
                     <MessageCircle size={14} />
                   </a>
-                  {/* Click-to-Call: Ameyo if configured, else tel: fallback */}
-                  {ameyoReady ? (
+                  {/* Click-to-Call */}
+                  {ameyoReady === true ? (
                     <button
                       disabled={ameyoCalling}
                       onClick={async () => {
                         setAmeyoCalling(true)
                         try {
                           const data = await initiateAmeyoCall(studentMobile)
-                          showToast(`Call initiated to ${studentMobile} via ${data.provider === 'exotel' ? 'Exotel' : 'Ameyo'} ✓`, 'success')
+                          showToast(`Call initiated via ${data.provider === 'exotel' ? 'Exotel' : 'Ameyo'} ✓`, 'success')
                         } catch (e) {
-                          showToast(e.message || 'Call failed — check Integrations settings.', 'error')
+                          showToast(e.message || 'Call failed.', 'error')
                         }
                         setAmeyoCalling(false)
                       }}
                       className="text-violet-500 hover:text-violet-700 disabled:opacity-50"
-                      title="Click-to-Call via Ameyo"
+                      title="Click-to-Call"
                     >
-                      {ameyoCalling ? <span className="animate-spin inline-block w-3.5 h-3.5 border border-violet-400 border-t-violet-700 rounded-full" /> : <PhoneCall size={14} />}
+                      {ameyoCalling
+                        ? <span className="animate-spin inline-block w-3.5 h-3.5 border border-violet-400 border-t-violet-700 rounded-full" />
+                        : <PhoneCall size={14} />}
+                    </button>
+                  ) : ameyoCfg?.ameyo_api_url && ameyoReady === false ? (
+                    // Telephony partially configured — show warning that links to settings
+                    <button
+                      onClick={() => {
+                        const isExotel = (ameyoCfg.ameyo_api_url || '').toLowerCase().includes('exotel')
+                        const missing = []
+                        if (!ameyoCfg.ameyo_virtual_number) missing.push('Virtual Number')
+                        if (!ameyoCfg.ameyo_agent_number)   missing.push('Agent Number')
+                        if (!ameyoCfg.ameyo_password)        missing.push('Auth Token/Password')
+                        showToast(`Telephony incomplete — missing: ${missing.join(', ')}. Go to Integrations → Telephony to configure.`, 'warning')
+                        navigate('/integrations')
+                      }}
+                      className="text-yellow-500 hover:text-yellow-700"
+                      title="Telephony not fully configured — click to configure"
+                    >
+                      <PhoneCall size={14} />
                     </button>
                   ) : (
+                    // No telephony configured — plain tel: link
                     <a href={`tel:${studentMobile}`} className="text-blue-400 hover:text-blue-600" title="Call">
                       <PhoneCall size={14} />
                     </a>
