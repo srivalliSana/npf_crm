@@ -67,6 +67,7 @@ export default function ApplicationDetails() {
     tasks, addTask,
     queries, addQuery, updateQueryStatus, addQueryReply,
     events, addEvent,
+    payments, fetchAllData,
     generatePaymentLink,
     showToast, currentUser
   } = useCcrm()
@@ -118,6 +119,12 @@ export default function ApplicationDetails() {
   const [ameyoCalling, setAmeyoCalling]   = useState(false)
   const [ameyoReady, setAmeyoReady]       = useState(null)
   const [ameyoCfg, setAmeyoCfg]           = useState(null)
+
+  // Payment modal state
+  const [showPayModal, setShowPayModal]   = useState(false)
+  const [payMode, setPayMode]             = useState('online')  // 'online' | 'offline'
+  const [utrNumber, setUtrNumber]         = useState('')
+  const [paySubmitting, setPaySubmitting] = useState(false)
 
   useEffect(() => {
     fetch('/api/integration-settings').then(r => r.json())
@@ -268,10 +275,13 @@ export default function ApplicationDetails() {
       })
       showToast(`Lead stage updated to "${stageName}"`, 'success')
 
-      // ── Auto-create Application when lead reaches Qualified Leads ──────────
-      if (stageName === 'Qualified Leads' && !associatedApp) {
+      // ── Auto-create Application when lead is marked Interested ────────────
+      if (stageName === 'Interested' && !associatedApp) {
         try {
-          const idRes = await fetch('/api/applications/next-app-id')
+          const isSM = ['Facebook Ads','Google Ads','LinkedIn','Instagram','Social Media','sm'].some(
+            s => (record.source || '').toLowerCase().includes(s.toLowerCase())
+          )
+          const idRes = await fetch(`/api/applications/next-app-id?type=${isSM ? 'sm' : 'ai'}`)
           const { appNo } = await idRes.json()
           await addApplication({
             name: studentName,
@@ -428,6 +438,7 @@ export default function ApplicationDetails() {
   }
 
   return (
+    <>
     <div className="p-6">
       {/* Back button */}
       <button
@@ -528,13 +539,21 @@ export default function ApplicationDetails() {
 
             {/* Lead ID + Application ID */}
             <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
-              {/* Lead Reference ID */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400 font-medium">Lead ID</span>
-                <span className="font-mono text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded select-all">
-                  CUTMLD26{String(associatedLead?.id || record.id || 0).padStart(4,'0')}
-                </span>
-              </div>
+              {/* Lead Reference ID — prefix based on source type */}
+              {(() => {
+                const src = (associatedLead?.source || record.source || '').toLowerCase()
+                const isSM = ['facebook','google ads','linkedin','instagram','social media','sm'].some(s => src.includes(s))
+                const lid  = associatedLead?.id || record.id || 0
+                const prefix = isSM ? 'CULDSM26' : 'CULDAI26'
+                return (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400 font-medium">Lead ID</span>
+                    <span className="font-mono text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded select-all">
+                      {prefix}{String(lid).padStart(4,'0')}
+                    </span>
+                  </div>
+                )
+              })()}
               {/* Application ID — show if application exists */}
               {associatedApp?.appNo && (
                 <div className="flex items-center justify-between">
@@ -544,21 +563,24 @@ export default function ApplicationDetails() {
                   </span>
                 </div>
               )}
-              {/* Payment link — show when app exists and payment pending */}
-              {associatedApp && (associatedApp.payStatus === 'Payment Pending' || associatedApp.payStatus === 'Pending') && (
+              {/* Payment — show when app exists and payment not yet done */}
+              {associatedApp && !['Paid','Payment Done'].includes(associatedApp.payStatus) && (
                 <button
-                  onClick={async () => {
-                    try {
-                      const link = await generatePaymentLink(
-                        associatedApp.appNo, studentName, studentEmail, studentMobile, 25000
-                      )
-                      if (link) showToast(`Payment link generated for ${associatedApp.appNo}`, 'success')
-                    } catch { showToast('Failed to generate payment link.', 'error') }
-                  }}
+                  onClick={() => { setShowPayModal(true); setPayMode('online'); setUtrNumber('') }}
                   className="w-full text-xs bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
                 >
-                  💳 Generate Payment Link
+                  💳 Generate / Record Payment
                 </button>
+              )}
+              {associatedApp?.payStatus === 'Payment Done' && (
+                <div className="text-center text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg py-1.5 font-semibold">
+                  ✓ Payment Done — Pending Approval
+                </div>
+              )}
+              {associatedApp?.payStatus === 'Paid' && (
+                <div className="text-center text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 font-semibold">
+                  ✅ Payment Approved
+                </div>
               )}
             </div>
 
@@ -1147,5 +1169,98 @@ export default function ApplicationDetails() {
         </div>
       </div>
     </div>
+
+    {/* ── Payment Modal (Online / Offline) ─────────────────────────────── */}
+    {showPayModal && associatedApp && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-gray-900 flex items-center gap-2">
+              💳 Record Payment — <span className="font-mono text-primary-600 text-sm">{associatedApp.appNo}</span>
+            </h2>
+            <button onClick={() => setShowPayModal(false)}><X size={18} className="text-gray-400" /></button>
+          </div>
+
+          {/* Mode tabs */}
+          <div className="flex bg-gray-100 rounded-xl p-1 mb-5">
+            {[{id:'online',label:'🌐 Online (Razorpay)'},{id:'offline',label:'🏦 Offline (UTR/Ref)'}].map(m => (
+              <button key={m.id} onClick={() => setPayMode(m.id)}
+                className={`flex-1 text-sm font-medium py-2 rounded-lg transition-all ${payMode === m.id ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {payMode === 'online' ? (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+                <p className="font-semibold mb-1">Online Payment via Razorpay</p>
+                <p className="text-xs leading-relaxed">Click "Generate Link" to create a Razorpay payment link. Share it with the student. Once they pay, the UTR will be auto-fetched and status updated.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Amount (₹)</label>
+                <input type="number" defaultValue="25000" className="input-field text-sm" id="pay-amount" />
+              </div>
+              <button
+                disabled={paySubmitting}
+                onClick={async () => {
+                  setPaySubmitting(true)
+                  try {
+                    const amt = parseInt(document.getElementById('pay-amount')?.value) || 25000
+                    await generatePaymentLink(associatedApp.appNo, studentName, studentEmail, studentMobile, amt)
+                    showToast(`Razorpay link generated for ${associatedApp.appNo}`, 'success')
+                    setShowPayModal(false)
+                  } catch { showToast('Failed to generate payment link.', 'error') }
+                  setPaySubmitting(false)
+                }}
+                className="w-full btn-primary py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {paySubmitting ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : '🔗'}
+                Generate Razorpay Link
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
+                <p className="font-semibold mb-1">Offline Payment</p>
+                <p className="text-xs leading-relaxed">Student/Counselor enters the UTR or bank reference number from the payment receipt. Status changes to "Payment Done" for accounts team approval.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">UTR / Reference Number *</label>
+                <input type="text" value={utrNumber} onChange={e => setUtrNumber(e.target.value)}
+                  placeholder="e.g. UTR123456789 or REF987654" className="input-field text-sm" />
+              </div>
+              <button
+                disabled={paySubmitting || !utrNumber.trim()}
+                onClick={async () => {
+                  setPaySubmitting(true)
+                  try {
+                    const payRec = payments?.find(p => p.appNo === associatedApp.appNo)
+                    if (!payRec) { showToast('Payment record not found.', 'error'); setPaySubmitting(false); return }
+                    const res = await fetch(`/api/payments/${payRec.id}/submit-utr`, {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ utrNumber: utrNumber.trim(), payMode: 'offline' })
+                    })
+                    if (res.ok) {
+                      showToast(`UTR recorded. Status → Payment Done (awaiting approval)`, 'success')
+                      setShowPayModal(false)
+                      fetchAllData()
+                    } else {
+                      const d = await res.json(); showToast(d.error || 'Failed.', 'error')
+                    }
+                  } catch { showToast('Network error.', 'error') }
+                  setPaySubmitting(false)
+                }}
+                className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2"
+              >
+                {paySubmitting ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : '✓'}
+                Submit UTR — Mark Payment Done
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   )
 }

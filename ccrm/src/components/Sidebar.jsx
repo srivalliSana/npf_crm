@@ -17,14 +17,14 @@ const NAV_ITEMS = [
   { icon: Calendar,        label: 'Calendar',      to: '/calendar',         roles: null },
   { icon: FileCheck,       label: 'Documents',     to: '/documents',        roles: null },
   { icon: HelpCircle,      label: 'Queries',       to: '/queries',          roles: null },
-  { icon: BarChart2,       label: 'Reports',       to: '/reports',          roles: null },
-  { icon: Radio,           label: 'Comms',         to: '/comms-report',     roles: null },
-  { icon: Trophy,          label: 'Leaderboard',   to: '/leaderboard',      roles: null },
+  { icon: BarChart2,       label: 'Reports',       to: '/reports',          roles: ['Admin', 'Manager'] },
+  { icon: Radio,           label: 'Comms',         to: '/comms-report',     roles: ['Admin'] },
+  { icon: Trophy,          label: 'Leaderboard',   to: '/leaderboard',      roles: ['Admin', 'Manager'] },
   // Admin/Manager only
   { icon: Mail,            label: 'Email Camps',   to: '/email-campaigns',  roles: ['Admin', 'Manager'] },
   { icon: Zap,             label: 'Drip Flows',    to: '/drip-workflows',   roles: ['Admin', 'Manager'] },
   { icon: Shield,          label: 'Users',         to: '/users',            roles: ['Admin'] },
-  { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin', 'Manager'] },
+  { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin'] },
   { icon: Settings,        label: 'Settings',      to: '/settings',         roles: null },
 ]
 

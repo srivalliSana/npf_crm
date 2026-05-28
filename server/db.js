@@ -277,19 +277,20 @@ export async function initDb() {
     // Users: add mobile field for WhatsApp alerts to counselors
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile VARCHAR(50) DEFAULT '';`).catch(() => {})
 
-    // Application number sequence — CUEEAP260001, CUEEAP260002, ...
-    await client.query(`CREATE SEQUENCE IF NOT EXISTS cueeap_seq START 1;`).catch(() => {})
-    // Sync sequence to current max to avoid conflicts with existing apps
-    await client.query(`
-      SELECT setval('cueeap_seq',
-        GREATEST(
-          (SELECT COALESCE(MAX(CAST(NULLIF(REGEXP_REPLACE(app_no, '[^0-9]', '', 'g'), '') AS INTEGER)), 0)
-           FROM applications WHERE app_no LIKE 'CUEEAP26%'),
-          (SELECT COALESCE(MAX(id), 0) FROM applications),
-          0
-        )
-      );
-    `).catch(() => {})
+    // Application number sequences
+    await client.query(`CREATE SEQUENCE IF NOT EXISTS cueeap_seq START 1;`).catch(() => {})  // Excel/offline apps
+    await client.query(`CREATE SEQUENCE IF NOT EXISTS cueesm_seq START 1;`).catch(() => {})  // Social media apps
+    // Init sequences to current max so we never clash with existing records
+    await client.query(`SELECT setval('cueeap_seq', GREATEST((SELECT COALESCE(MAX(id),0) FROM applications),1));`).catch(() => {})
+    await client.query(`SELECT setval('cueesm_seq', GREATEST((SELECT COALESCE(MAX(id),0) FROM applications),1));`).catch(() => {})
+
+    // Lead extra fields
+    await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS source_type VARCHAR(10) DEFAULT 'ai';`).catch(() => {})      // 'ai' | 'sm'
+    await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS not_interested_reason TEXT DEFAULT '';`).catch(() => {})    // reason when Not Interested
+
+    // Payment extra fields
+    await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS utr_number VARCHAR(100) DEFAULT '';`).catch(() => {})
+    await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS pay_mode VARCHAR(20) DEFAULT 'online';`).catch(() => {})  // 'online' | 'offline'
 
     // Email delivery logs (per-recipient tracking for campaigns)
     await client.query(`
