@@ -409,6 +409,17 @@ app.put('/api/applications/:id', async (req, res) => {
   }
 })
 
+app.delete('/api/applications/:id', async (req, res) => {
+  const { id } = req.params
+  try {
+    const deleteRes = await pool.query('DELETE FROM applications WHERE id = $1 RETURNING id, app_no AS "appNo";', [id])
+    if (deleteRes.rows.length === 0) return res.status(404).json({ error: 'Application not found.' })
+    res.json({ message: 'Application deleted.', id })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete application.' })
+  }
+})
+
 // --- TASKS ROUTERS ---
 app.get('/api/tasks', async (req, res) => {
   try {
@@ -577,6 +588,17 @@ app.put('/api/documents/:id', async (req, res) => {
     res.json(updateRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to verify/reject document.' })
+  }
+})
+
+app.delete('/api/documents/:id', async (req, res) => {
+  const { id } = req.params
+  try {
+    const deleteRes = await pool.query('DELETE FROM documents WHERE id = $1 RETURNING id;', [id])
+    if (deleteRes.rows.length === 0) return res.status(404).json({ error: 'Document not found.' })
+    res.json({ message: 'Document deleted.', id })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete document.' })
   }
 })
 
