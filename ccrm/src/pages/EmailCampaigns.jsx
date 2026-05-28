@@ -125,7 +125,16 @@ export default function EmailCampaigns() {
     setSendingId(id)
     const result = await sendEmailCampaign(id)
     setSendingId(null)
-    if (result?.sent !== undefined) showToast(`Campaign sent to ${result.sent} recipients.`, 'success')
+    if (result) {
+      const { sent = 0, failed = 0, total = 0 } = result
+      if (failed > 0 && sent === 0) {
+        showToast(`Send failed for all ${failed} recipients — check SMTP credentials in Integrations → Gmail/SMTP Email`, 'error')
+      } else if (failed > 0) {
+        showToast(`Sent: ${sent} ✓  Failed: ${failed} ✗  — check Communications Report for details`, 'warning')
+      } else {
+        showToast(`Campaign sent to ${sent} of ${total} recipients ✓`, 'success')
+      }
+    }
   }
 
   const openEdit = (camp) => {
