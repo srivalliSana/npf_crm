@@ -9,20 +9,15 @@ import {
 import { useCcrm } from '../context/CcrmContext'
 
 async function initiateAmeyoCall(mobile) {
-  try {
-    const [urlRes, userRes, passRes, campRes] = await Promise.all([
-      fetch('/api/integration-settings').then(r => r.json()),
-    ])
-    const cfg = urlRes
-    if (!cfg.ameyo_api_url || !cfg.ameyo_username || !cfg.ameyo_password) return false
-    await fetch(`${cfg.ameyo_api_url}/rest/api/agent/click2call`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: cfg.ameyo_username, password: cfg.ameyo_password,
-        campaignId: cfg.ameyo_campaign_id || '', phone: `91${mobile.replace(/\D/g,'')}` })
-    })
-    return true
-  } catch { return false }
+  // Always call our backend — avoids CORS and handles Exotel/Ameyo detection server-side
+  const res = await fetch('/api/ameyo/click2call', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: mobile })
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Call failed')
+  return data
 }
 
 const APP_STAGES = [
@@ -458,10 +453,13 @@ export default function ApplicationDetails() {
                       disabled={ameyoCalling}
                       onClick={async () => {
                         setAmeyoCalling(true)
-                        const ok = await initiateAmeyoCall(studentMobile)
+                        try {
+                          const data = await initiateAmeyoCall(studentMobile)
+                          showToast(`Call initiated to ${studentMobile} via ${data.provider === 'exotel' ? 'Exotel' : 'Ameyo'} ✓`, 'success')
+                        } catch (e) {
+                          showToast(e.message || 'Call failed — check Integrations settings.', 'error')
+                        }
                         setAmeyoCalling(false)
-                        if (ok) showToast(`Ameyo call initiated to ${studentMobile}`, 'success')
-                        else showToast('Ameyo call failed — check integration settings.', 'error')
                       }}
                       className="text-violet-500 hover:text-violet-700 disabled:opacity-50"
                       title="Click-to-Call via Ameyo"

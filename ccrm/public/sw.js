@@ -13,13 +13,22 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url)
-  // Never cache API calls
-  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/uploads')) return
+  // Only cache same-origin GET requests for static assets
+  if (
+    e.request.method !== 'GET' ||
+    url.pathname.startsWith('/api') ||
+    url.pathname.startsWith('/uploads') ||
+    url.origin !== self.location.origin
+  ) return
+
   e.respondWith(
     fetch(e.request)
       .then(res => {
-        const clone = res.clone()
-        caches.open(CACHE).then(c => c.put(e.request, clone))
+        // Only cache successful responses to real requests
+        if (res && res.status === 200 && res.type === 'basic') {
+          const clone = res.clone()
+          caches.open(CACHE).then(c => c.put(e.request, clone))
+        }
         return res
       })
       .catch(() => caches.match(e.request))
