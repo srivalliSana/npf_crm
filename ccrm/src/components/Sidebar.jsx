@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, FileText, CheckSquare, Megaphone,
   BarChart2, Settings, LogOut, CreditCard,
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
-  Trophy, Mail, Globe, ExternalLink, Zap
+  Trophy, Mail, Globe, ExternalLink, Zap, Radio
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { icon: FileCheck,       label: 'Documents',     to: '/documents',        roles: null },
   { icon: HelpCircle,      label: 'Queries',       to: '/queries',          roles: null },
   { icon: BarChart2,       label: 'Reports',       to: '/reports',          roles: null },
+  { icon: Radio,           label: 'Comms',         to: '/comms-report',     roles: null },
   { icon: Trophy,          label: 'Leaderboard',   to: '/leaderboard',      roles: null },
   // Admin/Manager only
   { icon: Mail,            label: 'Email Camps',   to: '/email-campaigns',  roles: ['Admin', 'Manager'] },

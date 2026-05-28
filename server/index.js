@@ -82,33 +82,52 @@ function authenticateToken(req, res, next) {
 
 // --- SMTP ALERT MAILER SENDER ---
 function sendSystemMailAlert(recipient, subject, messageBody) {
-  // Simulates executing msmtp configuration safely in child process
   console.log(`[SMTP Mailer Triggered] To: ${recipient} | Sub: ${subject}`)
-  
-  // Creates temporary mail text conforming to msmtp standard
   const mailText = `To: ${recipient}\nSubject: ${subject}\n\n${messageBody}`
   const tempPath = path.join(__dirname, `temp_mail_${Date.now()}.txt`)
-  
   fs.writeFileSync(tempPath, mailText)
-  
-  // Asynchronously dispatches mail utilizing native msmtp binary
   import('child_process').then(({ exec }) => {
-    exec(`msmtp -t < "${tempPath}"`, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Failed to send email alert via msmtp: ${error.message}`)
-      } else {
-        console.log(`Email successfully dispatched via msmtp to ${recipient}`)
-      }
-      // Cleanup temp mail alert file
-      if (fs.existsSync(tempPath)) {
-        fs.unlinkSync(tempPath)
-      }
+    exec(`msmtp -t < "${tempPath}"`, (error) => {
+      if (error) console.error(`Failed to send email via msmtp: ${error.message}`)
+      else console.log(`Email dispatched via msmtp to ${recipient}`)
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
     })
   }).catch(e => {
-    console.error('Child process runner failed to launch', e)
-    if (fs.existsSync(tempPath)) {
-      fs.unlinkSync(tempPath)
+    console.error('Child process failed', e)
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
+  })
+}
+
+// Trackable mail send — returns { success, error } and logs to email_logs
+async function sendTrackedMail(recipient, recipientName, subject, messageBody, campaignId, campaignName) {
+  return new Promise((resolve) => {
+    console.log(`[Tracked Mail] To: ${recipient} | Sub: ${subject}`)
+    const mailText = `To: ${recipient}\nSubject: ${subject}\n\n${messageBody}`
+    const tempPath = path.join(__dirname, `temp_mail_${Date.now()}_${Math.random().toString(36).slice(2)}.txt`)
+    try {
+      fs.writeFileSync(tempPath, mailText)
+    } catch (e) {
+      pool.query('INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
+        [campaignId, campaignName, recipient, recipientName, 'Failed', `Write error: ${e.message}`]).catch(() => {})
+      return resolve({ success: false, error: e.message })
     }
+    import('child_process').then(({ exec }) => {
+      exec(`msmtp -t < "${tempPath}"`, (error) => {
+        const status = error ? 'Failed' : 'Sent'
+        const errMsg = error ? error.message.substring(0, 500) : ''
+        pool.query(
+          'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
+          [campaignId, campaignName, recipient, recipientName, status, errMsg]
+        ).catch(() => {})
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
+        resolve({ success: !error, error: errMsg })
+      })
+    }).catch(e => {
+      pool.query('INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
+        [campaignId, campaignName, recipient, recipientName, 'Failed', e.message]).catch(() => {})
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
+      resolve({ success: false, error: e.message })
+    })
   })
 }
 
@@ -2235,26 +2254,91 @@ app.post('/api/email-campaigns/:id/send', async (req, res) => {
 
     const leadsRes = await pool.query(`SELECT email, name FROM leads WHERE ${segWhere};`)
     const recipients = leadsRes.rows
-    let sentCount = 0
+    let sentCount = 0, failedCount = 0
+
+    // Delete previous logs for this campaign (re-send scenario)
+    await pool.query('DELETE FROM email_logs WHERE campaign_id = $1;', [id])
 
     for (const lead of recipients) {
       const personalizedSubject = camp.subject.replace(/\{name\}/g, lead.name)
       const personalizedBody    = camp.template.replace(/\{name\}/g, lead.name)
-      try {
-        sendSystemMailAlert(lead.email, personalizedSubject, personalizedBody)
-        sentCount++
-      } catch (e) {
-        console.error('[Email Campaign] Failed for', lead.email, e.message)
-      }
+      const result = await sendTrackedMail(lead.email, lead.name, personalizedSubject, personalizedBody, id, camp.name)
+      if (result.success) sentCount++
+      else failedCount++
     }
 
-    await pool.query(`UPDATE email_campaigns SET status = 'Sent', sent_count = $1, sent_at = NOW() WHERE id = $2;`, [sentCount, id])
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Email campaign "${camp.name}" sent to ${sentCount} recipients (${segment})`, 'Just now'])
-    res.json({ success: true, sent: sentCount, total: recipients.length, segment })
+    await pool.query(
+      `UPDATE email_campaigns SET status = 'Sent', sent_count = $1, sent_at = NOW() WHERE id = $2;`,
+      [sentCount, id]
+    )
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+      [`Email campaign "${camp.name}": ${sentCount} sent, ${failedCount} failed (${segment})`, 'Just now'])
+    res.json({ success: true, sent: sentCount, failed: failedCount, total: recipients.length, segment })
   } catch (err) {
     console.error('[Email Campaign Send]', err)
     res.status(500).json({ error: 'Failed to send campaign.' })
   }
+})
+
+// ── COMMUNICATION REPORTS ────────────────────────────────────────────────────
+
+// Email logs for a specific campaign
+app.get('/api/reports/email-logs/:campaignId', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, recipient_email AS "email", recipient_name AS "name", status, error_message AS "error", sent_at AS "sentAt"
+       FROM email_logs WHERE campaign_id = $1 ORDER BY sent_at DESC;`,
+      [req.params.campaignId]
+    )
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// All email logs summary
+app.get('/api/reports/email-logs', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT el.campaign_id AS "campaignId", el.campaign_name AS "campaignName",
+              COUNT(*) AS "total",
+              SUM(CASE WHEN el.status = 'Sent' THEN 1 ELSE 0 END) AS "sent",
+              SUM(CASE WHEN el.status = 'Failed' THEN 1 ELSE 0 END) AS "failed",
+              MAX(el.sent_at) AS "lastSentAt"
+       FROM email_logs el GROUP BY el.campaign_id, el.campaign_name ORDER BY MAX(el.sent_at) DESC;`
+    )
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// WhatsApp bulk send history
+app.get('/api/reports/whatsapp-logs', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, campaign_name AS "campaignName", message_template AS "template",
+              recipient_count AS "recipientCount", status, sent_at AS "sentAt"
+       FROM whatsapp_logs ORDER BY sent_at DESC LIMIT 200;`
+    )
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Call logs with outcome stats
+app.get('/api/reports/call-logs', async (req, res) => {
+  try {
+    const logs = await pool.query(
+      `SELECT id, lead_name AS "leadName", lead_mobile AS "mobile", counselor,
+              duration, outcome, notes, called_at AS "calledAt"
+       FROM call_logs ORDER BY called_at DESC LIMIT 500;`
+    )
+    const stats = await pool.query(
+      `SELECT outcome, COUNT(*) AS count FROM call_logs GROUP BY outcome ORDER BY count DESC;`
+    )
+    const byCounselor = await pool.query(
+      `SELECT counselor, COUNT(*) AS total,
+              SUM(CASE WHEN outcome = 'Connected' THEN 1 ELSE 0 END) AS connected
+       FROM call_logs GROUP BY counselor ORDER BY total DESC;`
+    )
+    res.json({ logs: logs.rows, outcomeStats: stats.rows, byCounselor: byCounselor.rows })
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 app.put('/api/email-campaigns/:id', async (req, res) => {

@@ -277,6 +277,20 @@ export async function initDb() {
     // Users: add mobile field for WhatsApp alerts to counselors
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile VARCHAR(50) DEFAULT '';`).catch(() => {})
 
+    // Email delivery logs (per-recipient tracking for campaigns)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_logs (
+        id SERIAL PRIMARY KEY,
+        campaign_id INTEGER REFERENCES email_campaigns(id) ON DELETE CASCADE,
+        campaign_name VARCHAR(255) DEFAULT '',
+        recipient_email VARCHAR(255) NOT NULL,
+        recipient_name VARCHAR(255) DEFAULT '',
+        status VARCHAR(50) DEFAULT 'Sent',
+        error_message TEXT DEFAULT '',
+        sent_at TIMESTAMP DEFAULT NOW()
+      );
+    `).catch(() => {})
+
     console.log('Schema tables created successfully.')
 
     // --- SEED INITIAL MOCK DATA IF TABLES ARE EMPTY ---
