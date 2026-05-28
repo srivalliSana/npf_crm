@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { useCcrm } from '../context/CcrmContext'
 import {
   CreditCard, DollarSign, CheckCircle, Clock, XCircle,
-  Search, Download, Plus, Filter, Send, RefreshCw, MoreHorizontal, X, Save
+  Search, Download, Plus, Filter, Send, RefreshCw, MoreHorizontal, X, Save,
+  Link, Copy, MessageCircle, ExternalLink
 } from 'lucide-react'
 
 const STATUS_COLORS = {
@@ -12,10 +13,12 @@ const STATUS_COLORS = {
 }
 
 export default function Payments() {
-  const { payments, addPayment, updatePaymentStatus, applications, showToast } = useCcrm()
+  const { payments, addPayment, updatePaymentStatus, applications, showToast, generatePaymentLink } = useCcrm()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All')
   const [showLink, setShowLink] = useState(false)
+  const [generatedLink, setGeneratedLink] = useState(null)
+  const [linkLoading, setLinkLoading] = useState(false)
 
   // Payment Link fields
   const [selectedAppId, setSelectedAppId] = useState('')
@@ -37,30 +40,32 @@ export default function Payments() {
     setSelectedAppId(appId)
   }
 
-  const handleGenerateLink = (e) => {
+  const handleGenerateLink = async (e) => {
     e.preventDefault()
-    if (!selectedAppId) {
-      showToast('Please select a student application.', 'error')
-      return
-    }
-
+    if (!selectedAppId) return showToast('Please select a student application.', 'error')
     const app = applications.find(a => a.id === parseInt(selectedAppId))
     if (!app) return
 
-    addPayment({
-      name: app.name,
-      appNo: app.appNo,
-      amount: Number(payAmount),
-      method: payMethod,
-      status: 'Pending',
-      date: '',
-      txnId: ''
-    })
+    setLinkLoading(true)
+    const result = await generatePaymentLink(app.appNo, app.name, app.email, app.mobile, Number(payAmount))
+    setLinkLoading(false)
 
-    setShowLink(false)
-    setSelectedAppId('')
-    setPayAmount('25000')
-    setPayMethod('Online')
+    if (result?.paymentLink) {
+      setGeneratedLink({ ...result, app })
+    } else {
+      // Fallback to simple addPayment
+      addPayment({ name: app.name, appNo: app.appNo, amount: Number(payAmount), method: payMethod, status: 'Pending', date: '', txnId: '' })
+      setShowLink(false); setSelectedAppId(''); setPayAmount('25000'); setPayMethod('Online')
+    }
+  }
+
+  const copyLink = (url) => {
+    navigator.clipboard?.writeText(url).then(() => showToast('Payment link copied!', 'success')).catch(() => showToast('Copy failed. Please copy manually.', 'warning'))
+  }
+
+  const sendLinkViaWA = (app, url) => {
+    const msg = encodeURIComponent(`Dear ${app.name}, please complete your CUTM admission fee payment of ₹${Number(payAmount).toLocaleString('en-IN')} via this secure link:\n${url}\n\nApp No: ${app.appNo}\n\nBest Regards,\nCUTM Admissions Team`)
+    window.open(`https://wa.me/91${app.mobile}?text=${msg}`, '_blank')
   }
 
   const handleSendLink = (p) => {
@@ -272,20 +277,40 @@ export default function Payments() {
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-gray-100 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowLink(false)}
-                  className="flex-1 btn-secondary text-sm py-2.5"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 btn-primary text-sm py-2.5 flex items-center justify-center gap-1.5"
-                >
-                  <Send size={14} /> Generate &amp; Send
+                <button type="button" onClick={() => { setShowLink(false); setGeneratedLink(null) }} className="flex-1 btn-secondary text-sm py-2.5">Cancel</button>
+                <button type="submit" disabled={linkLoading} className="flex-1 btn-primary text-sm py-2.5 flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  {linkLoading ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <Link size={14} />}
+                  {linkLoading ? 'Generating...' : 'Generate Link'}
                 </button>
               </div>
+
+              {/* Generated Link Result */}
+              {generatedLink && (
+                <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle size={16} className="text-green-600" />
+                    <span className="text-sm font-semibold text-green-800">Payment Link Generated!</span>
+                  </div>
+                  <div className="bg-white border border-green-200 rounded-lg p-2 mb-3">
+                    <p className="text-xs text-slate-500 mb-1">Payment URL:</p>
+                    <p className="text-xs font-mono text-slate-700 break-all">{generatedLink.paymentLink}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => copyLink(generatedLink.paymentLink)}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-white border border-green-300 text-green-700 rounded-lg py-2 hover:bg-green-50">
+                      <Copy size={13} /> Copy Link
+                    </button>
+                    <button onClick={() => sendLinkViaWA(generatedLink.app, generatedLink.paymentLink)}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-green-600 text-white rounded-lg py-2 hover:bg-green-700">
+                      <MessageCircle size={13} /> Send via WhatsApp
+                    </button>
+                    <a href={generatedLink.paymentLink} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-center text-xs text-green-600 hover:text-green-800 px-2">
+                      <ExternalLink size={14} />
+                    </a>
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         </div>

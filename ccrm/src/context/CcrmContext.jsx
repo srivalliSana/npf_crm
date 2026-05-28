@@ -819,6 +819,184 @@ export function CcrmProvider({ children }) {
     }))
   }
 
+  // ---- NEW FEATURE ACTIONS ----
+
+  // Feature 1: Dedup check
+  const checkDuplicate = async (mobile, email) => {
+    try {
+      const res = await fetch('/api/leads/check-duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile, email })
+      })
+      if (res.ok) return await res.json()
+    } catch {}
+    return { duplicates: [], hasDuplicate: false }
+  }
+
+  // Feature 2: Auto-assign
+  const getNextAssignee = async () => {
+    try {
+      const res = await fetch('/api/leads/next-assignee')
+      if (res.ok) {
+        const data = await res.json()
+        return data.assignee || 'Unassigned'
+      }
+    } catch {}
+    return 'Unassigned'
+  }
+
+  // Feature 5: Bulk WhatsApp
+  const sendBulkWhatsApp = async (leadIds, message, templateName) => {
+    try {
+      const integCfg = JSON.parse(localStorage.getItem('ccrm_integrations') || '{}')?.whatsapp || {}
+      const res = await fetch('/api/leads/bulk-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds, message, templateName, integrationConfig: integCfg })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        showToast(`WhatsApp sent to ${data.sent} of ${data.total} leads.`, 'success')
+        addNotification(`WhatsApp bulk sent: ${data.sent} messages dispatched`)
+        return data
+      }
+    } catch (e) {
+      showToast('WhatsApp bulk send failed.', 'error')
+    }
+    return { sent: 0, total: leadIds.length }
+  }
+
+  // Feature 6: Drip sequences
+  const [dripSequences, setDripSequences] = useState([])
+  const enrollDrip = async (lead) => {
+    try {
+      const res = await fetch('/api/drip/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id, leadName: lead.name, leadEmail: lead.email, leadMobile: lead.mobile })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setDripSequences(prev => [data, ...prev.filter(d => d.lead_id !== lead.id)])
+        showToast(`${lead.name} enrolled in drip sequence.`, 'success')
+        return data
+      }
+    } catch {}
+    showToast('Failed to enroll in drip sequence.', 'error')
+  }
+
+  // Feature 11: Payment link
+  const generatePaymentLink = async (appNo, name, email, mobile, amount) => {
+    try {
+      const integCfg = JSON.parse(localStorage.getItem('ccrm_integrations') || '{}')?.razorpay || {}
+      const res = await fetch('/api/payments/generate-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appNo, name, email, mobile, amount, razorpayConfig: integCfg })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        showToast(`Payment link generated for ${appNo}`, 'success')
+        return data
+      }
+    } catch {}
+    showToast('Failed to generate payment link.', 'error')
+    return null
+  }
+
+  // Feature 16: Call logs
+  const [callLogs, setCallLogs] = useState([])
+  const logCall = async (callData) => {
+    try {
+      const res = await fetch('/api/calls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(callData)
+      })
+      if (res.ok) {
+        const added = await res.json()
+        setCallLogs(prev => [added, ...prev])
+        showToast(`Call logged: ${callData.outcome || 'Called'} — ${callData.leadName}`, 'info')
+        if (callData.outcome && callData.outcome !== 'No Answer') {
+          setLeads(prev => prev.map(l => l.name === callData.leadName && l.stage === 'Untouched' ? { ...l, stage: 'Contacted', stageColor: 'blue' } : l))
+        }
+        return added
+      }
+    } catch {}
+    showToast('Failed to log call.', 'error')
+    return null
+  }
+
+  // Feature 17: Campus filter
+  const [activeCampus, setActiveCampus] = useState('All')
+
+  // Feature 18: Targets
+  const [targets, setTargets] = useState([])
+  const saveTarget = async (targetData) => {
+    try {
+      const res = await fetch('/api/targets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(targetData)
+      })
+      if (res.ok) {
+        const saved = await res.json()
+        setTargets(prev => {
+          const idx = prev.findIndex(t => t.month === saved.month && t.year === saved.year && t.campus === saved.campus)
+          if (idx >= 0) { const next = [...prev]; next[idx] = saved; return next }
+          return [saved, ...prev]
+        })
+        showToast('Admission target saved.', 'success')
+        return saved
+      }
+    } catch {}
+    showToast('Failed to save target.', 'error')
+    return null
+  }
+
+  // Feature 20: Email campaigns
+  const [emailCampaigns, setEmailCampaigns] = useState([])
+  const addEmailCampaign = async (campData) => {
+    try {
+      const res = await fetch('/api/email-campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(campData)
+      })
+      if (res.ok) {
+        const added = await res.json()
+        setEmailCampaigns(prev => [added, ...prev])
+        showToast(`Email campaign "${campData.name}" created.`, 'success')
+        return added
+      }
+    } catch {}
+    showToast('Failed to create email campaign.', 'error')
+    return null
+  }
+  const sendEmailCampaign = async (id) => {
+    try {
+      const res = await fetch(`/api/email-campaigns/${id}/send`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setEmailCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'Sent', sentCount: data.sent } : c))
+        showToast(`Campaign sent to ${data.sent} leads!`, 'success')
+        return data
+      }
+    } catch {}
+    showToast('Failed to send campaign.', 'error')
+    return null
+  }
+  const deleteEmailCampaign = async (id) => {
+    try {
+      await fetch(`/api/email-campaigns/${id}`, { method: 'DELETE' })
+      setEmailCampaigns(prev => prev.filter(c => c.id !== id))
+      showToast('Campaign deleted.', 'info')
+    } catch {}
+  }
+
+  // ---- END NEW FEATURE ACTIONS ----
+
   // Event/Calendar Actions
   const addEvent = async (eventData) => {
     try {
@@ -861,7 +1039,16 @@ export function CcrmProvider({ children }) {
       users, setUsers, addUser, updateUser, deleteUser,
       currentUser, setCurrentUser, handleLogin, handleLogout,
       toasts, showToast, removeToast,
-      notifications, setNotifications, addNotification
+      notifications, setNotifications, addNotification,
+      // New features
+      checkDuplicate, getNextAssignee,
+      sendBulkWhatsApp,
+      dripSequences, setDripSequences, enrollDrip,
+      generatePaymentLink,
+      callLogs, setCallLogs, logCall,
+      activeCampus, setActiveCampus,
+      targets, setTargets, saveTarget,
+      emailCampaigns, setEmailCampaigns, addEmailCampaign, sendEmailCampaign, deleteEmailCampaign,
     }}>
       {children}
 

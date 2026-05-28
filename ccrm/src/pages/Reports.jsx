@@ -48,7 +48,8 @@ function buildMonthlyData(leads, applications) {
 const REPORT_TYPES = [
   'Lead Summary', 'Application Summary', 'Conversion Report',
   'Campaign Performance', 'Source Performance', 'Team Productivity',
-  'Course-wise Report', 'Payment Report', 'Enrollment Report'
+  'Course-wise Report', 'Payment Report', 'Enrollment Report',
+  'Source-to-Enrollment Funnel'
 ]
 
 export default function Reports() {
@@ -557,6 +558,84 @@ export default function Reports() {
             </div>
           </div>
         )
+
+      case 'Source-to-Enrollment Funnel':
+        return (() => {
+          const totalLeadsN = leads.length
+          const contacted = leads.filter(l => ['Contacted','Follow Up','Interested','Qualified Leads','Converted'].includes(l.stage)).length
+          const appsN = applications.length
+          const payApprovedN = payments.filter(p => p.status === 'Approved').length
+          const enrolledN = applications.filter(a => a.stage === 'Enrolment' || a.stage === 'Enrolments').length
+
+          const funnelSteps = [
+            { stage: 'Total Leads', count: totalLeadsN, color: '#003087' },
+            { stage: 'Contacted', count: contacted, color: '#2563eb' },
+            { stage: 'Applications', count: appsN, color: '#f5a623' },
+            { stage: 'Payment Approved', count: payApprovedN, color: '#10b981' },
+            { stage: 'Enrolled', count: enrolledN, color: '#059669' },
+          ]
+
+          const sourceBreakdown = allSources.map(src => {
+            const srcLeads = leads.filter(l => l.source === src)
+            const srcApps = applications.filter(a => srcLeads.some(l => l.name === a.name))
+            const srcEnrolled = srcApps.filter(a => a.stage === 'Enrolment' || a.stage === 'Enrolments')
+            return { source: src, leads: srcLeads.length, apps: srcApps.length, enrolled: srcEnrolled.length, convRate: srcLeads.length ? ((srcEnrolled.length / srcLeads.length) * 100).toFixed(1) : '0.0' }
+          }).sort((a, b) => b.leads - a.leads)
+
+          return (
+            <div className="space-y-4">
+              {/* Funnel */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                <h3 className="font-semibold text-gray-800 mb-6">Lead to Enrollment Funnel</h3>
+                <div className="space-y-2">
+                  {funnelSteps.map((step, i) => {
+                    const pct = totalLeadsN > 0 ? Math.min((step.count / totalLeadsN) * 100, 100) : 0
+                    const dropPct = i > 0 && funnelSteps[i-1].count > 0 ? ((1 - step.count / funnelSteps[i-1].count) * 100).toFixed(0) : null
+                    return (
+                      <div key={step.stage} className="flex items-center gap-3">
+                        <span className="text-xs text-gray-500 w-36 flex-shrink-0 text-right font-medium">{step.stage}</span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-8 relative overflow-hidden">
+                          <div className="h-8 rounded-full flex items-center pl-3 transition-all" style={{ width: `${Math.max(pct, 3)}%`, background: step.color }}>
+                            <span className="text-white text-xs font-bold">{step.count.toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-500 w-12 text-right">{pct.toFixed(0)}%</span>
+                        {dropPct && parseInt(dropPct) > 0 && (
+                          <span className="text-xs text-red-400 w-16">↓ {dropPct}% lost</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Source breakdown */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                <h3 className="font-semibold text-gray-800 mb-4">Source-wise Funnel Breakdown</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-gray-50">
+                      {['Source', 'Leads', 'Applications', 'Enrolled', 'Conv. Rate'].map(h => <th key={h} className="table-th">{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {sourceBreakdown.map((s, i) => (
+                        <tr key={s.source} className="hover:bg-gray-50 border-t border-gray-100">
+                          <td className="table-td font-medium text-gray-800">{s.source}</td>
+                          <td className="table-td text-primary-600 font-semibold">{s.leads}</td>
+                          <td className="table-td text-orange-600">{s.apps}</td>
+                          <td className="table-td text-emerald-600 font-bold">{s.enrolled}</td>
+                          <td className="table-td">
+                            <span className={`font-semibold ${parseFloat(s.convRate) >= 10 ? 'text-green-600' : 'text-orange-500'}`}>{s.convRate}%</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )
+        })()
 
       default:
         return (

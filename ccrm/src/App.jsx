@@ -18,6 +18,11 @@ import UserManagement from './pages/UserManagement'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import Integrations from './pages/Integrations'
+import Leaderboard from './pages/Leaderboard'
+import EmailCampaigns from './pages/EmailCampaigns'
+// Public pages (no auth required)
+import PublicInquiry from './pages/PublicInquiry'
+import StudentPortal from './pages/StudentPortal'
 
 // ── Role-gated route: renders children only if user has required role ─────────
 function RequireRole({ user, roles, children }) {
@@ -33,6 +38,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public pages — no auth needed */}
+        <Route path="/apply" element={<PublicInquiry />} />
+        <Route path="/student-portal" element={<StudentPortal />} />
+        <Route path="/student" element={<StudentPortal />} />
+
         <Route
           path="/login"
           element={isAuthenticated ? <Navigate to="/leads" replace /> : <Login />}
@@ -61,7 +71,9 @@ export default function App() {
           <Route path="calendar"         element={<CalendarPro />} />
           <Route path="settings"         element={<Settings />} />
           <Route path="integrations"     element={<Integrations />} />
-          {/* Admin-only route */}
+          <Route path="leaderboard"      element={<Leaderboard />} />
+          <Route path="email-campaigns"  element={<EmailCampaigns />} />
+          {/* Admin-only routes */}
           <Route
             path="users"
             element={

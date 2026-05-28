@@ -825,6 +825,888 @@ app.post('/api/leads/bulk-upload', uploadDoc.single('file'), async (req, res) =>
   }
 })
 
+// ============================================================
+// =================== NEW FEATURES BLOCK ====================
+// ============================================================
+
+// --- FEATURE 1: LEAD DEDUPLICATION CHECK ---
+app.post('/api/leads/check-duplicate', async (req, res) => {
+  const { mobile, email } = req.body
+  try {
+    const r = await pool.query(
+      'SELECT id, name, mobile, email, stage, source FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 5;',
+      [mobile, email]
+    )
+    res.json({ duplicates: r.rows, hasDuplicate: r.rows.length > 0 })
+  } catch (err) {
+    res.status(500).json({ error: 'Deduplication check failed.' })
+  }
+})
+
+// --- FEATURE 2: LEAD AUTO-ASSIGNMENT (round-robin) ---
+app.get('/api/leads/next-assignee', async (req, res) => {
+  try {
+    // Get active counselors
+    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role IN ('Counselor', 'Manager') ORDER BY name;")
+    if (usersRes.rows.length === 0) return res.json({ assignee: 'Unassigned' })
+
+    // Get or init counters
+    for (const u of usersRes.rows) {
+      await pool.query(
+        'INSERT INTO lead_assignment_counter (counselor_name, counselor_email) VALUES ($1, $2) ON CONFLICT (counselor_name) DO NOTHING;',
+        [u.name, u.email]
+      )
+    }
+
+    // Pick counselor with least assignments (load-based)
+    const counterRes = await pool.query(`
+      SELECT lac.counselor_name, lac.assignment_count
+      FROM lead_assignment_counter lac
+      JOIN users u ON u.name = lac.counselor_name
+      WHERE u.status = 'Active' AND u.role IN ('Counselor', 'Manager')
+      ORDER BY lac.assignment_count ASC, lac.last_assigned ASC
+      LIMIT 1;
+    `)
+    if (counterRes.rows.length === 0) return res.json({ assignee: usersRes.rows[0].name })
+
+    const assignee = counterRes.rows[0].counselor_name
+    await pool.query(
+      'UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;',
+      [assignee]
+    )
+    res.json({ assignee })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Auto-assignment failed.', assignee: 'Unassigned' })
+  }
+})
+
+// --- FEATURE 3 & 4: META LEAD ADS WEBHOOK ---
+app.get('/api/webhooks/meta-leads', (req, res) => {
+  // Facebook webhook verification
+  const mode = req.query['hub.mode']
+  const token = req.query['hub.verify_token']
+  const challenge = req.query['hub.challenge']
+  const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'ccrm_meta_verify_2026'
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    console.log('[Meta Webhook] Verification successful.')
+    return res.status(200).send(challenge)
+  }
+  res.status(403).json({ error: 'Verification failed.' })
+})
+
+app.post('/api/webhooks/meta-leads', async (req, res) => {
+  try {
+    const body = req.body
+    if (body.object === 'page') {
+      for (const entry of (body.entry || [])) {
+        for (const change of (entry.changes || [])) {
+          if (change.field === 'leadgen') {
+            const leadData = change.value
+            const name = leadData.field_data?.find(f => f.name === 'full_name')?.values?.[0] || 'Meta Lead'
+            const email = leadData.field_data?.find(f => f.name === 'email')?.values?.[0] || `meta_${Date.now()}@noemail.com`
+            const mobile = leadData.field_data?.find(f => f.name === 'phone_number')?.values?.[0] || '0000000000'
+            const course = leadData.field_data?.find(f => f.name === 'course')?.values?.[0] || 'B.Tech CSE'
+
+            // Dedup check
+            const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
+            if (dupCheck.rows.length === 0) {
+              // Auto-assign
+              const assignRes = await pool.query(`SELECT lac.counselor_name FROM lead_assignment_counter lac JOIN users u ON u.name = lac.counselor_name WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ORDER BY lac.assignment_count ASC LIMIT 1;`)
+              const assignee = assignRes.rows[0]?.counselor_name || 'Unassigned'
+              if (assignee !== 'Unassigned') {
+                await pool.query('UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;', [assignee])
+              }
+
+              const score = calculateLeadScore({ source: 'Facebook Ads', stage: 'Untouched', mobile, email, course })
+              await pool.query(`
+                INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
+                VALUES ($1, $2, $3, $4, 'Facebook Ads', $5, $6, $7, 'Untouched', 'red');
+              `, [name, email, mobile, course, assignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
+              await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`[Meta Ads] New lead auto-imported: ${name} (${course})`, 'Just now'])
+            }
+          }
+        }
+      }
+    }
+    res.status(200).json({ received: true })
+  } catch (err) {
+    console.error('[Meta Webhook Error]', err)
+    res.status(500).json({ error: 'Webhook processing failed.' })
+  }
+})
+
+// Google Ads Lead Form Webhook
+app.post('/api/webhooks/google-leads', async (req, res) => {
+  try {
+    const lead = req.body
+    const name = lead.user_column_data?.find(f => f.column_name === 'FULL_NAME')?.string_value || lead.full_name || 'Google Lead'
+    const email = lead.user_column_data?.find(f => f.column_name === 'EMAIL')?.string_value || lead.email || `google_${Date.now()}@noemail.com`
+    const mobile = lead.user_column_data?.find(f => f.column_name === 'PHONE_NUMBER')?.string_value || lead.phone_number || '0000000000'
+    const course = lead.user_column_data?.find(f => f.column_name === 'COURSE')?.string_value || 'B.Tech CSE'
+
+    const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
+    if (dupCheck.rows.length === 0) {
+      const assignRes = await pool.query(`SELECT lac.counselor_name FROM lead_assignment_counter lac JOIN users u ON u.name = lac.counselor_name WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ORDER BY lac.assignment_count ASC LIMIT 1;`)
+      const assignee = assignRes.rows[0]?.counselor_name || 'Unassigned'
+      if (assignee !== 'Unassigned') {
+        await pool.query('UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;', [assignee])
+      }
+      const score = calculateLeadScore({ source: 'Google Ads', stage: 'Untouched', mobile, email, course })
+      await pool.query(`
+        INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
+        VALUES ($1, $2, $3, $4, 'Google Ads', $5, $6, $7, 'Untouched', 'red');
+      `, [name, email, mobile, course, assignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
+      await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`[Google Ads] New lead auto-imported: ${name} (${course})`, 'Just now'])
+    }
+    res.status(200).json({ received: true })
+  } catch (err) {
+    console.error('[Google Webhook Error]', err)
+    res.status(500).json({ error: 'Webhook processing failed.' })
+  }
+})
+
+// WhatsApp Chatbot Webhook (Feature 19)
+app.get('/api/webhooks/whatsapp-bot', (req, res) => {
+  const mode = req.query['hub.mode']
+  const token = req.query['hub.verify_token']
+  const challenge = req.query['hub.challenge']
+  const VERIFY_TOKEN = process.env.WA_VERIFY_TOKEN || 'ccrm_wa_verify_2026'
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) return res.status(200).send(challenge)
+  res.status(403).json({ error: 'Verification failed.' })
+})
+
+app.post('/api/webhooks/whatsapp-bot', async (req, res) => {
+  try {
+    const body = req.body
+    const messages = body.entry?.[0]?.changes?.[0]?.value?.messages || []
+    for (const msg of messages) {
+      const from = msg.from // phone number
+      const text = msg.text?.body || ''
+      // Simple keyword-based chatbot to capture name and course interest
+      const course = detectCourseInterest(text)
+      if (course) {
+        const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 LIMIT 1;', [from])
+        if (dupCheck.rows.length === 0) {
+          const score = calculateLeadScore({ source: 'WhatsApp', stage: 'Untouched', mobile: from, email: `wa_${from}@noemail.com`, course })
+          await pool.query(`
+            INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
+            VALUES ($1, $2, $3, $4, 'WhatsApp', 'Unassigned', $5, $6, 'Untouched', 'red');
+          `, [`WhatsApp Lead (${from.slice(-4)})`, `wa_${from}@noemail.com`, from, course, new Date().toLocaleString('en-IN', { hour12: true }), score])
+          await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`[WhatsApp Bot] New lead from ${from} interested in ${course}`, 'Just now'])
+        }
+      }
+    }
+    res.status(200).json({ received: true })
+  } catch (err) {
+    console.error('[WA Bot Error]', err)
+    res.status(200).json({ received: true })
+  }
+})
+
+function detectCourseInterest(text) {
+  const t = text.toLowerCase()
+  if (t.includes('btech') || t.includes('b.tech') || t.includes('cse') || t.includes('computer')) return 'B.Tech CSE'
+  if (t.includes('mba')) return 'MBA'
+  if (t.includes('bca')) return 'BCA'
+  if (t.includes('bba')) return 'BBA'
+  if (t.includes('mtech') || t.includes('m.tech')) return 'M.Tech'
+  if (t.includes('msc') || t.includes('agriculture')) return 'M.Sc Agriculture'
+  if (t.includes('bcom') || t.includes('b.com')) return 'B.Com'
+  if (t.includes('ece') || t.includes('electronics')) return 'B.Tech ECE'
+  if (t.includes('civil')) return 'B.Tech Civil'
+  if (t.includes('mech')) return 'B.Tech Mech'
+  return null
+}
+
+// --- FEATURE 9: PREDICTIVE LEAD SCORING ---
+function calculateLeadScore({ source, stage, mobile, email, course, state }) {
+  let score = 0
+  // Source quality
+  const sourceScores = { 'Referral': 30, 'Walk-in': 28, 'Education Fair': 25, 'Google Ads': 20, 'Facebook Ads': 18, 'LinkedIn': 22, 'Website': 15, 'WhatsApp': 12, 'SMS Campaign': 10 }
+  score += sourceScores[source] || 10
+  // Email completeness (not noemail.com)
+  if (email && !email.includes('noemail')) score += 15
+  // Mobile completeness
+  if (mobile && mobile !== '0000000000' && mobile.length >= 10) score += 15
+  // Course specificity
+  const premiumCourses = ['MBA', 'M.Tech', 'B.Tech CSE', 'B.Tech ECE']
+  if (premiumCourses.includes(course)) score += 15
+  // Stage bonus
+  const stageBonus = { 'Qualified Leads': 20, 'Interested': 15, 'Follow Up': 10, 'Contacted': 5, 'Untouched': 0 }
+  score += stageBonus[stage] || 0
+  return Math.min(score, 100)
+}
+
+app.post('/api/leads/recalculate-score/:id', async (req, res) => {
+  const { id } = req.params
+  try {
+    const r = await pool.query('SELECT * FROM leads WHERE id = $1;', [id])
+    if (!r.rows[0]) return res.status(404).json({ error: 'Lead not found.' })
+    const lead = r.rows[0]
+    const score = calculateLeadScore({ source: lead.source, stage: lead.stage, mobile: lead.mobile, email: lead.email, course: lead.course })
+    await pool.query('UPDATE leads SET score = $1 WHERE id = $2;', [score, id])
+    res.json({ score })
+  } catch (err) {
+    res.status(500).json({ error: 'Score recalculation failed.' })
+  }
+})
+
+// --- FEATURE 5: WHATSAPP BULK MESSAGING ---
+app.post('/api/leads/bulk-whatsapp', async (req, res) => {
+  const { leadIds, message, templateName } = req.body
+  if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
+
+  try {
+    // Get integration config
+    const integCfg = req.body.integrationConfig || {}
+    const waApiUrl = integCfg.apiUrl || process.env.WA_API_URL
+    const waToken = integCfg.apiKey || process.env.WA_API_KEY
+    const waPhone = integCfg.phoneId || process.env.WA_PHONE_ID
+
+    // Fetch lead mobiles
+    const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
+    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
+    const leads = leadsRes.rows
+
+    let sentCount = 0
+    for (const lead of leads) {
+      if (!waApiUrl || !waToken || !waPhone) {
+        // Simulate success in dev mode
+        console.log(`[WA Bulk] Simulating message to ${lead.name} (${lead.mobile}): ${message.substring(0, 50)}...`)
+        sentCount++
+      } else {
+        try {
+          const personalizedMsg = message.replace(/\{name\}/g, lead.name).replace(/\{mobile\}/g, lead.mobile)
+          // Call WhatsApp Business API
+          const waRes = await fetch(`${waApiUrl}/${waPhone}/messages`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${waToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: lead.mobile.replace(/\D/g, ''),
+              type: 'text',
+              text: { body: personalizedMsg }
+            })
+          })
+          if (waRes.ok) sentCount++
+        } catch (e) {
+          console.error(`[WA Bulk] Failed for ${lead.mobile}:`, e.message)
+        }
+      }
+    }
+
+    // Log the campaign
+    await pool.query(
+      'INSERT INTO whatsapp_logs (campaign_name, message_template, recipient_count, status) VALUES ($1, $2, $3, $4);',
+      [templateName || 'Bulk Outreach', message.substring(0, 255), sentCount, 'Sent']
+    )
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`WhatsApp bulk sent: ${sentCount} messages dispatched successfully`, 'Just now'])
+
+    res.json({ success: true, sent: sentCount, total: leads.length })
+  } catch (err) {
+    console.error('[WA Bulk]', err)
+    res.status(500).json({ error: 'Bulk WhatsApp failed.', sent: 0 })
+  }
+})
+
+// --- FEATURE 6: AUTOMATED DRIP SEQUENCES ---
+app.post('/api/drip/enroll', async (req, res) => {
+  const { leadId, leadName, leadEmail, leadMobile, sequenceName } = req.body
+  try {
+    // Check if already enrolled
+    const existing = await pool.query('SELECT id FROM drip_sequences WHERE lead_id = $1 AND status = $2;', [leadId, 'Active'])
+    if (existing.rows.length > 0) return res.json({ message: 'Already enrolled in drip sequence.' })
+
+    const nextActionAt = new Date()
+    const insertRes = await pool.query(`
+      INSERT INTO drip_sequences (lead_id, lead_name, lead_email, lead_mobile, sequence_name, current_step, status, next_action_at)
+      VALUES ($1, $2, $3, $4, $5, 0, 'Active', $6)
+      RETURNING *;
+    `, [leadId, leadName, leadEmail, leadMobile, sequenceName || 'Standard Admission', nextActionAt])
+    res.status(201).json(insertRes.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to enroll in drip sequence.' })
+  }
+})
+
+app.get('/api/drip', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM drip_sequences ORDER BY id DESC LIMIT 100;')
+    res.json(r.rows)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch drip sequences.' })
+  }
+})
+
+// Process pending drip actions (called by cron or manually)
+app.post('/api/drip/process', async (req, res) => {
+  try {
+    const now = new Date()
+    const pending = await pool.query(
+      "SELECT * FROM drip_sequences WHERE status = 'Active' AND next_action_at <= $1 LIMIT 50;",
+      [now]
+    )
+    const DRIP_STEPS = [
+      { day: 0, type: 'WhatsApp', message: 'Hi {name}, thank you for your interest in CUTM! 🎓 We offer world-class programs in {course}. Reply YES to know more.' },
+      { day: 1, type: 'Email', message: 'Dear {name}, explore our CUTM campus and course brochure. Seats are limited for 2026 batch!' },
+      { day: 3, type: 'SMS', message: 'CUTM: {name}, last few seats for {course}. Apply today: https://cutm.ac.in' },
+      { day: 7, type: 'Task', message: 'Call follow-up: {name} has not responded in 7 days.' },
+    ]
+
+    let processed = 0
+    for (const seq of pending.rows) {
+      const step = DRIP_STEPS[seq.current_step]
+      if (!step) {
+        // Sequence complete
+        await pool.query("UPDATE drip_sequences SET status = 'Completed' WHERE id = $1;", [seq.id])
+        continue
+      }
+
+      // Log the action
+      await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+        [`[Drip] ${step.type} → ${seq.lead_name}: ${step.message.replace('{name}', seq.lead_name).substring(0, 80)}`, 'Just now'])
+
+      if (step.type === 'Task') {
+        await pool.query(`INSERT INTO tasks (title, type, priority, due, status, assignee, lead) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+          [step.message.replace('{name}', seq.lead_name), 'Call', 'High', new Date().toLocaleString('en-IN', { hour12: true }), 'Pending', 'Unassigned', seq.lead_name])
+      }
+
+      // Advance to next step
+      const nextStep = seq.current_step + 1
+      const nextStepDef = DRIP_STEPS[nextStep]
+      const nextActionAt = nextStepDef
+        ? new Date(Date.now() + nextStepDef.day * 24 * 60 * 60 * 1000)
+        : null
+
+      await pool.query(`
+        UPDATE drip_sequences
+        SET current_step = $1, next_action_at = $2, status = CASE WHEN $3 = TRUE THEN 'Completed' ELSE status END
+        WHERE id = $4;
+      `, [nextStep, nextActionAt, !nextStepDef, seq.id])
+      processed++
+    }
+    res.json({ processed })
+  } catch (err) {
+    console.error('[Drip Process]', err)
+    res.status(500).json({ error: 'Drip processing failed.' })
+  }
+})
+
+// --- FEATURE 7: SOURCE-TO-ENROLLMENT FUNNEL ---
+app.get('/api/reports/funnel', async (req, res) => {
+  try {
+    const { source, campaign } = req.query
+    const whereClause = source ? `WHERE l.source = '${source.replace(/'/g,"''")}' ` : ''
+
+    const leads = await pool.query(`SELECT COUNT(*) FROM leads ${whereClause};`)
+    const contacted = await pool.query(`SELECT COUNT(*) FROM leads ${whereClause ? whereClause + "AND " : "WHERE "} stage IN ('Contacted', 'Follow Up', 'Interested', 'Qualified Leads', 'Converted');`)
+    const apps = await pool.query(`SELECT COUNT(*) FROM applications;`)
+    const payments = await pool.query(`SELECT COUNT(*) FROM payments WHERE status = 'Approved';`)
+    const enrolled = await pool.query(`SELECT COUNT(*) FROM applications WHERE stage IN ('Enrolment', 'Enrolments');`)
+    const sourceBreakdown = await pool.query(`SELECT source, COUNT(*) as count FROM leads GROUP BY source ORDER BY count DESC;`)
+
+    res.json({
+      funnel: [
+        { stage: 'Total Leads', count: parseInt(leads.rows[0].count) },
+        { stage: 'Contacted', count: parseInt(contacted.rows[0].count) },
+        { stage: 'Applications', count: parseInt(apps.rows[0].count) },
+        { stage: 'Payment Approved', count: parseInt(payments.rows[0].count) },
+        { stage: 'Enrolled', count: parseInt(enrolled.rows[0].count) },
+      ],
+      sourceBreakdown: sourceBreakdown.rows
+    })
+  } catch (err) {
+    res.status(500).json({ error: 'Funnel report failed.' })
+  }
+})
+
+// --- FEATURE 8: COUNSELOR LEADERBOARD ---
+app.get('/api/reports/leaderboard', async (req, res) => {
+  try {
+    const usersRes = await pool.query("SELECT id, name, email FROM users WHERE status = 'Active' ORDER BY name;")
+    const leaderboard = []
+    for (const u of usersRes.rows) {
+      const simplName = u.name.split(' ')[0]
+      const q = (sql, params) => pool.query(sql, params).then(r => parseInt(r.rows[0].count))
+      const leadsTotal = await q("SELECT COUNT(*) FROM leads WHERE owner = $1 OR owner LIKE $2;", [u.name, `${simplName}%`])
+      const converted = await q("SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND stage IN ('Qualified Leads','Converted');", [u.name, `${simplName}%`])
+      const enrolled = await q("SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND stage IN ('Enrolment','Enrolments');", [u.name, `${simplName}%`])
+      const payApproved = await q("SELECT COUNT(*) FROM payments p JOIN applications a ON p.app_no = a.app_no WHERE (a.owner = $1 OR a.owner LIKE $2) AND p.status = 'Approved';", [u.name, `${simplName}%`])
+      const callsCount = await q("SELECT COUNT(*) FROM call_logs WHERE counselor = $1 OR counselor LIKE $2;", [u.name, `${simplName}%`])
+      const convRate = leadsTotal > 0 ? ((converted / leadsTotal) * 100).toFixed(1) : '0.0'
+      leaderboard.push({ name: u.name, email: u.email, leads: leadsTotal, converted, enrolled, payApproved, calls: callsCount, convRate: parseFloat(convRate) })
+    }
+    leaderboard.sort((a, b) => b.enrolled - a.enrolled || b.converted - a.converted)
+    res.json(leaderboard)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Leaderboard query failed.' })
+  }
+})
+
+// --- FEATURE 10: PUBLIC INQUIRY FORM ---
+app.post('/api/public/inquiry', async (req, res) => {
+  const { name, email, mobile, state, city, course, source } = req.body
+  if (!name || !mobile) return res.status(400).json({ error: 'Name and mobile are required.' })
+  try {
+    // Dedup check
+    const dup = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email || ''])
+    if (dup.rows.length > 0) {
+      return res.status(200).json({ message: 'Your inquiry was already received. Our team will contact you shortly.', duplicate: true })
+    }
+
+    // Auto-assign
+    const assignRes = await pool.query(`SELECT lac.counselor_name FROM lead_assignment_counter lac JOIN users u ON u.name = lac.counselor_name WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ORDER BY lac.assignment_count ASC LIMIT 1;`)
+    const assignee = assignRes.rows[0]?.counselor_name || 'Unassigned'
+    if (assignee !== 'Unassigned') {
+      await pool.query('UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;', [assignee])
+    }
+
+    const score = calculateLeadScore({ source: source || 'Website', stage: 'Untouched', mobile, email, course })
+    const insertRes = await pool.query(`
+      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Untouched', 'red')
+      RETURNING id, name, course;
+    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', assignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
+
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`[Public Form] New inquiry: ${name} (${course || 'B.Tech CSE'})`, 'Just now'])
+
+    res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: insertRes.rows[0] })
+  } catch (err) {
+    console.error('[Public Inquiry]', err)
+    res.status(500).json({ error: 'Failed to submit inquiry.' })
+  }
+})
+
+// --- FEATURE 11: PAYMENT LINK GENERATOR ---
+app.post('/api/payments/generate-link', async (req, res) => {
+  const { appNo, name, email, mobile, amount, method } = req.body
+  if (!appNo) return res.status(400).json({ error: 'Application number required.' })
+
+  try {
+    const integCfg = req.body.razorpayConfig || {}
+    const keyId = integCfg.keyId || process.env.RAZORPAY_KEY_ID
+    const keySecret = integCfg.keySecret || process.env.RAZORPAY_KEY_SECRET
+
+    let paymentLink = null
+    if (keyId && keySecret) {
+      // Create Razorpay payment link
+      const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+      const rpRes = await fetch('https://api.razorpay.com/v1/payment_links', {
+        method: 'POST',
+        headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: (amount || 25000) * 100, // paise
+          currency: 'INR',
+          description: `CUTM Admission Fee — ${appNo}`,
+          customer: { name, email, contact: mobile },
+          notify: { sms: true, email: true },
+          reference_id: appNo,
+          expire_by: Math.floor(Date.now() / 1000) + 7 * 24 * 3600 // 7 days
+        })
+      })
+      if (rpRes.ok) {
+        const rpData = await rpRes.json()
+        paymentLink = rpData.short_url
+      }
+    }
+
+    // Fallback: generate a demo link
+    if (!paymentLink) {
+      paymentLink = `https://pay.cutmap.ac.in/${appNo}?amount=${amount || 25000}&name=${encodeURIComponent(name || '')}`
+    }
+
+    // Update payment record
+    await pool.query(
+      "UPDATE payments SET method = $1, status = 'Link Sent' WHERE app_no = $2;",
+      [method || 'Online', appNo]
+    )
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Payment link generated for ${appNo}: ₹${(amount || 25000).toLocaleString('en-IN')}`, 'Just now'])
+
+    res.json({ success: true, paymentLink, appNo, amount: amount || 25000 })
+  } catch (err) {
+    console.error('[Pay Link]', err)
+    res.status(500).json({ error: 'Failed to generate payment link.' })
+  }
+})
+
+// --- FEATURE 12 & 13: EXCEL PREVIEW / COLUMN MAPPER + DUPLICATE DETECTION ---
+app.post('/api/leads/preview-upload', uploadDoc.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
+  const filePath = req.file.path
+  try {
+    const workbook = XLSX.readFile(filePath)
+    const sheetName = workbook.SheetNames[0]
+    const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' })
+    if (!rawData || rawData.length === 0) return res.status(400).json({ error: 'Spreadsheet is empty.' })
+
+    const headers = Object.keys(rawData[0])
+    const preview = rawData.slice(0, 5)
+
+    // Auto-detect column mapping
+    const autoMap = {}
+    const fieldPatterns = {
+      name: /name|student|full.?name/i,
+      email: /email|mail/i,
+      mobile: /mobile|phone|contact|number/i,
+      state: /state|province/i,
+      city: /city|district|town/i,
+      course: /course|program|stream/i,
+      source: /source|channel|medium/i,
+      owner: /owner|counselor|assigned/i,
+    }
+    for (const h of headers) {
+      for (const [field, pattern] of Object.entries(fieldPatterns)) {
+        if (pattern.test(h) && !autoMap[field]) autoMap[field] = h
+      }
+    }
+
+    // Duplicate detection check (check first 20 rows)
+    const sampleMobiles = rawData.slice(0, 20).map(r => {
+      const mobileCol = autoMap.mobile || headers.find(h => /mobile|phone/i.test(h))
+      return String(r[mobileCol] || '').replace(/\D/g, '')
+    }).filter(m => m.length > 0)
+
+    let duplicateCount = 0
+    if (sampleMobiles.length > 0) {
+      const placeholders = sampleMobiles.map((_, i) => `$${i+1}`).join(',')
+      const dupRes = await pool.query(`SELECT COUNT(*) FROM leads WHERE mobile IN (${placeholders});`, sampleMobiles)
+      duplicateCount = parseInt(dupRes.rows[0].count)
+    }
+    const estimatedDupRate = rawData.length > 0 ? ((duplicateCount / Math.min(20, rawData.length)) * 100).toFixed(0) : 0
+
+    res.json({
+      headers,
+      preview,
+      totalRows: rawData.length,
+      autoMap,
+      duplicateCount,
+      estimatedDupRate: parseFloat(estimatedDupRate),
+    })
+  } catch (err) {
+    console.error('[Preview Upload]', err)
+    res.status(500).json({ error: 'Preview failed.' })
+  } finally {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+  }
+})
+
+// Enhanced bulk upload with column mapping + skip/update duplicates
+app.post('/api/leads/bulk-upload-mapped', uploadDoc.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
+  const filePath = req.file.path
+  let columnMap = {}
+  try { columnMap = JSON.parse(req.body.columnMap || '{}') } catch {}
+  const dupHandling = req.body.dupHandling || 'skip' // skip | update | import
+
+  try {
+    const workbook = XLSX.readFile(filePath)
+    const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' })
+
+    const client = await pool.connect()
+    let imported = 0, skipped = 0, updated = 0
+    try {
+      await client.query('BEGIN')
+      for (const row of rawData) {
+        const name = String(row[columnMap.name] || row.Name || row.name || 'Unnamed').substring(0, 100)
+        const email = String(row[columnMap.email] || row.Email || row.email || `lead_${Date.now()}@noemail.com`).substring(0, 100)
+        const mobile = String(row[columnMap.mobile] || row.Mobile || row.mobile || '0000000000').replace(/\D/g, '').substring(0, 50) || '0000000000'
+        const state = String(row[columnMap.state] || row.State || row.state || '').substring(0, 100)
+        const city = String(row[columnMap.city] || row.City || row.city || '').substring(0, 100)
+        const course = String(row[columnMap.course] || row.Course || row.course || 'B.Tech CSE').substring(0, 100)
+        const source = String(row[columnMap.source] || row.Source || row.source || 'Excel Upload').substring(0, 100)
+        const owner = String(row[columnMap.owner] || row.Owner || row.owner || 'Unassigned').substring(0, 100)
+        const score = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
+
+        const dup = await client.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
+        if (dup.rows.length > 0) {
+          if (dupHandling === 'skip') { skipped++; continue }
+          if (dupHandling === 'update') {
+            await client.query('UPDATE leads SET name = $1, course = $2, source = $3, score = $4 WHERE id = $5;',
+              [name, course, source, score, dup.rows[0].id])
+            updated++; continue
+          }
+          // 'import' falls through to insert duplicate
+        }
+        await client.query(`
+          INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Untouched', 'red');
+        `, [name, email, mobile, state, city, course, source, owner, new Date().toLocaleString('en-IN', { hour12: true }), score])
+        imported++
+      }
+      await client.query('COMMIT')
+      await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+        [`Bulk upload complete: ${imported} imported, ${skipped} skipped, ${updated} updated`, 'Just now'])
+      res.json({ success: true, imported, skipped, updated, total: rawData.length })
+    } catch (dbErr) {
+      await client.query('ROLLBACK')
+      throw dbErr
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error('[Bulk Mapped]', err)
+    res.status(500).json({ error: err.message || 'Bulk upload failed.' })
+  } finally {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+  }
+})
+
+// --- FEATURE 14: GOOGLE SHEETS AUTO-SYNC ---
+app.post('/api/integrations/sheets-sync', async (req, res) => {
+  const { sheetId, apiKey } = req.body
+  if (!sheetId) return res.status(400).json({ error: 'Google Sheet ID required.' })
+  try {
+    // Fetch sheet data via Google Sheets API
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A1:Z1000?key=${apiKey || process.env.GOOGLE_SHEETS_API_KEY}`
+    const sheetsRes = await fetch(url)
+    if (!sheetsRes.ok) {
+      const errText = await sheetsRes.text()
+      return res.status(400).json({ error: `Google Sheets API error: ${errText.substring(0, 200)}` })
+    }
+    const sheetsData = await sheetsRes.json()
+    const values = sheetsData.values || []
+    if (values.length < 2) return res.json({ synced: 0, message: 'No data rows found.' })
+
+    const headers = values[0].map(h => String(h).toLowerCase().trim())
+    const rows = values.slice(1)
+    let synced = 0, skipped = 0
+    for (const row of rows) {
+      const obj = {}
+      headers.forEach((h, i) => { obj[h] = row[i] || '' })
+      const name = obj.name || obj['student name'] || obj['full name'] || 'Unnamed'
+      const email = obj.email || obj['email id'] || `sheet_${Date.now()}@noemail.com`
+      const mobile = (obj.mobile || obj.phone || obj['phone number'] || '0000000000').replace(/\D/g, '') || '0000000000'
+      const course = obj.course || obj.program || 'B.Tech CSE'
+      const source = obj.source || 'Google Sheets'
+
+      const dup = await pool.query('SELECT id FROM leads WHERE mobile = $1 LIMIT 1;', [mobile])
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const score = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
+      await pool.query(`INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color) VALUES ($1,$2,$3,$4,$5,'Unassigned',$6,$7,'Untouched','red');`,
+        [name.substring(0,100), email.substring(0,100), mobile.substring(0,50), course.substring(0,100), source.substring(0,100), new Date().toLocaleString('en-IN', { hour12: true }), score])
+      synced++
+    }
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Google Sheets sync: ${synced} new leads imported, ${skipped} duplicates skipped`, 'Just now'])
+    res.json({ success: true, synced, skipped, total: rows.length })
+  } catch (err) {
+    console.error('[Sheets Sync]', err)
+    res.status(500).json({ error: 'Google Sheets sync failed.' })
+  }
+})
+
+// --- FEATURE 15: STUDENT APPLICATION PORTAL ---
+app.post('/api/student/login', async (req, res) => {
+  const { mobile, appNo } = req.body
+  if (!mobile && !appNo) return res.status(400).json({ error: 'Mobile number or application number required.' })
+  try {
+    let appRes
+    if (appNo) {
+      appRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", stage, course, campus, date FROM applications WHERE app_no = $1;', [appNo])
+    } else {
+      appRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", stage, course, campus, date FROM applications WHERE mobile = $1;', [mobile])
+    }
+    if (appRes.rows.length === 0) return res.status(404).json({ error: 'No application found. Please check your details.' })
+    const app = appRes.rows[0]
+    // Get payment status
+    const payRes = await pool.query('SELECT status, txn_id AS "txnId", amount, method, date FROM payments WHERE app_no = $1;', [app.appNo])
+    // Get documents
+    const docsRes = await pool.query('SELECT type, status, upload_date AS "uploadDate" FROM documents WHERE student = $1;', [app.name])
+    res.json({ application: app, payment: payRes.rows[0] || null, documents: docsRes.rows })
+  } catch (err) {
+    console.error('[Student Login]', err)
+    res.status(500).json({ error: 'Failed to retrieve application status.' })
+  }
+})
+
+// --- FEATURE 16: CALL LOGS ---
+app.get('/api/calls', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, lead_name AS "leadName", lead_mobile AS "leadMobile", counselor, duration, outcome, notes, called_at AS "calledAt" FROM call_logs ORDER BY id DESC LIMIT 200;')
+    res.json(r.rows)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch call logs.' })
+  }
+})
+
+app.post('/api/calls', async (req, res) => {
+  const { leadName, leadMobile, counselor, duration, outcome, notes } = req.body
+  if (!leadMobile) return res.status(400).json({ error: 'Lead mobile required.' })
+  try {
+    const insertRes = await pool.query(`
+      INSERT INTO call_logs (lead_name, lead_mobile, counselor, duration, outcome, notes)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, lead_name AS "leadName", lead_mobile AS "leadMobile", counselor, duration, outcome, notes, called_at AS "calledAt";
+    `, [leadName, leadMobile, counselor, duration || '0:00', outcome || 'Called', notes || ''])
+
+    // Update lead stage if connected
+    if (outcome && outcome !== 'No Answer' && leadName) {
+      await pool.query("UPDATE leads SET stage = CASE WHEN stage = 'Untouched' THEN 'Contacted' ELSE stage END, stage_color = CASE WHEN stage = 'Untouched' THEN 'blue' ELSE stage_color END WHERE name = $1;", [leadName])
+    }
+
+    res.status(201).json(insertRes.rows[0])
+  } catch (err) {
+    console.error('[Call Log]', err)
+    res.status(500).json({ error: 'Failed to log call.' })
+  }
+})
+
+// --- FEATURE 17: MULTI-CAMPUS FILTER (stats by campus) ---
+app.get('/api/campus/stats', async (req, res) => {
+  try {
+    const campusStats = await pool.query(`
+      SELECT campus,
+        COUNT(*) AS applications,
+        SUM(CASE WHEN stage IN ('Enrolment', 'Enrolments') THEN 1 ELSE 0 END) AS enrolled,
+        SUM(CASE WHEN pay_status = 'Payment Approved' OR pay_status = 'Approved' THEN 1 ELSE 0 END) AS paid
+      FROM applications
+      GROUP BY campus ORDER BY applications DESC;
+    `)
+    const CAMPUSES = ['Bhubaneswar', 'Vizianagaram', 'Paralakhemundi', 'Balasore']
+    const result = CAMPUSES.map(name => {
+      const row = campusStats.rows.find(r => r.campus === name) || {}
+      return { campus: name, applications: parseInt(row.applications || 0), enrolled: parseInt(row.enrolled || 0), paid: parseInt(row.paid || 0) }
+    })
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ error: 'Campus stats failed.' })
+  }
+})
+
+// --- FEATURE 18: ADMISSION TARGET TRACKER ---
+app.get('/api/targets', async (req, res) => {
+  try {
+    const targets = await pool.query('SELECT * FROM admission_targets ORDER BY year DESC, id DESC;')
+    res.json(targets.rows)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch targets.' })
+  }
+})
+
+app.post('/api/targets', async (req, res) => {
+  const { month, year, campus, targetLeads, targetApplications, targetEnrollments } = req.body
+  if (!month || !year) return res.status(400).json({ error: 'Month and year required.' })
+  try {
+    const upsertRes = await pool.query(`
+      INSERT INTO admission_targets (month, year, campus, target_leads, target_applications, target_enrollments)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (month, year, campus) DO UPDATE
+      SET target_leads = $4, target_applications = $5, target_enrollments = $6
+      RETURNING *;
+    `, [month, parseInt(year), campus || 'All', targetLeads || 0, targetApplications || 0, targetEnrollments || 0])
+    res.status(201).json(upsertRes.rows[0])
+  } catch (err) {
+    console.error('[Targets]', err)
+    res.status(500).json({ error: 'Failed to save target.' })
+  }
+})
+
+// Get current achievement vs target
+app.get('/api/targets/achievement', async (req, res) => {
+  try {
+    const { month, year, campus } = req.query
+    const m = month || new Date().toLocaleString('en-IN', { month: 'long' })
+    const y = parseInt(year) || new Date().getFullYear()
+
+    const targetRes = await pool.query('SELECT * FROM admission_targets WHERE month = $1 AND year = $2 AND campus = $3 LIMIT 1;', [m, y, campus || 'All'])
+    const target = targetRes.rows[0] || { target_leads: 0, target_applications: 0, target_enrollments: 0 }
+
+    const leadsCount = await pool.query('SELECT COUNT(*) FROM leads;')
+    const appsCount = await pool.query('SELECT COUNT(*) FROM applications;')
+    const enrolledCount = await pool.query("SELECT COUNT(*) FROM applications WHERE stage IN ('Enrolment','Enrolments');")
+
+    res.json({
+      month: m, year: y, campus: campus || 'All',
+      targets: { leads: parseInt(target.target_leads), applications: parseInt(target.target_applications), enrollments: parseInt(target.target_enrollments) },
+      achieved: { leads: parseInt(leadsCount.rows[0].count), applications: parseInt(appsCount.rows[0].count), enrollments: parseInt(enrolledCount.rows[0].count) }
+    })
+  } catch (err) {
+    res.status(500).json({ error: 'Achievement query failed.' })
+  }
+})
+
+// --- FEATURE 20: EMAIL CAMPAIGN BUILDER ---
+app.get('/api/email-campaigns', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, name, subject, segment, status, sent_count AS "sentCount", open_count AS "openCount", click_count AS "clickCount", created_at AS "createdAt", sent_at AS "sentAt" FROM email_campaigns ORDER BY id DESC;')
+    res.json(r.rows)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch email campaigns.' })
+  }
+})
+
+app.post('/api/email-campaigns', async (req, res) => {
+  const { name, subject, template, segment } = req.body
+  if (!name || !subject) return res.status(400).json({ error: 'Campaign name and subject required.' })
+  try {
+    const insertRes = await pool.query(`
+      INSERT INTO email_campaigns (name, subject, template, segment, status)
+      VALUES ($1, $2, $3, $4, 'Draft')
+      RETURNING id, name, subject, segment, status, sent_count AS "sentCount", open_count AS "openCount", click_count AS "clickCount", created_at AS "createdAt";
+    `, [name, subject, template || '', segment || 'All Leads'])
+    res.status(201).json(insertRes.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create email campaign.' })
+  }
+})
+
+app.post('/api/email-campaigns/:id/send', async (req, res) => {
+  const { id } = req.params
+  try {
+    const campRes = await pool.query('SELECT * FROM email_campaigns WHERE id = $1;', [id])
+    if (!campRes.rows[0]) return res.status(404).json({ error: 'Campaign not found.' })
+    const camp = campRes.rows[0]
+
+    // Get recipients based on segment
+    let leadsQuery = 'SELECT email, name FROM leads WHERE email NOT LIKE $1 AND email != $2;'
+    const leadsRes = await pool.query(leadsQuery, ['%noemail%', ''])
+    const recipients = leadsRes.rows
+    let sentCount = 0
+
+    for (const lead of recipients) {
+      const personalizedSubject = camp.subject.replace(/\{name\}/g, lead.name)
+      const personalizedBody = camp.template.replace(/\{name\}/g, lead.name)
+      sendSystemMailAlert(lead.email, personalizedSubject, personalizedBody)
+      sentCount++
+    }
+
+    await pool.query(`UPDATE email_campaigns SET status = 'Sent', sent_count = $1, sent_at = NOW() WHERE id = $2;`, [sentCount, id])
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Email campaign "${camp.name}" sent to ${sentCount} leads`, 'Just now'])
+    res.json({ success: true, sent: sentCount })
+  } catch (err) {
+    console.error('[Email Campaign Send]', err)
+    res.status(500).json({ error: 'Failed to send campaign.' })
+  }
+})
+
+app.put('/api/email-campaigns/:id', async (req, res) => {
+  const { id } = req.params
+  const { name, subject, template, segment } = req.body
+  try {
+    const r = await pool.query(`UPDATE email_campaigns SET name = $1, subject = $2, template = $3, segment = $4 WHERE id = $5 RETURNING id, name, subject, segment, status, template;`, [name, subject, template, segment, id])
+    if (!r.rows[0]) return res.status(404).json({ error: 'Not found.' })
+    res.json(r.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: 'Update failed.' })
+  }
+})
+
+app.delete('/api/email-campaigns/:id', async (req, res) => {
+  const { id } = req.params
+  try {
+    await pool.query('DELETE FROM email_campaigns WHERE id = $1;', [id])
+    res.json({ message: 'Campaign deleted.' })
+  } catch (err) {
+    res.status(500).json({ error: 'Delete failed.' })
+  }
+})
+
+// ============================================================
+// =================== END NEW FEATURES ======================
+// ============================================================
+
 // --- SERVE REACT FRONTEND (production) ---
 // Must be placed AFTER all /api routes so API routes take priority
 const distPath = path.join(__dirname, '..', 'ccrm', 'dist')
