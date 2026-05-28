@@ -255,6 +255,28 @@ export async function initDb() {
     // Migrations: add score column update on leads
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS auto_score INTEGER DEFAULT 0;`).catch(() => {})
 
+    // === SOCIAL MEDIA & ALERT SYSTEM MIGRATIONS ===
+
+    // Upgrade notifications table with per-user targeting + metadata
+    await client.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS user_email VARCHAR(100);`).catch(() => {})
+    await client.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title VARCHAR(255) DEFAULT '';`).catch(() => {})
+    await client.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'info';`).catch(() => {})
+    await client.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS lead_id INTEGER;`).catch(() => {})
+    await client.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`).catch(() => {})
+
+    // Integration settings table (key-value store for API credentials)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS integration_settings (
+        id SERIAL PRIMARY KEY,
+        key VARCHAR(100) UNIQUE NOT NULL,
+        value TEXT DEFAULT '',
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `).catch(() => {})
+
+    // Users: add mobile field for WhatsApp alerts to counselors
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile VARCHAR(50) DEFAULT '';`).catch(() => {})
+
     console.log('Schema tables created successfully.')
 
     // --- SEED INITIAL MOCK DATA IF TABLES ARE EMPTY ---

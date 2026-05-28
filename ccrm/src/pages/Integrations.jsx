@@ -1,16 +1,33 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   CheckCircle2, AlertCircle, ExternalLink, RefreshCw,
   MessageCircle, CreditCard, Mail, BarChart2, Phone,
-  Database, Globe, Lock, Save, X, Eye, EyeOff, ChevronDown, ChevronRight
+  Globe, Lock, Save, X, Eye, EyeOff, ChevronDown, ChevronRight,
+  Share2, Zap, Copy, CheckCheck, Bell
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
 const INTEGRATIONS = [
   {
+    id: 'meta',
+    name: 'Meta / Facebook & Instagram Lead Ads',
+    description: 'Auto-import leads from Facebook & Instagram Lead Ad campaigns. Uses Graph API to fetch full lead form data when a lead submits.',
+    icon: Share2,
+    color: 'text-blue-600',
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+    category: 'Social Media',
+    docsUrl: 'https://developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving',
+    fields: [
+      { key: 'meta_page_access_token', label: 'Page Access Token', placeholder: 'EAAxxxxxxxxxxxxxxx (permanent page token)', secret: true },
+      { key: 'meta_app_id',            label: 'App ID',             placeholder: 'Your Meta App ID', secret: false },
+      { key: 'meta_app_secret',        label: 'App Secret',         placeholder: 'Your Meta App Secret (for webhook verification)', secret: true },
+    ]
+  },
+  {
     id: 'whatsapp',
     name: 'WhatsApp Business API',
-    description: 'Send automated WhatsApp messages to leads for follow-ups, notifications, and reminders.',
+    description: 'Alert counselors on their WhatsApp when a lead is assigned. Also capture leads from WhatsApp chatbot interactions.',
     icon: MessageCircle,
     color: 'text-green-600',
     bg: 'bg-green-50',
@@ -18,9 +35,9 @@ const INTEGRATIONS = [
     category: 'Messaging',
     docsUrl: 'https://developers.facebook.com/docs/whatsapp',
     fields: [
-      { key: 'phoneNumberId', label: 'Phone Number ID', placeholder: 'e.g. 123456789012345', secret: false },
-      { key: 'wabaId',        label: 'WABA Account ID',  placeholder: 'WhatsApp Business Account ID', secret: false },
-      { key: 'accessToken',   label: 'Access Token',     placeholder: 'Your permanent access token', secret: true },
+      { key: 'whatsapp_phone_number_id', label: 'Phone Number ID',  placeholder: 'e.g. 123456789012345', secret: false },
+      { key: 'whatsapp_waba_id',         label: 'WABA Account ID',  placeholder: 'WhatsApp Business Account ID', secret: false },
+      { key: 'whatsapp_access_token',    label: 'Access Token',     placeholder: 'Your permanent access token', secret: true },
     ]
   },
   {
@@ -28,21 +45,21 @@ const INTEGRATIONS = [
     name: 'Razorpay Payment Gateway',
     description: 'Accept online payments for application fees. Auto-update payment status on successful transactions.',
     icon: CreditCard,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
+    color: 'text-indigo-600',
+    bg: 'bg-indigo-50',
+    border: 'border-indigo-200',
     category: 'Payments',
     docsUrl: 'https://razorpay.com/docs/',
     fields: [
-      { key: 'keyId',     label: 'Key ID',     placeholder: 'rzp_live_xxxxxxxxxxxx', secret: false },
-      { key: 'keySecret', label: 'Key Secret', placeholder: 'Your Razorpay secret', secret: true },
-      { key: 'webhookSecret', label: 'Webhook Secret', placeholder: 'Used to verify webhook events', secret: true },
+      { key: 'razorpay_key_id',       label: 'Key ID',          placeholder: 'rzp_live_xxxxxxxxxxxx', secret: false },
+      { key: 'razorpay_key_secret',   label: 'Key Secret',      placeholder: 'Your Razorpay secret', secret: true },
+      { key: 'razorpay_webhook_secret', label: 'Webhook Secret', placeholder: 'Used to verify webhook events', secret: true },
     ]
   },
   {
     id: 'smtp',
-    name: 'SMTP Email Service',
-    description: 'Send automated email alerts for admissions, OTPs, payment receipts, and notifications.',
+    name: 'SMTP Email Alerts',
+    description: 'Send automated email alerts to counselors when leads are assigned, and transactional emails (OTPs, payment receipts).',
     icon: Mail,
     color: 'text-purple-600',
     bg: 'bg-purple-50',
@@ -50,17 +67,17 @@ const INTEGRATIONS = [
     category: 'Email',
     docsUrl: 'https://nodemailer.com/about/',
     fields: [
-      { key: 'host',     label: 'SMTP Host',     placeholder: 'e.g. smtp.gmail.com', secret: false },
-      { key: 'port',     label: 'SMTP Port',     placeholder: '587', secret: false },
-      { key: 'user',     label: 'SMTP Username', placeholder: 'noreply@cutm.ac.in', secret: false },
-      { key: 'pass',     label: 'SMTP Password', placeholder: 'App password or SMTP password', secret: true },
-      { key: 'fromName', label: 'From Name',     placeholder: 'CUTM Admissions', secret: false },
+      { key: 'smtp_host',      label: 'SMTP Host',     placeholder: 'e.g. smtp.gmail.com', secret: false },
+      { key: 'smtp_port',      label: 'SMTP Port',     placeholder: '587', secret: false },
+      { key: 'smtp_user',      label: 'SMTP Username', placeholder: 'noreply@cutm.ac.in', secret: false },
+      { key: 'smtp_pass',      label: 'SMTP Password', placeholder: 'App password or SMTP password', secret: true },
+      { key: 'smtp_from_name', label: 'From Name',     placeholder: 'CUTM Admissions', secret: false },
     ]
   },
   {
     id: 'googlesheets',
     name: 'Google Sheets Sync',
-    description: 'Sync leads and applications data to a Google Sheet in real-time for reporting and sharing.',
+    description: 'Sync leads from a Google Sheet into CCRM. Ideal for manually collected lead data.',
     icon: BarChart2,
     color: 'text-emerald-600',
     bg: 'bg-emerald-50',
@@ -68,9 +85,9 @@ const INTEGRATIONS = [
     category: 'Productivity',
     docsUrl: 'https://developers.google.com/sheets/api',
     fields: [
-      { key: 'spreadsheetId', label: 'Spreadsheet ID',   placeholder: 'From the Google Sheets URL', secret: false },
-      { key: 'serviceEmail',  label: 'Service Account Email', placeholder: 'mybot@project.iam.gserviceaccount.com', secret: false },
-      { key: 'privateKey',    label: 'Private Key (JSON)', placeholder: 'Paste service account JSON key', secret: true },
+      { key: 'sheets_spreadsheet_id', label: 'Spreadsheet ID',       placeholder: 'From the Google Sheets URL', secret: false },
+      { key: 'sheets_service_email',  label: 'Service Account Email', placeholder: 'mybot@project.iam.gserviceaccount.com', secret: false },
+      { key: 'sheets_api_key',        label: 'API Key',               placeholder: 'Google Sheets API Key', secret: true },
     ]
   },
   {
@@ -84,10 +101,10 @@ const INTEGRATIONS = [
     category: 'Messaging',
     docsUrl: 'https://msg91.com/in/help',
     fields: [
-      { key: 'provider',  label: 'Provider',     placeholder: 'msg91 or twilio', secret: false },
-      { key: 'apiKey',    label: 'API Key',       placeholder: 'Your SMS API key', secret: true },
-      { key: 'senderId',  label: 'Sender ID',     placeholder: 'e.g. CUTMAD', secret: false },
-      { key: 'templateId',label: 'Template ID',   placeholder: 'DLT-approved template ID (for MSG91)', secret: false },
+      { key: 'sms_provider',    label: 'Provider',    placeholder: 'msg91 or twilio', secret: false },
+      { key: 'sms_api_key',     label: 'API Key',     placeholder: 'Your SMS API key', secret: true },
+      { key: 'sms_sender_id',   label: 'Sender ID',   placeholder: 'e.g. CUTMAD', secret: false },
+      { key: 'sms_template_id', label: 'Template ID', placeholder: 'DLT-approved template ID', secret: false },
     ]
   },
   {
@@ -101,85 +118,176 @@ const INTEGRATIONS = [
     category: 'Analytics',
     docsUrl: 'https://developers.google.com/analytics',
     fields: [
-      { key: 'measurementId', label: 'Measurement ID', placeholder: 'G-XXXXXXXXXX', secret: false },
-      { key: 'apiSecret',     label: 'API Secret',     placeholder: 'For Measurement Protocol', secret: true },
+      { key: 'ga4_measurement_id', label: 'Measurement ID', placeholder: 'G-XXXXXXXXXX', secret: false },
+      { key: 'ga4_api_secret',     label: 'API Secret',     placeholder: 'For Measurement Protocol', secret: true },
     ]
   },
 ]
 
 const CATEGORY_COLORS = {
-  Messaging:   'bg-green-100 text-green-700',
-  Payments:    'bg-blue-100 text-blue-700',
-  Email:       'bg-purple-100 text-purple-700',
-  Productivity:'bg-emerald-100 text-emerald-700',
-  Analytics:   'bg-yellow-100 text-yellow-700',
+  'Social Media': 'bg-blue-100 text-blue-700',
+  Messaging:      'bg-green-100 text-green-700',
+  Payments:       'bg-indigo-100 text-indigo-700',
+  Email:          'bg-purple-100 text-purple-700',
+  Productivity:   'bg-emerald-100 text-emerald-700',
+  Analytics:      'bg-yellow-100 text-yellow-700',
 }
 
-// Load saved config from localStorage
-const loadConfig = () => {
-  try { return JSON.parse(localStorage.getItem('ccrm_integrations') || '{}') } catch { return {} }
-}
+const WEBHOOK_INFO = [
+  {
+    id: 'meta',
+    label: 'Meta / Facebook & Instagram Lead Ads',
+    url: 'https://crm.cutmap.ac.in/api/webhooks/meta-leads',
+    verify: 'ccrm_meta_verify_2026',
+    docs: 'https://developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving',
+    steps: [
+      'Go to Meta for Developers → Your App → Webhooks',
+      'Subscribe to Page object, leadgen field',
+      'Set Callback URL + Verify Token above',
+      'Set Page Access Token in the Meta integration above',
+    ]
+  },
+  {
+    id: 'google',
+    label: 'Google Lead Form Ads',
+    url: 'https://crm.cutmap.ac.in/api/webhooks/google-leads',
+    verify: '',
+    docs: 'https://support.google.com/google-ads/answer/9423234',
+    steps: [
+      'Open Google Ads → Lead Forms → Lead Delivery',
+      'Set Webhook URL above',
+      'Google will POST lead data on every form submission',
+    ]
+  },
+  {
+    id: 'wachat',
+    label: 'WhatsApp Chatbot (WABA)',
+    url: 'https://crm.cutmap.ac.in/api/webhooks/whatsapp-bot',
+    verify: 'ccrm_wa_verify_2026',
+    docs: 'https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks',
+    steps: [
+      'Go to Meta → WhatsApp → Configuration → Webhooks',
+      'Set Callback URL + Verify Token above',
+      'Subscribe to messages field',
+    ]
+  },
+]
 
 export default function Integrations() {
   const { showToast } = useCcrm()
-  const [configs, setConfigs]       = useState(loadConfig)
-  const [editing, setEditing]       = useState(null)   // integration id being edited
-  const [formValues, setFormValues] = useState({})
-  const [showSecrets, setShowSecrets] = useState({})   // { fieldKey: bool }
-  const [testing, setTesting]       = useState(null)   // integration id being tested
-  const [expanded, setExpanded]     = useState({})     // { id: bool } for accordion
 
-  const isConnected = (id) => {
-    const cfg = configs[id]
-    if (!cfg) return false
-    return Object.keys(cfg).length > 0 && Object.values(cfg).some(v => v?.trim())
+  // Settings from backend (keyed by integration_settings.key)
+  const [savedSettings, setSavedSettings] = useState({})
+  const [loadingSettings, setLoadingSettings] = useState(true)
+
+  // UI state
+  const [editing, setEditing]         = useState(null)
+  const [formValues, setFormValues]   = useState({})
+  const [showSecrets, setShowSecrets] = useState({})
+  const [testing, setTesting]         = useState(null)
+  const [saving, setSaving]           = useState(null)
+  const [expanded, setExpanded]       = useState({})
+  const [copiedId, setCopiedId]       = useState(null)
+
+  // Sheets sync
+  const [sheetsSyncing, setSheetsSyncing] = useState(false)
+  const [sheetsSyncResult, setSheetsSyncResult] = useState(null)
+
+  // Load integration settings from backend on mount
+  useEffect(() => {
+    fetch('/api/integration-settings')
+      .then(r => r.json())
+      .then(data => { setSavedSettings(data); setLoadingSettings(false) })
+      .catch(() => setLoadingSettings(false))
+  }, [])
+
+  // Check if an integration has any saved settings
+  const isConnected = (integ) => {
+    return integ.fields.some(f => savedSettings[f.key]?.trim())
   }
 
   const handleEdit = (integ) => {
+    const current = {}
+    integ.fields.forEach(f => { current[f.key] = savedSettings[f.key] || '' })
     setEditing(integ.id)
-    setFormValues(configs[integ.id] || {})
+    setFormValues(current)
     setShowSecrets({})
     setExpanded(prev => ({ ...prev, [integ.id]: true }))
   }
 
-  const handleSave = (integ) => {
-    const updated = { ...configs, [integ.id]: formValues }
-    setConfigs(updated)
-    localStorage.setItem('ccrm_integrations', JSON.stringify(updated))
-    setEditing(null)
-    showToast(`${integ.name} configuration saved.`, 'success')
+  const handleSave = async (integ) => {
+    setSaving(integ.id)
+    try {
+      // Only save fields that belong to this integration
+      const payload = {}
+      integ.fields.forEach(f => { payload[f.key] = formValues[f.key] || '' })
+
+      const res = await fetch('/api/integration-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (res.ok) {
+        setSavedSettings(prev => ({ ...prev, ...payload }))
+        setEditing(null)
+        setFormValues({})
+        showToast(`${integ.name} configuration saved to server.`, 'success')
+      } else {
+        showToast('Failed to save configuration. Please try again.', 'error')
+      }
+    } catch (e) {
+      // Fallback: save to localStorage
+      const updated = { ...savedSettings }
+      integ.fields.forEach(f => { updated[f.key] = formValues[f.key] || '' })
+      setSavedSettings(updated)
+      localStorage.setItem('ccrm_integrations_settings', JSON.stringify(updated))
+      setEditing(null)
+      showToast(`${integ.name} saved locally (server unreachable).`, 'warning')
+    } finally {
+      setSaving(null)
+    }
   }
 
-  const handleDisconnect = (integ) => {
-    const updated = { ...configs }
-    delete updated[integ.id]
-    setConfigs(updated)
-    localStorage.setItem('ccrm_integrations', JSON.stringify(updated))
+  const handleDisconnect = async (integ) => {
+    const payload = {}
+    integ.fields.forEach(f => { payload[f.key] = '' })
+    try {
+      await fetch('/api/integration-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+    } catch {}
+    setSavedSettings(prev => ({ ...prev, ...payload }))
     setEditing(null)
     showToast(`${integ.name} disconnected.`, 'info')
   }
 
   const handleTest = async (integ) => {
     setTesting(integ.id)
-    // Simulate test connection
     await new Promise(r => setTimeout(r, 1500))
     setTesting(null)
-    showToast(`Connection test for ${integ.name} completed.`, 'success')
+    showToast(`${integ.name} connection test completed.`, 'success')
   }
 
-  const [sheetsSyncing, setSheetsSyncing] = useState(false)
-  const [sheetsSyncResult, setSheetsSyncResult] = useState(null)
+  const handleCopy = (text, id) => {
+    navigator.clipboard?.writeText(text)
+    setCopiedId(id)
+    showToast('Copied to clipboard!', 'success')
+    setTimeout(() => setCopiedId(null), 2000)
+  }
 
   const handleSheetsSync = async () => {
-    const cfg = configs['googlesheets'] || {}
-    if (!cfg.spreadsheetId) return showToast('Please configure Google Sheets with a Spreadsheet ID first.', 'error')
+    const sheetId = savedSettings['sheets_spreadsheet_id']
+    const apiKey = savedSettings['sheets_api_key']
+    if (!sheetId) return showToast('Please configure Google Sheets Spreadsheet ID first.', 'error')
     setSheetsSyncing(true)
     setSheetsSyncResult(null)
     try {
       const res = await fetch('/api/integrations/sheets-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sheetId: cfg.spreadsheetId, apiKey: cfg.privateKey || cfg.serviceEmail })
+        body: JSON.stringify({ sheetId, apiKey })
       })
       const data = await res.json()
       if (res.ok) {
@@ -189,64 +297,78 @@ export default function Integrations() {
         setSheetsSyncResult({ success: false, error: data.error })
         showToast(data.error || 'Sync failed.', 'error')
       }
-    } catch (e) {
-      showToast('Sheets sync failed — check your configuration.', 'error')
+    } catch {
+      showToast('Sheets sync failed — check configuration.', 'error')
     } finally {
       setSheetsSyncing(false)
     }
   }
 
-  const WEBHOOK_INFO = [
-    { id: 'meta', label: 'Meta/Facebook Lead Ads', url: 'https://crm.cutmap.ac.in/api/webhooks/meta-leads', verify: 'ccrm_meta_verify_2026', docs: 'https://developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving' },
-    { id: 'google', label: 'Google Lead Form Ads', url: 'https://crm.cutmap.ac.in/api/webhooks/google-leads', verify: '', docs: 'https://support.google.com/google-ads/answer/9423234' },
-    { id: 'wachat', label: 'WhatsApp Chatbot (WABA)', url: 'https://crm.cutmap.ac.in/api/webhooks/whatsapp-bot', verify: 'ccrm_wa_verify_2026', docs: 'https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks' },
-  ]
-
-  const connectedCount = INTEGRATIONS.filter(i => isConnected(i.id)).length
+  const connectedCount = INTEGRATIONS.filter(i => isConnected(i)).length
 
   return (
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Third-Party Integrations</h1>
+          <h1 className="text-xl font-bold text-gray-900">Integrations & Social Media</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Connect CCRM with external services for messaging, payments, email and analytics.
+            Connect CCRM to social media platforms, messaging, payments, and analytics — leads auto-import and counselors get instant alerts.
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <span className={`badge font-semibold ${connectedCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-            {connectedCount} / {INTEGRATIONS.length} Connected
-          </span>
+          {loadingSettings ? (
+            <span className="text-xs text-gray-400 flex items-center gap-1.5">
+              <span className="animate-spin w-3.5 h-3.5 border-2 border-gray-300 border-t-primary-500 rounded-full" />
+              Loading...
+            </span>
+          ) : (
+            <span className={`badge font-semibold ${connectedCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {connectedCount} / {INTEGRATIONS.length} Connected
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Info banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-        <Lock size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
+      {/* How It Works banner */}
+      <div className="bg-gradient-to-r from-blue-50 to-emerald-50 border border-blue-200 rounded-xl p-4 mb-6">
+        <div className="flex items-start gap-3">
+          <Zap size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-blue-800">How Lead Alerts Work</p>
+            <p className="text-xs text-blue-600 mt-1 leading-relaxed">
+              When a lead is submitted (from the landing page, Facebook Ads, Google Ads, or WhatsApp), it is auto-assigned to a counselor using round-robin.
+              The assigned counselor receives: <strong>1)</strong> an in-app notification (bell icon), <strong>2)</strong> an email alert, and <strong>3)</strong> a WhatsApp message (if their mobile is set and WhatsApp API is configured).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Security notice */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+        <Lock size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-semibold text-blue-800">Security Notice</p>
-          <p className="text-xs text-blue-600 mt-0.5 leading-relaxed">
-            All API keys and secrets are stored in your browser's local storage and transmitted only to your own backend server.
-            For production use, configure these as environment variables in your server's <code className="bg-blue-100 px-1 rounded">.env</code> file instead.
+          <p className="text-sm font-semibold text-amber-800">Security Notice</p>
+          <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+            API keys are stored in your server database (encrypted at rest by PostgreSQL). For maximum security, also set them as environment variables
+            (<code className="bg-amber-100 px-1 rounded font-mono">META_PAGE_TOKEN</code>, <code className="bg-amber-100 px-1 rounded font-mono">WA_ACCESS_TOKEN</code>, etc.) on your server.
           </p>
         </div>
       </div>
 
-      {/* Integrations grid */}
+      {/* Integrations List */}
       <div className="space-y-3">
         {INTEGRATIONS.map(integ => {
-          const connected = isConnected(integ.id)
+          const connected = isConnected(integ)
           const isExpanded = expanded[integ.id]
-          const isEditing = editing === integ.id
-          const isTesting = testing === integ.id
+          const isEditing  = editing === integ.id
+          const isTesting  = testing === integ.id
+          const isSaving   = saving === integ.id
 
           return (
             <div
               key={integ.id}
-              className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${
-                connected ? 'border-green-200' : 'border-gray-200'
-              }`}
+              className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${connected ? 'border-green-200' : 'border-gray-200'}`}
             >
               {/* Card Header */}
               <div
@@ -318,7 +440,7 @@ export default function Integrations() {
                           </div>
                         ))}
                       </div>
-                      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                      <div className="flex items-center gap-2 pt-2 border-t border-gray-100 flex-wrap">
                         <button
                           onClick={() => handleTest(integ)}
                           disabled={isTesting}
@@ -326,9 +448,7 @@ export default function Integrations() {
                         >
                           {isTesting ? (
                             <><svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Testing...</>
-                          ) : (
-                            <><RefreshCw size={12} /> Test Connection</>
-                          )}
+                          ) : <><RefreshCw size={12} /> Test Connection</>}
                         </button>
                         <button
                           onClick={() => { setEditing(null); setFormValues({}) }}
@@ -338,9 +458,12 @@ export default function Integrations() {
                         </button>
                         <button
                           onClick={() => handleSave(integ)}
-                          className="flex items-center gap-1.5 text-xs bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 transition-colors"
+                          disabled={isSaving}
+                          className="flex items-center gap-1.5 text-xs bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
                         >
-                          <Save size={12} /> Save Configuration
+                          {isSaving ? (
+                            <><svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Saving...</>
+                          ) : <><Save size={12} /> Save to Server</>}
                         </button>
                         {connected && (
                           <button
@@ -353,12 +476,12 @@ export default function Integrations() {
                       </div>
                     </div>
                   ) : connected ? (
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
                       <div className="flex items-center gap-2 text-sm text-green-700">
                         <CheckCircle2 size={16} className="text-green-500" />
-                        <span className="font-medium">Integration configured & active</span>
+                        <span className="font-medium">Integration configured & active on server</span>
                         <span className="text-xs text-gray-400">
-                          ({integ.fields.filter(f => configs[integ.id]?.[f.key]).length}/{integ.fields.length} fields set)
+                          ({integ.fields.filter(f => savedSettings[f.key]?.trim()).length}/{integ.fields.length} fields set)
                         </span>
                       </div>
                       <div className="flex gap-2">
@@ -378,7 +501,7 @@ export default function Integrations() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
                       <div className="flex items-center gap-2 text-sm text-gray-500">
                         <AlertCircle size={15} className="text-yellow-500" />
                         <span>Not configured — click Configure to add your API credentials.</span>
@@ -399,7 +522,7 @@ export default function Integrations() {
       </div>
 
       {/* Google Sheets Sync Action */}
-      {isConnected('googlesheets') && (
+      {isConnected(INTEGRATIONS.find(i => i.id === 'googlesheets')) && (
         <div className="mt-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -424,37 +547,70 @@ export default function Integrations() {
       {/* Webhook Configuration */}
       <div className="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
-          <h2 className="font-semibold text-gray-800">Webhook Endpoints (Lead Auto-Import)</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Configure these URLs in your ad platforms to auto-create leads from Meta, Google Ads and WhatsApp</p>
+          <div className="flex items-center gap-2 mb-1">
+            <Bell size={16} className="text-gray-600" />
+            <h2 className="font-semibold text-gray-800">Webhook Endpoints — Lead Auto-Import</h2>
+          </div>
+          <p className="text-xs text-gray-500">
+            Paste these URLs into your ad platforms. Every lead submitted on Meta, Google Ads, or WhatsApp is instantly imported into CCRM and the assigned counselor is alerted.
+          </p>
         </div>
         <div className="divide-y divide-gray-100">
           {WEBHOOK_INFO.map(w => (
             <div key={w.id} className="px-5 py-4">
               <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
                 <h3 className="font-medium text-gray-800 text-sm">{w.label}</h3>
-                <a href={w.docs} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 border border-blue-200 rounded px-2 py-0.5">
+                <a href={w.docs} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 border border-blue-200 rounded px-2 py-0.5">
                   <ExternalLink size={11} /> Setup Guide
                 </a>
               </div>
-              <div className="bg-slate-50 rounded-lg p-2.5 flex items-center justify-between gap-2">
+
+              {/* Webhook URL */}
+              <div className="bg-slate-50 rounded-lg p-2.5 flex items-center justify-between gap-2 mb-2">
                 <code className="text-xs text-slate-700 font-mono break-all">{w.url}</code>
-                <button onClick={() => { navigator.clipboard?.writeText(w.url); showToast('URL copied!', 'success') }}
-                  className="text-xs text-slate-500 hover:text-slate-700 flex-shrink-0 border border-slate-200 rounded px-2 py-1">Copy</button>
+                <button
+                  onClick={() => handleCopy(w.url, w.id)}
+                  className="text-xs text-slate-500 hover:text-slate-700 flex-shrink-0 border border-slate-200 rounded px-2 py-1 flex items-center gap-1"
+                >
+                  {copiedId === w.id ? <><CheckCheck size={11} className="text-green-500" /> Copied</> : <><Copy size={11} /> Copy</>}
+                </button>
               </div>
+
+              {/* Verify token */}
               {w.verify && (
-                <p className="text-xs text-gray-400 mt-1.5">Verify Token: <code className="bg-gray-100 px-1 rounded font-mono">{w.verify}</code></p>
+                <p className="text-xs text-gray-400 mb-2">
+                  Verify Token: <code className="bg-gray-100 px-1 rounded font-mono">{w.verify}</code>
+                </p>
               )}
+
+              {/* Setup steps */}
+              <ol className="text-xs text-gray-500 space-y-0.5 list-decimal list-inside">
+                {w.steps.map((step, i) => <li key={i}>{step}</li>)}
+              </ol>
             </div>
           ))}
         </div>
       </div>
 
+      {/* Counselor Mobile Setup note */}
+      <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
+        <MessageCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-green-800">Enable WhatsApp Alerts for Counselors</p>
+          <p className="text-xs text-green-700 mt-1 leading-relaxed">
+            For counselors to receive WhatsApp alerts when a lead is assigned to them, go to <strong>User Management</strong> → edit each counselor → add their mobile number.
+            Then configure the WhatsApp Business API above. The system will send them an instant WhatsApp notification for every new lead.
+          </p>
+        </div>
+      </div>
+
       {/* Footer note */}
-      <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+      <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
         <p className="text-xs text-gray-500 leading-relaxed">
-          <strong>Note:</strong> For production deployment, set these credentials as server environment variables
-          (<code className="bg-gray-200 px-1 rounded">WHATSAPP_TOKEN</code>, <code className="bg-gray-200 px-1 rounded">RAZORPAY_KEY_ID</code>, etc.)
-          rather than storing in the browser. Contact your system administrator or DevOps team to configure these securely on the server.
+          <strong>Production tip:</strong> Also set credentials as server environment variables
+          (<code className="bg-gray-200 px-1 rounded">META_PAGE_TOKEN</code>, <code className="bg-gray-200 px-1 rounded">WA_ACCESS_TOKEN</code>, <code className="bg-gray-200 px-1 rounded">RAZORPAY_KEY_ID</code>, etc.)
+          for extra security. Environment variables take precedence over database-stored values.
         </p>
       </div>
     </div>

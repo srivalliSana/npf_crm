@@ -93,6 +93,73 @@ function sendSystemMailAlert(recipient, subject, messageBody) {
   })
 }
 
+// --- NOTIFICATION & ALERT HELPERS ---
+
+// Create a per-user in-app notification (userEmail=null → visible to all admins)
+async function createNotification(userEmail, title, text, type = 'info', leadId = null) {
+  try {
+    await pool.query(
+      'INSERT INTO notifications (user_email, title, text, type, lead_id, time, unread, created_at) VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW());',
+      [userEmail || null, (title || text || '').substring(0, 255), text, type, leadId, 'Just now']
+    )
+  } catch (err) {
+    console.error('[createNotification]', err.message)
+  }
+}
+
+// Fetch a single integration setting from DB
+async function getIntegrationSetting(key) {
+  try {
+    const r = await pool.query('SELECT value FROM integration_settings WHERE key = $1;', [key])
+    return r.rows[0]?.value || null
+  } catch { return null }
+}
+
+// Alert a counselor via in-app notification + email + WhatsApp when a lead is assigned
+async function alertCounselor(assigneeName, leadName, course, source, leadId) {
+  if (!assigneeName || assigneeName === 'Unassigned') return
+  try {
+    // Look up counselor's email + mobile
+    const userRes = await pool.query('SELECT email, mobile FROM users WHERE name = $1 LIMIT 1;', [assigneeName])
+    const counselor = userRes.rows[0]
+    if (!counselor) return
+
+    const title = `New lead assigned: ${leadName}`
+    const text = `${leadName} (${course}) — Source: ${source}`
+
+    // 1. In-app notification (targeted to counselor)
+    await createNotification(counselor.email, title, text, 'lead_assigned', leadId)
+
+    // 2. Email alert via SMTP/msmtp
+    sendSystemMailAlert(
+      counselor.email,
+      `[CCRM] New Lead Assigned: ${leadName}`,
+      `Hello ${assigneeName},\n\nA new lead has been assigned to you in CCRM:\n\nName: ${leadName}\nCourse: ${course}\nSource: ${source}\n\nPlease log in to follow up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`
+    )
+
+    // 3. WhatsApp alert to counselor's mobile (if WA API configured + counselor has mobile)
+    const waToken = await getIntegrationSetting('whatsapp_access_token')
+    const waPhoneId = await getIntegrationSetting('whatsapp_phone_number_id')
+    if (waToken && waPhoneId && counselor.mobile) {
+      const mobile = counselor.mobile.replace(/\D/g, '')
+      if (mobile.length >= 10) {
+        fetch(`https://graph.facebook.com/v19.0/${waPhoneId}/messages`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${waToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: mobile.startsWith('91') ? mobile : `91${mobile}`,
+            type: 'text',
+            text: { body: `🎓 *CCRM Alert*\n\nNew lead assigned to you:\n*${leadName}*\nCourse: ${course}\nSource: ${source}\n\nLog in: https://crm.cutmap.ac.in` }
+          })
+        }).catch(e => console.error('[WA Counselor Alert]', e.message))
+      }
+    }
+  } catch (err) {
+    console.error('[alertCounselor]', err.message)
+  }
+}
+
 // --- AUTH ROUTERS ---
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body
@@ -220,11 +287,13 @@ app.post('/api/leads', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING id, name, email, mobile, state, city, course, source, owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor";
     `, [name, email, mobile, state, city, course, source, owner, finalRegDate, score || 0, stage || 'Untouched', stageColor || 'red'])
-    
-    // Auto-create a notification
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`New lead assigned: ${name} (${course})`, 'Just now'])
-    
-    res.status(201).json(insertRes.rows[0])
+
+    const newLead = insertRes.rows[0]
+
+    // Alert assigned counselor
+    await alertCounselor(owner, name, course, source || 'Manual', newLead.id)
+
+    res.status(201).json(newLead)
   } catch (err) {
     res.status(500).json({ error: 'Failed to register lead.' })
   }
@@ -630,7 +699,7 @@ app.get('/api/counselors', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
   try {
-    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, last_login AS "lastLogin" FROM users ORDER BY id DESC;')
+    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, last_login AS "lastLogin" FROM users ORDER BY id DESC;')
     res.json(usersRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch user accounts.' })
@@ -654,22 +723,22 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   const { id } = req.params
-  const { name, email, role, team, status, picture, password } = req.body
+  const { name, email, role, team, status, picture, password, mobile } = req.body
   try {
     // Dynamically query based on what parameters were sent
-    let queryStr = 'UPDATE users SET name = COALESCE($1, name), role = COALESCE($2, role), team = COALESCE($3, team), status = COALESCE($4, status), picture = COALESCE($5, picture)'
-    const params = [name, role, team, status, picture]
-    
+    let queryStr = 'UPDATE users SET name = COALESCE($1, name), role = COALESCE($2, role), team = COALESCE($3, team), status = COALESCE($4, status), picture = COALESCE($5, picture), mobile = COALESCE($6, mobile)'
+    const params = [name, role, team, status, picture, mobile || null]
+
     if (password) {
-      queryStr += ', password = $6 WHERE id = $7'
+      queryStr += ', password = $7 WHERE id = $8'
       params.push(password, id)
     } else {
-      queryStr += ' WHERE id = $6'
+      queryStr += ' WHERE id = $7'
       params.push(id)
     }
-    
-    queryStr += ' RETURNING id, name, email, role, team, status, picture, last_login AS "lastLogin";'
-    
+
+    queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, last_login AS "lastLogin";'
+
     const updateRes = await pool.query(queryStr, params)
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
     res.json(updateRes.rows[0])
@@ -691,15 +760,69 @@ app.delete('/api/users/:id', async (req, res) => {
 })
 
 // --- NOTIFICATIONS ROUTERS ---
+
+// GET notifications — per-user (Counselors see only their own; Admin/Manager see all)
 app.get('/api/notifications', async (req, res) => {
   try {
-    const notifRes = await pool.query('SELECT id, text, time, unread FROM notifications ORDER BY id DESC;')
-    res.json(notifRes.rows)
+    const authHeader = req.headers['authorization']
+    const token = authHeader && authHeader.split(' ')[1]
+    if (!token) return res.json([])
+
+    let user
+    try { user = jwt.verify(token, JWT_SECRET) } catch { return res.json([]) }
+
+    let rows
+    if (user.role === 'Admin' || user.role === 'Manager') {
+      // Admins/Managers see all notifications
+      const r = await pool.query(`
+        SELECT id, user_email AS "userEmail", title, text, type, lead_id AS "leadId", time, unread, created_at AS "createdAt"
+        FROM notifications ORDER BY id DESC LIMIT 100;
+      `)
+      rows = r.rows
+    } else {
+      // Counselors see only their own + broadcasts (user_email IS NULL)
+      const r = await pool.query(`
+        SELECT id, user_email AS "userEmail", title, text, type, lead_id AS "leadId", time, unread, created_at AS "createdAt"
+        FROM notifications WHERE user_email = $1 OR user_email IS NULL ORDER BY id DESC LIMIT 50;
+      `, [user.email])
+      rows = r.rows
+    }
+    res.json(rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch notifications.' })
   }
 })
 
+// Mark all read for current user
+app.put('/api/notifications/read-all', async (req, res) => {
+  const authHeader = req.headers['authorization']
+  const token = authHeader && authHeader.split(' ')[1]
+  let userEmail = null
+  try { const u = jwt.verify(token, JWT_SECRET); userEmail = u.email } catch {}
+  try {
+    if (userEmail) {
+      await pool.query('UPDATE notifications SET unread = FALSE WHERE user_email = $1 OR user_email IS NULL;', [userEmail])
+    } else {
+      await pool.query('UPDATE notifications SET unread = FALSE;')
+    }
+    res.json({ message: 'All notifications marked as read.' })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to mark all as read.' })
+  }
+})
+
+// Mark single notification as read
+app.put('/api/notifications/:id/read', async (req, res) => {
+  const { id } = req.params
+  try {
+    await pool.query('UPDATE notifications SET unread = FALSE WHERE id = $1;', [id])
+    res.json({ message: 'Notification marked as read.' })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to mark notification as read.' })
+  }
+})
+
+// Legacy PUT (kept for compatibility)
 app.put('/api/notifications', async (req, res) => {
   const { id, unread } = req.body
   try {
@@ -707,12 +830,41 @@ app.put('/api/notifications', async (req, res) => {
       const updateRes = await pool.query('UPDATE notifications SET unread = $1 WHERE id = $2 RETURNING id, unread;', [unread, id])
       res.json(updateRes.rows[0])
     } else {
-      // Mark all read
       await pool.query('UPDATE notifications SET unread = FALSE;')
       res.json({ message: 'All notifications marked as read.' })
     }
   } catch (err) {
     res.status(500).json({ error: 'Failed to toggle notification unread status.' })
+  }
+})
+
+// --- INTEGRATION SETTINGS ---
+app.get('/api/integration-settings', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT key, value FROM integration_settings ORDER BY key;')
+    const settings = {}
+    for (const row of r.rows) settings[row.key] = row.value
+    res.json(settings)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch integration settings.' })
+  }
+})
+
+app.post('/api/integration-settings', async (req, res) => {
+  const settings = req.body
+  if (!settings || typeof settings !== 'object') return res.status(400).json({ error: 'Invalid settings object.' })
+  try {
+    for (const [key, value] of Object.entries(settings)) {
+      if (!key || typeof key !== 'string') continue
+      await pool.query(
+        'INSERT INTO integration_settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();',
+        [key.substring(0, 100), String(value || '')]
+      )
+    }
+    res.json({ message: 'Integration settings saved.', count: Object.keys(settings).length })
+  } catch (err) {
+    console.error('[Integration Settings]', err)
+    res.status(500).json({ error: 'Failed to save integration settings.' })
   }
 })
 
@@ -905,11 +1057,39 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
       for (const entry of (body.entry || [])) {
         for (const change of (entry.changes || [])) {
           if (change.field === 'leadgen') {
+            const leadgenId = change.value?.leadgen_id
             const leadData = change.value
-            const name = leadData.field_data?.find(f => f.name === 'full_name')?.values?.[0] || 'Meta Lead'
-            const email = leadData.field_data?.find(f => f.name === 'email')?.values?.[0] || `meta_${Date.now()}@noemail.com`
-            const mobile = leadData.field_data?.find(f => f.name === 'phone_number')?.values?.[0] || '0000000000'
-            const course = leadData.field_data?.find(f => f.name === 'course')?.values?.[0] || 'B.Tech CSE'
+
+            // Default values from webhook payload
+            let name = leadData.field_data?.find(f => f.name === 'full_name')?.values?.[0] || 'Meta Lead'
+            let email = leadData.field_data?.find(f => f.name === 'email')?.values?.[0] || `meta_${Date.now()}@noemail.com`
+            let mobile = leadData.field_data?.find(f => f.name === 'phone_number')?.values?.[0] || '0000000000'
+            let course = leadData.field_data?.find(f => f.name === 'course')?.values?.[0] || 'B.Tech CSE'
+            let state = leadData.field_data?.find(f => f.name === 'state')?.values?.[0] || ''
+            let city = leadData.field_data?.find(f => f.name === 'city')?.values?.[0] || ''
+
+            // Fetch full lead data from Meta Graph API if Page Access Token is stored
+            if (leadgenId) {
+              const metaToken = await getIntegrationSetting('meta_page_access_token')
+              if (metaToken) {
+                try {
+                  const graphRes = await fetch(`https://graph.facebook.com/v19.0/${leadgenId}?access_token=${metaToken}&fields=field_data,created_time,ad_name,campaign_name`)
+                  if (graphRes.ok) {
+                    const graphData = await graphRes.json()
+                    const fd = graphData.field_data || []
+                    name = fd.find(f => f.name === 'full_name')?.values?.[0] || fd.find(f => f.name === 'name')?.values?.[0] || name
+                    email = fd.find(f => f.name === 'email')?.values?.[0] || email
+                    mobile = fd.find(f => f.name === 'phone_number')?.values?.[0] || fd.find(f => f.name === 'phone')?.values?.[0] || mobile
+                    course = fd.find(f => f.name === 'course')?.values?.[0] || fd.find(f => f.name === 'which_course_are_you_interested_in')?.values?.[0] || course
+                    state = fd.find(f => f.name === 'state')?.values?.[0] || state
+                    city = fd.find(f => f.name === 'city')?.values?.[0] || city
+                    console.log(`[Meta Graph API] Fetched lead ${leadgenId}: ${name}, ${email}, ${mobile}`)
+                  }
+                } catch (gErr) {
+                  console.error('[Meta Graph API Error]', gErr.message)
+                }
+              }
+            }
 
             // Dedup check
             const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
@@ -922,11 +1102,18 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
               }
 
               const score = calculateLeadScore({ source: 'Facebook Ads', stage: 'Untouched', mobile, email, course })
-              await pool.query(`
-                INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
-                VALUES ($1, $2, $3, $4, 'Facebook Ads', $5, $6, $7, 'Untouched', 'red');
-              `, [name, email, mobile, course, assignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
-              await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`[Meta Ads] New lead auto-imported: ${name} (${course})`, 'Just now'])
+              const newLead = await pool.query(`
+                INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
+                VALUES ($1, $2, $3, $4, $5, $6, 'Facebook Ads', $7, $8, $9, 'Untouched', 'red')
+                RETURNING id;
+              `, [name, email, mobile, state, city, course, assignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
+
+              const leadId = newLead.rows[0]?.id
+              // Alert the assigned counselor
+              await alertCounselor(assignee, name, course, 'Facebook Ads', leadId)
+              console.log(`[Meta Webhook] New lead imported: ${name} → assigned to ${assignee}`)
+            } else {
+              console.log(`[Meta Webhook] Duplicate lead skipped: ${mobile} / ${email}`)
             }
           }
         }
@@ -956,11 +1143,12 @@ app.post('/api/webhooks/google-leads', async (req, res) => {
         await pool.query('UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;', [assignee])
       }
       const score = calculateLeadScore({ source: 'Google Ads', stage: 'Untouched', mobile, email, course })
-      await pool.query(`
+      const glResult = await pool.query(`
         INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
-        VALUES ($1, $2, $3, $4, 'Google Ads', $5, $6, $7, 'Untouched', 'red');
+        VALUES ($1, $2, $3, $4, 'Google Ads', $5, $6, $7, 'Untouched', 'red')
+        RETURNING id;
       `, [name, email, mobile, course, assignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
-      await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`[Google Ads] New lead auto-imported: ${name} (${course})`, 'Just now'])
+      await alertCounselor(assignee, name, course, 'Google Ads', glResult.rows[0]?.id)
     }
     res.status(200).json({ received: true })
   } catch (err) {
@@ -992,11 +1180,19 @@ app.post('/api/webhooks/whatsapp-bot', async (req, res) => {
         const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 LIMIT 1;', [from])
         if (dupCheck.rows.length === 0) {
           const score = calculateLeadScore({ source: 'WhatsApp', stage: 'Untouched', mobile: from, email: `wa_${from}@noemail.com`, course })
-          await pool.query(`
+          // Auto-assign
+          const waAssignRes = await pool.query(`SELECT lac.counselor_name FROM lead_assignment_counter lac JOIN users u ON u.name = lac.counselor_name WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ORDER BY lac.assignment_count ASC LIMIT 1;`)
+          const waAssignee = waAssignRes.rows[0]?.counselor_name || 'Unassigned'
+          if (waAssignee !== 'Unassigned') {
+            await pool.query('UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;', [waAssignee])
+          }
+          const waLeadName = `WhatsApp Lead (${from.slice(-4)})`
+          const waResult = await pool.query(`
             INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
-            VALUES ($1, $2, $3, $4, 'WhatsApp', 'Unassigned', $5, $6, 'Untouched', 'red');
-          `, [`WhatsApp Lead (${from.slice(-4)})`, `wa_${from}@noemail.com`, from, course, new Date().toLocaleString('en-IN', { hour12: true }), score])
-          await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`[WhatsApp Bot] New lead from ${from} interested in ${course}`, 'Just now'])
+            VALUES ($1, $2, $3, $4, 'WhatsApp', $5, $6, $7, 'Untouched', 'red')
+            RETURNING id;
+          `, [waLeadName, `wa_${from}@noemail.com`, from, course, waAssignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
+          await alertCounselor(waAssignee, waLeadName, course, 'WhatsApp Bot', waResult.rows[0]?.id)
         }
       }
     }
@@ -1273,9 +1469,11 @@ app.post('/api/public/inquiry', async (req, res) => {
       RETURNING id, name, course;
     `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', assignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`[Public Form] New inquiry: ${name} (${course || 'B.Tech CSE'})`, 'Just now'])
+    const pubLead = insertRes.rows[0]
+    // Alert the assigned counselor
+    await alertCounselor(assignee, name, course || 'B.Tech CSE', source || 'Website', pubLead?.id)
 
-    res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: insertRes.rows[0] })
+    res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: pubLead })
   } catch (err) {
     console.error('[Public Inquiry]', err)
     res.status(500).json({ error: 'Failed to submit inquiry.' })
