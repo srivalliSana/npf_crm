@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useGoogleLogin } from '@react-oauth/google'
 import {
   Eye, EyeOff, AlertCircle, ShieldCheck, X, CheckCircle2, Mail,
-  Lock, ArrowRight, GraduationCap, Users, BarChart3, Zap
+  Lock, ArrowRight, Users, BarChart3, Zap
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
@@ -216,13 +216,16 @@ export default function Login() {
 
         <div className="relative z-10 flex flex-col h-full p-12">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-lg">
-              <GraduationCap size={22} className="text-primary-600" />
-            </div>
+          <div className="flex items-center gap-4">
+            <img
+              src="https://cutmap.ac.in/wp-content/themes/centurion/images/logo.svg"
+              alt="Centurion University"
+              className="h-10 w-auto brightness-0 invert"
+            />
+            <div className="h-8 w-px bg-white/20" />
             <div>
-              <div className="text-white font-extrabold text-xl tracking-tight">CCRM</div>
-              <div className="text-blue-300 text-xs">Centurion University</div>
+              <div className="text-white font-extrabold text-base tracking-tight">CCRM</div>
+              <div className="text-blue-300 text-[11px]">Admissions Portal</div>
             </div>
           </div>
 
@@ -293,13 +296,13 @@ export default function Login() {
         <div className="relative w-full max-w-[420px]">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-              <GraduationCap size={20} className="text-white" />
-            </div>
-            <div>
-              <div className="text-gray-900 font-extrabold text-lg">CCRM</div>
-              <div className="text-gray-500 text-xs">Centurion University</div>
-            </div>
+            <img
+              src="https://cutmap.ac.in/wp-content/themes/centurion/images/logo.svg"
+              alt="Centurion University"
+              className="h-9 w-auto"
+            />
+            <div className="h-7 w-px bg-gray-200" />
+            <div className="text-gray-700 font-bold text-base">CCRM Portal</div>
           </div>
 
           {/* Heading */}
