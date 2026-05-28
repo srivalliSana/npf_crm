@@ -24,7 +24,7 @@ import EmailCampaigns from './pages/EmailCampaigns'
 import PublicInquiry from './pages/PublicInquiry'
 import StudentPortal from './pages/StudentPortal'
 
-// ── Role-gated route: renders children only if user has required role ─────────
+// ── Role-gated route ──────────────────────────────────────────────────────────
 function RequireRole({ user, roles, children }) {
   if (!user) return <Navigate to="/login" replace />
   if (roles && !roles.includes(user.role)) return <Navigate to="/leads" replace />
@@ -38,42 +38,46 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public pages — no auth needed */}
-        <Route path="/apply" element={<PublicInquiry />} />
-        <Route path="/student-portal" element={<StudentPortal />} />
-        <Route path="/student" element={<StudentPortal />} />
 
+        {/* ── Public routes — always visible, no auth ── */}
+        <Route path="/"               element={<PublicInquiry />} />
+        <Route path="/apply"          element={<PublicInquiry />} />
+        <Route path="/student-portal" element={<StudentPortal />} />
+        <Route path="/student"        element={<StudentPortal />} />
+
+        {/* Login — redirect to app if already authenticated */}
         <Route
           path="/login"
           element={isAuthenticated ? <Navigate to="/leads" replace /> : <Login />}
         />
+
+        {/* ── Authenticated app — pathless Layout wrapper ──
+            Children paths are relative to the root since parent has no path.
+            Unauthenticated users redirected to /login.                       */}
         <Route
-          path="/"
           element={
             isAuthenticated
               ? <Layout onLogout={handleLogout} user={currentUser} />
               : <Navigate to="/login" replace />
           }
         >
-          <Route index element={<Navigate to="/leads" replace />} />
-          <Route path="leads"            element={<LeadManager />} />
-          <Route path="leads/:id"        element={<ApplicationDetails />} />
-          <Route path="applications"     element={<ApplicationManager />} />
-          <Route path="applications/:id" element={<ApplicationDetails />} />
-          <Route path="dashboard"        element={<Dashboard />} />
-          <Route path="reports"          element={<Reports />} />
-          <Route path="productivity"     element={<ProductivityReport />} />
-          <Route path="campaigns"        element={<Campaigns />} />
-          <Route path="tasks"            element={<Tasks />} />
-          <Route path="payments"         element={<Payments />} />
-          <Route path="queries"          element={<QueryManagement />} />
-          <Route path="documents"        element={<Documents />} />
-          <Route path="calendar"         element={<CalendarPro />} />
-          <Route path="settings"         element={<Settings />} />
-          <Route path="integrations"     element={<Integrations />} />
-          <Route path="leaderboard"      element={<Leaderboard />} />
-          <Route path="email-campaigns"  element={<EmailCampaigns />} />
-          {/* Admin-only routes */}
+          <Route path="leads"              element={<LeadManager />} />
+          <Route path="leads/:id"          element={<ApplicationDetails />} />
+          <Route path="applications"       element={<ApplicationManager />} />
+          <Route path="applications/:id"   element={<ApplicationDetails />} />
+          <Route path="dashboard"          element={<Dashboard />} />
+          <Route path="reports"            element={<Reports />} />
+          <Route path="productivity"       element={<ProductivityReport />} />
+          <Route path="campaigns"          element={<Campaigns />} />
+          <Route path="tasks"              element={<Tasks />} />
+          <Route path="payments"           element={<Payments />} />
+          <Route path="queries"            element={<QueryManagement />} />
+          <Route path="documents"          element={<Documents />} />
+          <Route path="calendar"           element={<CalendarPro />} />
+          <Route path="settings"           element={<Settings />} />
+          <Route path="integrations"       element={<Integrations />} />
+          <Route path="leaderboard"        element={<Leaderboard />} />
+          <Route path="email-campaigns"    element={<EmailCampaigns />} />
           <Route
             path="users"
             element={
@@ -83,7 +87,10 @@ export default function App() {
             }
           />
         </Route>
-        <Route path="*" element={<Navigate to="/login" replace />} />
+
+        {/* Fallback — go to landing page */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+
       </Routes>
     </BrowserRouter>
   )
