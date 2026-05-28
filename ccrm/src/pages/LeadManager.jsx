@@ -262,13 +262,13 @@ export default function LeadManager() {
   }
 
   const handleDownloadTemplate = () => {
-    const headers = ['Name', 'Email', 'Mobile', 'State', 'City', 'Course', 'Source', 'Owner']
+    const headers = ['Name', 'Email', 'Mobile', 'State', 'City', 'Course', 'Source']
     const samples = [
-      ['Rahul Sharma',  'rahul.sharma@gmail.com',  '9876543210', 'Odisha',       'Bhubaneswar', 'B.Tech CSE',  'Google Ads',   'Counselor 1'],
-      ['Priya Patel',   'priya.patel@yahoo.com',   '9123456789', 'Andhra Pradesh','Vizianagaram','MBA',         'Facebook Ads', 'Counselor 2'],
-      ['Amit Kumar',    'amit.kumar@outlook.com',  '8765432109', 'Jharkhand',    'Ranchi',      'BCA',         'Referral',     ''],
-      ['Sneha Rao',     '',                        '9012345678', 'Telangana',    'Hyderabad',   'B.Sc Agriculture','Education Fair',''],
-      ['Vikram Singh',  'vikram@gmail.com',        '7890123456', 'Bihar',        'Patna',       'B.Tech ECE',  'Walk-in',      'Counselor 1'],
+      ['Rahul Sharma',  'rahul.sharma@gmail.com',  '9876543210', 'Odisha',        'Bhubaneswar', 'B.Tech CSE',       'Google Ads'    ],
+      ['Priya Patel',   'priya.patel@yahoo.com',   '9123456789', 'Andhra Pradesh','Vizianagaram','MBA',              'Facebook Ads'  ],
+      ['Amit Kumar',    'amit.kumar@outlook.com',  '8765432109', 'Jharkhand',     'Ranchi',      'BCA',              'Referral'      ],
+      ['Sneha Rao',     '',                        '9012345678', 'Telangana',     'Hyderabad',   'B.Sc Agriculture', 'Education Fair'],
+      ['Vikram Singh',  'vikram@gmail.com',        '7890123456', 'Bihar',         'Patna',       'B.Tech ECE',       'Walk-in'       ],
     ]
     const csv = "data:text/csv;charset=utf-8,"
       + [headers.join(','), ...samples.map(r => r.map(v => `"${v}"`).join(','))].join('\n')
@@ -276,7 +276,7 @@ export default function LeadManager() {
     a.href = encodeURI(csv)
     a.download = 'CCRM_Lead_Upload_Template.csv'
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    showToast('Template downloaded — fill it in and upload!', 'success')
+    showToast('Template downloaded — counselors auto-assigned on upload!', 'success')
   }
 
   const closeBulkModal = () => {
@@ -748,7 +748,7 @@ export default function LeadManager() {
                         <Download size={14} /> Download CSV Template
                       </p>
                       <p className="text-xs text-emerald-600 mt-0.5">
-                        Pre-formatted template with sample rows and correct column headers (Name, Email, Mobile, State, City, Course, Source, Owner)
+                        7 columns: Name, Email, Mobile, State, City, Course, Source — counselors are <strong>auto-assigned round-robin</strong>, no Owner column needed
                       </p>
                     </div>
                     <button

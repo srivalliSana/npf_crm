@@ -1761,8 +1761,26 @@ app.post('/api/leads/bulk-upload-mapped', uploadDoc.single('file'), async (req, 
     const workbook = XLSX.readFile(filePath)
     const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' })
 
+    // Pre-fetch round-robin counselor list once for the whole batch
+    const counselorRes = await pool.query(`
+      SELECT lac.counselor_name FROM lead_assignment_counter lac
+      JOIN users u ON u.name = lac.counselor_name
+      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager')
+      ORDER BY lac.assignment_count ASC;
+    `)
+    const counselors = counselorRes.rows.map(r => r.counselor_name)
+    let rrIndex = 0 // round-robin pointer for this batch
+
+    const getNextCounselor = () => {
+      if (!counselors.length) return 'Unassigned'
+      const name = counselors[rrIndex % counselors.length]
+      rrIndex++
+      return name
+    }
+
     const client = await pool.connect()
     let imported = 0, skipped = 0, updated = 0
+    const assignmentCounts = {} // track how many leads each counselor got this batch
     try {
       await client.query('BEGIN')
       for (const row of rawData) {
@@ -1773,8 +1791,12 @@ app.post('/api/leads/bulk-upload-mapped', uploadDoc.single('file'), async (req, 
         const city = String(row[columnMap.city] || row.City || row.city || '').substring(0, 100)
         const course = String(row[columnMap.course] || row.Course || row.course || 'B.Tech CSE').substring(0, 100)
         const source = String(row[columnMap.source] || row.Source || row.source || 'Excel Upload').substring(0, 100)
-        const owner = String(row[columnMap.owner] || row.Owner || row.owner || 'Unassigned').substring(0, 100)
         const score = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
+
+        // Auto-assign round-robin — owner column ignored
+        const rawOwner = String(row[columnMap.owner] || row.Owner || row.owner || '').trim()
+        const owner = (rawOwner && rawOwner.toLowerCase() !== 'unassigned') ? rawOwner : getNextCounselor()
+        assignmentCounts[owner] = (assignmentCounts[owner] || 0) + 1
 
         const dup = await client.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
         if (dup.rows.length > 0) {
@@ -1784,7 +1806,6 @@ app.post('/api/leads/bulk-upload-mapped', uploadDoc.single('file'), async (req, 
               [name, course, source, score, dup.rows[0].id])
             updated++; continue
           }
-          // 'import' falls through to insert duplicate
         }
         await client.query(`
           INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
@@ -1793,9 +1814,20 @@ app.post('/api/leads/bulk-upload-mapped', uploadDoc.single('file'), async (req, 
         imported++
       }
       await client.query('COMMIT')
+
+      // Update round-robin counters in bulk
+      for (const [counselorName, count] of Object.entries(assignmentCounts)) {
+        await pool.query(
+          'UPDATE lead_assignment_counter SET assignment_count = assignment_count + $1, last_assigned = NOW() WHERE counselor_name = $2;',
+          [count, counselorName]
+        )
+      }
+
+      // Single summary notification instead of per-lead alerts
+      const summary = Object.entries(assignmentCounts).map(([n, c]) => `${n}: ${c}`).join(', ')
       await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-        [`Bulk upload complete: ${imported} imported, ${skipped} skipped, ${updated} updated`, 'Just now'])
-      res.json({ success: true, imported, skipped, updated, total: rawData.length })
+        [`Bulk upload: ${imported} leads imported & auto-assigned (${summary || 'none'}) · ${skipped} skipped · ${updated} updated`, 'Just now'])
+      res.json({ success: true, imported, skipped, updated, total: rawData.length, assignments: assignmentCounts })
     } catch (dbErr) {
       await client.query('ROLLBACK')
       throw dbErr
