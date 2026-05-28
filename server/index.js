@@ -4,7 +4,8 @@ import jwt from 'jsonwebtoken'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
-import * as XLSX from 'xlsx'
+import XLSXPkg from 'xlsx'
+const XLSX = XLSXPkg.default ?? XLSXPkg
 import { fileURLToPath } from 'url'
 import { pool, initDb } from './db.js'
 
