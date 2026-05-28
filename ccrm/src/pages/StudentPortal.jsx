@@ -26,6 +26,7 @@ export default function StudentPortal() {
   const [result, setResult] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [uploadedDoc, setUploadedDoc] = useState(null)
+  const [docType, setDocType] = useState('10th Marksheet')
   const fileRef = useRef(null)
 
   const handleSearch = async (e) => {
@@ -288,12 +289,21 @@ export default function StudentPortal() {
                 </div>
               )}
 
+              {/* Document type selector */}
+              <div className="mb-3">
+                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1.5">Document Type</label>
+                <select value={docType} onChange={e => setDocType(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+                  {DOC_CHECKLIST.map(d => <option key={d} className="text-gray-800">{d}</option>)}
+                </select>
+              </div>
+
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
                 className="w-full flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-400 text-white font-semibold py-3 rounded-xl text-sm transition">
                 {uploading ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <Upload size={16} />}
-                {uploading ? 'Uploading...' : 'Select & Upload Document'}
+                {uploading ? 'Uploading...' : `Upload ${docType}`}
               </button>
               <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
                 onChange={async (e) => {
@@ -302,13 +312,29 @@ export default function StudentPortal() {
                   if (file.size > 5 * 1024 * 1024) { alert('File must be under 5MB.'); return }
                   setUploading(true)
                   try {
+                    // Step 1: upload the file
                     const fd = new FormData()
                     fd.append('document', file)
-                    fd.append('student', result.application.name)
-                    fd.append('appNo', result.application.appNo)
-                    fd.append('type', file.name.split('.')[0].replace(/_/g, ' '))
-                    await fetch('/api/upload/document', { method: 'POST', body: fd })
-                    setUploadedDoc(file.name)
+                    const uploadRes = await fetch('/api/upload/document', { method: 'POST', body: fd })
+                    const { fileUrl } = uploadRes.ok ? await uploadRes.json() : {}
+
+                    // Step 2: create a document record in the Documents module
+                    await fetch('/api/documents', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        student: result.application.name,
+                        type: docType,
+                        fileUrl: fileUrl || '',
+                        status: 'Pending'
+                      })
+                    })
+                    setUploadedDoc(docType)
+                    // Refresh documents list in result
+                    setResult(prev => ({
+                      ...prev,
+                      documents: [...(prev.documents || []), { type: docType, status: 'Pending', uploadDate: new Date().toLocaleDateString('en-IN') }]
+                    }))
                   } catch {}
                   setUploading(false)
                   e.target.value = ''

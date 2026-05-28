@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import ChatWidget from '../components/ChatWidget'
 import {
   GraduationCap, CheckCircle, Phone, Mail, MapPin, BookOpen, Send, AlertCircle,
   ChevronRight, Award, Users, Building2, Briefcase, Globe, Menu, X,
@@ -600,6 +601,7 @@ export default function PublicInquiry() {
           </div>
         </div>
       </footer>
+      <ChatWidget />
     </div>
   )
 }
