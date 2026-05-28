@@ -37,7 +37,7 @@ const WA_TEMPLATES = [
 
 export default function LeadManager() {
   const navigate = useNavigate()
-  const { leads, setLeads, addLead, deleteLead, currentUser, counselors, showToast, fetchAllData,
+  const { leads, setLeads, addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData,
           checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, enrollDrip, logCall } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
@@ -81,9 +81,32 @@ export default function LeadManager() {
   const [dragOver, setDragOver] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
 
+  // Not Interested modal state
+  const [niLead, setNiLead]       = useState(null) // lead being marked NI
+  const [niReason, setNiReason]   = useState('')
+  const [niOther, setNiOther]     = useState('')
+
+  const NI_REASONS = [
+    'Budget Constraints', 'Already Enrolled Elsewhere', 'Not Reachable',
+    'Not Eligible', 'Course Not Available', 'Location Issue', 'Other'
+  ]
+
+  const handleMarkNotInterested = async () => {
+    if (!niReason) return showToast('Please select a reason.', 'error')
+    const reason = niReason === 'Other' ? (niOther || 'Other') : niReason
+    await updateLead(niLead.id, { stage: 'Not Interested', stageColor: 'red', not_interested_reason: reason })
+    setNiLead(null); setNiReason(''); setNiOther('')
+    showToast(`Lead marked as Not Interested: ${reason}`, 'info')
+  }
+
   const rowsPerPage = 15
 
   // ----------- FILTERS -----------
+  // Counselors see only their own leads; Admin/Manager see all
+  const visibleLeads = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
+    ? leads
+    : leads.filter(l => l.owner?.toLowerCase() === (currentUser?.name || '').toLowerCase())
+
   const matchQuickView = (l) => {
     if (quickView === 'All Leads') return true
     if (quickView === 'My Leads') return l.owner?.toLowerCase().includes(currentUser?.name?.split(' ')[0]?.toLowerCase() || '')
@@ -99,7 +122,7 @@ export default function LeadManager() {
     if (filters.campaign && l.source !== filters.campaign) return false
     return true
   }
-  const filtered = leads.filter(l => {
+  const filtered = visibleLeads.filter(l => {
     const s = search.toLowerCase()
     return (!search || l.name.toLowerCase().includes(s) || l.email.toLowerCase().includes(s) || l.mobile.includes(s) || (l.city || '').toLowerCase().includes(s))
       && matchQuickView(l) && matchSelectFilters(l)
@@ -240,6 +263,9 @@ export default function LeadManager() {
     formData.append('file', bulkFile)
     formData.append('columnMap', JSON.stringify(columnMap))
     formData.append('dupHandling', dupHandling)
+    // Pass uploader identity — counselor assigns to self, admin does round-robin
+    formData.append('uploaderRole', currentUser?.role || 'Admin')
+    formData.append('uploaderName', currentUser?.name || '')
     try {
       const res = await fetch('/api/leads/bulk-upload-mapped', { method: 'POST', body: formData })
       if (res.ok) {
@@ -262,13 +288,13 @@ export default function LeadManager() {
   }
 
   const handleDownloadTemplate = () => {
-    const headers = ['Name', 'Email', 'Mobile', 'State', 'City', 'Course', 'Source']
+    const headers = ['Name', 'Email', 'Mobile', 'State', 'City', 'Source']
     const samples = [
-      ['Rahul Sharma',  'rahul.sharma@gmail.com',  '9876543210', 'Odisha',        'Bhubaneswar', 'B.Tech CSE',       'Google Ads'    ],
-      ['Priya Patel',   'priya.patel@yahoo.com',   '9123456789', 'Andhra Pradesh','Vizianagaram','MBA',              'Facebook Ads'  ],
-      ['Amit Kumar',    'amit.kumar@outlook.com',  '8765432109', 'Jharkhand',     'Ranchi',      'BCA',              'Referral'      ],
-      ['Sneha Rao',     '',                        '9012345678', 'Telangana',     'Hyderabad',   'B.Sc Agriculture', 'Education Fair'],
-      ['Vikram Singh',  'vikram@gmail.com',        '7890123456', 'Bihar',         'Patna',       'B.Tech ECE',       'Walk-in'       ],
+      ['Rahul Sharma',  'rahul.sharma@gmail.com',  '9876543210', 'Odisha',        'Bhubaneswar',  'AI'],
+      ['Priya Patel',   'priya.patel@yahoo.com',   '9123456789', 'Andhra Pradesh','Vizianagaram', 'SM'],
+      ['Amit Kumar',    'amit.kumar@outlook.com',  '8765432109', 'Jharkhand',     'Ranchi',       'AI'],
+      ['Sneha Rao',     '',                        '9012345678', 'Telangana',     'Hyderabad',    'SM'],
+      ['Vikram Singh',  'vikram@gmail.com',        '7890123456', 'Bihar',         'Patna',        'AI'],
     ]
     const csv = "data:text/csv;charset=utf-8,"
       + [headers.join(','), ...samples.map(r => r.map(v => `"${v}"`).join(','))].join('\n')
@@ -302,10 +328,12 @@ export default function LeadManager() {
     showToast(`Exported ${filtered.length} leads.`, 'success')
   }
 
-  const stateOptions = [...new Set(leads.map(l => l.state).filter(Boolean))]
-  const sourceOptions = [...new Set(leads.map(l => l.source).filter(Boolean))]
-  const ownerOptions  = [...new Set(leads.map(l => l.owner).filter(Boolean))]
-  const stageOptions  = [...new Set(leads.map(l => l.stage).filter(Boolean))]
+  const stateOptions = [...new Set(visibleLeads.map(l => l.state).filter(Boolean))]
+  const sourceOptions = [...new Set(visibleLeads.map(l => l.source).filter(Boolean))]
+  const ownerOptions  = currentUser?.role === 'Admin' || currentUser?.role === 'Manager'
+    ? [...new Set(leads.map(l => l.owner).filter(Boolean))]
+    : []
+  const stageOptions  = [...new Set(visibleLeads.map(l => l.stage).filter(Boolean))]
 
   return (
     <div className="p-6">
@@ -417,7 +445,7 @@ export default function LeadManager() {
                     </td>
                     <td className="table-td">
                       <span className="font-mono text-[11px] bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded">
-                        CUTMLD26{String(lead.id).padStart(4, '0')}
+                        {lead.sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}{String(lead.id).padStart(4,'0')}
                       </span>
                     </td>
                     <td className="table-td">
@@ -439,7 +467,14 @@ export default function LeadManager() {
                     <td className="table-td text-gray-600 text-xs">{lead.course || '—'}</td>
                     <td className="table-td text-gray-500 text-xs">{lead.source || '—'}</td>
                     <td className="table-td">
-                      <span className={`badge ${colors.bg} ${colors.text}`}>{lead.stage}</span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className={`badge ${colors.bg} ${colors.text}`}>{lead.stage}</span>
+                        {lead.notInterestedReason && (
+                          <span className="text-[9px] text-red-500 italic truncate max-w-24" title={lead.notInterestedReason}>
+                            {lead.notInterestedReason}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="table-td">
                       <div className="flex flex-col gap-0.5">
@@ -451,12 +486,32 @@ export default function LeadManager() {
                     </td>
                     <td className="table-td text-gray-500 text-xs">{lead.owner || 'Unassigned'}</td>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
-                      {currentUser?.role === 'Admin' && (
-                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(lead.id) }}
-                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500" title="Delete">
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {/* Interested */}
+                        {lead.stage !== 'Interested' && lead.stage !== 'Not Interested' && (
+                          <button
+                            onClick={e => { e.stopPropagation(); navigate(`/leads/${lead.id}`) }}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200 font-medium"
+                            title="Mark Interested / View">
+                            ✓
+                          </button>
+                        )}
+                        {/* Not Interested */}
+                        {lead.stage !== 'Not Interested' && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setNiLead(lead); setNiReason(''); setNiOther('') }}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-600 hover:bg-red-200 font-medium"
+                            title="Not Interested">
+                            ✗
+                          </button>
+                        )}
+                        {currentUser?.role === 'Admin' && (
+                          <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(lead.id) }}
+                            className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500" title="Delete">
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -685,6 +740,46 @@ export default function LeadManager() {
         </div>
       )}
 
+      {/* ============ NOT INTERESTED MODAL ============ */}
+      {niLead && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <X size={16} className="text-red-500" /> Not Interested
+              </h2>
+              <button onClick={() => setNiLead(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Mark <strong>{niLead.name}</strong> as Not Interested and record reason.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Reason *</label>
+                <select value={niReason} onChange={e => setNiReason(e.target.value)} className="input-field text-sm">
+                  <option value="">-- Select reason --</option>
+                  {NI_REASONS.map(r => <option key={r}>{r}</option>)}
+                </select>
+              </div>
+              {niReason === 'Other' && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Specify</label>
+                  <input value={niOther} onChange={e => setNiOther(e.target.value)}
+                    className="input-field text-sm" placeholder="Enter reason..." />
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setNiLead(null)} className="flex-1 btn-secondary text-sm">Cancel</button>
+              <button onClick={handleMarkNotInterested}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ============ DELETE CONFIRM MODAL ============ */}
       {deleteConfirm !== null && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -754,7 +849,7 @@ export default function LeadManager() {
                         <Download size={14} /> Download CSV Template
                       </p>
                       <p className="text-xs text-emerald-600 mt-0.5">
-                        7 columns: Name, Email, Mobile, State, City, Course, Source — counselors are <strong>auto-assigned round-robin</strong>, no Owner column needed
+                        6 columns: Name, Email, Mobile, State, City, Source (AI or SM). Counselor adds course later. Admin upload = round-robin; Counselor upload = self-assigned.
                       </p>
                     </div>
                     <button

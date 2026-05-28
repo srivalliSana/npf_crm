@@ -395,7 +395,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // --- LEADS ROUTERS ---
 app.get('/api/leads', async (req, res) => {
   try {
-    const leadsRes = await pool.query('SELECT id, name, email, mobile, state, city, course, source, owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor" FROM leads ORDER BY id DESC;')
+    const leadsRes = await pool.query('SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType", owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor", not_interested_reason AS "notInterestedReason" FROM leads ORDER BY id DESC;')
     res.json(leadsRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch leads.' })
@@ -425,38 +425,40 @@ app.post('/api/leads', async (req, res) => {
 
 app.put('/api/leads/:id', async (req, res) => {
   const { id } = req.params
-  const { name, email, mobile, state, city, course, source, owner, score, stage, stageColor } = req.body
+  const { name, email, mobile, state, city, course, source, owner, score, stage, stageColor, not_interested_reason } = req.body
   try {
-    // COALESCE keeps existing DB value when a field is not sent (partial updates)
     const updateRes = await pool.query(`
       UPDATE leads
       SET
-        name        = COALESCE($1,  name),
-        email       = COALESCE($2,  email),
-        mobile      = COALESCE($3,  mobile),
-        state       = COALESCE($4,  state),
-        city        = COALESCE($5,  city),
-        course      = COALESCE($6,  course),
-        source      = COALESCE($7,  source),
-        owner       = COALESCE($8,  owner),
-        score       = COALESCE($9,  score),
-        stage       = COALESCE($10, stage),
-        stage_color = COALESCE($11, stage_color)
-      WHERE id = $12
+        name                   = COALESCE($1,  name),
+        email                  = COALESCE($2,  email),
+        mobile                 = COALESCE($3,  mobile),
+        state                  = COALESCE($4,  state),
+        city                   = COALESCE($5,  city),
+        course                 = COALESCE($6,  course),
+        source                 = COALESCE($7,  source),
+        owner                  = COALESCE($8,  owner),
+        score                  = COALESCE($9,  score),
+        stage                  = COALESCE($10, stage),
+        stage_color            = COALESCE($11, stage_color),
+        not_interested_reason  = COALESCE($12, not_interested_reason)
+      WHERE id = $13
       RETURNING id, name, email, mobile, state, city, course, source, owner,
-                reg_date AS "regDate", score, stage, stage_color AS "stageColor";
+                reg_date AS "regDate", score, stage, stage_color AS "stageColor",
+                not_interested_reason AS "notInterestedReason";
     `, [
-      name       ?? null,
-      email      ?? null,
-      mobile     ?? null,
-      state      ?? null,
-      city       ?? null,
-      course     ?? null,
-      source     ?? null,
-      owner      ?? null,
-      score      ?? null,
-      stage      ?? null,
-      stageColor ?? null,
+      name                    ?? null,
+      email                   ?? null,
+      mobile                  ?? null,
+      state                   ?? null,
+      city                    ?? null,
+      course                  ?? null,
+      source                  ?? null,
+      owner                   ?? null,
+      score                   ?? null,
+      stage                   ?? null,
+      stageColor              ?? null,
+      not_interested_reason   ?? null,
       id
     ])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
@@ -479,16 +481,16 @@ app.delete('/api/leads/:id', async (req, res) => {
 })
 
 // --- APPLICATIONS ROUTERS ---
-// Generate next sequential Application ID: CUEEAP26XXXX (12 chars total)
+// Generate next Application ID — type='sm' → CUEESM26XXXX, else → CUEEAP26XXXX
 app.get('/api/applications/next-app-id', async (req, res) => {
+  const isSM = req.query.type === 'sm'
+  const seq  = isSM ? 'cueesm_seq' : 'cueeap_seq'
+  const pfx  = isSM ? 'CUEESM26'   : 'CUEEAP26'
   try {
-    const r = await pool.query(`SELECT lpad(nextval('cueeap_seq')::text, 4, '0') AS num;`)
-    const appNo = `CUEEAP26${r.rows[0].num}`
-    res.json({ appNo })
-  } catch (err) {
-    // Fallback if sequence not ready
-    const fallback = `CUEEAP26${String(Math.floor(1 + Math.random() * 9999)).padStart(4, '0')}`
-    res.json({ appNo: fallback })
+    const r = await pool.query(`SELECT lpad(nextval('${seq}')::text, 4, '0') AS num;`)
+    res.json({ appNo: `${pfx}${r.rows[0].num}` })
+  } catch {
+    res.json({ appNo: `${pfx}${String(Math.floor(1 + Math.random() * 9999)).padStart(4,'0')}` })
   }
 })
 
@@ -768,6 +770,48 @@ app.put('/api/payments/:id', async (req, res) => {
     res.json(updateRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to update payment status.' })
+  }
+})
+
+// Submit UTR / offline ref number — sets status = 'Payment Done'
+app.post('/api/payments/:id/submit-utr', async (req, res) => {
+  const { id } = req.params
+  const { utrNumber, payMode } = req.body
+  if (!utrNumber) return res.status(400).json({ error: 'UTR/Reference number required.' })
+  try {
+    const r = await pool.query(`
+      UPDATE payments
+      SET status = 'Payment Done', utr_number = $1, pay_mode = $2,
+          date = $3
+      WHERE id = $4
+      RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode";
+    `, [utrNumber, payMode || 'offline', new Date().toLocaleDateString('en-IN'), id])
+    if (!r.rows[0]) return res.status(404).json({ error: 'Payment not found.' })
+
+    // Also update linked application pay status
+    await pool.query(`UPDATE applications SET pay_status = 'Payment Done' WHERE app_no = $1;`, [r.rows[0].appNo])
+    res.json(r.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Approve payment (Accounts/Admin) — Payment Done → Paid
+app.post('/api/payments/:id/approve', async (req, res) => {
+  const { id } = req.params
+  try {
+    const r = await pool.query(`
+      UPDATE payments SET status = 'Paid'
+      WHERE id = $1 AND status = 'Payment Done'
+      RETURNING id, name, app_no AS "appNo", amount, status, utr_number AS "utrNumber";
+    `, [id])
+    if (!r.rows[0]) return res.status(400).json({ error: 'Payment not found or not in Payment Done status.' })
+    await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1;`, [r.rows[0].appNo])
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
+      [`Payment approved: ₹25,000 — ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now'])
+    res.json(r.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
   }
 })
 
@@ -2030,72 +2074,90 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
     }
     const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' })
 
-    // Pre-fetch round-robin counselor list once for the whole batch
-    const counselorRes = await pool.query(`
-      SELECT lac.counselor_name FROM lead_assignment_counter lac
-      JOIN users u ON u.name = lac.counselor_name
-      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager')
-      ORDER BY lac.assignment_count ASC;
-    `)
-    const counselors = counselorRes.rows.map(r => r.counselor_name)
-    let rrIndex = 0 // round-robin pointer for this batch
+    // Who is uploading?
+    const uploaderRole = req.body.uploaderRole || 'Admin'
+    const uploaderName = req.body.uploaderName || ''
+    const isCounselor  = uploaderRole === 'Counselor'
 
-    const getNextCounselor = () => {
-      if (!counselors.length) return 'Unassigned'
-      const name = counselors[rrIndex % counselors.length]
-      rrIndex++
-      return name
+    // Pre-fetch round-robin counselors (only used when admin uploads)
+    let counselors = [], rrIndex = 0
+    if (!isCounselor) {
+      const cRes = await pool.query(`
+        SELECT lac.counselor_name FROM lead_assignment_counter lac
+        JOIN users u ON u.name = lac.counselor_name
+        WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager')
+        ORDER BY lac.assignment_count ASC;
+      `)
+      counselors = cRes.rows.map(r => r.counselor_name)
     }
+    const getNextOwner = () => {
+      if (isCounselor) return uploaderName || 'Unassigned'
+      if (!counselors.length) return 'Unassigned'
+      return counselors[rrIndex++ % counselors.length]
+    }
+
+    const SM_SOURCES = ['facebook', 'google ads', 'linkedin', 'instagram', 'whatsapp', 'sm', 'social']
 
     const client = await pool.connect()
     let imported = 0, skipped = 0, updated = 0
-    const assignmentCounts = {} // track how many leads each counselor got this batch
+    const assignmentCounts = {}
     try {
       await client.query('BEGIN')
       for (const row of rawData) {
-        const name = String(row[columnMap.name] || row.Name || row.name || 'Unnamed').substring(0, 100)
-        const email = String(row[columnMap.email] || row.Email || row.email || `lead_${Date.now()}@noemail.com`).substring(0, 100)
+        const name   = String(row[columnMap.name]   || row.Name   || row.name   || 'Unnamed').substring(0, 100)
+        const email  = String(row[columnMap.email]  || row.Email  || row.email  || `lead_${Date.now()}@noemail.com`).substring(0, 100)
         const mobile = String(row[columnMap.mobile] || row.Mobile || row.mobile || '0000000000').replace(/\D/g, '').substring(0, 50) || '0000000000'
-        const state = String(row[columnMap.state] || row.State || row.state || '').substring(0, 100)
-        const city = String(row[columnMap.city] || row.City || row.city || '').substring(0, 100)
-        const course = String(row[columnMap.course] || row.Course || row.course || 'B.Tech CSE').substring(0, 100)
-        const source = String(row[columnMap.source] || row.Source || row.source || 'Excel Upload').substring(0, 100)
-        const score = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
-
-        // Auto-assign round-robin — owner column ignored
-        const rawOwner = String(row[columnMap.owner] || row.Owner || row.owner || '').trim()
-        const owner = (rawOwner && rawOwner.toLowerCase() !== 'unassigned') ? rawOwner : getNextCounselor()
+        const state  = String(row[columnMap.state]  || row.State  || row.state  || '').substring(0, 100)
+        const city   = String(row[columnMap.city]   || row.City   || row.city   || '').substring(0, 100)
+        const course = String(row[columnMap.course] || row.Course || row.course || '').substring(0, 100)
+        // Source must be 'AI' (admin/internal import) or 'SM' (social media)
+        const rawSrc = String(row[columnMap.source] || row.Source || row.source || 'AI').trim().toUpperCase()
+        const source = rawSrc === 'SM' ? 'Social Media' : 'Admin Import'
+        const sourceType = rawSrc === 'SM' ? 'sm' : 'ai'
+        const score  = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
+        const owner  = getNextOwner()
         assignmentCounts[owner] = (assignmentCounts[owner] || 0) + 1
 
         const dup = await client.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
         if (dup.rows.length > 0) {
           if (dupHandling === 'skip') { skipped++; continue }
           if (dupHandling === 'update') {
-            await client.query('UPDATE leads SET name = $1, course = $2, source = $3, score = $4 WHERE id = $5;',
-              [name, course, source, score, dup.rows[0].id])
+            await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5 WHERE id=$6;',
+              [name, course, source, score, sourceType, dup.rows[0].id])
             updated++; continue
           }
         }
         await client.query(`
-          INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Untouched', 'red');
-        `, [name, email, mobile, state, city, course, source, owner, new Date().toLocaleString('en-IN', { hour12: true }), score])
+          INSERT INTO leads (name, email, mobile, state, city, course, source, source_type, owner, reg_date, score, stage, stage_color)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Untouched','red');
+        `, [name, email, mobile, state, city, course, source, sourceType, owner,
+            new Date().toLocaleString('en-IN', { hour12: true }), score])
         imported++
       }
       await client.query('COMMIT')
 
-      // Update round-robin counters in bulk
-      for (const [counselorName, count] of Object.entries(assignmentCounts)) {
-        await pool.query(
-          'UPDATE lead_assignment_counter SET assignment_count = assignment_count + $1, last_assigned = NOW() WHERE counselor_name = $2;',
-          [count, counselorName]
-        )
+      // Update round-robin counters (only for admin upload)
+      if (!isCounselor) {
+        for (const [cn, count] of Object.entries(assignmentCounts)) {
+          await pool.query('UPDATE lead_assignment_counter SET assignment_count=assignment_count+$1, last_assigned=NOW() WHERE counselor_name=$2;', [count, cn])
+        }
       }
 
-      // Single summary notification instead of per-lead alerts
-      const summary = Object.entries(assignmentCounts).map(([n, c]) => `${n}: ${c}`).join(', ')
-      await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-        [`Bulk upload: ${imported} leads imported & auto-assigned (${summary || 'none'}) · ${skipped} skipped · ${updated} updated`, 'Just now'])
+      // Email each counselor a summary of leads assigned to them
+      for (const [counselorName, count] of Object.entries(assignmentCounts)) {
+        const userRow = await pool.query('SELECT email FROM users WHERE name=$1 LIMIT 1;', [counselorName])
+        const cEmail  = userRow.rows[0]?.email
+        if (cEmail) {
+          sendSystemMailAlert(cEmail,
+            `CCRM: ${count} new lead${count>1?'s':''} assigned to you`,
+            `Hello ${counselorName},\n\n${count} new lead${count>1?'s have':' has'} been assigned to you in CCRM.\n\nPlease log in and follow up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`
+          )
+        }
+      }
+
+      const summary = Object.entries(assignmentCounts).map(([n,c])=>`${n}: ${c}`).join(', ')
+      await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
+        [`Bulk upload: ${imported} leads imported (${summary||'none'}) · ${skipped} skipped · ${updated} updated`, 'Just now'])
       res.json({ success: true, imported, skipped, updated, total: rawData.length, assignments: assignmentCounts })
     } catch (dbErr) {
       await client.query('ROLLBACK')
