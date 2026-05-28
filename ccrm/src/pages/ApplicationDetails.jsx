@@ -629,15 +629,34 @@ export default function ApplicationDetails() {
               </div>
             </div>
 
-            {/* Mark as Not Interested — only for leads, not apps, and not already NI */}
-            {!isApp && leadStage !== 'Not Interested' && leadStage !== 'Payment Success' && (
-              <div className="mt-4 pt-3 border-t border-gray-100">
-                <button
-                  onClick={() => setShowNiModal(true)}
-                  className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <X size={13} /> Mark as Not Interested
-                </button>
+            {/* Quick stage actions — only for leads */}
+            {!isApp && leadStage !== 'Payment Success' && (
+              <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
+                {/* Unable to Connect → Follow Up */}
+                {!['Follow Up','Not Interested'].includes(leadStage) && (
+                  <button
+                    onClick={async () => {
+                      await updateLead(associatedLead.id, {
+                        stage: 'Follow Up',
+                        stageColor: 'yellow',
+                        not_interested_reason: 'Unable to Connect — needs follow-up'
+                      })
+                      showToast('Marked as Unable to Connect → Follow Up', 'info')
+                    }}
+                    className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-yellow-200 text-yellow-700 hover:bg-yellow-50 hover:border-yellow-300 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    📞 Unable to Connect → Follow Up
+                  </button>
+                )}
+                {/* Mark Not Interested */}
+                {leadStage !== 'Not Interested' && (
+                  <button
+                    onClick={() => setShowNiModal(true)}
+                    className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <X size={13} /> Mark as Not Interested
+                  </button>
+                )}
               </div>
             )}
             {!isApp && leadStage === 'Not Interested' && record.notInterestedReason && (

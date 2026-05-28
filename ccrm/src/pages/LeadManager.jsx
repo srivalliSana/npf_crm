@@ -103,6 +103,16 @@ export default function LeadManager() {
     showToast(`Lead marked as Not Interested: ${reason}`, 'info')
   }
 
+  // Mark as "Unable to Connect" → moves the lead to Follow Up stage
+  const handleUnableToConnect = async (lead) => {
+    await updateLead(lead.id, {
+      stage: 'Follow Up',
+      stageColor: 'yellow',
+      not_interested_reason: 'Unable to Connect — needs follow-up'
+    })
+    showToast(`${lead.name} marked as Unable to Connect — moved to Follow Up`, 'info')
+  }
+
   const rowsPerPage = 15
 
   // ----------- FILTERS -----------
@@ -505,6 +515,15 @@ export default function LeadManager() {
                             className="text-[10px] px-2 py-1 rounded-md bg-green-100 text-green-700 hover:bg-green-200 font-semibold whitespace-nowrap"
                             title="Open lead to mark Interested or change stage">
                             ✓ Interested
+                          </button>
+                        )}
+                        {/* Unable to Connect — yellow pill (moves to Follow Up) */}
+                        {!['Follow Up','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
+                          <button
+                            onClick={e => { e.stopPropagation(); handleUnableToConnect(lead) }}
+                            className="text-[10px] px-2 py-1 rounded-md bg-yellow-100 text-yellow-700 hover:bg-yellow-200 font-semibold whitespace-nowrap"
+                            title="Unable to Connect — move to Follow Up">
+                            📞 Unable to Connect
                           </button>
                         )}
                         {/* Not Interested — red pill */}
