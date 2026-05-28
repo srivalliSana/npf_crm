@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import nodemailer from 'nodemailer'
 import XLSXPkg from 'xlsx'
 const XLSX = XLSXPkg.default ?? XLSXPkg
 import { fileURLToPath } from 'url'
@@ -81,54 +82,67 @@ function authenticateToken(req, res, next) {
 }
 
 // --- SMTP ALERT MAILER SENDER ---
-function sendSystemMailAlert(recipient, subject, messageBody) {
-  console.log(`[SMTP Mailer Triggered] To: ${recipient} | Sub: ${subject}`)
-  const mailText = `To: ${recipient}\nSubject: ${subject}\n\n${messageBody}`
-  const tempPath = path.join(__dirname, `temp_mail_${Date.now()}.txt`)
-  fs.writeFileSync(tempPath, mailText)
-  import('child_process').then(({ exec }) => {
-    exec(`msmtp -t < "${tempPath}"`, (error) => {
-      if (error) console.error(`Failed to send email via msmtp: ${error.message}`)
-      else console.log(`Email dispatched via msmtp to ${recipient}`)
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
-    })
-  }).catch(e => {
-    console.error('Child process failed', e)
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
+// ── Nodemailer transporter — built from integration_settings at call time ────
+async function createMailTransporter() {
+  const host     = await getIntegrationSetting('smtp_host')     || process.env.SMTP_HOST
+  const port     = parseInt(await getIntegrationSetting('smtp_port') || process.env.SMTP_PORT || '587')
+  const user     = await getIntegrationSetting('smtp_user')     || process.env.SMTP_USER
+  const pass     = await getIntegrationSetting('smtp_pass')     || process.env.SMTP_PASS
+  const fromName = await getIntegrationSetting('smtp_from_name')|| 'CUTM Admissions'
+
+  if (!host || !user || !pass) return null
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    tls:  { rejectUnauthorized: false }
   })
+  return { transporter, from: `"${fromName}" <${user}>` }
 }
 
-// Trackable mail send — returns { success, error } and logs to email_logs
+// Fire-and-forget alert email (counselor notifications, OTPs, etc.)
+async function sendSystemMailAlert(recipient, subject, messageBody) {
+  console.log(`[Mail] To: ${recipient} | Sub: ${subject}`)
+  try {
+    const cfg = await createMailTransporter()
+    if (!cfg) { console.warn('[Mail] SMTP not configured in Integrations — skipping'); return }
+    await cfg.transporter.sendMail({ from: cfg.from, to: recipient, subject, text: messageBody })
+    console.log(`[Mail] Sent to ${recipient}`)
+  } catch (e) {
+    console.error(`[Mail] Failed for ${recipient}:`, e.message)
+  }
+}
+
+// Tracked campaign send — writes result to email_logs
 async function sendTrackedMail(recipient, recipientName, subject, messageBody, campaignId, campaignName) {
-  return new Promise((resolve) => {
-    console.log(`[Tracked Mail] To: ${recipient} | Sub: ${subject}`)
-    const mailText = `To: ${recipient}\nSubject: ${subject}\n\n${messageBody}`
-    const tempPath = path.join(__dirname, `temp_mail_${Date.now()}_${Math.random().toString(36).slice(2)}.txt`)
-    try {
-      fs.writeFileSync(tempPath, mailText)
-    } catch (e) {
-      pool.query('INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
-        [campaignId, campaignName, recipient, recipientName, 'Failed', `Write error: ${e.message}`]).catch(() => {})
-      return resolve({ success: false, error: e.message })
+  console.log(`[Tracked Mail] To: ${recipient}`)
+  try {
+    const cfg = await createMailTransporter()
+    if (!cfg) {
+      const err = 'SMTP not configured — add Gmail credentials in Integrations → Gmail/SMTP Email'
+      await pool.query(
+        'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
+        [campaignId, campaignName, recipient, recipientName, 'Failed', err]
+      ).catch(() => {})
+      return { success: false, error: err }
     }
-    import('child_process').then(({ exec }) => {
-      exec(`msmtp -t < "${tempPath}"`, (error) => {
-        const status = error ? 'Failed' : 'Sent'
-        const errMsg = error ? error.message.substring(0, 500) : ''
-        pool.query(
-          'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
-          [campaignId, campaignName, recipient, recipientName, status, errMsg]
-        ).catch(() => {})
-        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
-        resolve({ success: !error, error: errMsg })
-      })
-    }).catch(e => {
-      pool.query('INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
-        [campaignId, campaignName, recipient, recipientName, 'Failed', e.message]).catch(() => {})
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
-      resolve({ success: false, error: e.message })
-    })
-  })
+    await cfg.transporter.sendMail({ from: cfg.from, to: recipient, subject, text: messageBody })
+    await pool.query(
+      'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
+      [campaignId, campaignName, recipient, recipientName, 'Sent', '']
+    ).catch(() => {})
+    return { success: true, error: '' }
+  } catch (e) {
+    const errMsg = e.message.substring(0, 500)
+    console.error(`[Tracked Mail] Failed for ${recipient}:`, errMsg)
+    await pool.query(
+      'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
+      [campaignId, campaignName, recipient, recipientName, 'Failed', errMsg]
+    ).catch(() => {})
+    return { success: false, error: errMsg }
+  }
 }
 
 // --- NOTIFICATION & ALERT HELPERS ---
