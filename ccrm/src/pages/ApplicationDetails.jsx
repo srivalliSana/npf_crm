@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, MessageCircle, Mail, Share2, Edit3,
-  Calendar, ArrowRightLeft, Star, Phone, MapPin,
+  Calendar, ArrowRightLeft, Star, Phone, MapPin, X,
   User, BookOpen, Building2, GraduationCap, ChevronRight,
   Clock, CheckCircle2, Circle, AlertCircle, Plus, Send, Save, HelpCircle, PhoneCall
 } from 'lucide-react'
@@ -34,8 +34,8 @@ const LEAD_STAGES = [
   'Contacted',
   'Follow Up',
   'Interested',
-  'Qualified Leads',
-  'Converted',
+  'Process for Payment',
+  'Payment Success',
 ]
 
 // Alias used generically (kept for backward compat)
@@ -126,6 +126,28 @@ export default function ApplicationDetails() {
   const [utrNumber, setUtrNumber]         = useState('')
   const [paySubmitting, setPaySubmitting] = useState(false)
 
+  // Not Interested modal state
+  const [showNiModal, setShowNiModal] = useState(false)
+  const [niReason, setNiReason]       = useState('')
+  const [niOther, setNiOther]         = useState('')
+
+  const NI_REASONS = [
+    'Budget Constraints', 'Already Enrolled Elsewhere', 'Not Reachable',
+    'Not Eligible', 'Course Not Available', 'Location Issue', 'Other'
+  ]
+
+  const handleMarkNotInterested = async () => {
+    if (!niReason) return showToast('Please select a reason.', 'error')
+    const reason = niReason === 'Other' ? (niOther || 'Other') : niReason
+    await updateLead(associatedLead.id, {
+      stage: 'Not Interested',
+      stageColor: 'red',
+      not_interested_reason: reason
+    })
+    showToast(`Lead marked as Not Interested: ${reason}`, 'info')
+    setShowNiModal(false); setNiReason(''); setNiOther('')
+  }
+
   useEffect(() => {
     fetch('/api/integration-settings').then(r => r.json())
       .then(cfg => {
@@ -196,13 +218,17 @@ export default function ApplicationDetails() {
 
   const stageBadgeColor = (stage) => {
     const map = {
-      'Untouched': 'bg-red-100 text-red-700 border border-red-200',
-      'Contacted': 'bg-blue-100 text-blue-700 border border-blue-200',
-      'Interested': 'bg-green-100 text-green-700 border border-green-200',
-      'Follow Up': 'bg-yellow-100 text-yellow-700 border border-yellow-200',
-      'Converted': 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-      'Qualified Leads': 'bg-green-100 text-green-700 border border-green-200',
-      'Unqualified Leads': 'bg-orange-100 text-orange-700 border border-orange-200'
+      'Untouched':           'bg-red-100 text-red-700 border border-red-200',
+      'Contacted':           'bg-blue-100 text-blue-700 border border-blue-200',
+      'Interested':          'bg-green-100 text-green-700 border border-green-200',
+      'Follow Up':           'bg-yellow-100 text-yellow-700 border border-yellow-200',
+      'Process for Payment': 'bg-amber-100 text-amber-700 border border-amber-200',
+      'Payment Success':     'bg-emerald-100 text-emerald-700 border border-emerald-200',
+      'Not Interested':      'bg-red-100 text-red-700 border border-red-200',
+      // legacy fallbacks
+      'Qualified Leads':     'bg-amber-100 text-amber-700 border border-amber-200',
+      'Converted':           'bg-emerald-100 text-emerald-700 border border-emerald-200',
+      'Unqualified Leads':   'bg-orange-100 text-orange-700 border border-orange-200',
     }
     return map[stage] || 'bg-gray-100 text-gray-700 border border-gray-200'
   }
@@ -265,8 +291,13 @@ export default function ApplicationDetails() {
     if (!isApp) {
       // ---- Lead stage update ----
       const stageColorMap = {
-        'Untouched': 'red', 'Contacted': 'blue', 'Follow Up': 'yellow',
-        'Interested': 'green', 'Qualified Leads': 'green', 'Converted': 'emerald',
+        'Untouched':           'red',
+        'Contacted':           'blue',
+        'Follow Up':           'yellow',
+        'Interested':          'green',
+        'Process for Payment': 'orange',
+        'Payment Success':     'emerald',
+        'Not Interested':      'red',
       }
       updateLead(associatedLead.id, {
         stage: stageName,
@@ -275,8 +306,8 @@ export default function ApplicationDetails() {
       })
       showToast(`Lead stage updated to "${stageName}"`, 'success')
 
-      // ── Auto-create Application when lead is marked Interested ────────────
-      if (stageName === 'Interested' && !associatedApp) {
+      // ── Auto-create Application when lead reaches "Process for Payment" ───
+      if (stageName === 'Process for Payment' && !associatedApp) {
         try {
           const isSM = ['Facebook Ads','Google Ads','LinkedIn','Instagram','Social Media','sm'].some(
             s => (record.source || '').toLowerCase().includes(s.toLowerCase())
@@ -296,7 +327,7 @@ export default function ApplicationDetails() {
             appNo,
             owner: record.owner || ''
           })
-          showToast(`Application ID ${appNo} generated for ${studentName}!`, 'success')
+          showToast(`📋 Application ${appNo} created — generate payment link to proceed!`, 'success')
         } catch (e) {
           showToast('Application auto-creation failed — create manually.', 'warning')
         }
@@ -327,7 +358,7 @@ export default function ApplicationDetails() {
       showToast(`Created matching Application: ${newCreatedApp?.appNo || ''}`, 'success')
 
       updateLead(associatedLead.id, {
-        stage: stageIndex >= 4 ? 'Converted' : 'Qualified Leads',
+        stage: stageIndex >= 4 ? 'Payment Success' : 'Process for Payment',
         timeline: newTimeline
       })
     }
@@ -597,6 +628,24 @@ export default function ApplicationDetails() {
                 ></div>
               </div>
             </div>
+
+            {/* Mark as Not Interested — only for leads, not apps, and not already NI */}
+            {!isApp && leadStage !== 'Not Interested' && leadStage !== 'Payment Success' && (
+              <div className="mt-4 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => setShowNiModal(true)}
+                  className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <X size={13} /> Mark as Not Interested
+                </button>
+              </div>
+            )}
+            {!isApp && leadStage === 'Not Interested' && record.notInterestedReason && (
+              <div className="mt-4 pt-3 border-t border-gray-100 bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs">
+                <p className="font-bold text-red-700 mb-0.5">Marked Not Interested</p>
+                <p className="text-red-600">Reason: <strong>{record.notInterestedReason}</strong></p>
+              </div>
+            )}
 
             {/* Action icons */}
             <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-around">
@@ -1171,6 +1220,46 @@ export default function ApplicationDetails() {
     </div>
 
     {/* ── Payment Modal (Online / Offline) ─────────────────────────────── */}
+    {/* Not Interested Modal */}
+    {showNiModal && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2 text-red-600">
+              <X size={18} className="text-red-500" /> Mark Not Interested
+            </h2>
+            <button onClick={() => setShowNiModal(false)}><X size={18} className="text-gray-400" /></button>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Mark <strong>{studentName}</strong> as Not Interested. Please select a reason.
+          </p>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Reason *</label>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {NI_REASONS.map(r => (
+                <button key={r} type="button" onClick={() => setNiReason(r)}
+                  className={`text-xs text-left px-3 py-2 rounded-lg border transition ${niReason === r ? 'border-red-500 bg-red-50 text-red-700 font-semibold' : 'border-gray-200 text-gray-600 hover:border-red-300'}`}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            {niReason === 'Other' && (
+              <input type="text" value={niOther} onChange={e => setNiOther(e.target.value)}
+                placeholder="Specify reason..."
+                className="input-field text-sm" />
+            )}
+          </div>
+          <div className="flex gap-3 mt-5">
+            <button onClick={() => setShowNiModal(false)} className="flex-1 btn-secondary text-sm py-2">Cancel</button>
+            <button onClick={handleMarkNotInterested}
+              className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-lg">
+              Confirm Not Interested
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     {showPayModal && associatedApp && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">

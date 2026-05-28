@@ -608,9 +608,12 @@ export default function ApplicationManager() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Course</label>
-                  <select value={editForm.course || ''} onChange={e => setEditForm(p => ({ ...p, course: e.target.value }))} className="input-field text-sm">
-                    {['B.Tech CSE','B.Tech ECE','B.Tech Civil','B.Tech Mech','MBA','MBA (Finance)','MBA (Marketing)','MBA (HR)','BCA','BBA','B.Com','M.Sc Agriculture (Genetics)','M.Tech','PhD'].map(c => <option key={c}>{c}</option>)}
-                  </select>
+                  <input type="text" value={editForm.course || ''} onChange={e => setEditForm(p => ({ ...p, course: e.target.value }))}
+                    list="app-course-suggestions" placeholder="Enter course"
+                    className="input-field text-sm" />
+                  <datalist id="app-course-suggestions">
+                    {['B.Tech CSE','B.Tech ECE','B.Tech Civil','B.Tech Mech','MBA','MBA (Finance)','MBA (Marketing)','MBA (HR)','BCA','BBA','B.Com','M.Sc Agriculture (Genetics)','M.Tech','PhD'].map(c => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Form Status</label>
