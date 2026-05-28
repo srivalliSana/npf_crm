@@ -1,9 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useCcrm } from '../context/CcrmContext'
 import {
   Settings as SettingsIcon, Bell, Shield, Globe, Palette,
   Database, Link, Mail, MessageSquare, Phone, Save, ChevronRight,
-  User, Building, Key, Eye, EyeOff, CheckCircle
+  User, Building, Key, Eye, EyeOff, CheckCircle, ExternalLink,
+  Share2, Search, Linkedin, MessageCircle, CreditCard, Wallet,
+  PhoneCall, BarChart2
 } from 'lucide-react'
 
 const SECTIONS = [
@@ -14,22 +17,46 @@ const SECTIONS = [
   { id: 'integrations',  label: 'Integrations',           icon: Link       },
 ]
 
-const INTEGRATIONS = [
-  { name: 'Facebook Ads',    status: 'Connected',    icon: '📘', desc: 'Lead generation from Facebook campaigns' },
-  { name: 'Google Ads',      status: 'Connected',    icon: '🔍', desc: 'Lead capture from Google search ads' },
-  { name: 'LinkedIn',        status: 'Disconnected', icon: '💼', desc: 'Professional network lead generation' },
-  { name: 'WhatsApp Business',status:'Connected',    icon: '💬', desc: 'Automated WhatsApp communication' },
-  { name: 'Razorpay',        status: 'Connected',    icon: '💳', desc: 'Online payment gateway' },
-  { name: 'PayU',            status: 'Disconnected', icon: '💰', desc: 'Alternative payment gateway' },
-  { name: 'Ameyo (Telephony)',status:'Connected',    icon: '📞', desc: 'Cloud telephony & call recording' },
-  { name: 'Gmail',           status: 'Connected',    icon: '📧', desc: 'Email communication' },
+// Maps integration id → keys that indicate "connected" when any is non-empty
+const INTEG_STATUS_KEYS = {
+  meta:            ['meta_page_access_token'],
+  googleads:       ['googleads_developer_token', 'googleads_customer_id'],
+  linkedin:        ['linkedin_access_token'],
+  whatsapp:        ['whatsapp_access_token'],
+  razorpay:        ['razorpay_key_id'],
+  payu:            ['payu_merchant_key'],
+  ameyo:           ['ameyo_api_url'],
+  smtp:            ['smtp_host', 'smtp_user'],
+}
+
+const INTEG_META = [
+  { id: 'meta',      name: 'Facebook Ads',       Icon: Share2,       color: 'text-blue-600',   bg: 'bg-blue-50',   desc: 'Lead generation from Facebook campaigns' },
+  { id: 'googleads', name: 'Google Ads',          Icon: Search,       color: 'text-red-500',    bg: 'bg-red-50',    desc: 'Lead capture from Google search ads' },
+  { id: 'linkedin',  name: 'LinkedIn',            Icon: Linkedin,     color: 'text-sky-600',    bg: 'bg-sky-50',    desc: 'Professional network lead generation' },
+  { id: 'whatsapp',  name: 'WhatsApp Business',   Icon: MessageCircle,color: 'text-green-600',  bg: 'bg-green-50',  desc: 'Automated WhatsApp communication' },
+  { id: 'razorpay',  name: 'Razorpay',            Icon: CreditCard,   color: 'text-indigo-600', bg: 'bg-indigo-50', desc: 'Online payment gateway' },
+  { id: 'payu',      name: 'PayU',                Icon: Wallet,       color: 'text-teal-600',   bg: 'bg-teal-50',   desc: 'Alternative payment gateway' },
+  { id: 'ameyo',     name: 'Ameyo (Telephony)',   Icon: PhoneCall,    color: 'text-violet-600', bg: 'bg-violet-50', desc: 'Cloud telephony & call recording' },
+  { id: 'smtp',      name: 'Gmail / SMTP Email',  Icon: Mail,         color: 'text-purple-600', bg: 'bg-purple-50', desc: 'Email communication & alerts' },
 ]
 
 export default function Settings() {
   const { currentUser, updateUser, showToast } = useCcrm()
+  const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState('profile')
   const [saved, setSaved] = useState(false)
   const [showPass, setShowPass] = useState(false)
+
+  // Live integration connection statuses from backend
+  const [integSettings, setIntegSettings] = useState({})
+  useEffect(() => {
+    if (activeSection === 'integrations') {
+      fetch('/api/integration-settings')
+        .then(r => r.json())
+        .then(data => setIntegSettings(data))
+        .catch(() => {})
+    }
+  }, [activeSection])
 
   const initialName = currentUser?.name || 'User'
   const first = initialName.split(' ')[0] || ''
@@ -334,28 +361,49 @@ export default function Settings() {
 
           {activeSection === 'integrations' && (
             <div>
-              <h2 className="font-semibold text-gray-800 mb-4">Third-Party Integrations</h2>
-              <div className="grid grid-cols-1 gap-3">
-                {INTEGRATIONS.map(intg => (
-                  <div key={intg.name} className="flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{intg.icon}</span>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{intg.name}</p>
-                        <p className="text-xs text-gray-500">{intg.desc}</p>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-gray-800">Third-Party Integrations</h2>
+                <button
+                  onClick={() => navigate('/integrations')}
+                  className="flex items-center gap-1.5 text-xs bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  <ExternalLink size={12} /> Manage All
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {INTEG_META.map(({ id, name, Icon, color, bg, desc }) => {
+                  const keys = INTEG_STATUS_KEYS[id] || []
+                  const connected = keys.some(k => integSettings[k]?.trim())
+                  return (
+                    <div key={id} className="flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
+                          <Icon size={17} className={color} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{name}</p>
+                          <p className="text-xs text-gray-500">{desc}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                        <span className={`badge text-[11px] font-semibold ${connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {connected ? 'Connected' : 'Not configured'}
+                        </span>
+                        <button
+                          onClick={() => navigate('/integrations')}
+                          className="text-xs text-primary-600 border border-primary-200 rounded-lg px-3 py-1 hover:bg-primary-50 transition-colors"
+                        >
+                          {connected ? 'Edit' : 'Configure'}
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`badge ${intg.status === 'Connected' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                        {intg.status}
-                      </span>
-                      <button onClick={() => showToast(`${intg.name} webhook simulation triggered.`, 'info')} className={`text-xs px-3 py-1 rounded-lg border transition-colors focus:outline-none ${intg.status === 'Connected' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-primary-200 text-primary-600 hover:bg-primary-50'}`}>
-                        {intg.status === 'Connected' ? 'Disconnect' : 'Connect'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
+              <p className="text-xs text-gray-400 mt-3 text-center">
+                API keys and credentials are managed in the{' '}
+                <button onClick={() => navigate('/integrations')} className="text-primary-500 hover:underline">Integrations page</button>.
+              </p>
             </div>
           )}
         </div>
