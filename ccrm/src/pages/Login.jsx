@@ -54,7 +54,7 @@ function GoogleIcon({ greyed = false }) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Login() {
-  const { handleLogin, setCurrentUser, users, showToast } = useCcrm()
+  const { handleLogin, setCurrentUser, fetchAllData, users, showToast } = useCcrm()
 
   // Login state
   const [email, setEmail]                 = useState('')
@@ -158,31 +158,40 @@ export default function Login() {
       setGoogleLoading(true)
       setError('')
       try {
-        const res     = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        // Step 1: fetch Google profile
+        const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
           headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
         })
-        const profile = await res.json()
+        const profile   = await profileRes.json()
         const userEmail = profile.email || ''
         const domain    = getEmailDomain(userEmail)
+
         if (!ALLOWED_DOMAINS.includes(domain)) {
           setError(`Access restricted. Only ${ALLOWED_DOMAINS.join(' / ')} accounts are allowed. You signed in as ${userEmail}.`)
           setGoogleLoading(false); return
         }
-        const found = users.find(u => u.email.toLowerCase() === userEmail.toLowerCase())
-        if (found && found.status !== 'Active') {
-          setError('Your account is inactive. Contact IT support.')
+
+        // Step 2: upsert user in DB + get back a proper JWT + full user record
+        const authRes = await fetch('/api/auth/google', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            email:   userEmail,
+            name:    profile.name   || userEmail.split('@')[0],
+            picture: profile.picture || ''
+          })
+        })
+        const data = await authRes.json()
+        if (!authRes.ok) {
+          setError(data.error || 'Google sign-in failed.')
           setGoogleLoading(false); return
         }
-        const gUser = {
-          name:    profile.name || found?.name || userEmail.split('@')[0],
-          email:   userEmail,
-          picture: profile.picture || null,
-          role:    found?.role || 'Counselor',
-          team:    found?.team || 'Sales',
-          status:  'Active'
-        }
-        setCurrentUser(gUser)
-        showToast(`Welcome back, ${gUser.name}!`, 'success')
+
+        // Step 3: store token + set user (same as regular login)
+        localStorage.setItem('ccrm_token', data.token)
+        setCurrentUser(data.user)
+        fetchAllData()
+        showToast(`Welcome, ${data.user.name}!`, 'success')
       } catch {
         setError('Google sign-in failed. Please try again.')
       } finally {

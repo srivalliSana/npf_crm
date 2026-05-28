@@ -202,6 +202,66 @@ app.post('/api/auth/login', async (req, res) => {
   }
 })
 
+// --- GOOGLE OAUTH SIGN-IN / UPSERT ---
+app.post('/api/auth/google', async (req, res) => {
+  const { email, name, picture } = req.body
+  if (!email) return res.status(400).json({ error: 'Email required.' })
+  try {
+    const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
+
+    // Check if user already exists
+    const existing = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1);', [email])
+
+    let user
+    if (existing.rows.length > 0) {
+      // Update last_login and picture; preserve role/team/status
+      const u = existing.rows[0]
+      if (u.status !== 'Active') {
+        return res.status(403).json({ error: 'Account is inactive. Contact your administrator.' })
+      }
+      await pool.query(
+        'UPDATE users SET last_login = $1, picture = COALESCE(NULLIF($2,\'\'), picture) WHERE id = $3;',
+        [lastLoginStr, picture || '', u.id]
+      )
+      user = { ...u, last_login: lastLoginStr, picture: picture || u.picture }
+    } else {
+      // New Google user — create as Counselor (Admin can promote later)
+      const insert = await pool.query(`
+        INSERT INTO users (name, email, password, role, team, status, last_login, picture)
+        VALUES ($1, $2, $3, 'Counselor', 'Sales', 'Active', $4, $5)
+        RETURNING *;
+      `, [name || email.split('@')[0], email, `google_${Date.now()}`, lastLoginStr, picture || ''])
+      user = insert.rows[0]
+
+      // Add to round-robin assignment counter
+      await pool.query(
+        'INSERT INTO lead_assignment_counter (counselor_name, counselor_email) VALUES ($1, $2) ON CONFLICT (counselor_name) DO NOTHING;',
+        [user.name, user.email]
+      )
+      await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+        [`New user registered via Google: ${user.name} (${user.email}) — role: Counselor`, 'Just now'])
+    }
+
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '24h' })
+    res.json({
+      token,
+      user: {
+        id:        user.id,
+        name:      user.name,
+        email:     user.email,
+        role:      user.role,
+        team:      user.team,
+        picture:   user.picture,
+        status:    user.status,
+        lastLogin: lastLoginStr
+      }
+    })
+  } catch (err) {
+    console.error('[Google Auth]', err)
+    res.status(500).json({ error: 'Google sign-in failed.' })
+  }
+})
+
 // --- FORGOT PASSWORD (OTP-based reset) ---
 const otpStore = {} // { email: { otp, expires } } — in-memory for simplicity
 
