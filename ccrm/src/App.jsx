@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { useCcrm } from './context/CcrmContext'
 import Login from './pages/Login'
 import Layout from './components/Layout'
@@ -20,77 +20,79 @@ import Settings from './pages/Settings'
 import Integrations from './pages/Integrations'
 import Leaderboard from './pages/Leaderboard'
 import EmailCampaigns from './pages/EmailCampaigns'
-// Public pages (no auth required)
 import PublicInquiry from './pages/PublicInquiry'
 import StudentPortal from './pages/StudentPortal'
 
-// ── Role-gated route ──────────────────────────────────────────────────────────
-function RequireRole({ user, roles, children }) {
-  if (!user) return <Navigate to="/login" replace />
-  if (roles && !roles.includes(user.role)) return <Navigate to="/leads" replace />
-  return children
+// ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
+function AuthGuard() {
+  const { currentUser, handleLogout } = useCcrm()
+  if (!currentUser) return <Navigate to="/login" replace />
+  return <Layout onLogout={handleLogout} user={currentUser} />
+}
+
+// ── Role guard — used inside AuthGuard for admin-only routes ─────────────────
+function RoleGuard({ roles }) {
+  const { currentUser } = useCcrm()
+  if (!currentUser) return <Navigate to="/login" replace />
+  if (roles && !roles.includes(currentUser.role)) return <Navigate to="/leads" replace />
+  return <Outlet />
 }
 
 export default function App() {
-  const { currentUser, handleLogout } = useCcrm()
-  const isAuthenticated = !!currentUser
+  const { currentUser } = useCcrm()
 
   return (
     <BrowserRouter>
       <Routes>
+        {/* All routes nested under the root path */}
+        <Route path="/">
 
-        {/* ── Public routes — always visible, no auth ── */}
-        <Route path="/"               element={<PublicInquiry />} />
-        <Route path="/apply"          element={<PublicInquiry />} />
-        <Route path="/student-portal" element={<StudentPortal />} />
-        <Route path="/student"        element={<StudentPortal />} />
+          {/* ── index route: ONLY matches exact "/" → Public landing page ──
+              Using <Route index> is the React Router v6 way to match the root
+              exclusively without interfering with any other nested routes.    */}
+          <Route index element={<PublicInquiry />} />
 
-        {/* Login — redirect to app if already authenticated */}
-        <Route
-          path="/login"
-          element={isAuthenticated ? <Navigate to="/leads" replace /> : <Login />}
-        />
+          {/* ── Other public pages (no auth) ── */}
+          <Route path="apply"          element={<PublicInquiry />} />
+          <Route path="student-portal" element={<StudentPortal />} />
+          <Route path="student"        element={<StudentPortal />} />
 
-        {/* ── Authenticated app — pathless Layout wrapper ──
-            Children paths are relative to the root since parent has no path.
-            Unauthenticated users redirected to /login.                       */}
-        <Route
-          element={
-            isAuthenticated
-              ? <Layout onLogout={handleLogout} user={currentUser} />
-              : <Navigate to="/login" replace />
-          }
-        >
-          <Route path="leads"              element={<LeadManager />} />
-          <Route path="leads/:id"          element={<ApplicationDetails />} />
-          <Route path="applications"       element={<ApplicationManager />} />
-          <Route path="applications/:id"   element={<ApplicationDetails />} />
-          <Route path="dashboard"          element={<Dashboard />} />
-          <Route path="reports"            element={<Reports />} />
-          <Route path="productivity"       element={<ProductivityReport />} />
-          <Route path="campaigns"          element={<Campaigns />} />
-          <Route path="tasks"              element={<Tasks />} />
-          <Route path="payments"           element={<Payments />} />
-          <Route path="queries"            element={<QueryManagement />} />
-          <Route path="documents"          element={<Documents />} />
-          <Route path="calendar"           element={<CalendarPro />} />
-          <Route path="settings"           element={<Settings />} />
-          <Route path="integrations"       element={<Integrations />} />
-          <Route path="leaderboard"        element={<Leaderboard />} />
-          <Route path="email-campaigns"    element={<EmailCampaigns />} />
+          {/* ── Login — redirect inside if already authenticated ── */}
           <Route
-            path="users"
-            element={
-              <RequireRole user={currentUser} roles={['Admin']}>
-                <UserManagement currentUser={currentUser} />
-              </RequireRole>
-            }
+            path="login"
+            element={currentUser ? <Navigate to="/leads" replace /> : <Login />}
           />
+
+          {/* ── Protected app routes — AuthGuard checks auth, renders Layout ── */}
+          <Route element={<AuthGuard />}>
+            <Route path="leads"            element={<LeadManager />} />
+            <Route path="leads/:id"        element={<ApplicationDetails />} />
+            <Route path="applications"     element={<ApplicationManager />} />
+            <Route path="applications/:id" element={<ApplicationDetails />} />
+            <Route path="dashboard"        element={<Dashboard />} />
+            <Route path="reports"          element={<Reports />} />
+            <Route path="productivity"     element={<ProductivityReport />} />
+            <Route path="campaigns"        element={<Campaigns />} />
+            <Route path="tasks"            element={<Tasks />} />
+            <Route path="payments"         element={<Payments />} />
+            <Route path="queries"          element={<QueryManagement />} />
+            <Route path="documents"        element={<Documents />} />
+            <Route path="calendar"         element={<CalendarPro />} />
+            <Route path="settings"         element={<Settings />} />
+            <Route path="integrations"     element={<Integrations />} />
+            <Route path="leaderboard"      element={<Leaderboard />} />
+            <Route path="email-campaigns"  element={<EmailCampaigns />} />
+
+            {/* Admin-only */}
+            <Route element={<RoleGuard roles={['Admin']} />}>
+              <Route path="users" element={<UserManagement currentUser={currentUser} />} />
+            </Route>
+          </Route>
+
+          {/* ── Catch-all → back to landing page ── */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+
         </Route>
-
-        {/* Fallback — go to landing page */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-
       </Routes>
     </BrowserRouter>
   )
