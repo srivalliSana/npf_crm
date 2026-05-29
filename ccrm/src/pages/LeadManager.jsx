@@ -138,7 +138,7 @@ export default function LeadManager() {
   }
   const filtered = visibleLeads.filter(l => {
     const s = search.toLowerCase()
-    return (!search || l.name.toLowerCase().includes(s) || l.email.toLowerCase().includes(s) || l.mobile.includes(s) || (l.city || '').toLowerCase().includes(s))
+    return (!search || l.name.toLowerCase().includes(s) || (l.email || '').toLowerCase().includes(s) || l.mobile.includes(s) || (l.city || '').toLowerCase().includes(s))
       && matchQuickView(l) && matchSelectFilters(l)
   })
   const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1
@@ -309,13 +309,14 @@ export default function LeadManager() {
   }
 
   const handleDownloadTemplate = () => {
-    const headers = ['Name', 'Email', 'Mobile', 'State', 'City', 'Source']
+    // Course is OPTIONAL — counsellor can fill it in CRM after import
+    const headers = ['Name', 'Mobile', 'Source', 'Email (Optional)', 'State (Optional)', 'City (Optional)', 'Course (Optional)']
     const samples = [
-      ['Rahul Sharma',  'rahul.sharma@gmail.com',  '9876543210', 'Odisha',        'Bhubaneswar',  'AI'],
-      ['Priya Patel',   'priya.patel@yahoo.com',   '9123456789', 'Andhra Pradesh','Vizianagaram', 'SM'],
-      ['Amit Kumar',    'amit.kumar@outlook.com',  '8765432109', 'Jharkhand',     'Ranchi',       'AI'],
-      ['Sneha Rao',     '',                        '9012345678', 'Telangana',     'Hyderabad',    'SM'],
-      ['Vikram Singh',  'vikram@gmail.com',        '7890123456', 'Bihar',         'Patna',        'AI'],
+      ['Rahul Sharma',  '9876543210', 'AI', 'rahul@gmail.com', 'Odisha',        'Bhubaneswar',  ''],
+      ['Priya Patel',   '9123456789', 'SM', 'priya@yahoo.com', 'Andhra Pradesh','Vizianagaram', 'MBA'],
+      ['Amit Kumar',    '8765432109', 'AI', '',                'Jharkhand',     'Ranchi',       ''],
+      ['Sneha Rao',     '9012345678', 'SM', '',                '',              '',             ''],
+      ['Vikram Singh',  '7890123456', 'AI', 'vikram@gmail.com','Bihar',         'Patna',        'B.Tech CSE'],
     ]
     const csv = "data:text/csv;charset=utf-8,"
       + [headers.join(','), ...samples.map(r => r.map(v => `"${v}"`).join(','))].join('\n')
@@ -323,7 +324,7 @@ export default function LeadManager() {
     a.href = encodeURI(csv)
     a.download = 'CCRM_Lead_Upload_Template.csv'
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    showToast('Template downloaded — counselors auto-assigned on upload!', 'success')
+    showToast('Template downloaded — only Name, Mobile, Source are required', 'success')
   }
 
   const closeBulkModal = () => {
@@ -443,12 +444,27 @@ export default function LeadManager() {
                 <th className="table-th w-10"><input type="checkbox" checked={selectedRows.length === pageData.length && pageData.length > 0} onChange={toggleAll} className="w-4 h-4 rounded border-gray-300 text-primary-500" /></th>
                 <th className="table-th">Lead ID</th>
                 <th className="table-th">Name</th>
-                <th className="table-th">Email</th>
+                <th className="table-th">Date Added</th>
                 <th className="table-th">Mobile</th>
                 <th className="table-th">Course</th>
                 <th className="table-th">Source</th>
                 <th className="table-th">Stage</th>
-                <th className="table-th">Score</th>
+                <th className="table-th">
+                  <span
+                    className="inline-flex items-center gap-1 cursor-help"
+                    title={
+                      'AI Lead Score (0-100) — predicts conversion likelihood.\n\n' +
+                      '• Source quality (0-30): Referral / Walk-in / Education Fair score highest\n' +
+                      '• Course tier (0-25): MBA / B.Tech CSE / M.Tech score highest\n' +
+                      '• Profile completeness (0-25): Email +10, State +8, City +7\n' +
+                      '• Stage engagement (0-20): Interested / Process for Payment\n\n' +
+                      'Buckets:\n' +
+                      '🔥 75+ Hot · 🌟 50-74 Warm · 🌱 25-49 Nurture · ❄️ <25 Cold'
+                    }
+                  >
+                    Score <HelpCircle size={10} className="text-gray-400" />
+                  </span>
+                </th>
                 <th className="table-th">Owner</th>
                 <th className="table-th w-20">Actions</th>
               </tr>
@@ -472,7 +488,11 @@ export default function LeadManager() {
                     <td className="table-td">
                       <span className="text-primary-500 hover:text-primary-700 font-medium hover:underline">{lead.name}</span>
                     </td>
-                    <td className="table-td text-gray-600 text-xs">{lead.email}</td>
+                    <td className="table-td text-gray-600 text-xs whitespace-nowrap" title={lead.email ? `Email: ${lead.email}` : 'No email on file'}>
+                      {lead.regDate
+                        ? lead.regDate.split(',')[0]   // "DD/MM/YYYY, HH:MM" → "DD/MM/YYYY"
+                        : '—'}
+                    </td>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5">
                         <span className="text-gray-700 text-sm">{lead.mobile}</span>
@@ -888,7 +908,8 @@ export default function LeadManager() {
                         <Download size={14} /> Download CSV Template
                       </p>
                       <p className="text-xs text-emerald-600 mt-0.5">
-                        6 columns: Name, Email, Mobile, State, City, Source (AI or SM). Counselor adds course later. Admin upload = round-robin; Counselor upload = self-assigned.
+                        <strong>Required:</strong> Name, Mobile, Source (AI or SM) ·
+                        <strong> Optional:</strong> Email, State, City, Course (counsellor can fill later)
                       </p>
                     </div>
                     <button
