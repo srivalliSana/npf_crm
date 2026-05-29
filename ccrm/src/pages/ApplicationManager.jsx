@@ -308,12 +308,15 @@ export default function ApplicationManager() {
                 className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-primary-300 rounded-lg bg-primary-50 text-primary-700 font-medium focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer"
               >
                 {EXAM_OPTIONS.map(o => {
-                  const cnt = applications.filter(a =>
-                    o.courses.some(c =>
-                      a.course?.toLowerCase().includes(c.toLowerCase()) ||
-                      c.toLowerCase().includes(a.course?.toLowerCase() || '')
-                    )
-                  ).length
+                  // "All Programs" → total count; other options → matching course count
+                  const cnt = o.year === 'all' || o.courses.length === 0
+                    ? applications.length
+                    : applications.filter(a =>
+                        o.courses.some(c =>
+                          a.course?.toLowerCase().includes(c.toLowerCase()) ||
+                          c.toLowerCase().includes(a.course?.toLowerCase() || '')
+                        )
+                      ).length
                   return <option key={o.label} value={o.label}>{o.label} ({cnt})</option>
                 })}
               </select>
