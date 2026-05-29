@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
-import { Mail, Plus, Send, Trash2, Edit2, Users, BarChart2, Eye, EyeOff, Save, X, ChevronDown } from 'lucide-react'
+import { Mail, Plus, Send, Trash2, Edit2, Users, BarChart2, Eye, EyeOff, Save, X, ChevronDown, Power, RotateCcw } from 'lucide-react'
 
 const SEGMENTS = [
   'All Leads',
@@ -131,8 +131,10 @@ export default function EmailCampaigns() {
 
   const handleSend = async (id) => {
     const camp = emailCampaigns.find(c => c.id === id)
+    if (camp?.status === 'Disabled') return showToast('Re-enable the campaign first.', 'warning')
     const count = recipientCount(camp?.segment || 'All Leads')
-    if (!confirm(`Send "${camp?.name}" to ${count} leads in segment "${camp?.segment}"?\n\nThis action cannot be undone.`)) return
+    const action = camp?.status === 'Sent' ? 'RESEND' : 'Send'
+    if (!confirm(`${action} "${camp?.name}" to ${count} leads in segment "${camp?.segment}"?\n\n${camp?.status === 'Sent' ? 'This campaign has been sent before — sending again will email all recipients in this segment.' : ''}`)) return
     setSendingId(id)
     const result = await sendEmailCampaign(id)
     setSendingId(null)
@@ -152,6 +154,27 @@ export default function EmailCampaigns() {
     setForm({ name: camp.name, subject: camp.subject || '', template: camp.template || '', segment: camp.segment || 'All Leads' })
     setEditId(camp.id)
     setShowForm(true)
+  }
+
+  // Toggle Disabled / Draft so a campaign can be re-enabled and resent
+  const toggleEnabled = async (camp) => {
+    const newStatus = camp.status === 'Disabled' ? 'Draft' : 'Disabled'
+    try {
+      const res = await fetch(`/api/email-campaigns/${camp.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: camp.name, subject: camp.subject, template: camp.template,
+          segment: camp.segment, status: newStatus
+        })
+      })
+      if (res.ok) {
+        setEmailCampaigns(prev => prev.map(c => c.id === camp.id ? { ...c, status: newStatus } : c))
+        showToast(`Campaign ${newStatus === 'Disabled' ? 'disabled' : 're-enabled'}.`, 'info')
+      }
+    } catch {
+      showToast('Failed to toggle status.', 'error')
+    }
   }
 
   const recipientCount = (segment) => {
@@ -343,7 +366,11 @@ export default function EmailCampaigns() {
                     <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{camp.segment}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${camp.status === 'Sent' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      camp.status === 'Sent'     ? 'bg-green-100 text-green-700'  :
+                      camp.status === 'Disabled' ? 'bg-gray-200 text-gray-500'   :
+                                                   'bg-yellow-100 text-yellow-700'
+                    }`}>
                       {camp.status}
                     </span>
                   </td>
@@ -361,26 +388,32 @@ export default function EmailCampaigns() {
                       </button>
                       <button
                         onClick={() => openEdit(camp)}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
-                        disabled={camp.status === 'Sent'}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 disabled:opacity-30"
+                        disabled={camp.status === 'Disabled'}
                         title="Edit"
                       >
                         <Edit2 size={15} />
                       </button>
+                      {/* Send / Resend — works any number of times, only blocked when Disabled */}
                       <button
                         onClick={() => handleSend(camp.id)}
-                        disabled={camp.status === 'Sent' || sendingId === camp.id}
+                        disabled={sendingId === camp.id || camp.status === 'Disabled'}
                         className="p-1.5 text-slate-400 hover:text-green-600 rounded-lg hover:bg-green-50 disabled:opacity-30"
-                        title="Send Campaign"
+                        title={camp.status === 'Sent' ? 'Resend campaign' : 'Send campaign'}
                       >
-                        {sendingId === camp.id ? <span className="animate-spin inline-block w-3 h-3 border border-slate-400 border-t-green-500 rounded-full" /> : <Send size={15} />}
+                        {sendingId === camp.id
+                          ? <span className="animate-spin inline-block w-3 h-3 border border-slate-400 border-t-green-500 rounded-full" />
+                          : camp.status === 'Sent'
+                            ? <RotateCcw size={15} />
+                            : <Send size={15} />}
                       </button>
+                      {/* Disable / Enable — replaces Delete (campaigns are never destroyed) */}
                       <button
-                        onClick={() => deleteEmailCampaign(camp.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50"
-                        title="Delete"
+                        onClick={() => toggleEnabled(camp)}
+                        className={`p-1.5 rounded-lg ${camp.status === 'Disabled' ? 'text-green-500 hover:bg-green-50' : 'text-slate-400 hover:text-orange-500 hover:bg-orange-50'}`}
+                        title={camp.status === 'Disabled' ? 'Re-enable campaign' : 'Disable campaign'}
                       >
-                        <Trash2 size={15} />
+                        <Power size={15} />
                       </button>
                     </div>
                   </td>
