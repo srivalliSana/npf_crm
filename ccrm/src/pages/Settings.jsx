@@ -6,7 +6,7 @@ import {
   Database, Link, Mail, MessageSquare, Phone, Save, ChevronRight,
   User, Building, Key, Eye, EyeOff, CheckCircle, ExternalLink,
   Share2, Search, Linkedin, MessageCircle, CreditCard, Wallet,
-  PhoneCall, BarChart2
+  PhoneCall, BarChart2, AlertTriangle, Trash2
 } from 'lucide-react'
 
 const SECTIONS = [
@@ -15,6 +15,7 @@ const SECTIONS = [
   { id: 'notifications', label: 'Notifications',          icon: Bell       },
   { id: 'security',      label: 'Security & Access',      icon: Shield     },
   { id: 'integrations',  label: 'Integrations',           icon: Link       },
+  { id: 'production',    label: 'Production Reset',       icon: AlertTriangle, adminOnly: true },
 ]
 
 // Maps integration id → keys that indicate "connected" when any is non-empty
@@ -49,6 +50,41 @@ export default function Settings() {
 
   // Live integration connection statuses from backend
   const [integSettings, setIntegSettings] = useState({})
+
+  // Production Reset state
+  const [prodPhrase, setProdPhrase]     = useState('')
+  const [prodLoading, setProdLoading]   = useState(false)
+  const [prodResult, setProdResult]     = useState(null)
+  const [prodChecks, setProdChecks]     = useState({ data: false, settings: false, irreversible: false })
+
+  const allChecked = prodChecks.data && prodChecks.settings && prodChecks.irreversible
+  const phraseOk   = prodPhrase === 'RESET FOR PRODUCTION'
+
+  const handleProductionReset = async () => {
+    if (!allChecked || !phraseOk) return
+    setProdLoading(true)
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/admin/reset-production', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ confirmPhrase: prodPhrase })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setProdResult(data)
+        showToast('Production reset complete. All operational data wiped.', 'success')
+      } else {
+        showToast(data.error || 'Reset failed.', 'error')
+      }
+    } catch {
+      showToast('Network error. Try again or use the SQL script.', 'error')
+    }
+    setProdLoading(false)
+  }
   useEffect(() => {
     if (activeSection === 'integrations') {
       fetch('/api/integration-settings')
@@ -151,9 +187,13 @@ export default function Settings() {
       <div className="flex gap-4 flex-col lg:flex-row">
         {/* Sidebar nav */}
         <div className="w-full lg:w-56 bg-white rounded-xl border border-gray-200 shadow-sm p-2 h-fit">
-          {SECTIONS.map(s => (
+          {SECTIONS.filter(s => !s.adminOnly || currentUser?.role === 'Admin').map(s => (
             <button key={s.id} onClick={() => setActiveSection(s.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors focus:outline-none ${activeSection === s.id ? 'bg-primary-50 text-primary-600 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}>
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors focus:outline-none ${
+                activeSection === s.id
+                  ? (s.id === 'production' ? 'bg-red-50 text-red-700 font-bold' : 'bg-primary-50 text-primary-600 font-bold')
+                  : (s.id === 'production' ? 'text-red-500 hover:bg-red-50' : 'text-gray-600 hover:bg-gray-50')
+              }`}>
               <s.icon size={16} />
               {s.label}
               {activeSection === s.id && <ChevronRight size={14} className="ml-auto" />}
@@ -404,6 +444,126 @@ export default function Settings() {
                 API keys and credentials are managed in the{' '}
                 <button onClick={() => navigate('/integrations')} className="text-primary-500 hover:underline">Integrations page</button>.
               </p>
+            </div>
+          )}
+
+          {/* ── PRODUCTION RESET (Admin only) ──────────────────────────────── */}
+          {activeSection === 'production' && currentUser?.role === 'Admin' && (
+            <div className="bg-white border-2 border-red-200 rounded-2xl shadow-sm p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
+                  <AlertTriangle size={24} className="text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-red-700">Reset for Production</h2>
+                  <p className="text-xs text-gray-500">Wipe all test data and start with a clean database. Users and integrations are preserved.</p>
+                </div>
+              </div>
+
+              {/* What will be wiped vs kept */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+                <div className="border border-red-200 bg-red-50/50 rounded-xl p-3">
+                  <p className="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    <Trash2 size={12} /> Will be DELETED
+                  </p>
+                  <ul className="text-xs text-red-600 space-y-0.5 leading-relaxed">
+                    <li>• All Leads</li>
+                    <li>• All Applications + Payments</li>
+                    <li>• Email Campaigns + Logs</li>
+                    <li>• WhatsApp / SMS / Call Logs</li>
+                    <li>• Documents · Queries · Tasks</li>
+                    <li>• Drip Sequences · Notifications</li>
+                    <li>• Application ID counter (resets to 1)</li>
+                  </ul>
+                </div>
+                <div className="border border-green-200 bg-green-50/50 rounded-xl p-3">
+                  <p className="text-xs font-bold text-green-700 mb-2 flex items-center gap-1">
+                    <CheckCircle size={12} /> Will be KEPT
+                  </p>
+                  <ul className="text-xs text-green-600 space-y-0.5 leading-relaxed">
+                    <li>• <strong>All Users</strong> (admins, counsellors)</li>
+                    <li>• Integration credentials (SMTP, SMS, WhatsApp, Razorpay…)</li>
+                    <li>• Admission Targets (KPI config)</li>
+                    <li>• Round-robin counsellor list (counts reset to 0)</li>
+                  </ul>
+                </div>
+              </div>
+
+              {!prodResult ? (
+                <>
+                  {/* 3 checkboxes */}
+                  <div className="space-y-2 mb-4">
+                    {[
+                      { k: 'data',         label: 'I understand all leads, applications and payment history will be permanently deleted' },
+                      { k: 'settings',     label: 'I confirm users and integration settings will remain intact' },
+                      { k: 'irreversible', label: 'I understand this action is irreversible — there is no undo' },
+                    ].map(c => (
+                      <label key={c.k} className="flex items-start gap-2 text-xs text-gray-700 cursor-pointer">
+                        <input type="checkbox" checked={prodChecks[c.k]}
+                          onChange={e => setProdChecks(p => ({ ...p, [c.k]: e.target.checked }))}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-red-500 focus:ring-red-300" />
+                        <span>{c.label}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {/* Confirmation phrase */}
+                  <div className="mb-4">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                      Type <code className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-mono">RESET FOR PRODUCTION</code> to confirm
+                    </label>
+                    <input
+                      type="text"
+                      value={prodPhrase}
+                      onChange={e => setProdPhrase(e.target.value)}
+                      placeholder="Type the exact phrase"
+                      className={`w-full px-3 py-2 text-sm font-mono rounded-lg border-2 focus:outline-none ${phraseOk ? 'border-green-400 bg-green-50 text-green-700' : 'border-gray-300 focus:border-red-400'}`}
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleProductionReset}
+                    disabled={!allChecked || !phraseOk || prodLoading}
+                    className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
+                  >
+                    {prodLoading
+                      ? <><span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> Wiping data...</>
+                      : <><Trash2 size={16} /> Reset Now — Delete All Operational Data</>}
+                  </button>
+                </>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <p className="text-sm font-bold text-green-700 mb-2 flex items-center gap-1.5">
+                    <CheckCircle size={16} /> Reset Complete!
+                  </p>
+                  {prodResult.wiped && (
+                    <div className="bg-white border border-green-100 rounded-lg p-3 text-xs mb-3">
+                      <p className="font-semibold text-gray-600 mb-1">Records deleted:</p>
+                      <div className="grid grid-cols-3 gap-x-3 gap-y-1 text-gray-600">
+                        {Object.entries(prodResult.wiped).map(([t, n]) => (
+                          <div key={t}>{t}: <strong>{n}</strong></div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => { setProdResult(null); setProdPhrase(''); setProdChecks({ data: false, settings: false, irreversible: false }) }}
+                    className="text-xs text-primary-600 hover:underline"
+                  >
+                    Reset form
+                  </button>
+                </div>
+              )}
+
+              {/* Alt method */}
+              <details className="mt-5 border-t border-gray-100 pt-4">
+                <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
+                  Alternative: run from the server terminal
+                </summary>
+                <div className="mt-2 bg-gray-900 text-green-300 text-xs font-mono p-3 rounded-lg overflow-x-auto">
+                  sudo -u postgres psql ccrm_db -f /var/www/ccrm/server/reset_for_production.sql
+                </div>
+              </details>
             </div>
           )}
         </div>
