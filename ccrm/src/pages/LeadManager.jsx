@@ -505,7 +505,11 @@ export default function LeadManager() {
                         </button>
                       </div>
                     </td>
-                    <td className="table-td text-gray-600 text-xs">{lead.course || '—'}</td>
+                    <td className="table-td text-xs">
+                      {lead.course
+                        ? <span className="text-gray-600">{lead.course}</span>
+                        : <span className="text-blue-400 italic hover:text-blue-600 hover:underline" title="Click row to open lead and add course">+ Add course</span>}
+                    </td>
                     <td className="table-td text-gray-500 text-xs">{lead.source || '—'}</td>
                     <td className="table-td">
                       <div className="flex flex-col gap-0.5">
