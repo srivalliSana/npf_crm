@@ -567,7 +567,7 @@ app.get('/api/applications/next-app-id', async (req, res) => {
 
 app.get('/api/applications', async (req, res) => {
   try {
-    const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date FROM applications ORDER BY id DESC;')
+    const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept" FROM applications ORDER BY id DESC;')
     res.json(appsRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch applications.' })
@@ -741,6 +741,229 @@ app.post('/api/ameyo/click2call', async (req, res) => {
   }
 })
 
+// ── ADMISSION DETAILS — save full KYC + academic info before payment ──────
+app.put('/api/applications/:id/admission-details', async (req, res) => {
+  const { id } = req.params
+  const details = req.body || {}
+  try {
+    const r = await pool.query(`
+      UPDATE applications
+      SET admission_details = $1::jsonb,
+          school_dept       = COALESCE($2, school_dept)
+      WHERE id = $3
+      RETURNING id, app_no AS "appNo", admission_details AS "admissionDetails", school_dept AS "schoolDept";
+    `, [JSON.stringify(details), details.schoolDept ?? null, id])
+    if (!r.rows[0]) return res.status(404).json({ error: 'Application not found.' })
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('[Save admission details]', err.message)
+    res.status(500).json({ error: 'Failed to save admission details.' })
+  }
+})
+
+// ── PROVISIONAL ADMISSION LETTER — generate PDF + email ───────────────────
+async function generateAdmissionLetterPDF(app, details) {
+  let PDFDocument
+  try { PDFDocument = (await import('pdfkit')).default }
+  catch { throw new Error('pdfkit not installed. Run: cd /var/www/ccrm/server && npm install pdfkit') }
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const date          = new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })
+    const studentName   = details.studentName || app.name || 'Student'
+    const studentEmail  = details.studentEmail || app.email || ''
+    const parentName    = details.parentName || ''
+    const refId         = app.app_no || app.appNo
+    const program       = details.joiningCourse || app.course || 'Bachelor Program'
+    const schoolDept    = app.school_dept || details.schoolDept || 'School of Studies'
+    const campus        = app.campus || 'Bhubaneswar'
+    const counsellor    = app.owner || 'Admissions Team'
+    const seatBookAmt   = details.seatBookingAmount || '10000'
+
+    // ── PAGE 1: Provisional Admission Letter ────────────────────────────────
+    doc.rect(40, 40, 515, 760).strokeColor('#bbb').stroke()
+
+    doc.fillColor('#000').fontSize(16).font('Helvetica-Bold').text('Centurion University', 0, 80, { align: 'center' })
+    doc.fontSize(9).font('Helvetica-Oblique').text('Shaping Lives, Empowering Communities', 0, 100, { align: 'center' })
+
+    doc.moveDown(2)
+    doc.fontSize(14).font('Helvetica-Bold').text('Provisional Admission Letter', 0, 150, { align: 'center', underline: true })
+
+    doc.moveDown(2).fontSize(10).font('Helvetica')
+    doc.text(`Date: ${date}`, 60, 200)
+    doc.text(`Student Name: ${studentName}`, 60)
+    doc.text(`Email: ${studentEmail}`, 60)
+    doc.text(`Parent Name: ${parentName}`, 60)
+    doc.text(`Reference ID: ${refId}`, 60)
+
+    doc.moveDown(1.5).font('Helvetica-Bold').text(
+      `Sub: Provisional Admission (${refId}) to ${schoolDept}, ${program}, ${campus}`,
+      { align: 'left' }
+    )
+
+    doc.moveDown(1.5).font('Helvetica').text(`Dear ${studentName},`)
+    doc.moveDown(0.5).text('Congratulations.')
+
+    doc.moveDown(0.8).text(
+      `I am pleased to offer you Provisional admission in "${program}" for the 2026-2027 session at "${schoolDept}" under ${campus} Campus.`,
+      { align: 'justify' }
+    )
+
+    doc.moveDown(0.5).text(
+      'Your admission will remain provisional until the prescribed fees and associated conditions are fulfilled. Please refer to Appendix 1 attached with this letter.',
+      { align: 'justify' }
+    )
+
+    doc.moveDown(0.5).text('I wish you success and invite you to explore your campus and its many facilities.', { align: 'justify' })
+
+    doc.moveDown(0.5).text(
+      `Please feel free to contact ${counsellor}${app.owner_mobile ? `, ${app.owner_mobile}` : ''}${app.owner_email ? `, ${app.owner_email}` : ''} if you have any queries.`,
+      { align: 'justify' }
+    )
+
+    // Signature block
+    doc.moveDown(3).text('Yours sincerely,')
+    doc.font('Helvetica-Bold').text('Sukanta Parida')
+    doc.font('Helvetica').text('Director - Admissions & Marketing')
+    doc.text('Centurion University of Technology and Management')
+    doc.text('Odisha and Andhra Pradesh')
+    doc.text('Email: sukanta.parida@cutm.ac.in')
+
+    // ── PAGE 2: Appendix I — Fee Structure ──────────────────────────────────
+    doc.addPage()
+    doc.rect(40, 40, 515, 760).strokeColor('#bbb').stroke()
+
+    doc.fillColor('#000').fontSize(14).font('Helvetica-Bold').text('Appendix I', 0, 70, { align: 'center' })
+    doc.fontSize(10).font('Helvetica').text('(Fee Structure and Related Details)', 0, 90, { align: 'center' })
+
+    doc.moveDown(2).fontSize(10).font('Helvetica-Bold')
+    doc.text(`Student Name: `, 60, 130, { continued: true }).font('Helvetica').text(studentName)
+    doc.font('Helvetica-Bold').text(`Email: `, 60, undefined, { continued: true }).font('Helvetica').text(studentEmail)
+    doc.font('Helvetica-Bold').text(`Parent Name: `, 60, undefined, { continued: true }).font('Helvetica').text(parentName)
+    doc.font('Helvetica-Bold').text(`Reference ID: `, 60, undefined, { continued: true }).font('Helvetica').text(refId)
+    doc.font('Helvetica-Bold').text(`Program: `, 60, undefined, { continued: true }).font('Helvetica').text(program)
+    doc.font('Helvetica-Bold').text(`Campus: `, 60, undefined, { continued: true }).font('Helvetica').text(schoolDept)
+
+    // Marks table
+    doc.moveDown(1.5).fontSize(9).font('Helvetica-Bold')
+    const tx = 60
+    let ty = doc.y + 10
+    doc.rect(tx, ty, 480, 24).stroke()
+    doc.text('STUDENT NAME', tx + 5, ty + 8, { width: 120 })
+    doc.text('10TH %', tx + 130, ty + 8, { width: 60 })
+    doc.text('12TH %', tx + 200, ty + 8, { width: 60 })
+    doc.text('SELECTION', tx + 270, ty + 8, { width: 100 })
+    doc.text('ENTRANCE EXAM', tx + 380, ty + 8, { width: 100 })
+    ty += 24
+    doc.rect(tx, ty, 480, 22).stroke()
+    doc.font('Helvetica').text(studentName, tx + 5, ty + 7, { width: 120 })
+    doc.text(details.tenthPercentage || '—', tx + 130, ty + 7, { width: 60 })
+    doc.text(details.twelfthPercentage || '—', tx + 200, ty + 7, { width: 60 })
+    doc.text('Merit', tx + 270, ty + 7, { width: 100 })
+    doc.text('CUEE / Direct', tx + 380, ty + 7, { width: 100 })
+
+    // Fee table
+    ty += 50
+    doc.font('Helvetica-Bold').fontSize(9).text('Fee Structure (₹)', 60, ty)
+    ty += 20
+    const cols = [60, 170, 240, 310, 380, 450]
+    const headers = ['FEES DETAILS', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']
+    headers.forEach((h, i) => doc.rect(cols[i], ty, (cols[i+1] || 540) - cols[i], 22).stroke().text(h, cols[i] + 4, ty + 7))
+    ty += 22
+    const rows = [
+      ['TUITION',  '1,20,000', '1,20,000', '1,20,000', '1,20,000', 'NIL'],
+      ['OTHER FEE','25,000',   'NIL',      'NIL',      'NIL',      'NIL'],
+      ['EXAM FEE', 'NIL',      '7,000',    '7,000',    '7,000',    'NIL'],
+    ]
+    doc.font('Helvetica').fontSize(9)
+    rows.forEach(r => {
+      r.forEach((cell, i) => doc.rect(cols[i], ty, (cols[i+1] || 540) - cols[i], 22).stroke().text(cell, cols[i] + 4, ty + 7))
+      ty += 22
+    })
+
+    ty += 15
+    doc.fontSize(8).font('Helvetica-Oblique').text(
+      '*Other Fee includes Medical Insurance ₹2,500, Exam Fee ₹7,000, Counselling Fee ₹3,000, Registration Fee ₹2,500, Sports Fee ₹500, Bag pack with bottle ₹2,000 & Caution Money ₹7,500 (refundable on course completion).',
+      60, ty, { width: 480, align: 'left' }
+    )
+
+    ty = doc.y + 15
+    doc.font('Helvetica-Bold').fontSize(10).text(`Provisional Seat Booking Amount Received - ₹${seatBookAmt}`, 60, ty)
+    if (details.utrNumber) {
+      doc.font('Helvetica').fontSize(9).text(`UTR / Reference No: ${details.utrNumber}`, 60)
+    }
+
+    ty = doc.y + 15
+    doc.font('Helvetica-Bold').fontSize(10).text('Documents to submit at reporting:', 60, ty)
+    doc.font('Helvetica').fontSize(9).list([
+      '10th, 12th Certificate & Mark sheet',
+      'Transfer Certificate',
+      'Caste Certificate',
+      'Study and Conduct Certificate',
+      'Migration Certificate',
+      'Aadhar Card',
+      'Passport size photos (8)'
+    ], 60, undefined, { bulletRadius: 2 })
+
+    doc.moveDown(0.8).font('Helvetica-Oblique').fontSize(8).text('NOTE: Please bring 4 copies of the above-mentioned certificates.', 60)
+
+    doc.end()
+  })
+}
+
+app.post('/api/applications/:id/send-letter', async (req, res) => {
+  const { id } = req.params
+  try {
+    const r = await pool.query(`
+      SELECT a.id, a.name, a.app_no, a.email, a.mobile, a.campus, a.course, a.owner, a.admission_details, a.school_dept,
+             u.email AS owner_email, u.mobile AS owner_mobile
+      FROM applications a
+      LEFT JOIN users u ON u.name = a.owner
+      WHERE a.id = $1;
+    `, [id])
+    if (!r.rows[0]) return res.status(404).json({ error: 'Application not found.' })
+    const app = r.rows[0]
+    const details = app.admission_details || {}
+    const toEmail = details.studentEmail || app.email
+    if (!toEmail || toEmail.includes('noemail')) {
+      return res.status(400).json({ error: 'No valid student email on file. Fill Admission Details first.' })
+    }
+
+    // Generate PDF
+    const pdfBuffer = await generateAdmissionLetterPDF(app, details)
+
+    // Send email with PDF attachment
+    const cfg = await createMailTransporter()
+    if (cfg.error) return res.status(400).json({ error: cfg.error })
+
+    await cfg.transporter.sendMail({
+      from: cfg.from,
+      to: toEmail,
+      cc: details.parentEmail ? [details.parentEmail] : [],
+      subject: `Provisional Admission (${app.app_no}) — ${app.course || 'CUTM Program'}`,
+      text: `Dear ${details.studentName || app.name},\n\nCongratulations! Please find your Provisional Admission Letter attached.\n\nReference ID: ${app.app_no}\nProgram: ${app.course}\nCampus: ${app.campus}\n\nFor any queries, contact ${app.owner || 'CUTM Admissions'}.\n\nBest regards,\nCUTM Admissions Team`,
+      attachments: [{
+        filename: `Provisional_Letter_${app.app_no}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf'
+      }]
+    })
+
+    // Mark as sent
+    await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE id = $1;`, [id])
+
+    res.json({ success: true, sentTo: toEmail, ccTo: details.parentEmail || null })
+  } catch (err) {
+    console.error('[Send Letter]', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.delete('/api/applications/:id', async (req, res) => {
   const { id } = req.params
   try {
@@ -845,6 +1068,42 @@ app.put('/api/payments/:id', async (req, res) => {
 })
 
 // Submit UTR / offline ref number — sets status = 'Payment Done'
+// Helper — auto-fire admission letter when payment is recorded
+async function autoSendAdmissionLetter(appNo, utrNumber) {
+  try {
+    const r = await pool.query(`
+      SELECT a.id, a.name, a.app_no, a.email, a.campus, a.course, a.owner, a.admission_details, a.school_dept,
+             u.email AS owner_email, u.mobile AS owner_mobile
+      FROM applications a
+      LEFT JOIN users u ON u.name = a.owner
+      WHERE a.app_no = $1;
+    `, [appNo])
+    if (!r.rows[0]) return
+    const app = r.rows[0]
+    const details = { ...(app.admission_details || {}), utrNumber }
+    const toEmail = details.studentEmail || app.email
+    if (!toEmail || toEmail.includes('noemail')) {
+      console.warn(`[Auto-Letter] No valid email for ${appNo}, skipping`)
+      return
+    }
+    const cfg = await createMailTransporter()
+    if (cfg.error) { console.warn(`[Auto-Letter] SMTP not ready: ${cfg.error}`); return }
+    const pdfBuffer = await generateAdmissionLetterPDF(app, details)
+    await cfg.transporter.sendMail({
+      from: cfg.from,
+      to: toEmail,
+      cc: details.parentEmail ? [details.parentEmail] : [],
+      subject: `Provisional Admission (${appNo}) — ${app.course || 'CUTM Program'}`,
+      text: `Dear ${details.studentName || app.name},\n\nCongratulations! Your payment has been received and your Provisional Admission Letter is attached.\n\nReference ID: ${appNo}\nUTR: ${utrNumber}\nProgram: ${app.course}\nCampus: ${app.campus}\n\nBest regards,\nCUTM Admissions Team`,
+      attachments: [{ filename: `Provisional_Letter_${appNo}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
+    })
+    await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE app_no = $1;`, [appNo])
+    console.log(`[Auto-Letter] Sent for ${appNo} → ${toEmail}`)
+  } catch (e) {
+    console.error(`[Auto-Letter] Failed for ${appNo}:`, e.message)
+  }
+}
+
 app.post('/api/payments/:id/submit-utr', async (req, res) => {
   const { id } = req.params
   const { utrNumber, payMode } = req.body
@@ -861,6 +1120,10 @@ app.post('/api/payments/:id/submit-utr', async (req, res) => {
 
     // Also update linked application pay status
     await pool.query(`UPDATE applications SET pay_status = 'Payment Done' WHERE app_no = $1;`, [r.rows[0].appNo])
+
+    // Auto-send provisional letter (non-blocking)
+    autoSendAdmissionLetter(r.rows[0].appNo, utrNumber).catch(() => {})
+
     res.json(r.rows[0])
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -880,6 +1143,8 @@ app.post('/api/payments/:id/approve', async (req, res) => {
     await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1;`, [r.rows[0].appNo])
     await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
       [`Payment approved: ₹25,000 — ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now'])
+    // Auto-send provisional letter (non-blocking)
+    autoSendAdmissionLetter(r.rows[0].appNo, r.rows[0].utrNumber || 'N/A').catch(() => {})
     res.json(r.rows[0])
   } catch (err) {
     res.status(500).json({ error: err.message })

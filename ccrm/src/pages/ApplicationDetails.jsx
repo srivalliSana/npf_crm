@@ -129,6 +129,86 @@ export default function ApplicationDetails() {
 
   // Not Interested modal state
   const [showNiModal, setShowNiModal] = useState(false)
+
+  // Admission details modal + letter send state
+  const [showAdmissionForm, setShowAdmissionForm] = useState(false)
+  const [letterSending, setLetterSending]         = useState(false)
+  const [adForm, setAdForm] = useState(() => ({
+    studentName: '', studentEmail: '', studentMobile: '',
+    parentName: '', parentEmail: '', parentMobile: '',
+    aadharNumber: '', address: '', pincode: '',
+    tenthBoard: '', tenthSchool: '', tenthPercentage: '', tenthYear: '',
+    twelfthBoard: '', twelfthSchool: '', twelfthPercentage: '', twelfthYear: '',
+    joiningCourse: '', schoolDept: '', seatBookingAmount: '10000'
+  }))
+  const [adSaving, setAdSaving] = useState(false)
+
+  // Hydrate form from existing record/app on first open
+  useEffect(() => {
+    if (!showAdmissionForm) return
+    const d = associatedApp?.admissionDetails || {}
+    setAdForm(prev => ({
+      ...prev,
+      studentName:   d.studentName   || studentName,
+      studentEmail:  d.studentEmail  || studentEmail,
+      studentMobile: d.studentMobile || studentMobile,
+      parentName:    d.parentName    || prev.parentName,
+      parentEmail:   d.parentEmail   || prev.parentEmail,
+      parentMobile:  d.parentMobile  || prev.parentMobile,
+      aadharNumber:  d.aadharNumber  || prev.aadharNumber,
+      address:       d.address       || prev.address,
+      pincode:       d.pincode       || prev.pincode,
+      tenthBoard:    d.tenthBoard    || prev.tenthBoard,
+      tenthSchool:   d.tenthSchool   || prev.tenthSchool,
+      tenthPercentage: d.tenthPercentage || prev.tenthPercentage,
+      tenthYear:     d.tenthYear     || prev.tenthYear,
+      twelfthBoard:  d.twelfthBoard  || prev.twelfthBoard,
+      twelfthSchool: d.twelfthSchool || prev.twelfthSchool,
+      twelfthPercentage: d.twelfthPercentage || prev.twelfthPercentage,
+      twelfthYear:   d.twelfthYear   || prev.twelfthYear,
+      joiningCourse: d.joiningCourse || associatedApp?.course || course,
+      schoolDept:    d.schoolDept    || associatedApp?.schoolDept || '',
+      seatBookingAmount: d.seatBookingAmount || '10000',
+    }))
+  }, [showAdmissionForm, associatedApp, studentName, studentEmail, studentMobile, course])
+
+  const handleSaveAdmissionDetails = async () => {
+    if (!associatedApp?.id) return showToast('Application must exist first. Mark lead as Interested.', 'warning')
+    if (!adForm.studentName || !adForm.studentMobile) return showToast('Student name and mobile are required.', 'error')
+    setAdSaving(true)
+    try {
+      const res = await fetch(`/api/applications/${associatedApp.id}/admission-details`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(adForm)
+      })
+      if (res.ok) {
+        showToast('Admission details saved.', 'success')
+        await fetchAllData()
+        setShowAdmissionForm(false)
+      } else {
+        const e = await res.json()
+        showToast(e.error || 'Save failed.', 'error')
+      }
+    } catch { showToast('Network error.', 'error') }
+    setAdSaving(false)
+  }
+
+  const handleSendLetter = async () => {
+    if (!associatedApp?.id) return
+    setLetterSending(true)
+    try {
+      const res = await fetch(`/api/applications/${associatedApp.id}/send-letter`, { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        showToast(`📧 Provisional Letter sent to ${data.sentTo}${data.ccTo ? ` (CC: ${data.ccTo})` : ''}`, 'success')
+        await fetchAllData()
+      } else {
+        showToast(data.error || 'Failed to send letter.', 'error')
+      }
+    } catch { showToast('Network error.', 'error') }
+    setLetterSending(false)
+  }
   const [niReason, setNiReason]       = useState('')
   const [niOther, setNiOther]         = useState('')
 
@@ -595,6 +675,21 @@ export default function ApplicationDetails() {
                   </span>
                 </div>
               )}
+              {/* Admission Details — appears once app exists */}
+              {associatedApp?.appNo && (
+                <button
+                  onClick={() => setShowAdmissionForm(true)}
+                  className={`w-full text-xs font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
+                    associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
+                      ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
+                      : 'bg-orange-500 hover:bg-orange-600 text-white'
+                  }`}
+                >
+                  {associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
+                    ? '✓ Admission Details Filled — Edit'
+                    : '📝 Fill Admission Details'}
+                </button>
+              )}
               {/* Payment — show when app exists and payment not yet done */}
               {associatedApp && !['Paid','Payment Done'].includes(associatedApp.payStatus) && (
                 <button
@@ -613,6 +708,23 @@ export default function ApplicationDetails() {
                 <div className="text-center text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 font-semibold">
                   ✅ Payment Approved
                 </div>
+              )}
+              {/* Provisional Letter status + manual resend */}
+              {associatedApp?.appNo && ['Paid','Payment Done'].includes(associatedApp.payStatus) && (
+                <>
+                  {associatedApp.admissionLetterSentAt ? (
+                    <div className="text-center text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-1.5 font-semibold">
+                      📧 Letter sent {new Date(associatedApp.admissionLetterSentAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                    </div>
+                  ) : null}
+                  <button
+                    onClick={() => handleSendLetter()}
+                    disabled={letterSending}
+                    className="w-full text-xs bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    {letterSending ? <><span className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full" /> Sending...</> : associatedApp.admissionLetterSentAt ? '↻ Resend Letter' : '📨 Send Provisional Letter'}
+                  </button>
+                </>
               )}
             </div>
 
@@ -1279,6 +1391,139 @@ export default function ApplicationDetails() {
 
     {/* ── Payment Modal (Online / Offline) ─────────────────────────────── */}
     {/* Not Interested Modal */}
+    {showAdmissionForm && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-yellow-50">
+            <div>
+              <h2 className="font-bold text-gray-900 text-base">📝 Admission Details</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Required before generating payment link · Application <strong>{associatedApp?.appNo}</strong></p>
+            </div>
+            <button onClick={() => setShowAdmissionForm(false)}><X size={20} className="text-gray-400" /></button>
+          </div>
+          <div className="p-6 overflow-y-auto space-y-5">
+            {/* Student Info */}
+            <div>
+              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">Student Information</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { k: 'studentName',   label: 'Student Name *', placeholder: 'Full name', required: true },
+                  { k: 'studentMobile', label: 'Student Mobile *', placeholder: '10-digit mobile', required: true },
+                  { k: 'studentEmail',  label: 'Student Email',  placeholder: 'student@gmail.com' },
+                  { k: 'aadharNumber',  label: 'Aadhar Number',  placeholder: '1234 5678 9012' },
+                ].map(f => (
+                  <div key={f.k}>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">{f.label}</label>
+                    <input type="text" value={adForm[f.k] || ''} onChange={e => setAdForm(p => ({ ...p, [f.k]: e.target.value }))}
+                      placeholder={f.placeholder} className="input-field text-sm" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Parent Info */}
+            <div>
+              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">Parent / Guardian Information</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { k: 'parentName',   label: 'Parent Name',   placeholder: 'Full name' },
+                  { k: 'parentMobile', label: 'Parent Mobile', placeholder: '10-digit mobile' },
+                  { k: 'parentEmail',  label: 'Parent Email',  placeholder: 'parent@gmail.com' },
+                ].map(f => (
+                  <div key={f.k}>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">{f.label}</label>
+                    <input type="text" value={adForm[f.k] || ''} onChange={e => setAdForm(p => ({ ...p, [f.k]: e.target.value }))}
+                      placeholder={f.placeholder} className="input-field text-sm" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Address */}
+            <div>
+              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">Permanent Address</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Address</label>
+                  <input type="text" value={adForm.address || ''} onChange={e => setAdForm(p => ({ ...p, address: e.target.value }))}
+                    placeholder="House no, Street, Locality, City, State" className="input-field text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Pincode</label>
+                  <input type="text" value={adForm.pincode || ''} onChange={e => setAdForm(p => ({ ...p, pincode: e.target.value }))}
+                    placeholder="6-digit pincode" className="input-field text-sm" />
+                </div>
+              </div>
+            </div>
+
+            {/* 10th */}
+            <div>
+              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">10th Standard</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { k: 'tenthBoard',      label: '10th Board Name',  placeholder: 'e.g. CBSE / ICSE / State Board' },
+                  { k: 'tenthSchool',     label: '10th School Name', placeholder: 'School name' },
+                  { k: 'tenthPercentage', label: '10th Percentage',  placeholder: 'e.g. 87.5' },
+                  { k: 'tenthYear',       label: '10th Pass-out Year', placeholder: 'e.g. 2022' },
+                ].map(f => (
+                  <div key={f.k}>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">{f.label}</label>
+                    <input type="text" value={adForm[f.k] || ''} onChange={e => setAdForm(p => ({ ...p, [f.k]: e.target.value }))}
+                      placeholder={f.placeholder} className="input-field text-sm" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 12th */}
+            <div>
+              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">12th Standard</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { k: 'twelfthBoard',      label: '12th Board Name',  placeholder: 'e.g. CBSE / ICSE / State Board' },
+                  { k: 'twelfthSchool',     label: '12th School Name', placeholder: 'School/College name' },
+                  { k: 'twelfthPercentage', label: '12th Percentage',  placeholder: 'e.g. 92.0' },
+                  { k: 'twelfthYear',       label: '12th Pass-out Year', placeholder: 'e.g. 2024' },
+                ].map(f => (
+                  <div key={f.k}>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">{f.label}</label>
+                    <input type="text" value={adForm[f.k] || ''} onChange={e => setAdForm(p => ({ ...p, [f.k]: e.target.value }))}
+                      placeholder={f.placeholder} className="input-field text-sm" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Joining course */}
+            <div>
+              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">Joining Program</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Joining Course / Program</label>
+                  <input type="text" value={adForm.joiningCourse || ''} onChange={e => setAdForm(p => ({ ...p, joiningCourse: e.target.value }))}
+                    placeholder="e.g. B.Tech CSE / MBA / BSc Forensic Science" className="input-field text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">School / Department</label>
+                  <input type="text" value={adForm.schoolDept || ''} onChange={e => setAdForm(p => ({ ...p, schoolDept: e.target.value }))}
+                    placeholder="e.g. School of Engineering & Tech" className="input-field text-sm" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex gap-3 justify-end">
+            <button onClick={() => setShowAdmissionForm(false)} className="btn-secondary text-sm px-4 py-2">Cancel</button>
+            <button onClick={handleSaveAdmissionDetails} disabled={adSaving}
+              className="btn-primary text-sm px-5 py-2 flex items-center gap-2 disabled:opacity-50">
+              {adSaving ? <span className="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" /> : <Save size={14} />}
+              {adSaving ? 'Saving...' : 'Save Admission Details'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     {showNiModal && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">

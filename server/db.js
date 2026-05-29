@@ -277,6 +277,11 @@ export async function initDb() {
     // Users: add mobile field for WhatsApp alerts to counselors
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile VARCHAR(50) DEFAULT '';`).catch(() => {})
 
+    // Applications: full admission details (KYC + academics) + letter dispatch tracking
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_letter_sent_at TIMESTAMP;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS school_dept VARCHAR(255) DEFAULT '';`).catch(() => {})
+
     // Application number sequences
     await client.query(`CREATE SEQUENCE IF NOT EXISTS cueeap_seq START 1;`).catch(() => {})  // Excel/offline apps
     await client.query(`CREATE SEQUENCE IF NOT EXISTS cueesm_seq START 1;`).catch(() => {})  // Social media apps
