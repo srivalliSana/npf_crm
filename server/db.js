@@ -282,6 +282,9 @@ export async function initDb() {
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_letter_sent_at TIMESTAMP;`).catch(() => {})
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS school_dept VARCHAR(255) DEFAULT '';`).catch(() => {})
 
+    // Leads: same details so counsellor can fill them at lead stage (before app exists)
+    await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
+
     // Application number sequences
     await client.query(`CREATE SEQUENCE IF NOT EXISTS cueeap_seq START 1;`).catch(() => {})  // Excel/offline apps
     await client.query(`CREATE SEQUENCE IF NOT EXISTS cueesm_seq START 1;`).catch(() => {})  // Social media apps

@@ -253,6 +253,14 @@ export default function ApplicationDetails() {
     campus,
     school,
     course,
+    // Comprehensive lead details (saved as JSONB to leads.lead_details)
+    leadDetails: associatedLead?.leadDetails || record.leadDetails || {
+      parentName: '', parentMobile: '', parentEmail: '',
+      aadharNumber: '', address: '', pincode: '',
+      tenthBoard: '', tenthSchool: '', tenthPercentage: '', tenthYear: '',
+      twelfthBoard: '', twelfthSchool: '', twelfthPercentage: '', twelfthYear: '',
+      schoolDept: '',
+    },
   })
 
   // Dynamic Timeline State stored inside the lead/app or generated
@@ -338,7 +346,9 @@ export default function ApplicationDetails() {
       course: formData.course,
       altMobile: formData.altMobile,
       school: formData.school,
-      formInterest: formData.formInterest
+      formInterest: formData.formInterest,
+      // Comprehensive admission fields stored in lead_details JSONB
+      leadDetails: formData.leadDetails || {},
     }
 
     if (isApp && associatedApp) {
@@ -353,6 +363,7 @@ export default function ApplicationDetails() {
     if (associatedApp && !isApp) {
       updateApplication(associatedApp.id, updateData)
     }
+
 
     setEditMode(false)
     showToast('Student information successfully saved.', 'success')
@@ -948,67 +959,153 @@ export default function ApplicationDetails() {
             </div>
 
             <div className="p-5">
-              {activeTab === 'Lead Details' && (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-gray-800">Lead Information</h3>
-                    <button
-                      onClick={() => setEditMode(!editMode)}
-                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors focus:outline-none font-semibold ${
-                        editMode
-                          ? 'bg-primary-500 text-white hover:bg-primary-600'
-                          : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Edit3 size={13} />
-                      {editMode ? 'Cancel Edit' : 'Edit Information'}
-                    </button>
-                  </div>
+              {activeTab === 'Lead Details' && (() => {
+                // Section-organised fields. Top-level (formData[key]) values for basic fields.
+                // Nested admission-details fields stored in formData.leadDetails[key].
+                const SECTIONS = [
+                  {
+                    title: 'Student Information',
+                    fields: [
+                      { label: 'Student Name',   key: 'name',                  required: true },
+                      { label: 'Student Mobile', key: 'mobile',                required: true },
+                      { label: 'Alternate Mobile', key: 'altMobile' },
+                      { label: 'Student Email',  key: 'email' },
+                      { label: 'Aadhar Number',  key: 'leadDetails.aadharNumber' },
+                    ]
+                  },
+                  {
+                    title: 'Parent / Guardian Information',
+                    fields: [
+                      { label: 'Parent Name',   key: 'leadDetails.parentName' },
+                      { label: 'Parent Mobile', key: 'leadDetails.parentMobile' },
+                      { label: 'Parent Email',  key: 'leadDetails.parentEmail' },
+                    ]
+                  },
+                  {
+                    title: 'Address',
+                    fields: [
+                      { label: 'Address',          key: 'leadDetails.address', wide: true },
+                      { label: 'City',             key: 'city' },
+                      { label: 'State',            key: 'state' },
+                      { label: 'Pincode',          key: 'leadDetails.pincode' },
+                    ]
+                  },
+                  {
+                    title: '10th Standard',
+                    fields: [
+                      { label: '10th Board Name',     key: 'leadDetails.tenthBoard' },
+                      { label: '10th School Name',    key: 'leadDetails.tenthSchool' },
+                      { label: '10th Percentage',     key: 'leadDetails.tenthPercentage' },
+                      { label: '10th Pass-out Year',  key: 'leadDetails.tenthYear' },
+                    ]
+                  },
+                  {
+                    title: '12th Standard',
+                    fields: [
+                      { label: '12th Board Name',     key: 'leadDetails.twelfthBoard' },
+                      { label: '12th School Name',    key: 'leadDetails.twelfthSchool' },
+                      { label: '12th Percentage',     key: 'leadDetails.twelfthPercentage' },
+                      { label: '12th Pass-out Year',  key: 'leadDetails.twelfthYear' },
+                    ]
+                  },
+                  {
+                    title: 'Joining Program',
+                    fields: [
+                      { label: 'Joining Course',     key: 'course' },
+                      { label: 'School / Department',key: 'leadDetails.schoolDept' },
+                      { label: 'Campus Preference',  key: 'campus' },
+                      { label: 'Form Interested In', key: 'formInterest' },
+                    ]
+                  },
+                ]
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[
-                      { label: 'Form Interested In', key: 'formInterest', icon: BookOpen },
-                      { label: 'Email Address', key: 'email', icon: Mail },
-                      { label: 'Mobile Number', key: 'mobile', icon: Phone },
-                      { label: 'Alternate Mobile', key: 'altMobile', icon: Phone },
-                      { label: 'Full Student Name', key: 'name', icon: User },
-                      { label: 'State', key: 'state', icon: MapPin },
-                      { label: 'City', key: 'city', icon: MapPin },
-                      { label: 'Campus Preference', key: 'campus', icon: Building2 },
-                      { label: 'School Category', key: 'school', icon: GraduationCap },
-                      { label: 'Course Preference', key: 'course', icon: BookOpen },
-                    ].map(({ label, key, icon: Icon }) => (
-                      <div key={key}>
-                        <label className="block text-xs text-gray-400 font-medium mb-1">{label}</label>
-                        {editMode ? (
-                          <input
-                            type="text"
-                            value={formData[key] || ''}
-                            onChange={e => setFormData(prev => ({ ...prev, [key]: e.target.value }))}
-                            className="input-field text-sm"
-                          />
-                        ) : (
-                          <div className="flex items-center gap-2 py-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
-                            <Icon size={13} className="text-gray-400 flex-shrink-0" />
-                            <span className="text-sm text-gray-700 truncate">{formData[key] || '—'}</span>
-                          </div>
-                        )}
+                const getVal = (key) => {
+                  if (!key.includes('.')) return formData[key] || ''
+                  const [parent, child] = key.split('.')
+                  return formData[parent]?.[child] || ''
+                }
+                const setVal = (key, value) => {
+                  if (!key.includes('.')) {
+                    setFormData(prev => ({ ...prev, [key]: value }))
+                  } else {
+                    const [parent, child] = key.split('.')
+                    setFormData(prev => ({ ...prev, [parent]: { ...(prev[parent] || {}), [child]: value } }))
+                  }
+                }
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-5">
+                      <div>
+                        <h3 className="font-semibold text-gray-800">Lead Information</h3>
+                        <p className="text-xs text-gray-400 mt-0.5">Fill these once the candidate shows interest — auto-copied to the Provisional Admission Letter on payment.</p>
                       </div>
-                    ))}
-                  </div>
-                  {editMode && (
-                    <div className="mt-6 flex justify-end gap-2 border-t border-gray-100 pt-4">
                       <button
-                        onClick={handleSaveChanges}
-                        className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5"
+                        onClick={() => setEditMode(!editMode)}
+                        className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors focus:outline-none ${
+                          editMode
+                            ? 'bg-primary-500 text-white hover:bg-primary-600'
+                            : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
                       >
-                        <Save size={14} />
-                        Save Changes
+                        <Edit3 size={13} />
+                        {editMode ? 'Cancel Edit' : 'Edit Information'}
                       </button>
                     </div>
-                  )}
-                </div>
-              )}
+
+                    {/* Section-by-section render */}
+                    <div className="space-y-5">
+                      {SECTIONS.map(section => (
+                        <div key={section.title}>
+                          <p className="text-xs font-bold text-primary-600 uppercase tracking-wider mb-2 border-b border-gray-200 pb-1">
+                            {section.title}
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {section.fields.map(({ label, key, required, wide }) => (
+                              <div key={key} className={wide ? 'md:col-span-2' : ''}>
+                                <label className="block text-xs text-gray-400 font-medium mb-1">
+                                  {label}{required ? ' *' : ''}
+                                </label>
+                                {editMode ? (
+                                  <input
+                                    type="text"
+                                    value={getVal(key)}
+                                    onChange={e => setVal(key, e.target.value)}
+                                    placeholder={`Enter ${label.toLowerCase()}`}
+                                    className="input-field text-sm"
+                                  />
+                                ) : (
+                                  <div className="py-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
+                                    <span className="text-sm text-gray-700">{getVal(key) || <span className="text-gray-300 italic">—</span>}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {editMode && (
+                      <div className="mt-6 flex justify-end gap-2 border-t border-gray-100 pt-4">
+                        <button
+                          onClick={() => setEditMode(false)}
+                          className="text-xs border border-gray-300 rounded-lg px-4 py-2 text-gray-600 hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveChanges}
+                          className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5"
+                        >
+                          <Save size={14} />
+                          Save All Changes
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {activeTab === 'Timeline' && (
                 <div>
