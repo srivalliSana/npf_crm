@@ -81,8 +81,8 @@ const INTEGRATIONS = [
   },
   {
     id: 'sms',
-    name: 'SMS Gateway (MSG91 / Twilio)',
-    description: 'Send SMS OTPs, payment reminders and admission alerts to students via bulk SMS.',
+    name: 'SMS Gateway',
+    description: 'Bulk SMS for OTPs, payment reminders and alerts. Supports 7 providers — pick one in the Provider field.',
     icon: Phone,
     color: 'text-orange-600',
     bg: 'bg-orange-50',
@@ -90,10 +90,29 @@ const INTEGRATIONS = [
     category: 'Messaging',
     docsUrl: 'https://msg91.com/in/help',
     fields: [
-      { key: 'sms_provider',    label: 'Provider',    placeholder: 'msg91 or twilio', secret: false },
-      { key: 'sms_api_key',     label: 'API Key',     placeholder: 'Your SMS API key', secret: true },
-      { key: 'sms_sender_id',   label: 'Sender ID',   placeholder: 'e.g. CUTMAD', secret: false },
-      { key: 'sms_template_id', label: 'Template ID', placeholder: 'DLT-approved template ID', secret: false },
+      { key: 'sms_provider',      label: 'Provider',     placeholder: 'msg91 | twilio | plivo | textlocal | gupshup | kaleyra | karix', secret: false },
+      { key: 'sms_api_key',       label: 'API Key / Auth Token', placeholder: 'For Twilio: Auth Token. For others: API key', secret: true },
+      { key: 'sms_api_sid',       label: 'Account SID / Auth Key', placeholder: 'For Twilio: Account SID. For Plivo: Auth ID. (Optional for MSG91)', secret: false },
+      { key: 'sms_sender_id',     label: 'Sender ID',    placeholder: 'e.g. CUTMAD — 6-char DLT-approved header', secret: false },
+      { key: 'sms_template_id',   label: 'DLT Template ID', placeholder: 'DLT-approved template ID (India only)', secret: false },
+      { key: 'sms_from_number',   label: 'From Number',  placeholder: 'For Twilio/Plivo: +14155551234 (E.164)', secret: false },
+    ]
+  },
+  {
+    id: 'rcs',
+    name: 'RCS Business Messaging',
+    description: 'Send rich interactive messages (buttons, carousels, images) over RCS via Gupshup, Karix, Sinch, or Google RBM.',
+    icon: MessageCircle,
+    color: 'text-pink-600',
+    bg: 'bg-pink-50',
+    border: 'border-pink-200',
+    category: 'Messaging',
+    docsUrl: 'https://www.gupshup.io/developer/docs/bot-platform/guide/rcs-business-messaging-overview',
+    fields: [
+      { key: 'rcs_provider',  label: 'Provider',     placeholder: 'gupshup | karix | sinch | google-rbm', secret: false },
+      { key: 'rcs_api_key',   label: 'API Key',      placeholder: 'Provider API key', secret: true },
+      { key: 'rcs_agent_id',  label: 'Agent ID / Brand ID', placeholder: 'RCS Agent / Brand identifier', secret: false },
+      { key: 'rcs_sender_id', label: 'Sender Brand', placeholder: 'Verified RCS brand name shown to user', secret: false },
     ]
   },
 

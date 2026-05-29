@@ -912,11 +912,29 @@ export function CcrmProvider({ children }) {
       })
       if (res.ok) {
         const data = await res.json()
-        showToast(`SMS sent to ${data.sent} of ${data.total} leads.`, 'success')
+        showToast(`SMS via ${data.provider || 'gateway'}: ${data.sent} of ${data.total} sent.`, 'success')
         return data
       }
     } catch {}
     showToast('SMS bulk send failed.', 'error')
+    return { sent: 0, total: leadIds.length }
+  }
+
+  // Send RCS (rich card / text) via configured provider
+  const sendBulkRCS = async (leadIds, message) => {
+    try {
+      const res = await fetch('/api/leads/bulk-rcs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds, message })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        showToast(`RCS via ${data.provider || 'gateway'}: ${data.sent} of ${data.total} sent.`, 'success')
+        return data
+      }
+    } catch {}
+    showToast('RCS bulk send failed.', 'error')
     return { sent: 0, total: leadIds.length }
   }
 
@@ -1094,7 +1112,7 @@ export function CcrmProvider({ children }) {
       notifications, setNotifications, addNotification, markNotificationRead, markAllNotificationsRead, fetchNotifications,
       // New features
       checkDuplicate, getNextAssignee,
-      sendBulkWhatsApp, sendBulkSMS,
+      sendBulkWhatsApp, sendBulkSMS, sendBulkRCS,
       dripSequences, setDripSequences, enrollDrip,
       generatePaymentLink,
       callLogs, setCallLogs, logCall,

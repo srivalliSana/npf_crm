@@ -28,8 +28,26 @@ const getStageColorName = (stage) => ({
 }[stage] || 'blue')
 
 const QUICK_VIEWS = ['All Leads', 'My Leads', 'Untouched', 'Follow Up Today', 'Hot Leads']
-// Course is now free-text (counsellor enters); kept here as autocomplete suggestions
-const COURSE_SUGGESTIONS = ['B.Tech CSE', 'B.Tech ECE', 'MBA', 'BCA', 'BBA', 'M.Sc Agriculture', 'B.Tech Civil', 'M.Tech', 'B.Com']
+
+// Reference Colleges (formerly 'Course Preference') — dropdown only
+const REFERENCE_COLLEGES = [
+  'CUTM Bhubaneswar',
+  'CUTM Paralakhemundi',
+  'CUTM Balasore',
+  'CUTM Vizianagaram',
+  'GIET University',
+  'KIIT University',
+  'SRM University AP',
+  'VIT-AP',
+  'Centurion School of Rural Enterprise',
+  'Other',
+]
+
+// CUTM operates only in Andhra Pradesh and Odisha
+const STATES = ['Andhra Pradesh', 'Odisha']
+
+// CUTM campuses
+const CAMPUSES = ['Bhubaneswar', 'Paralakhemundi', 'Balasore', 'Vizianagaram']
 const SOURCES = ['Google Ads', 'Facebook Ads', 'LinkedIn', 'Walk-in', 'Referral', 'Website', 'WhatsApp', 'Education Fair', 'SMS Campaign', 'Instagram']
 const CRM_FIELDS = ['name', 'email', 'mobile', 'state', 'city', 'course', 'source', 'owner']
 const WA_TEMPLATES = [
@@ -42,7 +60,7 @@ const WA_TEMPLATES = [
 export default function LeadManager() {
   const navigate = useNavigate()
   const { leads, setLeads, addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData,
-          checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, enrollDrip, logCall } = useCcrm()
+          checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, enrollDrip, logCall } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
   const [quickView, setQuickView] = useState('All Leads')
@@ -62,7 +80,7 @@ export default function LeadManager() {
   const [waTemplate, setWaTemplate]     = useState(0)
   const [waCustomMsg, setWaCustomMsg]   = useState('')
   const [waSending, setWaSending]       = useState(false)
-  const [sendChannels, setSendChannels] = useState({ whatsapp: true, sms: false })
+  const [sendChannels, setSendChannels] = useState({ whatsapp: true, sms: false, rcs: false })
 
   // Drip enroll
   const [dripLoading, setDripLoading] = useState(false)
@@ -156,7 +174,7 @@ export default function LeadManager() {
   const handleCreateLead = async (e, forceSave = false) => {
     e?.preventDefault()
     if (!newLead.name || !newLead.mobile) return showToast('Name and Mobile are required.', 'error')
-    if (!newLead.course?.trim()) return showToast('Course is required.', 'error')
+    // Reference college is optional — counsellor can pick later from the dropdown
     if (dupWarning && !forceSave) return // show warning first
 
     setAddLoading(true)
@@ -216,12 +234,13 @@ export default function LeadManager() {
   // ----------- MULTI-CHANNEL SEND -----------
   const handleSendWA = async () => {
     if (!selectedRows.length) return showToast('Select at least one lead.', 'warning')
-    if (!sendChannels.whatsapp && !sendChannels.sms) return showToast('Select at least one channel.', 'warning')
+    if (!sendChannels.whatsapp && !sendChannels.sms && !sendChannels.rcs) return showToast('Select at least one channel.', 'warning')
     const tmpl = waCustomMsg || WA_TEMPLATES[waTemplate].msg
     if (!tmpl) return showToast('Please enter a message.', 'error')
     setWaSending(true)
     if (sendChannels.whatsapp) await sendBulkWhatsApp(selectedRows, tmpl, WA_TEMPLATES[waTemplate].label)
-    if (sendChannels.sms) await sendBulkSMS(selectedRows, tmpl)
+    if (sendChannels.sms)      await sendBulkSMS(selectedRows, tmpl)
+    if (sendChannels.rcs)      await sendBulkRCS(selectedRows, tmpl)
     setWaSending(false)
     setShowWAModal(false)
     setSelectedRows([])
@@ -446,7 +465,7 @@ export default function LeadManager() {
                 <th className="table-th">Name</th>
                 <th className="table-th">Date Added</th>
                 <th className="table-th">Mobile</th>
-                <th className="table-th">Course</th>
+                <th className="table-th">Ref. College</th>
                 <th className="table-th">Source</th>
                 <th className="table-th">Stage</th>
                 <th className="table-th">
@@ -508,7 +527,7 @@ export default function LeadManager() {
                     <td className="table-td text-xs">
                       {lead.course
                         ? <span className="text-gray-600">{lead.course}</span>
-                        : <span className="text-blue-400 italic hover:text-blue-600 hover:underline" title="Click row to open lead and add course">+ Add course</span>}
+                        : <span className="text-blue-400 italic hover:text-blue-600 hover:underline" title="Click row to open lead and pick reference college">+ Pick college</span>}
                     </td>
                     <td className="table-td text-gray-500 text-xs">{lead.source || '—'}</td>
                     <td className="table-td">
@@ -631,7 +650,6 @@ export default function LeadManager() {
                   {key:'name',   label:'Student Name *',  type:'text',  placeholder:'Full name', required:true},
                   {key:'mobile', label:'Mobile Number *',  type:'tel',   placeholder:'10-digit mobile', required:true},
                   {key:'email',  label:'Email (Optional)', type:'email', placeholder:'student@example.com'},
-                  {key:'state',  label:'State (Optional)', type:'text',  placeholder:'e.g. Odisha'},
                   {key:'city',   label:'City (Optional)',  type:'text',  placeholder:'e.g. Bhubaneswar'},
                 ].map(f => (
                   <div key={f.key}>
@@ -643,20 +661,32 @@ export default function LeadManager() {
                       className="input-field text-sm" />
                   </div>
                 ))}
+
+                {/* State — AP / Odisha only */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Course</label>
-                  <input
-                    type="text"
-                    value={newLead.course}
-                    onChange={e => setNewLead(p => ({ ...p, course: e.target.value }))}
-                    list="course-suggestions"
-                    placeholder="Enter course (e.g. B.Tech CSE)"
-                    required
-                    className="input-field text-sm"
-                  />
-                  <datalist id="course-suggestions">
-                    {COURSE_SUGGESTIONS.map(c => <option key={c} value={c} />)}
-                  </datalist>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">State (Optional)</label>
+                  <select value={newLead.state} onChange={e => setNewLead(p => ({ ...p, state: e.target.value }))} className="input-field text-sm">
+                    <option value="">— Select state —</option>
+                    {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                {/* Campus — dropdown of CUTM campuses */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Campus (Optional)</label>
+                  <select value={newLead.campus || ''} onChange={e => setNewLead(p => ({ ...p, campus: e.target.value }))} className="input-field text-sm">
+                    <option value="">— Select campus —</option>
+                    {CAMPUSES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                {/* Reference College — was Course Preference; dropdown only */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Reference College</label>
+                  <select value={newLead.course} onChange={e => setNewLead(p => ({ ...p, course: e.target.value }))} className="input-field text-sm">
+                    <option value="">— Select reference college —</option>
+                    {REFERENCE_COLLEGES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Lead Source</label>
@@ -713,10 +743,11 @@ export default function LeadManager() {
             <p className="text-sm text-gray-500 mb-3">Sending to <strong className="text-gray-800">{selectedRows.length} leads</strong></p>
 
             {/* Channel toggles */}
-            <div className="flex gap-3 mb-4">
+            <div className="flex gap-2 mb-4 flex-wrap">
               {[
                 { key: 'whatsapp', label: 'WhatsApp', icon: '💬', color: 'border-green-400 bg-green-50 text-green-700' },
-                { key: 'sms',      label: 'SMS',       icon: '📱', color: 'border-blue-400 bg-blue-50 text-blue-700'  },
+                { key: 'sms',      label: 'SMS',       icon: '📱', color: 'border-blue-400  bg-blue-50  text-blue-700'  },
+                { key: 'rcs',      label: 'RCS',       icon: '✨', color: 'border-pink-400  bg-pink-50  text-pink-700'  },
               ].map(ch => (
                 <button key={ch.key} type="button"
                   onClick={() => setSendChannels(p => ({ ...p, [ch.key]: !p[ch.key] }))}

@@ -1770,50 +1770,215 @@ app.post('/api/leads/bulk-whatsapp', async (req, res) => {
   }
 })
 
+// ── SMS provider dispatch — supports MSG91, Twilio, Plivo, TextLocal, Gupshup, Kaleyra, Karix ─
+async function sendSmsViaProvider({ provider, apiKey, apiSid, senderId, fromNumber, templateId, mobile, message }) {
+  const m91 = mobile  // 91XXXXXXXXXX format
+  const tenDigit = mobile.slice(-10)
+  const e164 = `+${mobile}`
+
+  switch ((provider || 'msg91').toLowerCase()) {
+    case 'twilio': {
+      // POST https://api.twilio.com/2010-04-01/Accounts/{SID}/Messages.json
+      // Basic auth: SID:AuthToken | body: From, To, Body
+      if (!apiSid) throw new Error('Twilio requires Account SID in sms_api_sid')
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${apiSid}/Messages.json`
+      const basic = Buffer.from(`${apiSid}:${apiKey}`).toString('base64')
+      const body = new URLSearchParams({ From: fromNumber || senderId, To: e164, Body: message })
+      const r = await fetch(url, { method: 'POST', headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body })
+      return r.ok
+    }
+    case 'plivo': {
+      // POST https://api.plivo.com/v1/Account/{AUTH_ID}/Message/
+      if (!apiSid) throw new Error('Plivo requires Auth ID in sms_api_sid')
+      const url = `https://api.plivo.com/v1/Account/${apiSid}/Message/`
+      const basic = Buffer.from(`${apiSid}:${apiKey}`).toString('base64')
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ src: fromNumber || senderId, dst: e164, text: message })
+      })
+      return r.ok
+    }
+    case 'textlocal': {
+      // POST https://api.textlocal.in/send/
+      const url = 'https://api.textlocal.in/send/'
+      const body = new URLSearchParams({ apikey: apiKey, numbers: tenDigit, message, sender: senderId || 'TXTLCL' })
+      const r = await fetch(url, { method: 'POST', body, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
+      return r.ok
+    }
+    case 'gupshup': {
+      // POST https://enterprise.smsgupshup.com/GatewayAPI/rest
+      const url = 'https://enterprise.smsgupshup.com/GatewayAPI/rest?' + new URLSearchParams({
+        method: 'sendMessage', userid: apiSid || '', password: apiKey,
+        send_to: m91, msg: message, msg_type: 'TEXT', auth_scheme: 'plain', format: 'json'
+      })
+      const r = await fetch(url)
+      return r.ok
+    }
+    case 'kaleyra': {
+      // POST https://api.kaleyra.io/v1/{SID}/messages
+      if (!apiSid) throw new Error('Kaleyra requires Account SID in sms_api_sid')
+      const url = `https://api.kaleyra.io/v1/${apiSid}/messages`
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'api-key': apiKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ to: e164, type: 'OTP', sender: senderId, body: message, template_id: templateId || '' })
+      })
+      return r.ok
+    }
+    case 'karix': {
+      // POST https://api.karix.io/message/
+      const url = 'https://api.karix.io/message/'
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: senderId, destination: [m91], content: { text: message } })
+      })
+      return r.ok
+    }
+    case 'msg91':
+    default: {
+      // MSG91 send flow
+      const r = await fetch('https://api.msg91.com/api/sendhttp.php?' + new URLSearchParams({
+        authkey: apiKey, mobiles: m91, message, sender: senderId || 'CUTMAD',
+        route: '4', country: '91',
+      }))
+      return r.ok
+    }
+  }
+}
+
 app.post('/api/leads/bulk-sms', async (req, res) => {
   const { leadIds, message } = req.body
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
   try {
-    const smsApiKey    = await getIntegrationSetting('sms_api_key')
-    const smsSenderId  = await getIntegrationSetting('sms_sender_id')
+    const provider    = await getIntegrationSetting('sms_provider')
+    const apiKey      = await getIntegrationSetting('sms_api_key')
+    const apiSid      = await getIntegrationSetting('sms_api_sid')
+    const senderId    = await getIntegrationSetting('sms_sender_id')
+    const fromNumber  = await getIntegrationSetting('sms_from_number')
+    const templateId  = await getIntegrationSetting('sms_template_id')
 
     const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
     const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
     const leads = leadsRes.rows
 
-    let sentCount = 0
+    let sentCount = 0, failed = 0
     for (const lead of leads) {
       const mobile = `91${lead.mobile.replace(/\D/g, '').slice(-10)}`
       const personalizedMsg = message.replace(/\{name\}/g, lead.name)
 
-      if (!smsApiKey) {
-        console.log(`[SMS Bulk] Simulating SMS to ${lead.name} (${mobile})`)
+      if (!apiKey) {
+        console.log(`[SMS] Simulating ${provider || 'msg91'} to ${lead.name} (${mobile})`)
         sentCount++
         continue
       }
 
-      // MSG91 flow API
       try {
-        const smsRes = await fetch('https://api.msg91.com/api/sendhttp.php?' + new URLSearchParams({
-          authkey: smsApiKey,
-          mobiles: mobile,
-          message: personalizedMsg,
-          sender: smsSenderId || 'CUTMAD',
-          route: '4',
-          country: '91',
-        }))
-        if (smsRes.ok) sentCount++
+        const ok = await sendSmsViaProvider({ provider, apiKey, apiSid, senderId, fromNumber, templateId, mobile, message: personalizedMsg })
+        ok ? sentCount++ : failed++
       } catch (e) {
-        console.error(`[SMS] Failed for ${mobile}:`, e.message)
+        console.error(`[SMS:${provider}] Failed for ${mobile}:`, e.message)
+        failed++
       }
     }
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`SMS bulk sent: ${sentCount} messages dispatched`, 'Just now'])
-    res.json({ success: true, sent: sentCount, total: leads.length })
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`SMS bulk via ${provider || 'msg91'}: ${sentCount} sent, ${failed} failed`, 'Just now'])
+    res.json({ success: true, sent: sentCount, failed, total: leads.length, provider: provider || 'msg91' })
   } catch (err) {
     console.error('[SMS Bulk]', err)
     res.status(500).json({ error: 'Bulk SMS failed.', sent: 0 })
+  }
+})
+
+// ── RCS Business Messaging — Gupshup / Karix / Sinch / Google RBM ───────────
+async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile, message }) {
+  switch ((provider || 'gupshup').toLowerCase()) {
+    case 'gupshup': {
+      // POST https://api.gupshup.io/sm/api/v1/msg
+      const url = 'https://api.gupshup.io/sm/api/v1/msg'
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { apikey: apiKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          channel: 'rcs', source: senderId || agentId, destination: mobile,
+          'src.name': senderId, message: JSON.stringify({ type: 'text', text: message })
+        })
+      })
+      return r.ok
+    }
+    case 'karix': {
+      // POST https://api.karix.io/message/
+      const url = 'https://api.karix.io/message/'
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: agentId, destination: [mobile], channel: 'rcs', content: { text: message } })
+      })
+      return r.ok
+    }
+    case 'sinch': {
+      // POST https://us.rcs.api.sinch.com/v1/projects/{PROJECT_ID}/messages:send
+      const url = `https://us.rcs.api.sinch.com/v1/projects/${agentId}/messages:send`
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_message: { agent_message: { text_message: { text: message } } }, recipient: { contact: { phone_number: `+${mobile}` } } })
+      })
+      return r.ok
+    }
+    case 'google-rbm':
+    case 'rbm': {
+      // POST https://rcsbusinessmessaging.googleapis.com/v1/phones/{E164}/agentMessages
+      const url = `https://rcsbusinessmessaging.googleapis.com/v1/phones/%2B${mobile}/agentMessages`
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentMessage: { text: message } })
+      })
+      return r.ok
+    }
+    default: throw new Error(`Unknown RCS provider: ${provider}`)
+  }
+}
+
+app.post('/api/leads/bulk-rcs', async (req, res) => {
+  const { leadIds, message } = req.body
+  if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
+
+  try {
+    const provider = await getIntegrationSetting('rcs_provider')
+    const apiKey   = await getIntegrationSetting('rcs_api_key')
+    const agentId  = await getIntegrationSetting('rcs_agent_id')
+    const senderId = await getIntegrationSetting('rcs_sender_id')
+
+    const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
+    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
+    const leads = leadsRes.rows
+
+    let sentCount = 0, failed = 0
+    for (const lead of leads) {
+      const mobile = `91${lead.mobile.replace(/\D/g, '').slice(-10)}`
+      const personalizedMsg = message.replace(/\{name\}/g, lead.name)
+
+      if (!apiKey) {
+        console.log(`[RCS] Simulating ${provider || 'gupshup'} to ${lead.name} (${mobile})`)
+        sentCount++; continue
+      }
+      try {
+        const ok = await sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile, message: personalizedMsg })
+        ok ? sentCount++ : failed++
+      } catch (e) {
+        console.error(`[RCS:${provider}] Failed:`, e.message); failed++
+      }
+    }
+
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`RCS bulk via ${provider || 'gupshup'}: ${sentCount} sent, ${failed} failed`, 'Just now'])
+    res.json({ success: true, sent: sentCount, failed, total: leads.length, provider: provider || 'gupshup' })
+  } catch (err) {
+    console.error('[RCS Bulk]', err)
+    res.status(500).json({ error: 'Bulk RCS failed.', sent: 0 })
   }
 })
 
