@@ -517,8 +517,8 @@ export default function LeadManager() {
                             ✓ Interested
                           </button>
                         )}
-                        {/* Unable to Connect — yellow pill (moves to Follow Up) */}
-                        {!['Follow Up','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
+                        {/* Unable to Connect — hides once you've connected (Contacted, Interested, etc.) */}
+                        {!['Contacted','Follow Up','Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
                           <button
                             onClick={e => { e.stopPropagation(); handleUnableToConnect(lead) }}
                             className="text-[10px] px-2 py-1 rounded-md bg-yellow-100 text-yellow-700 hover:bg-yellow-200 font-semibold whitespace-nowrap"
@@ -526,8 +526,8 @@ export default function LeadManager() {
                             📞 Unable to Connect
                           </button>
                         )}
-                        {/* Not Interested — red pill */}
-                        {lead.stage !== 'Not Interested' && lead.stage !== 'Payment Success' && (
+                        {/* Not Interested — hides once they've shown interest */}
+                        {!['Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
                           <button
                             onClick={e => { e.stopPropagation(); setNiLead(lead); setNiReason(''); setNiOther('') }}
                             className="text-[10px] px-2 py-1 rounded-md bg-red-100 text-red-600 hover:bg-red-200 font-semibold whitespace-nowrap"
@@ -604,11 +604,11 @@ export default function LeadManager() {
             <form onSubmit={handleCreateLead} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  {key:'name', label:'Student Name *', type:'text', placeholder:'Full name', required:true},
-                  {key:'mobile', label:'Mobile Number *', type:'tel', placeholder:'10-digit mobile', required:true},
-                  {key:'email', label:'Email Address', type:'email', placeholder:'student@example.com'},
-                  {key:'state', label:'State', type:'text', placeholder:'e.g. Odisha'},
-                  {key:'city', label:'City', type:'text', placeholder:'e.g. Bhubaneswar'},
+                  {key:'name',   label:'Student Name *',  type:'text',  placeholder:'Full name', required:true},
+                  {key:'mobile', label:'Mobile Number *',  type:'tel',   placeholder:'10-digit mobile', required:true},
+                  {key:'email',  label:'Email (Optional)', type:'email', placeholder:'student@example.com'},
+                  {key:'state',  label:'State (Optional)', type:'text',  placeholder:'e.g. Odisha'},
+                  {key:'city',   label:'City (Optional)',  type:'text',  placeholder:'e.g. Bhubaneswar'},
                 ].map(f => (
                   <div key={f.key}>
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{f.label}</label>

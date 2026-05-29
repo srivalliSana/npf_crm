@@ -106,10 +106,14 @@ export default function Payments() {
 
   const tabs = ['All', 'Pending', 'Payment Done', 'Paid', 'Failed']
   
-  const filtered = payments.filter(p =>
-    (filter === 'All' || p.status === filter) &&
-    (p.name.toLowerCase().includes(search.toLowerCase()) || p.appNo.toLowerCase().includes(search.toLowerCase()))
-  )
+  const filtered = payments.filter(p => {
+    if (filter !== 'All' && p.status !== filter) return false
+    const q = search.toLowerCase()
+    return p.name.toLowerCase().includes(q)
+        || p.appNo.toLowerCase().includes(q)
+        || (p.utrNumber || '').toLowerCase().includes(q)
+        || (p.txnId || '').toLowerCase().includes(q)
+  })
 
   const approved = payments.filter(p => p.status === 'Approved').reduce((s, p) => s + Number(p.amount || 0), 0)
   const pending  = payments.filter(p => p.status === 'Pending').reduce((s, p) => s + Number(p.amount || 0), 0)
@@ -250,7 +254,7 @@ export default function Payments() {
           <table className="w-full">
             <thead>
               <tr>
-                {['Student Name','Application No','Amount','Payment Method','Status','Date','Transaction ID','Actions'].map(h => (
+                {['Student Name','Application No','Amount','Method','Status','UTR / Ref No','Date','Actions'].map(h => (
                   <th key={h} className="table-th">{h}</th>
                 ))}
               </tr>
@@ -267,8 +271,18 @@ export default function Payments() {
                     <td className="table-td">
                       <span className={`badge ${sc.bg} ${sc.text}`}>{p.status}</span>
                     </td>
-                    <td className="table-td text-gray-600">{p.date || '—'}</td>
-                    <td className="table-td text-xs font-mono text-gray-500">{p.txnId || '—'}</td>
+                    <td className="table-td text-xs font-mono">
+                      {p.utrNumber ? (
+                        <span className={`px-2 py-0.5 rounded ${p.status === 'Paid' || p.status === 'Approved' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-blue-50 text-blue-700 border border-blue-200'} font-bold`}>
+                          {p.utrNumber}
+                        </span>
+                      ) : p.txnId ? (
+                        <span className="text-gray-500">{p.txnId}</span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="table-td text-gray-600 text-xs">{p.date || '—'}</td>
                     <td className="table-td">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {p.status === 'Pending' && (

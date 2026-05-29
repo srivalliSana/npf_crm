@@ -732,7 +732,7 @@ app.put('/api/tasks/:id', async (req, res) => {
 // --- PAYMENTS ROUTERS ---
 app.get('/api/payments', async (req, res) => {
   try {
-    const payRes = await pool.query('SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId" FROM payments ORDER BY id DESC;')
+    const payRes = await pool.query('SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode" FROM payments ORDER BY id DESC;')
     res.json(payRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch payments ledger.' })

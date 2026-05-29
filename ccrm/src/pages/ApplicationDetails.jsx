@@ -69,6 +69,7 @@ export default function ApplicationDetails() {
     events, addEvent,
     payments, fetchAllData,
     generatePaymentLink,
+    users, counselors,
     showToast, currentUser
   } = useCcrm()
 
@@ -306,8 +307,8 @@ export default function ApplicationDetails() {
       })
       showToast(`Lead stage updated to "${stageName}"`, 'success')
 
-      // ── Auto-create Application when lead reaches "Process for Payment" ───
-      if (stageName === 'Process for Payment' && !associatedApp) {
+      // ── Auto-create Application when lead is marked "Interested" ──────────
+      if (['Interested','Process for Payment'].includes(stageName) && !associatedApp) {
         try {
           const isSM = ['Facebook Ads','Google Ads','LinkedIn','Instagram','Social Media','sm'].some(
             s => (record.source || '').toLowerCase().includes(s.toLowerCase())
@@ -327,7 +328,7 @@ export default function ApplicationDetails() {
             appNo,
             owner: record.owner || ''
           })
-          showToast(`📋 Application ${appNo} created — generate payment link to proceed!`, 'success')
+          showToast(`📋 Application ${appNo} created — visible in Application Manager`, 'success')
         } catch (e) {
           showToast('Application auto-creation failed — create manually.', 'warning')
         }
@@ -618,7 +619,21 @@ export default function ApplicationDetails() {
             {/* Score */}
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs text-gray-500 font-medium">Application Score</span>
+                <span
+                  className="text-xs text-gray-500 font-medium flex items-center gap-1 cursor-help"
+                  title={
+                    'AI Lead Score (0-100) — predicts conversion likelihood.\n\n' +
+                    '• Source quality (0-30): Referral / Walk-in / Education Fair score highest\n' +
+                    '• Course tier (0-25): MBA / B.Tech CSE / M.Tech score highest\n' +
+                    '• Profile completeness (0-25): Email +10, State +8, City +7\n' +
+                    '• Stage engagement (0-20): Interested / Process for Payment\n\n' +
+                    'Buckets:\n' +
+                    '🔥 75+ Hot · 🌟 50-74 Warm · 🌱 25-49 Nurture · ❄️ <25 Cold'
+                  }
+                >
+                  Lead Score
+                  <HelpCircle size={11} className="text-gray-400" />
+                </span>
                 <span className="text-sm font-bold text-primary-600">{score}/100</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -627,13 +642,19 @@ export default function ApplicationDetails() {
                   style={{ width: `${score}%` }}
                 ></div>
               </div>
+              <p className="text-[10px] text-gray-400 mt-1.5 leading-tight">
+                {score >= 75 ? '🔥 Hot lead — high conversion likelihood'
+                  : score >= 50 ? '🌟 Warm lead — strong engagement signals'
+                  : score >= 25 ? '🌱 Nurture — needs more follow-up'
+                  : '❄️ Cold lead — low engagement, may need re-qualification'}
+              </p>
             </div>
 
             {/* Quick stage actions — only for leads */}
             {!isApp && leadStage !== 'Payment Success' && (
               <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
-                {/* Unable to Connect → Follow Up */}
-                {!['Follow Up','Not Interested'].includes(leadStage) && (
+                {/* Unable to Connect → Follow Up — hides once connected */}
+                {!['Contacted','Follow Up','Interested','Not Interested','Process for Payment'].includes(leadStage) && (
                   <button
                     onClick={async () => {
                       await updateLead(associatedLead.id, {
@@ -648,8 +669,8 @@ export default function ApplicationDetails() {
                     📞 Unable to Connect → Follow Up
                   </button>
                 )}
-                {/* Mark Not Interested */}
-                {leadStage !== 'Not Interested' && (
+                {/* Mark Not Interested — hides once Interested */}
+                {!['Interested','Not Interested','Process for Payment'].includes(leadStage) && (
                   <button
                     onClick={() => setShowNiModal(true)}
                     className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors flex items-center justify-center gap-1.5"
@@ -695,12 +716,30 @@ export default function ApplicationDetails() {
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Assigned Counselor</p>
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold select-none">
-                    {owner.split(' ').map(n => n[0]).join('')}
+                {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && !isApp ? (
+                  <select
+                    value={owner}
+                    onChange={async (e) => {
+                      const newOwner = e.target.value
+                      await updateLead(associatedLead.id, { owner: newOwner })
+                      showToast(`Counselor changed to ${newOwner}`, 'success')
+                    }}
+                    className="w-full text-sm font-medium text-gray-700 border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  >
+                    <option value="Unassigned">Unassigned</option>
+                    {(counselors && counselors.length > 0
+                      ? counselors.map(c => c.name)
+                      : (users || []).filter(u => ['Counselor','Manager','Admin'].includes(u.role) && u.status === 'Active').map(u => u.name)
+                    ).map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold select-none">
+                      {owner.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">{owner}</span>
                   </div>
-                  <span className="text-sm font-medium text-gray-700">{owner}</span>
-                </div>
+                )}
               </div>
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Lead Source</p>
