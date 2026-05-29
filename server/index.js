@@ -466,7 +466,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // --- LEADS ROUTERS ---
 app.get('/api/leads', async (req, res) => {
   try {
-    const leadsRes = await pool.query('SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType", owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor", not_interested_reason AS "notInterestedReason" FROM leads ORDER BY id DESC;')
+    const leadsRes = await pool.query('SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType", owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor", not_interested_reason AS "notInterestedReason", lead_details AS "leadDetails" FROM leads ORDER BY id DESC;')
     res.json(leadsRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch leads.' })
@@ -496,7 +496,7 @@ app.post('/api/leads', async (req, res) => {
 
 app.put('/api/leads/:id', async (req, res) => {
   const { id } = req.params
-  const { name, email, mobile, state, city, course, source, owner, score, stage, stageColor, not_interested_reason } = req.body
+  const { name, email, mobile, state, city, course, source, owner, score, stage, stageColor, not_interested_reason, leadDetails } = req.body
   try {
     const updateRes = await pool.query(`
       UPDATE leads
@@ -512,11 +512,13 @@ app.put('/api/leads/:id', async (req, res) => {
         score                  = COALESCE($9,  score),
         stage                  = COALESCE($10, stage),
         stage_color            = COALESCE($11, stage_color),
-        not_interested_reason  = COALESCE($12, not_interested_reason)
-      WHERE id = $13
+        not_interested_reason  = COALESCE($12, not_interested_reason),
+        lead_details           = COALESCE($13::jsonb, lead_details)
+      WHERE id = $14
       RETURNING id, name, email, mobile, state, city, course, source, owner,
                 reg_date AS "regDate", score, stage, stage_color AS "stageColor",
-                not_interested_reason AS "notInterestedReason";
+                not_interested_reason AS "notInterestedReason",
+                lead_details AS "leadDetails";
     `, [
       name                    ?? null,
       email                   ?? null,
@@ -530,6 +532,7 @@ app.put('/api/leads/:id', async (req, res) => {
       stage                   ?? null,
       stageColor              ?? null,
       not_interested_reason   ?? null,
+      leadDetails ? JSON.stringify(leadDetails) : null,
       id
     ])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
@@ -588,12 +591,19 @@ app.post('/api/applications', async (req, res) => {
   }
   const finalDate = date || new Date().toLocaleDateString('en-IN')
   try {
+    // Pull existing lead_details to seed application's admission_details (counsellor already filled them)
+    const leadRes = await pool.query(
+      `SELECT lead_details FROM leads WHERE (LOWER(email) = LOWER($1) AND email != '' AND email IS NOT NULL) OR mobile = $2 ORDER BY id DESC LIMIT 1;`,
+      [email || '', mobile || '']
+    ).catch(() => ({ rows: [] }))
+    const seededDetails = (leadRes.rows[0]?.lead_details) || {}
+
     const insertRes = await pool.query(`
-      INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, pay_method, campus, course, stage, owner, date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      RETURNING id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date;
-    `, [name, finalAppNo, email, mobile, formStatus || 'Incomplete', payStatus || 'Payment Pending', payMethod || '', campus || 'Bhubaneswar', course, stage || 'Application Started', owner || 'Unassigned', finalDate])
-    
+      INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, pay_method, campus, course, stage, owner, date, admission_details)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+      RETURNING id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails";
+    `, [name, finalAppNo, email, mobile, formStatus || 'Incomplete', payStatus || 'Payment Pending', payMethod || '', campus || 'Bhubaneswar', course, stage || 'Application Started', owner || 'Unassigned', finalDate, JSON.stringify(seededDetails)])
+
     // Auto-create notification
     await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Application submitted: ${name} (${finalAppNo})`, 'Just now'])
     
