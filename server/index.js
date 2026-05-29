@@ -80,6 +80,77 @@ function authenticateToken(req, res, next) {
   })
 }
 
+// Admin-only middleware (verify JWT then check role from DB)
+async function adminOnly(req, res, next) {
+  const authHeader = req.headers['authorization']
+  const token = authHeader && authHeader.split(' ')[1]
+  if (!token) return res.status(401).json({ error: 'Access token missing.' })
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET)
+    const userRes = await pool.query('SELECT role FROM users WHERE id = $1;', [decoded.id])
+    if (!userRes.rows[0] || userRes.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required.' })
+    }
+    req.user = decoded
+    next()
+  } catch {
+    res.status(403).json({ error: 'Invalid or expired token.' })
+  }
+}
+
+// ── PRODUCTION DATA RESET — wipes operational data, keeps users/settings ────
+app.post('/api/admin/reset-production', adminOnly, async (req, res) => {
+  const { confirmPhrase } = req.body
+  if (confirmPhrase !== 'RESET FOR PRODUCTION') {
+    return res.status(400).json({
+      error: 'Confirmation phrase mismatch. Send { confirmPhrase: "RESET FOR PRODUCTION" } exactly.'
+    })
+  }
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Wipe operational tables (CASCADE handles foreign keys)
+    const tables = [
+      'email_logs', 'email_campaigns', 'whatsapp_logs', 'call_logs',
+      'drip_sequences', 'documents', 'queries', 'tasks', 'events',
+      'notifications', 'payments', 'applications', 'leads'
+    ]
+    const counts = {}
+    for (const t of tables) {
+      try {
+        const c = await client.query(`SELECT COUNT(*) FROM ${t};`)
+        counts[t] = parseInt(c.rows[0].count)
+        await client.query(`TRUNCATE TABLE ${t} RESTART IDENTITY CASCADE;`)
+      } catch (e) {
+        console.warn(`[Reset] Skip ${t}: ${e.message}`)
+      }
+    }
+
+    // Reset application-number sequence
+    await client.query(`SELECT setval('cueeap_seq', 1, false);`).catch(() => {})
+
+    // Reset round-robin assignment counters (keep rows)
+    await client.query(`UPDATE lead_assignment_counter SET assignment_count = 0, last_assigned = NULL;`)
+
+    await client.query('COMMIT')
+
+    res.json({
+      success: true,
+      message: 'Production reset complete.',
+      wiped: counts,
+      kept: ['users', 'integration_settings', 'admission_targets', 'lead_assignment_counter (counts reset)'],
+    })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('[Reset Production]', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
+})
+
 // --- SMTP ALERT MAILER SENDER ---
 // ── Nodemailer transporter — lazy-loaded so missing package won't crash server ─
 async function createMailTransporter() {
