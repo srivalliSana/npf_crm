@@ -20,6 +20,15 @@ const OUTCOME_COLORS = {
   'Not Interested':       'bg-red-100 text-red-700',
 }
 
+// Format any DB timestamp in IST regardless of server timezone
+const fmtIST = (ts, withTime = true) => {
+  if (!ts) return '—'
+  const opts = { timeZone: 'Asia/Kolkata', hour12: true }
+  return withTime
+    ? new Date(ts).toLocaleString('en-IN', opts) + ' IST'
+    : new Date(ts).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })
+}
+
 export default function CommunicationsReport() {
   const [tab, setTab]               = useState('email')
   const [loading, setLoading]       = useState(false)
@@ -151,7 +160,7 @@ export default function CommunicationsReport() {
                     <div>
                       <p className="font-semibold text-gray-800">{camp.campaignName}</p>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        Last sent: {camp.lastSentAt ? new Date(camp.lastSentAt).toLocaleString('en-IN') : '—'}
+                        Last sent: {fmtIST(camp.lastSentAt)}
                       </p>
                     </div>
                   </div>
@@ -217,7 +226,7 @@ export default function CommunicationsReport() {
                                   </span>
                                 </td>
                                 <td className="table-td text-xs text-red-500 max-w-xs truncate" title={log.error}>{log.error || '—'}</td>
-                                <td className="table-td text-xs text-gray-500">{log.sentAt ? new Date(log.sentAt).toLocaleString('en-IN') : '—'}</td>
+                                <td className="table-td text-xs text-gray-500 whitespace-nowrap">{fmtIST(log.sentAt)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -240,7 +249,7 @@ export default function CommunicationsReport() {
             {[
               { label: 'Total Campaigns', value: waLogs.length, icon: MessageCircle, color: 'text-green-600', bg: 'bg-green-50' },
               { label: 'Total Sent',      value: waLogs.reduce((s, w) => s + Number(w.recipientCount || 0), 0), icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-              { label: 'Last Sent',       value: waLogs[0]?.sentAt ? new Date(waLogs[0].sentAt).toLocaleDateString('en-IN') : '—', icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50' },
+              { label: 'Last Sent',       value: fmtIST(waLogs[0]?.sentAt, false), icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50' },
             ].map(c => (
               <div key={c.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4">
                 <div className={`w-11 h-11 rounded-xl ${c.bg} flex items-center justify-center flex-shrink-0`}>
@@ -286,7 +295,7 @@ export default function CommunicationsReport() {
                         <td className="table-td">
                           <span className="badge bg-green-100 text-green-700 text-xs font-semibold">{w.status}</span>
                         </td>
-                        <td className="table-td text-xs text-gray-500">{w.sentAt ? new Date(w.sentAt).toLocaleString('en-IN') : '—'}</td>
+                        <td className="table-td text-xs text-gray-500 whitespace-nowrap">{fmtIST(w.sentAt)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -383,7 +392,7 @@ export default function CommunicationsReport() {
                           <span className={`badge text-xs font-semibold ${OUTCOME_COLORS[c.outcome] || 'bg-gray-100 text-gray-600'}`}>{c.outcome}</span>
                         </td>
                         <td className="table-td text-xs text-gray-500 max-w-xs truncate" title={c.notes}>{c.notes || '—'}</td>
-                        <td className="table-td text-xs text-gray-500">{c.calledAt ? new Date(c.calledAt).toLocaleString('en-IN') : '—'}</td>
+                        <td className="table-td text-xs text-gray-500 whitespace-nowrap">{fmtIST(c.calledAt)}</td>
                       </tr>
                     ))}
                   </tbody>

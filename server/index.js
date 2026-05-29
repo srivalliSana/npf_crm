@@ -2562,12 +2562,23 @@ app.post('/api/integration-settings/test-smtp', async (req, res) => {
 
 app.put('/api/email-campaigns/:id', async (req, res) => {
   const { id } = req.params
-  const { name, subject, template, segment } = req.body
+  const { name, subject, template, segment, status } = req.body
   try {
-    const r = await pool.query(`UPDATE email_campaigns SET name = $1, subject = $2, template = $3, segment = $4 WHERE id = $5 RETURNING id, name, subject, segment, status, template;`, [name, subject, template, segment, id])
+    // COALESCE keeps existing value when a field is not sent — supports partial updates (e.g. Disable toggle)
+    const r = await pool.query(`
+      UPDATE email_campaigns
+      SET name     = COALESCE($1, name),
+          subject  = COALESCE($2, subject),
+          template = COALESCE($3, template),
+          segment  = COALESCE($4, segment),
+          status   = COALESCE($5, status)
+      WHERE id = $6
+      RETURNING id, name, subject, segment, status, template;
+    `, [name ?? null, subject ?? null, template ?? null, segment ?? null, status ?? null, id])
     if (!r.rows[0]) return res.status(404).json({ error: 'Not found.' })
     res.json(r.rows[0])
   } catch (err) {
+    console.error('[PUT email-campaigns]', err.message)
     res.status(500).json({ error: 'Update failed.' })
   }
 })
