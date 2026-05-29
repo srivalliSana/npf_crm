@@ -2,7 +2,18 @@ import React, { useState, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
 import { Mail, Plus, Send, Trash2, Edit2, Users, BarChart2, Eye, EyeOff, Save, X, ChevronDown } from 'lucide-react'
 
-const SEGMENTS = ['All Leads', 'Hot Leads', 'Untouched Leads', 'Qualified Leads', 'Application Started', 'Payment Pending']
+const SEGMENTS = [
+  'All Leads',
+  'Hot Leads',
+  'Untouched Leads',
+  'Follow Up',
+  'Interested',
+  'Process for Payment',
+  'Payment Success',
+  'Not Interested',
+  'Application Started',
+  'Payment Pending',
+]
 const TEMPLATES = {
   blank: { subject: '', body: '' },
   admission: {
@@ -146,12 +157,19 @@ export default function EmailCampaigns() {
   const recipientCount = (segment) => {
     if (!leads) return 0
     const hasEmail = l => l.email && !l.email.includes('noemail') && l.email.trim() !== ''
-    if (segment === 'All Leads')          return leads.filter(hasEmail).length
-    if (segment === 'Hot Leads')          return leads.filter(l => hasEmail(l) && (l.score || 0) >= 75).length
-    if (segment === 'Untouched Leads')    return leads.filter(l => hasEmail(l) && l.stage === 'Untouched').length
-    if (segment === 'Qualified Leads')    return leads.filter(l => hasEmail(l) && l.stage === 'Qualified Leads').length
+    if (segment === 'All Leads')           return leads.filter(hasEmail).length
+    if (segment === 'Hot Leads')           return leads.filter(l => hasEmail(l) && (l.score || 0) >= 75).length
+    if (segment === 'Untouched Leads')     return leads.filter(l => hasEmail(l) && l.stage === 'Untouched').length
+    if (segment === 'Follow Up')           return leads.filter(l => hasEmail(l) && l.stage === 'Follow Up').length
+    if (segment === 'Interested')          return leads.filter(l => hasEmail(l) && l.stage === 'Interested').length
+    if (segment === 'Not Interested')      return leads.filter(l => hasEmail(l) && l.stage === 'Not Interested').length
+    // Match both new ('Process for Payment') and legacy ('Qualified Leads') rows
+    if (segment === 'Process for Payment' || segment === 'Qualified Leads')
+                                            return leads.filter(l => hasEmail(l) && ['Process for Payment','Qualified Leads'].includes(l.stage)).length
+    if (segment === 'Payment Success' || segment === 'Converted')
+                                            return leads.filter(l => hasEmail(l) && ['Payment Success','Converted'].includes(l.stage)).length
     if (segment === 'Application Started') return leads.filter(l => hasEmail(l) && ['Application Started','Contacted','Follow Up'].includes(l.stage)).length
-    if (segment === 'Payment Pending')    return leads.filter(l => hasEmail(l) && ['Payment Pending','Application Submitted','Payment Approved'].includes(l.stage)).length
+    if (segment === 'Payment Pending')     return leads.filter(l => hasEmail(l) && ['Payment Pending','Application Submitted','Payment Approved'].includes(l.stage)).length
     return leads.filter(hasEmail).length
   }
 

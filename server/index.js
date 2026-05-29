@@ -2445,7 +2445,14 @@ app.post('/api/email-campaigns/:id/send', async (req, res) => {
     // Build segment-aware query
     let segWhere = "email NOT LIKE '%noemail%' AND email != '' AND email IS NOT NULL"
     if (segment === 'Untouched Leads')      segWhere += " AND stage = 'Untouched'"
-    else if (segment === 'Qualified Leads') segWhere += " AND stage = 'Qualified Leads'"
+    else if (segment === 'Follow Up')       segWhere += " AND stage = 'Follow Up'"
+    else if (segment === 'Interested')      segWhere += " AND stage = 'Interested'"
+    else if (segment === 'Not Interested')  segWhere += " AND stage = 'Not Interested'"
+    // 'Process for Payment' segment matches both new and legacy 'Qualified Leads' rows
+    else if (segment === 'Process for Payment' || segment === 'Qualified Leads')
+                                            segWhere += " AND stage IN ('Process for Payment','Qualified Leads')"
+    else if (segment === 'Payment Success' || segment === 'Converted')
+                                            segWhere += " AND stage IN ('Payment Success','Converted')"
     else if (segment === 'Application Started') segWhere += " AND stage IN ('Application Started','Contacted','Follow Up')"
     else if (segment === 'Payment Pending') segWhere += " AND stage IN ('Payment Pending','Application Submitted','Payment Approved')"
     else if (segment === 'Hot Leads')       segWhere += " AND score >= 75"
