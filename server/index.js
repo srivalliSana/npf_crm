@@ -624,14 +624,26 @@ app.post('/api/applications', async (req, res) => {
 
 app.put('/api/applications/:id', async (req, res) => {
   const { id } = req.params
-  const { name, appNo, email, mobile, formStatus, payStatus, payMethod, campus, course, stage, owner, date } = req.body
+  const { name, appNo, email, mobile, formStatus, payStatus, payMethod, campus, course, stage, owner, date, leadDetails } = req.body
   try {
     const updateRes = await pool.query(`
       UPDATE applications
-      SET name = $1, app_no = $2, email = $3, mobile = $4, form_status = $5, pay_status = $6, pay_method = $7, campus = $8, course = $9, stage = $10, owner = $11, date = $12
-      WHERE id = $13
+      SET name        = COALESCE($1,  name),
+          app_no      = COALESCE($2,  app_no),
+          email       = COALESCE($3,  email),
+          mobile      = COALESCE($4,  mobile),
+          form_status = COALESCE($5,  form_status),
+          pay_status  = COALESCE($6,  pay_status),
+          pay_method  = COALESCE($7,  pay_method),
+          campus      = COALESCE($8,  campus),
+          course      = COALESCE($9,  course),
+          stage       = COALESCE($10, stage),
+          owner       = COALESCE($11, owner),
+          date        = COALESCE($12, date),
+          admission_details = COALESCE($13::jsonb, admission_details)
+      WHERE id = $14
       RETURNING id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date;
-    `, [name, appNo, email, mobile, formStatus, payStatus, payMethod, campus, course, stage, owner, date, id])
+    `, [name ?? null, appNo ?? null, email ?? null, mobile ?? null, formStatus ?? null, payStatus ?? null, payMethod ?? null, campus ?? null, course ?? null, stage ?? null, owner ?? null, date ?? null, leadDetails ? JSON.stringify(leadDetails) : null, id])
 
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Application not found.' })
 
