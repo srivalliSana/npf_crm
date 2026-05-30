@@ -253,6 +253,8 @@ export default function ApplicationDetails() {
     campus,
     school,
     course,
+    owner,
+    source,
     // Comprehensive lead details (saved as JSONB to leads.lead_details)
     leadDetails: associatedLead?.leadDetails || record.leadDetails || {
       parentName: '', parentMobile: '', parentEmail: '',
@@ -349,6 +351,12 @@ export default function ApplicationDetails() {
       formInterest: formData.formInterest,
       // Comprehensive admission fields stored in lead_details JSONB
       leadDetails: formData.leadDetails || {},
+    }
+
+    // Admin/Manager-only fields — only include when user actually has permission
+    if (['Admin', 'Manager'].includes(currentUser?.role)) {
+      if (formData.owner)  updateData.owner  = formData.owner
+      if (formData.source) updateData.source = formData.source
     }
 
     if (isApp && associatedApp) {
@@ -1017,7 +1025,28 @@ export default function ApplicationDetails() {
                       { label: 'Form Interested In', key: 'formInterest' },
                     ]
                   },
-                ]
+                  {
+                    title: 'Assignment (Admin / Manager only)',
+                    adminOnly: true,
+                    fields: [
+                      {
+                        label:   'Assigned Counsellor',
+                        key:     'owner',
+                        select:  true,
+                        options: [
+                          'Unassigned',
+                          ...((counselors && counselors.length > 0)
+                            ? counselors.map(c => c.name)
+                            : (users || []).filter(u => ['Counselor','Manager','Admin'].includes(u.role) && u.status === 'Active').map(u => u.name)
+                          )
+                        ]
+                      },
+                      { label: 'Lead Source', key: 'source', select: true,
+                        options: ['Google Ads','Facebook Ads','LinkedIn','Instagram','Website','WhatsApp','Walk-in','Referral','Education Fair','SMS Campaign','AI','SM']
+                      },
+                    ]
+                  },
+                ].filter(sec => !sec.adminOnly || ['Admin','Manager'].includes(currentUser?.role))
 
                 const getVal = (key) => {
                   if (!key.includes('.')) return formData[key] || ''
@@ -1061,19 +1090,30 @@ export default function ApplicationDetails() {
                             {section.title}
                           </p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {section.fields.map(({ label, key, required, wide }) => (
+                            {section.fields.map(({ label, key, required, wide, select, options }) => (
                               <div key={key} className={wide ? 'md:col-span-2' : ''}>
                                 <label className="block text-xs text-gray-400 font-medium mb-1">
                                   {label}{required ? ' *' : ''}
                                 </label>
                                 {editMode ? (
-                                  <input
-                                    type="text"
-                                    value={getVal(key)}
-                                    onChange={e => setVal(key, e.target.value)}
-                                    placeholder={`Enter ${label.toLowerCase()}`}
-                                    className="input-field text-sm"
-                                  />
+                                  select ? (
+                                    <select
+                                      value={getVal(key)}
+                                      onChange={e => setVal(key, e.target.value)}
+                                      className="input-field text-sm"
+                                    >
+                                      <option value="">— Select —</option>
+                                      {(options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                                    </select>
+                                  ) : (
+                                    <input
+                                      type="text"
+                                      value={getVal(key)}
+                                      onChange={e => setVal(key, e.target.value)}
+                                      placeholder={`Enter ${label.toLowerCase()}`}
+                                      className="input-field text-sm"
+                                    />
+                                  )
                                 ) : (
                                   <div className="py-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
                                     <span className="text-sm text-gray-700">{getVal(key) || <span className="text-gray-300 italic">—</span>}</span>
