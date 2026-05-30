@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import { ChevronDown, TrendingUp, Users, FileText, CheckCircle, Target, MapPin, Trophy } from 'lucide-react'
 import ProductivityReport from './ProductivityReport'
+import IntegrationStatusWidget from '../components/IntegrationStatusWidget'
 
 const TABS = ['User Dashboard', 'Productivity Report']
 const CAMPUSES = ['All', 'Bhubaneswar', 'Vizianagaram', 'Paralakhemundi', 'Balasore']
@@ -179,6 +180,11 @@ export default function Dashboard() {
                 </div>
               )
             })}
+          </div>
+
+          {/* Integration Health */}
+          <div className="mb-6">
+            <IntegrationStatusWidget />
           </div>
 
           {/* Campus Filter Bar */}
