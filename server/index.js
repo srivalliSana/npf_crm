@@ -2251,8 +2251,44 @@ app.post('/api/leads/bulk-sms', async (req, res) => {
 })
 
 // ── RCS Business Messaging — Gupshup / Karix / Sinch / Google RBM ───────────
-async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile, message }) {
+async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile, message,
+                                   username, password, rcsid, templateId, rcsType }) {
   switch ((provider || 'gupshup').toLowerCase()) {
+    case 'rcssms': {
+      // web.rcssms.in — METHOD 2 (variables as single array)
+      // POST https://web.rcssms.in/rcsapi/jsonapi.jsp?apitype=2
+      // If apiKey provided → use bearer auth (password not needed)
+      // Otherwise → password sent in body
+      if (!rcsid)      throw new Error('rcssms: rcsid (Bot ID) required — set rcs_rcsid')
+      if (!templateId) throw new Error('rcssms: templateid required — set rcs_template_id')
+      if (!username)   throw new Error('rcssms: username required — set rcs_username')
+      if (!apiKey && !password) throw new Error('rcssms: either password or bearer API key required')
+
+      const url = 'https://web.rcssms.in/rcsapi/jsonapi.jsp?apitype=2'
+      const body = {
+        username,
+        rcstype: (rcsType || 'BASIC').toUpperCase(),
+        rcsid,
+        msisdn: mobile,                        // 91XXXXXXXXXX
+        variables: [message],                  // single-variable template — message text as var1
+        templateid: templateId,
+      }
+      if (!apiKey) body.password = password    // password mode
+
+      const headers = { 'Content-Type': 'application/json' }
+      if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+
+      const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })
+      const text = await r.text()
+      let data = {}
+      try { data = JSON.parse(text) } catch {}
+      // rcssms returns { data: [{ msgid, msisdn }] } on success; error code on failure
+      if (!r.ok || data.errorcode || data.error) {
+        console.error('[RCS:rcssms]', data || text)
+        return false
+      }
+      return Array.isArray(data.data) && data.data.length > 0
+    }
     case 'gupshup': {
       // POST https://api.gupshup.io/sm/api/v1/msg
       const url = 'https://api.gupshup.io/sm/api/v1/msg'
@@ -2267,7 +2303,6 @@ async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile,
       return r.ok
     }
     case 'karix': {
-      // POST https://api.karix.io/message/
       const url = 'https://api.karix.io/message/'
       const r = await fetch(url, {
         method: 'POST',
@@ -2277,7 +2312,6 @@ async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile,
       return r.ok
     }
     case 'sinch': {
-      // POST https://us.rcs.api.sinch.com/v1/projects/{PROJECT_ID}/messages:send
       const url = `https://us.rcs.api.sinch.com/v1/projects/${agentId}/messages:send`
       const r = await fetch(url, {
         method: 'POST',
@@ -2288,7 +2322,6 @@ async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile,
     }
     case 'google-rbm':
     case 'rbm': {
-      // POST https://rcsbusinessmessaging.googleapis.com/v1/phones/{E164}/agentMessages
       const url = `https://rcsbusinessmessaging.googleapis.com/v1/phones/%2B${mobile}/agentMessages`
       const r = await fetch(url, {
         method: 'POST',
@@ -2306,29 +2339,62 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
   try {
-    const provider = await getIntegrationSetting('rcs_provider')
-    const apiKey   = await getIntegrationSetting('rcs_api_key')
-    const agentId  = await getIntegrationSetting('rcs_agent_id')
-    const senderId = await getIntegrationSetting('rcs_sender_id')
+    const provider   = await getIntegrationSetting('rcs_provider')
+    const apiKey     = await getIntegrationSetting('rcs_api_key')
+    const agentId    = await getIntegrationSetting('rcs_agent_id')
+    const senderId   = await getIntegrationSetting('rcs_sender_id')
+    // rcssms-specific fields
+    const username   = await getIntegrationSetting('rcs_username')
+    const password   = await getIntegrationSetting('rcs_password')
+    const rcsid      = await getIntegrationSetting('rcs_rcsid')
+    const templateId = await getIntegrationSetting('rcs_template_id')
+    const rcsType    = await getIntegrationSetting('rcs_type')
 
     const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
     const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
     const leads = leadsRes.rows
 
-    let sentCount = 0, failed = 0
-    for (const lead of leads) {
-      const mobile = `91${lead.mobile.replace(/\D/g, '').slice(-10)}`
-      const personalizedMsg = message.replace(/\{name\}/g, lead.name)
+    // For rcssms, batch send up to 500 numbers in one call (msisdn supports comma-separated)
+    const isRcssms = (provider || '').toLowerCase() === 'rcssms'
+    const hasAuth  = apiKey || password
 
-      if (!apiKey) {
-        console.log(`[RCS] Simulating ${provider || 'gupshup'} to ${lead.name} (${mobile})`)
-        sentCount++; continue
-      }
+    if (!hasAuth) {
+      // Simulation mode (no credentials)
+      console.log(`[RCS] Simulating ${provider || 'gupshup'} bulk send to ${leads.length} numbers`)
+      return res.json({ success: true, sent: leads.length, failed: 0, total: leads.length, provider: provider || 'gupshup', simulated: true })
+    }
+
+    let sentCount = 0, failed = 0
+
+    if (isRcssms && (rcsType || 'BASIC').toUpperCase() === 'BASIC') {
+      // BASIC template — same message for all → send in one batch (comma-separated msisdn)
+      const allMobiles = leads.map(l => `91${l.mobile.replace(/\D/g, '').slice(-10)}`).join(',')
       try {
-        const ok = await sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile, message: personalizedMsg })
-        ok ? sentCount++ : failed++
+        const ok = await sendRcsViaProvider({
+          provider, apiKey, agentId, senderId,
+          mobile: allMobiles, message,
+          username, password, rcsid, templateId, rcsType
+        })
+        if (ok) sentCount = leads.length
+        else    failed = leads.length
       } catch (e) {
-        console.error(`[RCS:${provider}] Failed:`, e.message); failed++
+        console.error(`[RCS:rcssms] Batch failed:`, e.message)
+        failed = leads.length
+      }
+    } else {
+      // One per recipient (allows {name} personalization)
+      for (const lead of leads) {
+        const mobile = `91${lead.mobile.replace(/\D/g, '').slice(-10)}`
+        const personalizedMsg = message.replace(/\{name\}/g, lead.name)
+        try {
+          const ok = await sendRcsViaProvider({
+            provider, apiKey, agentId, senderId, mobile, message: personalizedMsg,
+            username, password, rcsid, templateId, rcsType
+          })
+          ok ? sentCount++ : failed++
+        } catch (e) {
+          console.error(`[RCS:${provider}] Failed:`, e.message); failed++
+        }
       }
     }
 
