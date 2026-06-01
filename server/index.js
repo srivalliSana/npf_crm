@@ -1442,6 +1442,28 @@ app.get('/api/counselors', async (req, res) => {
 })
 
 
+// ── ADMIN — Manual Backup Trigger ────────────────────────────────────────────
+app.post('/api/admin/backup-now', async (req, res) => {
+  try {
+    const { exec } = await import('child_process')
+    const script = '/usr/local/bin/ccrm-backup.sh'
+    exec(script, { timeout: 5 * 60 * 1000 }, (err, stdout, stderr) => {
+      if (err) return res.status(500).json({ error: err.message, stderr })
+      res.json({ ok: true, output: stdout })
+    })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Server version + uptime info (called by Navbar version chip if needed)
+app.get('/api/admin/version', (req, res) => {
+  res.json({
+    version: '1.4.0',
+    released: '2026-06-01',
+    node: process.version,
+    uptimeSec: Math.floor(process.uptime())
+  })
+})
+
 // ── ADMIN — Server Health & Security Overview ────────────────────────────────
 app.get('/api/admin/server-health', async (req, res) => {
   try {
@@ -1604,6 +1626,68 @@ app.put('/api/users/:id', async (req, res) => {
     console.error(err)
     res.status(500).json({ error: 'Failed to update user profile details.' })
   }
+})
+
+// ── LEAD TRANSFERS — request + admin approve/reject ──────────────────────────
+app.post('/api/lead-transfers', async (req, res) => {
+  const { leadId, fromOwner, toOwner, remark } = req.body
+  if (!leadId || !toOwner) return res.status(400).json({ error: 'leadId and toOwner required' })
+  try {
+    const r = await pool.query(`
+      INSERT INTO lead_transfers (lead_id, from_owner, to_owner, remark, requested_by, status)
+      VALUES ($1, $2, $3, $4, $5, 'pending')
+      RETURNING id, lead_id AS "leadId", from_owner AS "fromOwner", to_owner AS "toOwner", remark, status, requested_at AS "requestedAt";
+    `, [leadId, fromOwner || '', toOwner, remark || '', fromOwner || ''])
+    // Notify admin
+    await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
+      [`🔄 Transfer request: ${fromOwner} → ${toOwner} (Lead #${leadId}). Awaiting approval.`, 'Just now', 'transfer_request'])
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.get('/api/lead-transfers', async (req, res) => {
+  const { status } = req.query
+  try {
+    let q = `
+      SELECT t.id, t.lead_id AS "leadId", t.from_owner AS "fromOwner", t.to_owner AS "toOwner",
+             t.remark, t.status, t.requested_at AS "requestedAt", t.decided_at AS "decidedAt",
+             t.decided_by AS "decidedBy", t.requested_by AS "requestedBy",
+             l.name AS "leadName", l.email AS "leadEmail", l.mobile AS "leadMobile"
+      FROM lead_transfers t
+      LEFT JOIN leads l ON l.id = t.lead_id
+    `
+    const params = []
+    if (status) { q += ' WHERE t.status = $1'; params.push(status) }
+    q += ' ORDER BY t.requested_at DESC LIMIT 100;'
+    const r = await pool.query(q, params)
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/lead-transfers/:id/decide', async (req, res) => {
+  const { decision, decidedBy } = req.body   // 'approved' | 'rejected'
+  if (!['approved','rejected'].includes(decision)) return res.status(400).json({ error: 'decision must be approved or rejected' })
+  try {
+    const t = await pool.query('SELECT * FROM lead_transfers WHERE id = $1;', [req.params.id])
+    if (!t.rows[0]) return res.status(404).json({ error: 'Transfer not found' })
+    if (t.rows[0].status !== 'pending') return res.status(400).json({ error: 'Already decided' })
+
+    const r = await pool.query(`
+      UPDATE lead_transfers
+      SET status = $1, decided_at = NOW(), decided_by = $2
+      WHERE id = $3
+      RETURNING *;
+    `, [decision, decidedBy || 'Admin', req.params.id])
+
+    // If approved, actually reassign the lead
+    if (decision === 'approved') {
+      await pool.query('UPDATE leads SET owner = $1 WHERE id = $2;', [r.rows[0].to_owner, r.rows[0].lead_id])
+    }
+
+    await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
+      [`Transfer #${req.params.id} ${decision}: ${r.rows[0].from_owner} → ${r.rows[0].to_owner}`, 'Just now', 'transfer_decision'])
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 // ── TEAMS — CRUD ──────────────────────────────────────────────────────────────

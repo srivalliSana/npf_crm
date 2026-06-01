@@ -285,6 +285,22 @@ export async function initDb() {
     // Leads: same details so counsellor can fill them at lead stage (before app exists)
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
 
+    // Lead transfer requests — counsellor requests, admin approves
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lead_transfers (
+        id          SERIAL PRIMARY KEY,
+        lead_id     INTEGER NOT NULL,
+        from_owner  VARCHAR(255) NOT NULL,
+        to_owner    VARCHAR(255) NOT NULL,
+        remark      TEXT DEFAULT '',
+        status      VARCHAR(20) DEFAULT 'pending',
+        requested_by VARCHAR(255),
+        requested_at TIMESTAMP DEFAULT NOW(),
+        decided_by  VARCHAR(255),
+        decided_at  TIMESTAMP
+      );
+    `).catch(() => {})
+
     // Custom Teams (admin-managed)
     await client.query(`
       CREATE TABLE IF NOT EXISTS teams (

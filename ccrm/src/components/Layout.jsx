@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
+import IdleLogout from './IdleLogout'
 
 export default function Layout({ onLogout, user }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -13,6 +14,7 @@ export default function Layout({ onLogout, user }) {
       <main className="ml-20 pt-14 min-h-screen">
         <Outlet />
       </main>
+      <IdleLogout />
     </div>
   )
 }

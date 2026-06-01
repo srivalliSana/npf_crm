@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { icon: Shield,          label: 'Users',         to: '/users',            roles: ['Admin'] },
   { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin'] },
   { icon: Settings,        label: 'Settings',      to: '/settings',         roles: null },
+  { icon: HelpCircle,      label: 'Help',          to: '/help',             roles: null },
 ]
 
 export default function Sidebar({ onLogout, user }) {

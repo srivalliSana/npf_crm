@@ -48,6 +48,7 @@ const TABS = [
   'Notes',
   'Communication Logs',
   'Tickets',
+  'Documents',
 ]
 
 function getInitials(name = '') {
@@ -1520,6 +1521,93 @@ export default function ApplicationDetails() {
                   </div>
                 </div>
               )}
+
+              {activeTab === 'Documents' && (() => {
+                const studentDocs = (documents || []).filter(d =>
+                  d.student?.toLowerCase() === studentName.toLowerCase()
+                )
+                const REQUIRED = ['10th Marksheet','12th Marksheet','Aadhar Card','Passport Photo','Transfer Certificate']
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-gray-800">Documents</h3>
+                      <button
+                        onClick={() => navigate('/documents')}
+                        className="text-xs bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1.5"
+                      >
+                        <Plus size={12} /> Upload via Documents Manager
+                      </button>
+                    </div>
+
+                    {/* Checklist */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-5">
+                      {REQUIRED.map(type => {
+                        const uploaded = studentDocs.find(d => d.type === type)
+                        const status = uploaded?.status || 'Not uploaded'
+                        const tone = uploaded?.status === 'Verified' ? 'green' : uploaded?.status === 'Rejected' ? 'red' : uploaded ? 'yellow' : 'gray'
+                        const cls = { green: 'bg-green-50 border-green-200 text-green-700', yellow: 'bg-yellow-50 border-yellow-200 text-yellow-700', red: 'bg-red-50 border-red-200 text-red-700', gray: 'bg-gray-50 border-gray-200 text-gray-500' }[tone]
+                        return (
+                          <div key={type} className={`flex items-center gap-2 text-xs px-2.5 py-2 rounded-lg border ${cls}`}>
+                            {uploaded ? <CheckCircle2 size={12} className="flex-shrink-0" /> : <Circle size={12} className="flex-shrink-0" />}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{type}</p>
+                              <p className="text-[10px] opacity-75">{status}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* All uploaded docs for this student */}
+                    {studentDocs.length === 0 ? (
+                      <div className="text-center text-gray-400 text-sm py-8 border-2 border-dashed border-gray-200 rounded-xl">
+                        No documents uploaded yet.<br/>
+                        <button onClick={() => navigate('/documents')} className="text-primary-500 hover:underline mt-2 text-xs">
+                          Upload from Documents Manager →
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto bg-white rounded-xl border border-gray-200">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              {['Document Type','Status','Uploaded','File','Action'].map(h => (
+                                <th key={h} className="table-th text-xs">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {studentDocs.map(d => (
+                              <tr key={d.id} className="border-t border-gray-100 hover:bg-gray-50/50">
+                                <td className="table-td text-xs font-medium text-gray-800">{d.type}</td>
+                                <td className="table-td">
+                                  <span className={`badge text-xs font-bold ${d.status === 'Verified' ? 'bg-green-100 text-green-700' : d.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                    {d.status}
+                                  </span>
+                                </td>
+                                <td className="table-td text-xs text-gray-500">{d.uploadDate || '—'}</td>
+                                <td className="table-td">
+                                  {d.fileUrl ? (
+                                    <a href={d.fileUrl} target="_blank" rel="noopener noreferrer"
+                                      className="text-xs text-blue-500 hover:underline">View file</a>
+                                  ) : (
+                                    <span className="text-xs text-gray-400">—</span>
+                                  )}
+                                </td>
+                                <td className="table-td">
+                                  <button onClick={() => navigate('/documents')}
+                                    className="text-xs text-primary-600 hover:underline">Manage →</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>
