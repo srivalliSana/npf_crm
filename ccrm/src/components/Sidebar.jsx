@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { icon: Mail,            label: 'Email Camps',   to: '/email-campaigns',  roles: ['Admin', 'Manager'] },
   { icon: Zap,             label: 'Drip Flows',    to: '/drip-workflows',   roles: ['Admin', 'Manager'] },
   { icon: Shield,          label: 'Users',         to: '/users',            roles: ['Admin'] },
+  { icon: ExternalLink,    label: 'Transfers',     to: '/transfer-approvals', roles: ['Admin', 'Manager'] },
   { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin'] },
   { icon: Settings,        label: 'Settings',      to: '/settings',         roles: null },
   { icon: HelpCircle,      label: 'Help',          to: '/help',             roles: null },

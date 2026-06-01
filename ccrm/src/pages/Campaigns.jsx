@@ -35,7 +35,26 @@ const roiData = [
 ]
 
 export default function Campaigns() {
-  const { campaigns, toggleCampaignStatus, addCampaign, showToast } = useCcrm()
+  const { campaigns, setCampaigns, toggleCampaignStatus, addCampaign, currentUser, showToast, fetchAllData } = useCcrm()
+
+  const resetModule = async () => {
+    if (!confirm('⚠️ This will DELETE all campaigns data permanently.\n\nType OK to continue.')) return
+    if (prompt('Type "RESET MODULE" to confirm') !== 'RESET MODULE') return showToast('Reset cancelled.', 'info')
+    try {
+      const res = await fetch('/api/admin/reset-module', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: 'campaigns', confirmPhrase: 'RESET MODULE' })
+      })
+      if (res.ok) {
+        showToast('Campaigns reset — all data cleared', 'success')
+        setCampaigns([])
+        fetchAllData?.()
+      } else {
+        const e = await res.json()
+        showToast(e.error || 'Reset failed', 'error')
+      }
+    } catch { showToast('Network error', 'error') }
+  }
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('All')
   const [showCreate, setShowCreate] = useState(false)
@@ -134,6 +153,12 @@ export default function Campaigns() {
           <button onClick={handleExport} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
             <Download size={14} /> Export
           </button>
+          {currentUser?.role === 'Admin' && (
+            <button onClick={resetModule}
+              className="flex items-center gap-1.5 text-sm text-red-600 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50 transition-colors">
+              🗑️ Reset Campaigns
+            </button>
+          )}
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 transition-colors focus:outline-none"

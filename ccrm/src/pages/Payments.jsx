@@ -16,6 +16,25 @@ const STATUS_COLORS = {
 
 export default function Payments() {
   const { payments, setPayments, addPayment, updatePaymentStatus, applications, currentUser, showToast, generatePaymentLink, fetchAllData } = useCcrm()
+
+  const resetPaymentsModule = async () => {
+    if (!confirm('⚠️ This will DELETE all payments data permanently.\n\nType OK to continue.')) return
+    if (prompt('Type "RESET MODULE" to confirm') !== 'RESET MODULE') return showToast('Reset cancelled.', 'info')
+    try {
+      const res = await fetch('/api/admin/reset-module', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: 'payments', confirmPhrase: 'RESET MODULE' })
+      })
+      if (res.ok) {
+        showToast('Payments reset — all data cleared', 'success')
+        setPayments([])
+        fetchAllData?.()
+      } else {
+        const e = await res.json()
+        showToast(e.error || 'Reset failed', 'error')
+      }
+    } catch { showToast('Network error', 'error') }
+  }
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All')
   const [showLink, setShowLink] = useState(false)
@@ -200,6 +219,12 @@ export default function Payments() {
           <button onClick={handleExport} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
             <Download size={14} /> Export
           </button>
+          {currentUser?.role === 'Admin' && (
+            <button onClick={resetPaymentsModule}
+              className="flex items-center gap-1.5 text-sm text-red-600 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50 transition-colors">
+              🗑️ Reset Payments
+            </button>
+          )}
           {isFinance && (
             <button onClick={() => { setShowBulk(true); setBulkResult(null) }}
               className="flex items-center gap-1.5 text-sm text-green-700 border border-green-300 bg-green-50 hover:bg-green-100 rounded-lg px-3 py-1.5 transition-colors">
