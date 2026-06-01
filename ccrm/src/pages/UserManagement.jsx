@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
 import {
   Users, Plus, Search, Shield, Edit, Trash2,
   CheckCircle, XCircle, X, Save, AlertTriangle,
-  Upload, Download, FileSpreadsheet,
+  Upload, Download, FileSpreadsheet, Key, Activity, Clock, Copy,
 } from 'lucide-react'
 
 const ROLE_COLORS = {
@@ -38,6 +38,52 @@ export default function UserManagement({ currentUser }) {
   const [form, setForm]               = useState(EMPTY_FORM)
   const [formError, setFormError]     = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+
+  // Bulk-select + reset password + activity
+  const [selectedIds, setSelectedIds] = useState([])
+  const [resetResult, setResetResult] = useState(null)   // { tempPassword, sentTo, message }
+  const [resetForUser, setResetForUser] = useState(null) // user being reset
+  const [showActivity, setShowActivity] = useState(false)
+  const [activity, setActivity] = useState({ recentLogins: [], activity: [] })
+
+  useEffect(() => {
+    if (showActivity) {
+      fetch('/api/users/activity').then(r => r.json()).then(d => setActivity(d || { recentLogins: [], activity: [] }))
+    }
+  }, [showActivity])
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+  const selectAll = () => {
+    setSelectedIds(selectedIds.length === filtered.length ? [] : filtered.map(u => u.id))
+  }
+
+  const bulkActivate = async (status) => {
+    if (selectedIds.length === 0) return
+    try {
+      const res = await fetch('/api/users/bulk-status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds, status })
+      })
+      if (res.ok) {
+        // Optimistic update in local users list
+        selectedIds.forEach(id => updateUser(id, { status }))
+        setSelectedIds([])
+      }
+    } catch {}
+  }
+
+  const handleResetPassword = async (user) => {
+    if (!confirm(`Reset password for ${user.name}?\nA new temporary password will be emailed to ${user.email}.`)) return
+    setResetForUser(user)
+    try {
+      const res = await fetch(`/api/users/${user.id}/reset-password`, { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) setResetResult(data)
+      else alert(data.error || 'Reset failed')
+    } catch { alert('Network error') }
+  }
 
   // Bulk upload state
   const [showBulkModal, setShowBulkModal] = useState(false)
@@ -175,6 +221,12 @@ export default function UserManagement({ currentUser }) {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowActivity(true)}
+            className="flex items-center gap-1.5 text-sm text-primary-600 border border-primary-200 bg-primary-50 hover:bg-primary-100 rounded-lg px-3 py-1.5"
+          >
+            <Activity size={14} /> Activity Log
+          </button>
+          <button
             onClick={() => { setShowBulkModal(true); setBulkResult(null) }}
             className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50"
           >
@@ -233,10 +285,37 @@ export default function UserManagement({ currentUser }) {
             </div>
           </div>
 
+          {/* Bulk action bar */}
+          {selectedIds.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-2.5 bg-primary-50 border-b border-primary-100">
+              <span className="text-xs font-medium text-primary-700">
+                {selectedIds.length} user{selectedIds.length > 1 ? 's' : ''} selected
+              </span>
+              <div className="flex gap-2">
+                <button onClick={() => bulkActivate('Active')}
+                  className="text-xs bg-green-500 hover:bg-green-600 text-white rounded-lg px-3 py-1 flex items-center gap-1">
+                  <CheckCircle size={11} /> Activate
+                </button>
+                <button onClick={() => bulkActivate('Inactive')}
+                  className="text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg px-3 py-1 flex items-center gap-1">
+                  <XCircle size={11} /> Deactivate
+                </button>
+                <button onClick={() => setSelectedIds([])}
+                  className="text-xs text-gray-600 border border-gray-300 rounded-lg px-3 py-1">Clear</button>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr>
+                  <th className="table-th w-10">
+                    <input type="checkbox"
+                      checked={selectedIds.length === filtered.length && filtered.length > 0}
+                      onChange={selectAll}
+                      className="w-4 h-4 rounded border-gray-300 text-primary-500" />
+                  </th>
                   {['Name','Email','Role','Team','Status','Last Login','Actions'].map(h => (
                     <th key={h} className="table-th">{h}</th>
                   ))}
@@ -248,6 +327,13 @@ export default function UserManagement({ currentUser }) {
                   const self = u.email === currentUser?.email
                   return (
                     <tr key={u.id} className={`hover:bg-gray-50 transition-colors ${self ? 'bg-primary-50/30' : ''}`}>
+                      <td className="table-td">
+                        <input type="checkbox"
+                          checked={selectedIds.includes(u.id)}
+                          onChange={() => toggleSelect(u.id)}
+                          disabled={self}
+                          className="w-4 h-4 rounded border-gray-300 text-primary-500 disabled:opacity-30" />
+                      </td>
                       <td className="table-td">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -279,6 +365,10 @@ export default function UserManagement({ currentUser }) {
                           <button onClick={() => openEdit(u)}
                             className="p-1 rounded hover:bg-gray-100 text-gray-500" title="Edit">
                             <Edit size={14} />
+                          </button>
+                          <button onClick={() => handleResetPassword(u)}
+                            className="p-1 rounded hover:bg-yellow-50 text-yellow-500" title="Reset password (email new temp)">
+                            <Key size={14} />
                           </button>
                           <button
                             onClick={() => toggleStatus(u)}
@@ -472,6 +562,111 @@ export default function UserManagement({ currentUser }) {
                 <Save size={14} />
                 {editingUser ? 'Save Changes' : 'Create User'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reset Password Result Modal ─────────────────────────────────────── */}
+      {resetResult && resetForUser && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <Key size={18} className="text-yellow-500" /> Password Reset
+              </h2>
+              <button onClick={() => { setResetResult(null); setResetForUser(null) }}>
+                <X size={18} className="text-gray-400" />
+              </button>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-sm">
+              <p className="font-semibold text-blue-800">{resetForUser.name}</p>
+              <p className="text-xs text-blue-600 mt-0.5">{resetForUser.email}</p>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">Temporary password (shown only once):</p>
+            <div className="flex items-center gap-2 mb-4">
+              <code className="flex-1 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 font-mono font-bold text-yellow-800 text-base text-center select-all">
+                {resetResult.tempPassword}
+              </code>
+              <button onClick={() => {
+                navigator.clipboard?.writeText(resetResult.tempPassword)
+                alert('Copied to clipboard')
+              }} className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                <Copy size={14} />
+              </button>
+            </div>
+            <p className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg p-2 mb-4">
+              ✓ Also emailed to {resetResult.sentTo}
+            </p>
+            <button onClick={() => { setResetResult(null); setResetForUser(null) }}
+              className="w-full btn-primary text-sm py-2">Done</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Activity Log Modal ──────────────────────────────────────────────── */}
+      {showActivity && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-primary-50">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <Activity size={18} className="text-primary-600" /> User Activity Log
+              </h2>
+              <button onClick={() => setShowActivity(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="overflow-y-auto p-6 space-y-5">
+              {/* Recent Logins */}
+              <div>
+                <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <Clock size={12} /> Recent Logins ({activity.recentLogins.length})
+                </h3>
+                <div className="space-y-1.5">
+                  {activity.recentLogins.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">No login activity yet</p>
+                  ) : activity.recentLogins.map((u, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center">
+                          {initials(u.name)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{u.name}</p>
+                          <p className="text-[10px] text-gray-400">{u.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className={`badge text-[10px] font-bold ${
+                          u.role === 'Admin'     ? 'bg-red-100 text-red-700' :
+                          u.role === 'Manager'   ? 'bg-purple-100 text-purple-700' :
+                          u.role === 'Counselor' ? 'bg-blue-100 text-blue-700' :
+                                                   'bg-green-100 text-green-700'
+                        }`}>{u.role}</span>
+                        <span className="text-[10px] text-gray-500 mt-1">{u.lastLogin}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent System Activity */}
+              <div>
+                <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <Activity size={12} /> Recent Activity ({activity.activity.length})
+                </h3>
+                <div className="space-y-1">
+                  {activity.activity.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">No recent activity</p>
+                  ) : activity.activity.map((a, i) => (
+                    <div key={i} className="text-xs px-2 py-1.5 border-l-2 border-primary-200 bg-primary-50/30 ml-1">
+                      <p className="text-gray-700">{a.text}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{a.time}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+              <button onClick={() => setShowActivity(false)} className="btn-secondary text-sm px-4 py-2">Close</button>
             </div>
           </div>
         </div>

@@ -1606,6 +1606,74 @@ app.put('/api/users/:id', async (req, res) => {
   }
 })
 
+// Admin-triggered password reset (generates temp password, returns it once)
+app.post('/api/users/:id/reset-password', async (req, res) => {
+  const { id } = req.params
+  try {
+    // Generate friendly temporary password e.g. "Sun#4827"
+    const words = ['Sun','Sky','Lake','Wave','Star','Moon','Leaf','Wind']
+    const tempPwd = `${words[Math.floor(Math.random()*words.length)]}#${Math.floor(1000 + Math.random()*9000)}`
+
+    const r = await pool.query(
+      'UPDATE users SET password = $1 WHERE id = $2 RETURNING id, name, email;',
+      [tempPwd, id]
+    )
+    if (r.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
+
+    // Email the temp password (best-effort)
+    try {
+      await sendSystemMailAlert(
+        r.rows[0].email,
+        'CCRM — Your password has been reset',
+        `Hello ${r.rows[0].name},\n\nAn administrator has reset your CCRM password.\n\nTemporary password: ${tempPwd}\n\nPlease log in at https://crm.cutmap.ac.in/login and change this immediately from Settings → Security.\n\nBest regards,\nCCRM Admin`
+      )
+    } catch {}
+
+    res.json({
+      success: true,
+      tempPassword: tempPwd,
+      sentTo: r.rows[0].email,
+      message: `Password reset. Temp password emailed to ${r.rows[0].email}`
+    })
+  } catch (err) {
+    console.error('[reset-password]', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Bulk status toggle (activate/deactivate multiple users at once)
+app.post('/api/users/bulk-status', async (req, res) => {
+  const { ids, status } = req.body
+  if (!ids?.length || !status) return res.status(400).json({ error: 'ids and status required.' })
+  try {
+    await pool.query('UPDATE users SET status = $1 WHERE id = ANY($2::int[]);', [status, ids])
+    res.json({ success: true, updated: ids.length, status })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// User activity feed — last logins, role changes, recent actions
+app.get('/api/users/activity', async (req, res) => {
+  try {
+    // Recent logins
+    const logins = await pool.query(`
+      SELECT name, email, role, last_login AS "lastLogin", status
+      FROM users
+      WHERE last_login IS NOT NULL AND last_login <> ''
+      ORDER BY id DESC LIMIT 20;
+    `)
+
+    // Recent lead assignment notifications (proxy for activity)
+    const notifs = await pool.query(`
+      SELECT text, time, type, created_at AS "createdAt"
+      FROM notifications
+      WHERE type IN ('lead_assigned','info') OR text ILIKE '%user%' OR text ILIKE '%registered%'
+      ORDER BY id DESC LIMIT 20;
+    `)
+
+    res.json({ recentLogins: logins.rows, activity: notifs.rows })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // --- BULK USER UPLOAD ---
 app.post('/api/users/bulk-upload', (req, res, next) => {
   uploadBulk.single('file')(req, res, (err) => {
@@ -2508,6 +2576,70 @@ app.post('/api/webhooks/rcssms-template', async (req, res) => {
     res.json({ ok: true })
   } catch (err) {
     console.error('[RCS webhook]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── RCS TEMPLATES — list, add, delete, webhook for rcssms approval ──────────
+app.get('/api/rcs/templates', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT id, template_id AS "templateId", name, rcs_type AS "rcsType",
+             status, provider, variables, preview,
+             created_at AS "createdAt", approved_at AS "approvedAt"
+      FROM rcs_templates ORDER BY created_at DESC;
+    `)
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/rcs/templates', async (req, res) => {
+  const { templateId, name, rcsType, status, provider, preview, variables } = req.body
+  if (!templateId) return res.status(400).json({ error: 'templateId required' })
+  try {
+    const r = await pool.query(`
+      INSERT INTO rcs_templates (template_id, name, rcs_type, status, provider, preview, variables)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (template_id) DO UPDATE SET
+        name = EXCLUDED.name,
+        rcs_type = EXCLUDED.rcs_type,
+        status = EXCLUDED.status,
+        preview = EXCLUDED.preview,
+        variables = EXCLUDED.variables
+      RETURNING id, template_id AS "templateId", name, rcs_type AS "rcsType", status, provider, preview, variables;
+    `, [templateId, name || templateId, (rcsType || 'BASIC').toUpperCase(),
+        status || 'PENDING', provider || 'rcssms', preview || '',
+        JSON.stringify(variables || [])])
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/api/rcs/templates/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM rcs_templates WHERE id = $1;', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Webhook — rcssms.in POSTs here when template approval status changes
+// Configure on rcssms dashboard: https://crm.cutmap.ac.in/api/webhooks/rcssms-template
+app.post('/api/webhooks/rcssms-template', async (req, res) => {
+  const { templateid, status } = req.body || {}
+  console.log('[Webhook rcssms-template]', req.body)
+  if (!templateid) return res.status(400).json({ error: 'templateid required' })
+  try {
+    await pool.query(`
+      INSERT INTO rcs_templates (template_id, status, provider, approved_at)
+      VALUES ($1, $2, 'rcssms', CASE WHEN $2 = 'APPROVED' THEN NOW() ELSE NULL END)
+      ON CONFLICT (template_id) DO UPDATE SET
+        status = EXCLUDED.status,
+        approved_at = CASE WHEN EXCLUDED.status = 'APPROVED' THEN NOW() ELSE rcs_templates.approved_at END;
+    `, [templateid, (status || 'PENDING').toUpperCase()])
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+      [`RCS template ${templateid} is now ${status}`, 'Just now'])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[Webhook rcssms-template]', err)
     res.status(500).json({ error: err.message })
   }
 })
