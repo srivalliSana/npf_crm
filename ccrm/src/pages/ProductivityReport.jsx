@@ -178,61 +178,93 @@ export default function ProductivityReport() {
         ))}
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
-          <span className="text-xs text-gray-550 font-medium">
-            Showing <span className="font-semibold text-gray-700">{REPORT_DATA.length}</span> counselors · {dateFilter}
-          </span>
-        </div>
+      {/* Table — columns change per subtab */}
+      {(() => {
+        // Define column sets per subtab
+        const VIEW_COLUMNS = {
+          'Quick Summary': [
+            { label: 'Lead Assigned',  key: 'leadAssigned'  },
+            { label: 'Engaged',        key: 'leadsEngaged'  },
+            { label: 'Untouched',      key: 'untouched'     },
+            { label: 'App Assigned',   key: 'appAssigned'   },
+            { label: 'Pay Approved',   key: 'payApproved'   },
+            { label: 'Enrolment',      key: 'enrolment'     },
+          ],
+          'Lead Summary': [
+            { label: 'Lead Assigned',  key: 'leadAssigned'  },
+            { label: 'Not Engaged',    key: 'leadsNotEngaged' },
+            { label: 'Engaged',        key: 'leadsEngaged'  },
+            { label: 'Untouched',      key: 'untouched'     },
+          ],
+          'Application Summary': [
+            { label: 'Application Assigned',  key: 'appAssigned'   },
+            { label: 'Application Submitted', key: 'appSubmitted'  },
+            { label: 'Payment Approved',      key: 'payApproved'   },
+            { label: 'Enrolment',             key: 'enrolment'     },
+          ],
+          'Telephony Status': [
+            { label: 'Calls Made',     key: 'callsMade',     fallback: 0 },
+            { label: 'Calls Connected', key: 'callsConnected', fallback: 0 },
+            { label: 'Avg Duration',   key: 'avgCallDuration', fallback: '0:00' },
+            { label: 'Connect Rate',   key: 'connectRate', fallback: '0%' },
+          ],
+          'Query Status': [
+            { label: 'Total Queries',    key: 'queriesTotal',    fallback: 0 },
+            { label: 'Open Queries',     key: 'queriesOpen',     fallback: 0 },
+            { label: 'Resolved Queries', key: 'queriesResolved', fallback: 0 },
+            { label: 'Avg Resolution',   key: 'avgResolutionHours', fallback: '—' },
+          ],
+          'Effort Analysis': [
+            { label: 'Total Touchpoints', key: 'totalTouches', fallback: 0 },
+            { label: 'WhatsApp Sent',     key: 'waSent',       fallback: 0 },
+            { label: 'Emails Sent',       key: 'emailsSent',   fallback: 0 },
+            { label: 'SMS Sent',          key: 'smsSent',      fallback: 0 },
+            { label: 'Calls',             key: 'callsMade',    fallback: 0 },
+          ],
+        }
+        const cols = VIEW_COLUMNS[activeView] || VIEW_COLUMNS['Quick Summary']
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className="table-th">Owner Name</th>
-                <th className="table-th text-center">Lead Assigned</th>
-                <th className="table-th text-center">Leads Not Engaged</th>
-                <th className="table-th text-center">Leads Engaged Overall</th>
-                <th className="table-th text-center">Untouched Stage</th>
-                <th className="table-th text-center">Application Assigned</th>
-                <th className="table-th text-center">Payment Approved</th>
-                <th className="table-th text-center">Application Submitted</th>
-                <th className="table-th text-center">Enrolment</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageData.map((row, idx) => (
-                <tr key={row.owner} className={`hover:bg-blue-50/30 transition-colors ${idx % 2 === 0 ? '' : 'bg-gray-50/30'}`}>
-                  <td className="table-td">
-                    <div>
-                      <p className="font-semibold text-gray-800 text-sm">{row.owner}</p>
-                      <p className="text-xs text-gray-400">{row.email}</p>
-                    </div>
-                  </td>
-                  <td className="table-td text-center"><BlueNum n={row.leadAssigned} /></td>
-                  <td className="table-td text-center"><BlueNum n={row.leadsNotEngaged} /></td>
-                  <td className="table-td text-center"><BlueNum n={row.leadsEngaged} /></td>
-                  <td className="table-td text-center"><BlueNum n={row.untouched} /></td>
-                  <td className="table-td text-center"><BlueNum n={row.appAssigned} /></td>
-                  <td className="table-td text-center"><BlueNum n={row.payApproved} /></td>
-                  <td className="table-td text-center"><BlueNum n={row.appSubmitted} /></td>
-                  <td className="table-td text-center"><BlueNum n={row.enrolment} /></td>
-                </tr>
-              ))}
+        return (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
+              <span className="text-xs text-gray-500 font-medium">
+                <strong className="text-primary-600">{activeView}</strong> · Showing <strong className="text-gray-700">{REPORT_DATA.length}</strong> counsellors · {dateFilter}
+              </span>
+            </div>
 
-              {/* Totals row */}
-              <tr className="bg-primary-50 border-t-2 border-primary-200 font-semibold">
-                <td className="table-td text-primary-700 font-bold">Total</td>
-                <td className="table-td text-center text-primary-700">{TOTALS.leadAssigned}</td>
-                <td className="table-td text-center text-primary-700">{TOTALS.leadsNotEngaged}</td>
-                <td className="table-td text-center text-primary-700">{TOTALS.leadsEngaged}</td>
-                <td className="table-td text-center text-primary-700">{TOTALS.untouched}</td>
-                <td className="table-td text-center text-primary-700">{TOTALS.appAssigned}</td>
-                <td className="table-td text-center text-primary-700">{TOTALS.payApproved}</td>
-                <td className="table-td text-center text-primary-700">{TOTALS.appSubmitted}</td>
-                <td className="table-td text-center text-primary-700">{TOTALS.enrolment}</td>
-              </tr>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="table-th">Owner Name</th>
+                    {cols.map(c => <th key={c.key} className="table-th text-center whitespace-nowrap">{c.label}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageData.map((row, idx) => (
+                    <tr key={row.owner} className={`hover:bg-blue-50/30 transition-colors ${idx % 2 === 0 ? '' : 'bg-gray-50/30'}`}>
+                      <td className="table-td">
+                        <div>
+                          <p className="font-semibold text-gray-800 text-sm">{row.owner}</p>
+                          <p className="text-xs text-gray-400">{row.email}</p>
+                        </div>
+                      </td>
+                      {cols.map(c => (
+                        <td key={c.key} className="table-td text-center">
+                          <BlueNum n={row[c.key] !== undefined ? row[c.key] : (c.fallback ?? 0)} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+
+                  {/* Totals row */}
+                  <tr className="bg-primary-50 border-t-2 border-primary-200 font-semibold">
+                    <td className="table-td text-primary-700 font-bold">Total</td>
+                    {cols.map(c => {
+                      const sum = REPORT_DATA.reduce((s, r) => s + (Number(r[c.key]) || 0), 0)
+                      return <td key={c.key} className="table-td text-center text-primary-700">{TOTALS[c.key] !== undefined ? TOTALS[c.key] : sum}</td>
+                    })}
+                  </tr>
             </tbody>
           </table>
         </div>
@@ -271,6 +303,8 @@ export default function ProductivityReport() {
           </div>
         </div>
       </div>
+        )
+      })()}
     </div>
   )
 }
