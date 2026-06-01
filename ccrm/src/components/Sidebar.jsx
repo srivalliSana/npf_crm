@@ -32,7 +32,8 @@ const NAV_ITEMS = [
 export default function Sidebar({ onLogout, user }) {
   const navigate = useNavigate()
   const userRole = user?.role || 'Counselor'
-  const [expanded, setExpanded] = useState(false)
+  // Sidebar stays expanded always — no hover-collapse
+  const expanded = true
 
   const visibleItems = NAV_ITEMS.filter(item =>
     !item.roles || item.roles.includes(userRole)
@@ -40,9 +41,7 @@ export default function Sidebar({ onLogout, user }) {
 
   return (
     <aside
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
-      className={`fixed left-0 top-0 h-screen bg-primary-500 flex flex-col z-50 shadow-lg transition-all duration-200 ease-out ${expanded ? 'w-56' : 'w-20'}`}
+      className={`fixed left-0 top-0 h-screen bg-primary-500 flex flex-col z-50 shadow-lg w-56`}
     >
       {/* Logo */}
       <div

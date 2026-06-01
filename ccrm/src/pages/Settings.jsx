@@ -15,6 +15,7 @@ const SECTIONS = [
   { id: 'notifications', label: 'Notifications',          icon: Bell       },
   { id: 'security',      label: 'Security & Access',      icon: Shield     },
   { id: 'integrations',  label: 'Integrations',           icon: Link       },
+  { id: 'backup',        label: 'Backup & Restore',       icon: Database,   adminOnly: true },
   { id: 'production',    label: 'Production Reset',       icon: AlertTriangle, adminOnly: true },
 ]
 
@@ -448,6 +449,8 @@ export default function Settings() {
           )}
 
           {/* ── PRODUCTION RESET (Admin only) ──────────────────────────────── */}
+          {activeSection === 'backup' && currentUser?.role === 'Admin' && <BackupSection showToast={showToast} />}
+
           {activeSection === 'production' && currentUser?.role === 'Admin' && (
             <div className="bg-white border-2 border-red-200 rounded-2xl shadow-sm p-6">
               <div className="flex items-center gap-3 mb-4">
@@ -567,6 +570,119 @@ export default function Settings() {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Backup Section — manual trigger + last-run status ────────────────────────
+function BackupSection({ showToast }) {
+  const [running, setRunning] = useState(false)
+  const [result, setResult]   = useState(null)
+  const [output, setOutput]   = useState('')
+
+  const runBackup = async () => {
+    if (!confirm('Run a full backup now?\n\nThis will:\n• Dump the PostgreSQL database\n• Archive the code\n• Email summary to admin\n\nContinue?')) return
+    setRunning(true)
+    setResult(null)
+    try {
+      const res = await fetch('/api/admin/backup-now', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setResult({ ok: true })
+        setOutput(data.output || '')
+        showToast('✓ Backup completed successfully', 'success')
+      } else {
+        setResult({ ok: false, error: data.error || 'Backup failed' })
+        showToast(data.error || 'Backup failed', 'error')
+      }
+    } catch (e) {
+      setResult({ ok: false, error: e.message })
+      showToast('Network error — is /usr/local/bin/ccrm-backup.sh installed on the server?', 'error')
+    }
+    setRunning(false)
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+          <Database size={20} className="text-blue-600" />
+        </div>
+        <div>
+          <h2 className="font-bold text-gray-900 text-base">Backup & Restore</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Database + code backup with email summary</p>
+        </div>
+      </div>
+
+      {/* Schedule info */}
+      <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 mb-4">
+        <h3 className="text-sm font-bold text-blue-800 mb-2">📅 Scheduled Backups</h3>
+        <ul className="text-xs text-blue-700 space-y-1">
+          <li>• <strong>Daily at 2:00 AM</strong> (via cron — once installed)</li>
+          <li>• <strong>Database:</strong> Full PostgreSQL dump, compressed (.sql.gz)</li>
+          <li>• <strong>Code:</strong> Full /var/www/ccrm archive (excluding node_modules)</li>
+          <li>• <strong>Retention:</strong> 14 days (older backups auto-deleted)</li>
+          <li>• <strong>Location:</strong> /var/backups/ccrm/ on the server</li>
+          <li>• <strong>Email summary:</strong> sent to <code className="bg-blue-100 px-1 rounded">admin@cutmap.ac.in</code></li>
+        </ul>
+      </div>
+
+      {/* Manual trigger */}
+      <div className="border border-gray-200 rounded-xl p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Run Backup Now</p>
+            <p className="text-xs text-gray-500 mt-0.5">Manually trigger a backup outside the daily schedule</p>
+          </div>
+          <button
+            onClick={runBackup}
+            disabled={running}
+            className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+          >
+            {running ? (
+              <><span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> Backing up...</>
+            ) : (
+              <><Database size={14} /> Run Backup Now</>
+            )}
+          </button>
+        </div>
+
+        {result?.ok && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <p className="text-sm font-semibold text-green-800 flex items-center gap-1.5">
+              <CheckCircle size={14} /> Backup completed
+            </p>
+            {output && (
+              <pre className="text-[10px] text-green-700 mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono bg-white p-2 rounded border border-green-100">
+                {output}
+              </pre>
+            )}
+          </div>
+        )}
+        {result && !result.ok && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <p className="text-sm font-semibold text-red-800">✗ {result.error}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Setup steps */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+        <h3 className="text-sm font-bold text-yellow-800 mb-2">⚙️ One-time setup (on the server)</h3>
+        <pre className="text-[11px] font-mono bg-white text-yellow-900 p-3 rounded border border-yellow-100 overflow-x-auto whitespace-pre">
+{`# 1. Copy backup script
+sudo cp /opt/npf_crm/server/backup.sh /usr/local/bin/ccrm-backup.sh
+sudo chmod +x /usr/local/bin/ccrm-backup.sh
+
+# 2. Schedule daily at 2 AM via cron
+sudo crontab -e
+# Add:
+0 2 * * * /usr/local/bin/ccrm-backup.sh >> /var/log/ccrm-backup.log 2>&1
+
+# 3. Test manually (run as root)
+sudo /usr/local/bin/ccrm-backup.sh`}
+        </pre>
       </div>
     </div>
   )

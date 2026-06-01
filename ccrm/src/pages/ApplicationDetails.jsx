@@ -69,7 +69,7 @@ export default function ApplicationDetails() {
     queries, addQuery, updateQueryStatus, addQueryReply,
     events, addEvent,
     payments, fetchAllData,
-    documents,
+    documents, uploadDocument, updateDocStatus, deleteDocument,
     generatePaymentLink,
     users, counselors,
     showToast, currentUser
@@ -1523,92 +1523,17 @@ export default function ApplicationDetails() {
                 </div>
               )}
 
-              {activeTab === 'Documents' && (() => {
-                const studentDocs = (documents || []).filter(d =>
-                  d.student?.toLowerCase() === studentName.toLowerCase()
-                )
-                const REQUIRED = ['10th Marksheet','12th Marksheet','Aadhar Card','Passport Photo','Transfer Certificate']
-
-                return (
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold text-gray-800">Documents</h3>
-                      <button
-                        onClick={() => navigate('/documents')}
-                        className="text-xs bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1.5"
-                      >
-                        <Plus size={12} /> Upload via Documents Manager
-                      </button>
-                    </div>
-
-                    {/* Checklist */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-5">
-                      {REQUIRED.map(type => {
-                        const uploaded = studentDocs.find(d => d.type === type)
-                        const status = uploaded?.status || 'Not uploaded'
-                        const tone = uploaded?.status === 'Verified' ? 'green' : uploaded?.status === 'Rejected' ? 'red' : uploaded ? 'yellow' : 'gray'
-                        const cls = { green: 'bg-green-50 border-green-200 text-green-700', yellow: 'bg-yellow-50 border-yellow-200 text-yellow-700', red: 'bg-red-50 border-red-200 text-red-700', gray: 'bg-gray-50 border-gray-200 text-gray-500' }[tone]
-                        return (
-                          <div key={type} className={`flex items-center gap-2 text-xs px-2.5 py-2 rounded-lg border ${cls}`}>
-                            {uploaded ? <CheckCircle2 size={12} className="flex-shrink-0" /> : <Circle size={12} className="flex-shrink-0" />}
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{type}</p>
-                              <p className="text-[10px] opacity-75">{status}</p>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {/* All uploaded docs for this student */}
-                    {studentDocs.length === 0 ? (
-                      <div className="text-center text-gray-400 text-sm py-8 border-2 border-dashed border-gray-200 rounded-xl">
-                        No documents uploaded yet.<br/>
-                        <button onClick={() => navigate('/documents')} className="text-primary-500 hover:underline mt-2 text-xs">
-                          Upload from Documents Manager →
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto bg-white rounded-xl border border-gray-200">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              {['Document Type','Status','Uploaded','File','Action'].map(h => (
-                                <th key={h} className="table-th text-xs">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {studentDocs.map(d => (
-                              <tr key={d.id} className="border-t border-gray-100 hover:bg-gray-50/50">
-                                <td className="table-td text-xs font-medium text-gray-800">{d.type}</td>
-                                <td className="table-td">
-                                  <span className={`badge text-xs font-bold ${d.status === 'Verified' ? 'bg-green-100 text-green-700' : d.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                    {d.status}
-                                  </span>
-                                </td>
-                                <td className="table-td text-xs text-gray-500">{d.uploadDate || '—'}</td>
-                                <td className="table-td">
-                                  {d.fileUrl ? (
-                                    <a href={d.fileUrl} target="_blank" rel="noopener noreferrer"
-                                      className="text-xs text-blue-500 hover:underline">View file</a>
-                                  ) : (
-                                    <span className="text-xs text-gray-400">—</span>
-                                  )}
-                                </td>
-                                <td className="table-td">
-                                  <button onClick={() => navigate('/documents')}
-                                    className="text-xs text-primary-600 hover:underline">Manage →</button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
+              {activeTab === 'Documents' && (
+                <InlineDocumentsTab
+                  studentName={studentName}
+                  documents={documents}
+                  uploadDocument={uploadDocument}
+                  updateDocStatus={updateDocStatus}
+                  deleteDocument={deleteDocument}
+                  showToast={showToast}
+                  currentUser={currentUser}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -1880,5 +1805,185 @@ export default function ApplicationDetails() {
       </div>
     )}
     </>
+  )
+}
+
+// ── Inline Documents Tab — upload + verify in the lead window directly ───────
+function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocStatus, deleteDocument, showToast, currentUser }) {
+  const fileRef = React.useRef(null)
+  const [docType, setDocType]   = React.useState('10th Marksheet')
+  const [uploading, setUploading] = React.useState(false)
+  const [dragOver, setDragOver] = React.useState(false)
+  const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
+
+  const REQUIRED = [
+    '10th Marksheet','12th Marksheet','Aadhar Card','Passport Photo',
+    'Transfer Certificate','Migration Certificate','Caste Certificate',
+    'Income Certificate','Character Certificate','Medical Certificate'
+  ]
+
+  const studentDocs = (documents || []).filter(d =>
+    d.student?.toLowerCase() === studentName.toLowerCase()
+  )
+
+  const handleFile = async (file) => {
+    if (!file) return
+    const valid = ['image/jpeg','image/png','image/jpg','application/pdf']
+    if (!valid.includes(file.type)) return showToast('Only PDF/JPG/PNG supported', 'error')
+    if (file.size > 5 * 1024 * 1024) return showToast('File must be under 5MB', 'error')
+
+    setUploading(true)
+    try {
+      // Upload file to server
+      const fd = new FormData()
+      fd.append('document', file)
+      const uploadRes = await fetch('/api/upload/document', { method: 'POST', body: fd })
+      const { fileUrl } = uploadRes.ok ? await uploadRes.json() : { fileUrl: '' }
+
+      // Create document record
+      await uploadDocument({
+        student: studentName,
+        type: docType,
+        fileUrl: fileUrl || URL.createObjectURL(file),
+        status: 'Pending'
+      })
+      showToast(`${docType} uploaded successfully`, 'success')
+    } catch {
+      showToast('Upload failed', 'error')
+    }
+    setUploading(false)
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-gray-800">Documents</h3>
+        <span className="text-xs text-gray-400">
+          {studentDocs.filter(d => d.status === 'Verified').length} of {studentDocs.length || 0} verified
+        </span>
+      </div>
+
+      {/* Inline upload area */}
+      <div className="bg-blue-50/40 border border-blue-100 rounded-xl p-4 mb-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div className="md:col-span-1">
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Document Type</label>
+            <select value={docType} onChange={e => setDocType(e.target.value)} className="input-field text-sm">
+              {REQUIRED.map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <div
+              onClick={() => !uploading && fileRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]) }}
+              className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition ${
+                dragOver ? 'border-primary-500 bg-primary-50' :
+                uploading ? 'border-primary-300 bg-primary-50/50' :
+                'border-gray-300 hover:border-primary-400'
+              }`}
+            >
+              {uploading ? (
+                <div className="flex items-center justify-center gap-2 text-sm text-primary-600">
+                  <span className="animate-spin w-4 h-4 border-2 border-primary-300 border-t-primary-600 rounded-full" />
+                  Uploading {docType}...
+                </div>
+              ) : (
+                <>
+                  <Plus size={20} className="mx-auto text-gray-400 mb-1" />
+                  <p className="text-xs text-gray-600 font-semibold">Click to upload or drag & drop</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">PDF, JPG, PNG up to 5MB</p>
+                </>
+              )}
+              <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                onChange={e => handleFile(e.target.files?.[0])} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Required checklist */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-5">
+        {REQUIRED.slice(0, 5).map(type => {
+          const uploaded = studentDocs.find(d => d.type === type)
+          const status = uploaded?.status || 'Not uploaded'
+          const tone = uploaded?.status === 'Verified' ? 'green'
+                     : uploaded?.status === 'Rejected' ? 'red'
+                     : uploaded ? 'yellow' : 'gray'
+          const cls = {
+            green:  'bg-green-50 border-green-200 text-green-700',
+            yellow: 'bg-yellow-50 border-yellow-200 text-yellow-700',
+            red:    'bg-red-50 border-red-200 text-red-700',
+            gray:   'bg-gray-50 border-gray-200 text-gray-500',
+          }[tone]
+          return (
+            <div key={type} className={`flex items-center gap-2 text-xs px-2.5 py-2 rounded-lg border ${cls}`}>
+              {uploaded ? <CheckCircle2 size={12} className="flex-shrink-0" /> : <Circle size={12} className="flex-shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate">{type}</p>
+                <p className="text-[10px] opacity-75">{status}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* All uploaded docs */}
+      {studentDocs.length === 0 ? (
+        <div className="text-center text-gray-400 text-sm py-8 border-2 border-dashed border-gray-200 rounded-xl">
+          No documents uploaded yet. Use the upload box above ↑
+        </div>
+      ) : (
+        <div className="overflow-x-auto bg-white rounded-xl border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                {['Document Type','Status','Uploaded','File','Actions'].map(h => (
+                  <th key={h} className="table-th text-xs">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {studentDocs.map(d => (
+                <tr key={d.id} className="border-t border-gray-100 hover:bg-gray-50/50">
+                  <td className="table-td text-xs font-medium text-gray-800">{d.type}</td>
+                  <td className="table-td">
+                    <span className={`badge text-xs font-bold ${
+                      d.status === 'Verified' ? 'bg-green-100 text-green-700' :
+                      d.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                      'bg-yellow-100 text-yellow-700'
+                    }`}>{d.status}</span>
+                  </td>
+                  <td className="table-td text-xs text-gray-500">{d.uploadDate || '—'}</td>
+                  <td className="table-td">
+                    {d.fileUrl ? (
+                      <a href={d.fileUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-blue-500 hover:underline">View</a>
+                    ) : <span className="text-xs text-gray-400">—</span>}
+                  </td>
+                  <td className="table-td">
+                    <div className="flex items-center gap-1">
+                      {isAdmin && d.status !== 'Verified' && (
+                        <button onClick={() => updateDocStatus(d.id, 'Verified')}
+                          className="text-xs text-green-600 hover:bg-green-50 px-1.5 py-0.5 rounded">✓ Verify</button>
+                      )}
+                      {isAdmin && d.status !== 'Rejected' && (
+                        <button onClick={() => updateDocStatus(d.id, 'Rejected')}
+                          className="text-xs text-red-500 hover:bg-red-50 px-1.5 py-0.5 rounded">✗ Reject</button>
+                      )}
+                      {isAdmin && (
+                        <button onClick={() => { if (confirm(`Delete ${d.type}?`)) deleteDocument(d.id) }}
+                          className="text-xs text-gray-400 hover:bg-red-50 hover:text-red-500 px-1.5 py-0.5 rounded">🗑</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   )
 }
