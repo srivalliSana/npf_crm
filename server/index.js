@@ -1606,6 +1606,118 @@ app.put('/api/users/:id', async (req, res) => {
   }
 })
 
+// ── TEAMS — CRUD ──────────────────────────────────────────────────────────────
+app.get('/api/teams', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT t.id, t.name, t.description, t.created_at AS "createdAt",
+             COUNT(u.id)::int AS "memberCount"
+      FROM teams t
+      LEFT JOIN users u ON u.team = t.name
+      GROUP BY t.id, t.name, t.description, t.created_at
+      ORDER BY t.id;
+    `)
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/teams', async (req, res) => {
+  const { name, description } = req.body
+  if (!name?.trim()) return res.status(400).json({ error: 'Name required' })
+  try {
+    const r = await pool.query(
+      `INSERT INTO teams (name, description) VALUES ($1, $2) RETURNING id, name, description;`,
+      [name.trim(), description || '']
+    )
+    res.json(r.rows[0])
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'A team with this name already exists' })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/teams/:id', async (req, res) => {
+  const { name, description } = req.body
+  try {
+    const r = await pool.query(
+      `UPDATE teams SET name = COALESCE($1, name), description = COALESCE($2, description) WHERE id = $3 RETURNING *;`,
+      [name?.trim() || null, description ?? null, req.params.id]
+    )
+    if (!r.rows[0]) return res.status(404).json({ error: 'Team not found' })
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/api/teams/:id', async (req, res) => {
+  try {
+    // Check team isn't in use
+    const u = await pool.query('SELECT COUNT(*)::int AS c FROM users WHERE team = (SELECT name FROM teams WHERE id = $1);', [req.params.id])
+    if (u.rows[0].c > 0) return res.status(400).json({ error: `Cannot delete — ${u.rows[0].c} user(s) are in this team. Reassign them first.` })
+    await pool.query('DELETE FROM teams WHERE id = $1;', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ── ROLES — CRUD ──────────────────────────────────────────────────────────────
+app.get('/api/roles', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT r.id, r.name, r.description, r.permissions, r.is_system AS "isSystem",
+             r.created_at AS "createdAt",
+             COUNT(u.id)::int AS "memberCount"
+      FROM roles r
+      LEFT JOIN users u ON u.role = r.name
+      GROUP BY r.id, r.name, r.description, r.permissions, r.is_system, r.created_at
+      ORDER BY r.is_system DESC, r.id;
+    `)
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/roles', async (req, res) => {
+  const { name, description, permissions } = req.body
+  if (!name?.trim()) return res.status(400).json({ error: 'Name required' })
+  try {
+    const r = await pool.query(
+      `INSERT INTO roles (name, description, permissions, is_system) VALUES ($1, $2, $3, FALSE) RETURNING *;`,
+      [name.trim(), description || '', JSON.stringify(permissions || [])]
+    )
+    res.json(r.rows[0])
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'A role with this name already exists' })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/roles/:id', async (req, res) => {
+  const { name, description, permissions } = req.body
+  try {
+    const check = await pool.query('SELECT is_system FROM roles WHERE id = $1;', [req.params.id])
+    if (!check.rows[0]) return res.status(404).json({ error: 'Role not found' })
+    if (check.rows[0].is_system && name) {
+      return res.status(400).json({ error: 'Cannot rename a system role' })
+    }
+    const r = await pool.query(
+      `UPDATE roles SET name = COALESCE($1, name), description = COALESCE($2, description),
+                        permissions = COALESCE($3::jsonb, permissions) WHERE id = $4 RETURNING *;`,
+      [name?.trim() || null, description ?? null, permissions ? JSON.stringify(permissions) : null, req.params.id]
+    )
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/api/roles/:id', async (req, res) => {
+  try {
+    const check = await pool.query('SELECT is_system, name FROM roles WHERE id = $1;', [req.params.id])
+    if (!check.rows[0]) return res.status(404).json({ error: 'Role not found' })
+    if (check.rows[0].is_system) return res.status(400).json({ error: 'Cannot delete a system role' })
+    const u = await pool.query('SELECT COUNT(*)::int AS c FROM users WHERE role = $1;', [check.rows[0].name])
+    if (u.rows[0].c > 0) return res.status(400).json({ error: `Cannot delete — ${u.rows[0].c} user(s) hold this role. Reassign them first.` })
+    await pool.query('DELETE FROM roles WHERE id = $1;', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // Admin-triggered password reset (generates temp password, returns it once)
 app.post('/api/users/:id/reset-password', async (req, res) => {
   const { id } = req.params
@@ -3040,9 +3152,13 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
     const uploaderName = req.body.uploaderName || ''
     const isCounselor  = uploaderRole === 'Counselor'
 
-    // Pre-fetch round-robin counselors (only used when admin uploads)
+    // Admin's choice: 'round_robin' (default) or 'specific'
+    const assignMode    = (req.body.assignMode || 'round_robin').toLowerCase()
+    const assignedTo    = req.body.assignedTo || ''  // counselor name when assignMode = 'specific'
+
+    // Pre-fetch round-robin counselors when needed
     let counselors = [], rrIndex = 0
-    if (!isCounselor) {
+    if (!isCounselor && assignMode === 'round_robin') {
       const cRes = await pool.query(`
         SELECT lac.counselor_name FROM lead_assignment_counter lac
         JOIN users u ON u.name = lac.counselor_name
@@ -3052,11 +3168,15 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
       counselors = cRes.rows.map(r => r.counselor_name)
     }
     const getNextOwner = () => {
+      // Counsellor uploading → all leads go to them
       if (isCounselor) return uploaderName || 'Unassigned'
+      // Admin chose specific counsellor → all leads go to that person
+      if (assignMode === 'specific' && assignedTo) return assignedTo
+      // Default: round-robin across active counsellors
       if (!counselors.length) return 'Unassigned'
       return counselors[rrIndex++ % counselors.length]
     }
-
+    // Keep the original anonymous fn signature for backward compat below
     const SM_SOURCES = ['facebook', 'google ads', 'linkedin', 'instagram', 'whatsapp', 'sm', 'social']
 
     const client = await pool.connect()

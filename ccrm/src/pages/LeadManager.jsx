@@ -133,6 +133,9 @@ export default function LeadManager() {
   const [previewData, setPreviewData] = useState(null) // {headers, preview, autoMap, totalRows, duplicateCount, estimatedDupRate}
   const [columnMap, setColumnMap] = useState({})
   const [dupHandling, setDupHandling] = useState('skip')
+  // Admin only: assignment mode for bulk-upload
+  const [assignMode, setAssignMode] = useState('round_robin')
+  const [assignedTo, setAssignedTo] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [uploadResult, setUploadResult] = useState(null)
   const [dragOver, setDragOver] = useState(false)
@@ -340,6 +343,9 @@ export default function LeadManager() {
     // Pass uploader identity — counselor assigns to self, admin does round-robin
     formData.append('uploaderRole', currentUser?.role || 'Admin')
     formData.append('uploaderName', currentUser?.name || '')
+    // Admin assignment choice (ignored when counsellor uploads)
+    formData.append('assignMode', assignMode)
+    if (assignMode === 'specific') formData.append('assignedTo', assignedTo || '')
     try {
       const res = await fetch('/api/leads/bulk-upload-mapped', { method: 'POST', body: formData })
       if (res.ok) {
@@ -1108,6 +1114,44 @@ export default function LeadManager() {
                     </div>
                   )}
 
+                  {/* Lead assignment — admins choose round-robin OR specific counsellor */}
+                  {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
+                    <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
+                      <p className="text-sm font-semibold text-primary-800 mb-3 flex items-center gap-1.5">
+                        <Target size={14} /> Lead Assignment
+                      </p>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        {[
+                          { v: 'round_robin', label: '🔄 Round-Robin',          desc: 'Distribute equally across all active counsellors' },
+                          { v: 'specific',    label: '👤 Specific Counsellor',  desc: 'Assign ALL leads in this upload to one person' },
+                        ].map(o => (
+                          <label key={o.v}
+                            className={`p-3 rounded-lg border-2 cursor-pointer transition ${assignMode === o.v ? 'border-primary-500 bg-white shadow-sm' : 'border-primary-100 bg-white/50 hover:border-primary-300'}`}>
+                            <input type="radio" name="assign-mode" value={o.v}
+                              checked={assignMode === o.v}
+                              onChange={e => setAssignMode(e.target.value)}
+                              className="hidden" />
+                            <div className={`font-semibold text-sm ${assignMode === o.v ? 'text-primary-700' : 'text-gray-600'}`}>{o.label}</div>
+                            <div className="text-[10px] text-gray-500 mt-0.5">{o.desc}</div>
+                          </label>
+                        ))}
+                      </div>
+                      {assignMode === 'specific' && (
+                        <div>
+                          <label className="block text-xs font-semibold text-primary-700 mb-1">Assign to *</label>
+                          <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
+                            className="input-field text-sm">
+                            <option value="">— Choose counsellor —</option>
+                            {(counselors || []).map(c => (
+                              <option key={c.id || c.name} value={c.name}>{c.name}</option>
+                            ))}
+                          </select>
+                          {!assignedTo && <p className="text-[11px] text-red-500 mt-1">Please pick a counsellor before importing.</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Column mapper */}
                   <div>
                     <p className="text-sm font-semibold text-gray-700 mb-3">Column Mapping <span className="text-xs text-gray-400 font-normal">(auto-detected — adjust if needed)</span></p>
@@ -1180,7 +1224,8 @@ export default function LeadManager() {
               <button onClick={closeBulkModal} className="btn-secondary py-2 px-4 text-sm">{bulkStep === 4 ? 'Close' : 'Cancel'}</button>
               {bulkStep === 2 && (
                 <button onClick={handleBulkImport}
-                  className="btn-primary py-2 px-5 text-sm flex items-center gap-2">
+                  disabled={assignMode === 'specific' && !assignedTo}
+                  className="btn-primary py-2 px-5 text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                   <Upload size={15} /> Import {previewData?.totalRows?.toLocaleString()} Leads
                 </button>
               )}
