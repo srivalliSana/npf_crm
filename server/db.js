@@ -285,6 +285,51 @@ export async function initDb() {
     // Leads: same details so counsellor can fill them at lead stage (before app exists)
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
 
+    // Custom Teams (admin-managed)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS teams (
+        id   SERIAL PRIMARY KEY,
+        name VARCHAR(100) UNIQUE NOT NULL,
+        description TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `).catch(() => {})
+
+    // Custom Roles (admin-managed, in addition to system roles)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS roles (
+        id   SERIAL PRIMARY KEY,
+        name VARCHAR(100) UNIQUE NOT NULL,
+        description TEXT DEFAULT '',
+        permissions JSONB DEFAULT '[]'::jsonb,
+        is_system BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `).catch(() => {})
+
+    // Seed system defaults if empty
+    const teamCount = await client.query("SELECT COUNT(*)::int AS c FROM teams;")
+    if (teamCount.rows[0].c === 0) {
+      for (const t of ['Management','Admissions','Sales','Marketing','Finance']) {
+        await client.query(`INSERT INTO teams (name) VALUES ($1) ON CONFLICT DO NOTHING;`, [t]).catch(() => {})
+      }
+    }
+    const roleCount = await client.query("SELECT COUNT(*)::int AS c FROM roles;")
+    if (roleCount.rows[0].c === 0) {
+      const sysRoles = [
+        ['Admin',     'Full access to all modules and settings', ['*'], true],
+        ['Manager',   'View all leads, manage team, approve payments', ['view_all_leads','manage_team','approve_payments'], true],
+        ['Counselor', 'Handle assigned leads, log calls, send messages', ['view_own_leads','edit_own_leads','send_messages'], true],
+        ['Finance',   'View and approve payments', ['view_payments','approve_payments'], true],
+      ]
+      for (const [name, desc, perms, sys] of sysRoles) {
+        await client.query(
+          `INSERT INTO roles (name, description, permissions, is_system) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING;`,
+          [name, desc, JSON.stringify(perms), sys]
+        ).catch(() => {})
+      }
+    }
+
     // RCS approved templates — pulled via webhook from rcssms.in or added manually
     await client.query(`
       CREATE TABLE IF NOT EXISTS rcs_templates (

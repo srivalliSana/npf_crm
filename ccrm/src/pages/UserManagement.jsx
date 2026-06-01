@@ -20,8 +20,9 @@ const PERMISSIONS = {
   Finance:   ['View Payments','Edit Payments','View Reports'],
 }
 
-const ROLES  = ['Admin','Manager','Counselor','Finance']
-const TEAMS  = ['Management','Admissions','Sales','Marketing','Finance']
+// Fallback values if API hasn't loaded yet
+const FALLBACK_ROLES = ['Admin','Manager','Counselor','Finance']
+const FALLBACK_TEAMS = ['Management','Admissions','Sales','Marketing','Finance']
 const EMPTY_FORM = { name: '', email: '', mobile: '', role: 'Counselor', team: 'Admissions', status: 'Active', password: '' }
 
 function initials(name = '') {
@@ -38,6 +39,63 @@ export default function UserManagement({ currentUser }) {
   const [form, setForm]               = useState(EMPTY_FORM)
   const [formError, setFormError]     = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+
+  // Dynamic teams + roles (admin-managed)
+  const [teamsList, setTeamsList] = useState([])
+  const [rolesList, setRolesList] = useState([])
+  const [showManageTR, setShowManageTR] = useState(false)
+  const [newTeamName, setNewTeamName] = useState('')
+  const [newRoleName, setNewRoleName] = useState('')
+  const [newRoleDesc, setNewRoleDesc] = useState('')
+
+  const loadTeamsRoles = async () => {
+    try {
+      const [t, r] = await Promise.all([
+        fetch('/api/teams').then(x => x.json()),
+        fetch('/api/roles').then(x => x.json()),
+      ])
+      setTeamsList(Array.isArray(t) ? t : [])
+      setRolesList(Array.isArray(r) ? r : [])
+    } catch {}
+  }
+  useEffect(() => { loadTeamsRoles() }, [])
+
+  const ROLES = rolesList.length > 0 ? rolesList.map(r => r.name) : FALLBACK_ROLES
+  const TEAMS = teamsList.length > 0 ? teamsList.map(t => t.name) : FALLBACK_TEAMS
+
+  const addTeam = async () => {
+    if (!newTeamName.trim()) return
+    const res = await fetch('/api/teams', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newTeamName.trim() })
+    })
+    if (res.ok) { setNewTeamName(''); loadTeamsRoles() }
+    else alert((await res.json()).error || 'Failed to add team')
+  }
+
+  const deleteTeam = async (id, name) => {
+    if (!confirm(`Delete team "${name}"?`)) return
+    const res = await fetch(`/api/teams/${id}`, { method: 'DELETE' })
+    if (res.ok) loadTeamsRoles()
+    else alert((await res.json()).error || 'Delete failed')
+  }
+
+  const addRole = async () => {
+    if (!newRoleName.trim()) return
+    const res = await fetch('/api/roles', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newRoleName.trim(), description: newRoleDesc.trim() })
+    })
+    if (res.ok) { setNewRoleName(''); setNewRoleDesc(''); loadTeamsRoles() }
+    else alert((await res.json()).error || 'Failed to add role')
+  }
+
+  const deleteRole = async (id, name) => {
+    if (!confirm(`Delete role "${name}"?`)) return
+    const res = await fetch(`/api/roles/${id}`, { method: 'DELETE' })
+    if (res.ok) loadTeamsRoles()
+    else alert((await res.json()).error || 'Delete failed')
+  }
 
   // Bulk-select + reset password + activity
   const [selectedIds, setSelectedIds] = useState([])
@@ -220,6 +278,12 @@ export default function UserManagement({ currentUser }) {
           <p className="text-sm text-gray-500 mt-0.5">Role-based access control, teams &amp; hierarchy management</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowManageTR(true)}
+            className="flex items-center gap-1.5 text-sm text-purple-600 border border-purple-200 bg-purple-50 hover:bg-purple-100 rounded-lg px-3 py-1.5"
+          >
+            <Shield size={14} /> Teams & Roles
+          </button>
           <button
             onClick={() => setShowActivity(true)}
             className="flex items-center gap-1.5 text-sm text-primary-600 border border-primary-200 bg-primary-50 hover:bg-primary-100 rounded-lg px-3 py-1.5"
@@ -562,6 +626,105 @@ export default function UserManagement({ currentUser }) {
                 <Save size={14} />
                 {editingUser ? 'Save Changes' : 'Create User'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Teams & Roles Manager Modal ─────────────────────────────────────── */}
+      {showManageTR && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-purple-50">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <Shield size={18} className="text-purple-600" /> Teams & Roles
+              </h2>
+              <button onClick={() => setShowManageTR(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="overflow-y-auto p-6 space-y-6">
+
+              {/* TEAMS */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  👥 Teams ({teamsList.length})
+                </h3>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text" value={newTeamName}
+                    onChange={e => setNewTeamName(e.target.value)}
+                    placeholder="e.g. International Admissions"
+                    onKeyDown={e => e.key === 'Enter' && addTeam()}
+                    className="flex-1 input-field text-sm"
+                  />
+                  <button onClick={addTeam}
+                    className="bg-purple-500 hover:bg-purple-600 text-white text-sm font-semibold px-4 rounded-lg flex items-center gap-1.5">
+                    <Plus size={14} /> Add Team
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {teamsList.map(t => (
+                    <div key={t.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{t.name}</p>
+                        <p className="text-[10px] text-gray-400">{t.memberCount || 0} member{t.memberCount === 1 ? '' : 's'}</p>
+                      </div>
+                      <button onClick={() => deleteTeam(t.id, t.name)}
+                        className="text-red-400 hover:text-red-600 p-1" title="Delete team">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ROLES */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  🔐 Roles ({rolesList.length})
+                </h3>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <input type="text" value={newRoleName}
+                    onChange={e => setNewRoleName(e.target.value)}
+                    placeholder="Role name (e.g. Senior Counselor)"
+                    className="input-field text-sm" />
+                  <input type="text" value={newRoleDesc}
+                    onChange={e => setNewRoleDesc(e.target.value)}
+                    placeholder="Description (optional)"
+                    className="input-field text-sm" />
+                </div>
+                <button onClick={addRole}
+                  className="w-full bg-purple-500 hover:bg-purple-600 text-white text-sm font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 mb-3">
+                  <Plus size={14} /> Add Custom Role
+                </button>
+
+                <div className="space-y-1.5">
+                  {rolesList.map(r => (
+                    <div key={r.id} className={`flex items-center justify-between border rounded-lg px-3 py-2 ${r.isSystem ? 'bg-blue-50/50 border-blue-100' : 'bg-gray-50 border-gray-200'}`}>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-800">{r.name}</p>
+                          {r.isSystem && <span className="badge bg-blue-100 text-blue-700 text-[9px] font-bold">SYSTEM</span>}
+                          <span className="text-[10px] text-gray-400">· {r.memberCount || 0} user{r.memberCount === 1 ? '' : 's'}</span>
+                        </div>
+                        {r.description && <p className="text-[10px] text-gray-500 mt-0.5">{r.description}</p>}
+                      </div>
+                      {!r.isSystem && (
+                        <button onClick={() => deleteRole(r.id, r.name)}
+                          className="text-red-400 hover:text-red-600 p-1" title="Delete role">
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
+                💡 <strong>System roles</strong> (Admin / Manager / Counselor / Finance) cannot be deleted — they're wired into permission checks across the app. You can add custom roles for specialised positions.
+              </div>
+            </div>
+            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+              <button onClick={() => setShowManageTR(false)} className="btn-secondary text-sm px-4 py-2">Done</button>
             </div>
           </div>
         </div>
