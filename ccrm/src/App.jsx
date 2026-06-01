@@ -22,6 +22,7 @@ import Leaderboard from './pages/Leaderboard'
 import EmailCampaigns from './pages/EmailCampaigns'
 import DripWorkflows from './pages/DripWorkflows'
 import CommunicationsReport from './pages/CommunicationsReport'
+import Help from './pages/Help'
 import PublicInquiry from './pages/PublicInquiry'
 import StudentPortal from './pages/StudentPortal'
 
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="email-campaigns"  element={<EmailCampaigns />} />
             <Route path="drip-workflows"     element={<DripWorkflows />} />
             <Route path="comms-report"       element={<CommunicationsReport />} />
+            <Route path="help"               element={<Help />} />
 
             {/* Admin-only */}
             <Route element={<RoleGuard roles={['Admin']} />}>

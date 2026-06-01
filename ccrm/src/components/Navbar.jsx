@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { APP_VERSION, APP_RELEASED } from '../version'
 import {
   Menu, Sparkles, Bell, Phone, Settings,
   HelpCircle, ChevronDown, X, LogOut,
@@ -49,6 +50,12 @@ export default function Navbar({ onToggleSidebar, onLogout, user }) {
           <div className="hidden sm:flex items-center gap-1">
             <span className="text-primary-500 font-extrabold text-lg tracking-tight">CCRM</span>
             <span className="text-gray-400 text-xs ml-1">| Centurion University</span>
+            <span
+              title={`Version ${APP_VERSION} · Released ${APP_RELEASED}`}
+              className="ml-2 text-[10px] font-mono font-bold bg-primary-50 text-primary-600 border border-primary-100 px-1.5 py-0.5 rounded cursor-help"
+            >
+              v{APP_VERSION}
+            </span>
           </div>
         </div>
 

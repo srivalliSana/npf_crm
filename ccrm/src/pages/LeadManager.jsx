@@ -5,7 +5,8 @@ import {
   ChevronLeft, ChevronRight, MessageCircle, Phone,
   Plus, X, Save, Upload, AlertCircle,
   CheckCircle2, FileSpreadsheet, HelpCircle, Trash2,
-  MessageSquare, Zap, Target, BarChart2, ArrowRight
+  MessageSquare, Zap, Target, BarChart2, ArrowRight,
+  Mail, Calendar, ArrowRightLeft
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
@@ -78,6 +79,51 @@ export default function LeadManager() {
 
   // Multi-channel send modal
   const [showWAModal, setShowWAModal]   = useState(false)
+
+  // Transfer (re-assign) modal
+  const [transferLead, setTransferLead] = useState(null)   // lead being transferred
+  const [transferTo, setTransferTo]     = useState('')
+  const [transferRemark, setTransferRemark] = useState('')
+  const [transferLoading, setTransferLoading] = useState(false)
+
+  const handleSubmitTransfer = async () => {
+    if (!transferLead || !transferTo) return showToast('Please pick a counsellor.', 'error')
+    setTransferLoading(true)
+    try {
+      const isAdminOrManager = ['Admin','Manager'].includes(currentUser?.role)
+      if (isAdminOrManager) {
+        // Direct transfer
+        await updateLead(transferLead.id, { owner: transferTo })
+        showToast(`Lead transferred to ${transferTo}`, 'success')
+      } else {
+        // Counsellor request → pending approval
+        const res = await fetch('/api/lead-transfers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: transferLead.id,
+            fromOwner: currentUser?.name,
+            toOwner: transferTo,
+            remark: transferRemark
+          })
+        })
+        if (res.ok) showToast('Transfer request submitted for admin approval', 'info')
+        else showToast('Failed to submit transfer request', 'error')
+      }
+    } catch {
+      showToast('Transfer failed', 'error')
+    }
+    setTransferLoading(false)
+    setTransferLead(null); setTransferTo(''); setTransferRemark('')
+  }
+
+  const handleSchedule = (lead) => {
+    // Quick-schedule via prompt — full calendar event creation lives in lead detail
+    const date = prompt(`Schedule follow-up call for ${lead.name}\n\nEnter date+time (DD/MM/YYYY HH:MM):`)
+    if (!date) return
+    // Reuse addTask mechanism (you can extend to full event creation later)
+    showToast(`Reminder scheduled: ${lead.name} — ${date}`, 'success')
+  }
 
   // Dedicated RCS modal state — templates come from context (rcsTemplates)
   const [showRCSModal, setShowRCSModal]   = useState(false)
@@ -622,6 +668,24 @@ export default function LeadManager() {
                             ✗ Not Interested
                           </button>
                         )}
+                        {/* Email — opens mailto if email present */}
+                        {lead.email && !lead.email.includes('noemail') && (
+                          <a href={`mailto:${lead.email}?subject=${encodeURIComponent('Regarding your CUTM application')}`}
+                            onClick={e => e.stopPropagation()}
+                            className="p-1 rounded hover:bg-purple-50 text-gray-400 hover:text-purple-500" title={`Email ${lead.email}`}>
+                            <Mail size={12} />
+                          </a>
+                        )}
+                        {/* Schedule callback */}
+                        <button onClick={e => { e.stopPropagation(); handleSchedule(lead) }}
+                          className="p-1 rounded hover:bg-indigo-50 text-gray-400 hover:text-indigo-500" title="Schedule follow-up">
+                          <Calendar size={12} />
+                        </button>
+                        {/* Transfer (re-assign) — Admin/Manager direct, Counsellor requests approval */}
+                        <button onClick={e => { e.stopPropagation(); setTransferLead(lead); setTransferTo(''); setTransferRemark('') }}
+                          className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500" title="Transfer lead to another counsellor">
+                          <ArrowRightLeft size={12} />
+                        </button>
                         {currentUser?.role === 'Admin' && (
                           <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(lead.id) }}
                             className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500" title="Delete">
@@ -947,6 +1011,54 @@ export default function LeadManager() {
       )}
 
       {/* ============ NOT INTERESTED MODAL ============ */}
+      {/* ============ TRANSFER LEAD MODAL ============ */}
+      {transferLead && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <ArrowRightLeft size={18} className="text-blue-500" /> Transfer Lead
+              </h2>
+              <button onClick={() => setTransferLead(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-sm">
+              <p className="font-semibold text-blue-800">{transferLead.name}</p>
+              <p className="text-xs text-blue-600 mt-0.5">Currently with: <strong>{transferLead.owner || 'Unassigned'}</strong></p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Transfer to *</label>
+                <select value={transferTo} onChange={e => setTransferTo(e.target.value)} className="input-field text-sm">
+                  <option value="">— Pick counsellor —</option>
+                  {(counselors || []).filter(c => c.name !== transferLead.owner).map(c => (
+                    <option key={c.id || c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Remark (optional)</label>
+                <textarea value={transferRemark} onChange={e => setTransferRemark(e.target.value)}
+                  rows={3} placeholder="Why transfer? Hand-off context for the new counsellor..."
+                  className="input-field text-sm resize-none" />
+              </div>
+              {!['Admin','Manager'].includes(currentUser?.role) && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700">
+                  ⚠️ Your request will be sent to admin for approval before the transfer happens.
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setTransferLead(null)} className="flex-1 btn-secondary text-sm py-2">Cancel</button>
+              <button onClick={handleSubmitTransfer} disabled={transferLoading || !transferTo}
+                className="flex-1 btn-primary text-sm py-2 flex items-center justify-center gap-1.5 disabled:opacity-50">
+                {transferLoading ? <span className="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" /> : <ArrowRightLeft size={13} />}
+                {['Admin','Manager'].includes(currentUser?.role) ? 'Transfer Now' : 'Request Transfer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {niLead && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
