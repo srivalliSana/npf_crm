@@ -285,6 +285,22 @@ export async function initDb() {
     // Leads: same details so counsellor can fill them at lead stage (before app exists)
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
 
+    // RCS approved templates — pulled via webhook from rcssms.in or added manually
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS rcs_templates (
+        id SERIAL PRIMARY KEY,
+        template_id  VARCHAR(100) UNIQUE NOT NULL,
+        name         VARCHAR(255) DEFAULT '',
+        rcs_type     VARCHAR(50)  DEFAULT 'BASIC',
+        status       VARCHAR(50)  DEFAULT 'PENDING',
+        provider     VARCHAR(50)  DEFAULT 'rcssms',
+        variables    JSONB        DEFAULT '[]'::jsonb,
+        preview      TEXT         DEFAULT '',
+        created_at   TIMESTAMP    DEFAULT NOW(),
+        approved_at  TIMESTAMP
+      );
+    `).catch(() => {})
+
     // Application number sequences
     await client.query(`CREATE SEQUENCE IF NOT EXISTS cueeap_seq START 1;`).catch(() => {})  // Excel/offline apps
     await client.query(`CREATE SEQUENCE IF NOT EXISTS cueesm_seq START 1;`).catch(() => {})  // Social media apps

@@ -294,6 +294,141 @@ const WEBHOOK_INFO = [
   },
 ]
 
+// ── RCS Templates Manager — list, add manually, delete; auto-populated by webhook ─
+function RcsTemplatesManager() {
+  const [templates, setTemplates] = useState([])
+  const [loading, setLoading]     = useState(false)
+  const [showAdd, setShowAdd]     = useState(false)
+  const [form, setForm] = useState({ templateId: '', name: '', rcsType: 'BASIC', status: 'APPROVED' })
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const r = await fetch('/api/rcs/templates')
+      if (r.ok) setTemplates(await r.json())
+    } catch {}
+    setLoading(false)
+  }
+  React.useEffect(() => { load() }, [])
+
+  const save = async () => {
+    if (!form.templateId.trim()) return alert('Template ID required')
+    const r = await fetch('/api/rcs/templates', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form)
+    })
+    if (r.ok) { setShowAdd(false); setForm({ templateId: '', name: '', rcsType: 'BASIC', status: 'APPROVED' }); load() }
+    else alert('Save failed')
+  }
+  const del = async (id) => {
+    if (!confirm('Delete this template?')) return
+    await fetch(`/api/rcs/templates/${id}`, { method: 'DELETE' })
+    load()
+  }
+
+  return (
+    <div className="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-pink-50 to-purple-50 flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+            ✨ RCS Approved Templates
+          </h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Auto-populated when rcssms.in posts approval via webhook ·
+            Webhook URL: <code className="bg-white px-1.5 py-0.5 rounded font-mono text-pink-700">https://crm.cutmap.ac.in/api/webhooks/rcssms-template</code>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">
+            ↻ Refresh
+          </button>
+          <button onClick={() => setShowAdd(true)} className="text-xs bg-pink-500 hover:bg-pink-600 text-white rounded-lg px-2.5 py-1">
+            + Add Template
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="p-8 text-center text-gray-400 text-sm">Loading...</div>
+      ) : templates.length === 0 ? (
+        <div className="p-8 text-center text-gray-400 text-sm">
+          No templates yet. Add one manually or share the webhook URL above with rcssms support.
+        </div>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+            <tr>
+              <th className="px-4 py-2.5 text-left">Template ID</th>
+              <th className="px-4 py-2.5 text-left">Name</th>
+              <th className="px-4 py-2.5 text-left">Type</th>
+              <th className="px-4 py-2.5 text-left">Status</th>
+              <th className="px-4 py-2.5 text-left">Approved</th>
+              <th className="px-4 py-2.5 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {templates.map(t => (
+              <tr key={t.id} className="border-t border-gray-100">
+                <td className="px-4 py-2.5 font-mono text-xs">{t.templateId}</td>
+                <td className="px-4 py-2.5">{t.name || '—'}</td>
+                <td className="px-4 py-2.5"><span className="badge bg-pink-100 text-pink-700 text-xs">{t.rcsType}</span></td>
+                <td className="px-4 py-2.5">
+                  <span className={`badge text-xs font-bold ${t.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{t.status}</span>
+                </td>
+                <td className="px-4 py-2.5 text-xs text-gray-500">{t.approvedAt ? new Date(t.approvedAt).toLocaleDateString('en-IN') : '—'}</td>
+                <td className="px-4 py-2.5 text-right">
+                  <button onClick={() => del(t.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-900">Add RCS Template</h3>
+              <button onClick={() => setShowAdd(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Template ID *</label>
+                <input value={form.templateId} onChange={e => setForm(p => ({ ...p, templateId: e.target.value }))}
+                  placeholder="e.g. 7U5QvSVi5e" className="input-field text-sm font-mono" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Display Name</label>
+                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. Welcome Message" className="input-field text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Type</label>
+                  <select value={form.rcsType} onChange={e => setForm(p => ({ ...p, rcsType: e.target.value }))} className="input-field text-sm">
+                    <option>BASIC</option><option>RICH</option><option>RICHCASOUREL</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Status</label>
+                  <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} className="input-field text-sm">
+                    <option>APPROVED</option><option>PENDING</option><option>REJECTED</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setShowAdd(false)} className="flex-1 btn-secondary text-sm py-2">Cancel</button>
+              <button onClick={save} className="flex-1 btn-primary text-sm py-2">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Integrations() {
   const { showToast } = useCcrm()
 
@@ -676,6 +811,9 @@ export default function Integrations() {
           )}
         </div>
       )}
+
+      {/* RCS Templates Manager */}
+      <RcsTemplatesManager />
 
       {/* Webhook Configuration */}
       <div className="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
