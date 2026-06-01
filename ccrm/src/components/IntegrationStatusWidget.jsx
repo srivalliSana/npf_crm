@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Share2, Search, Linkedin, MessageCircle, Phone, CreditCard, Wallet,
-  PhoneCall, Mail, BarChart2, Globe, Zap, ChevronRight
+  PhoneCall, Mail, BarChart2, Globe, Zap, ChevronRight, Instagram
 } from 'lucide-react'
 
 // Each integration → list of DB keys whose presence means "connected"
 const INTEGRATIONS = [
   { id: 'meta',         name: 'Facebook Ads',        icon: Share2,       color: 'text-blue-600',   keys: ['meta_page_access_token'] },
+  { id: 'instagram',    name: 'Instagram Ads',       icon: Instagram,    color: 'text-pink-600',   keys: ['instagram_page_access_token','instagram_ig_business_id'] },
   { id: 'googleads',    name: 'Google Ads',          icon: Search,       color: 'text-red-500',    keys: ['googleads_developer_token','googleads_customer_id'] },
   { id: 'linkedin',     name: 'LinkedIn',            icon: Linkedin,     color: 'text-sky-600',    keys: ['linkedin_access_token'] },
   { id: 'whatsapp',     name: 'WhatsApp',            icon: MessageCircle,color: 'text-green-600',  keys: ['whatsapp_access_token','whatsapp_phone_number_id'] },
