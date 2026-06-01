@@ -23,6 +23,7 @@ import EmailCampaigns from './pages/EmailCampaigns'
 import DripWorkflows from './pages/DripWorkflows'
 import CommunicationsReport from './pages/CommunicationsReport'
 import Help from './pages/Help'
+import TransferApprovals from './pages/TransferApprovals'
 import PublicInquiry from './pages/PublicInquiry'
 import StudentPortal from './pages/StudentPortal'
 
@@ -88,6 +89,9 @@ export default function App() {
             <Route path="drip-workflows"     element={<DripWorkflows />} />
             <Route path="comms-report"       element={<CommunicationsReport />} />
             <Route path="help"               element={<Help />} />
+            <Route element={<RoleGuard roles={['Admin','Manager']} />}>
+              <Route path="transfer-approvals" element={<TransferApprovals />} />
+            </Route>
 
             {/* Admin-only */}
             <Route element={<RoleGuard roles={['Admin']} />}>

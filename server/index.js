@@ -98,6 +98,45 @@ async function adminOnly(req, res, next) {
   }
 }
 
+// ── PER-MODULE RESET — wipe one module's data (admin only) ──────────────────
+app.post('/api/admin/reset-module', adminOnly, async (req, res) => {
+  const { module: mod, confirmPhrase } = req.body
+  if (confirmPhrase !== 'RESET MODULE') {
+    return res.status(400).json({ error: 'Send { module, confirmPhrase: "RESET MODULE" }' })
+  }
+
+  // Whitelist of module → tables to truncate
+  const MODULE_TABLES = {
+    campaigns:   ['campaigns'],
+    payments:    ['payments'],
+    documents:   ['documents'],
+    notifications: ['notifications'],
+    email_logs:    ['email_logs'],
+    whatsapp_logs: ['whatsapp_logs'],
+    call_logs:     ['call_logs'],
+    tasks:         ['tasks'],
+    events:        ['events'],
+    queries:       ['queries'],
+    drip_sequences:['drip_sequences'],
+  }
+  const tables = MODULE_TABLES[mod]
+  if (!tables) return res.status(400).json({ error: `Unknown module: ${mod}. Allowed: ${Object.keys(MODULE_TABLES).join(', ')}` })
+
+  try {
+    const counts = {}
+    for (const t of tables) {
+      try {
+        const c = await pool.query(`SELECT COUNT(*) FROM ${t};`)
+        counts[t] = parseInt(c.rows[0].count)
+        await pool.query(`TRUNCATE TABLE ${t} RESTART IDENTITY CASCADE;`)
+      } catch (e) {
+        console.warn(`[reset-module] skip ${t}: ${e.message}`)
+      }
+    }
+    res.json({ ok: true, module: mod, wiped: counts })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // ── PRODUCTION DATA RESET — wipes operational data, keeps users/settings ────
 app.post('/api/admin/reset-production', adminOnly, async (req, res) => {
   const { confirmPhrase } = req.body

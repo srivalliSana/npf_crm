@@ -69,6 +69,7 @@ export default function ApplicationDetails() {
     queries, addQuery, updateQueryStatus, addQueryReply,
     events, addEvent,
     payments, fetchAllData,
+    documents,
     generatePaymentLink,
     users, counselors,
     showToast, currentUser
