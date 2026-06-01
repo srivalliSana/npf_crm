@@ -2334,8 +2334,73 @@ async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile,
   }
 }
 
+// ── RCS Templates — list, add, delete + webhook from rcssms.in ──────────
+app.get('/api/rcs/templates', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, template_id AS "templateId", name, rcs_type AS "rcsType", status,
+              provider, variables, preview, created_at AS "createdAt", approved_at AS "approvedAt"
+       FROM rcs_templates ORDER BY status DESC, created_at DESC;`
+    )
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/rcs/templates', async (req, res) => {
+  const { templateId, name, rcsType, status, provider, variables, preview } = req.body
+  if (!templateId) return res.status(400).json({ error: 'templateId required.' })
+  try {
+    const r = await pool.query(`
+      INSERT INTO rcs_templates (template_id, name, rcs_type, status, provider, variables, preview, approved_at)
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, CASE WHEN $4 = 'APPROVED' THEN NOW() ELSE NULL END)
+      ON CONFLICT (template_id) DO UPDATE
+        SET name      = EXCLUDED.name,
+            rcs_type  = EXCLUDED.rcs_type,
+            status    = EXCLUDED.status,
+            provider  = EXCLUDED.provider,
+            variables = EXCLUDED.variables,
+            preview   = EXCLUDED.preview,
+            approved_at = CASE WHEN EXCLUDED.status = 'APPROVED' AND rcs_templates.status != 'APPROVED' THEN NOW() ELSE rcs_templates.approved_at END
+      RETURNING id, template_id AS "templateId", name, rcs_type AS "rcsType", status, provider, variables, preview;
+    `, [templateId, name || templateId, (rcsType || 'BASIC').toUpperCase(), (status || 'PENDING').toUpperCase(), provider || 'rcssms', JSON.stringify(variables || []), preview || ''])
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/api/rcs/templates/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM rcs_templates WHERE id = $1;', [req.params.id])
+    res.json({ success: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Webhook for rcssms.in to push approval status:
+// They POST { templateid, status } when admin approves/rejects in their dashboard.
+// Configure this URL with rcssms support: https://crm.cutmap.ac.in/api/webhooks/rcssms-template
+app.post('/api/webhooks/rcssms-template', async (req, res) => {
+  const { templateid, status } = req.body || {}
+  if (!templateid) return res.status(400).json({ error: 'templateid required' })
+  try {
+    const upStatus = (status || 'APPROVED').toUpperCase()
+    await pool.query(`
+      INSERT INTO rcs_templates (template_id, status, provider, approved_at)
+      VALUES ($1, $2, 'rcssms', CASE WHEN $2 = 'APPROVED' THEN NOW() ELSE NULL END)
+      ON CONFLICT (template_id) DO UPDATE
+        SET status = EXCLUDED.status,
+            approved_at = CASE WHEN EXCLUDED.status = 'APPROVED' AND rcs_templates.status != 'APPROVED' THEN NOW() ELSE rcs_templates.approved_at END;
+    `, [templateid, upStatus])
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+      [`RCS template ${templateid}: ${upStatus} (via rcssms webhook)`, 'Just now'])
+    console.log(`[RCS webhook] ${templateid} → ${upStatus}`)
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[RCS webhook]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.post('/api/leads/bulk-rcs', async (req, res) => {
-  const { leadIds, message } = req.body
+  const { leadIds, message, templateId: requestedTemplateId, rcsType: requestedRcsType } = req.body
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
   try {
@@ -2343,12 +2408,12 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
     const apiKey     = await getIntegrationSetting('rcs_api_key')
     const agentId    = await getIntegrationSetting('rcs_agent_id')
     const senderId   = await getIntegrationSetting('rcs_sender_id')
-    // rcssms-specific fields
     const username   = await getIntegrationSetting('rcs_username')
     const password   = await getIntegrationSetting('rcs_password')
     const rcsid      = await getIntegrationSetting('rcs_rcsid')
-    const templateId = await getIntegrationSetting('rcs_template_id')
-    const rcsType    = await getIntegrationSetting('rcs_type')
+    // Per-call template override > saved default
+    const templateId = requestedTemplateId || await getIntegrationSetting('rcs_template_id')
+    const rcsType    = requestedRcsType    || await getIntegrationSetting('rcs_type')
 
     const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
     const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)

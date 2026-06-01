@@ -921,21 +921,38 @@ export function CcrmProvider({ children }) {
   }
 
   // Send RCS (rich card / text) via configured provider
-  const sendBulkRCS = async (leadIds, message) => {
+  const sendBulkRCS = async (leadIds, message, opts = {}) => {
     try {
       const res = await fetch('/api/leads/bulk-rcs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadIds, message })
+        body: JSON.stringify({ leadIds, message, templateId: opts.templateId, rcsType: opts.rcsType })
       })
       if (res.ok) {
         const data = await res.json()
         showToast(`RCS via ${data.provider || 'gateway'}: ${data.sent} of ${data.total} sent.`, 'success')
         return data
       }
-    } catch {}
-    showToast('RCS bulk send failed.', 'error')
+      const err = await res.json().catch(() => ({}))
+      showToast(err.error || 'RCS bulk send failed.', 'error')
+    } catch {
+      showToast('RCS network error.', 'error')
+    }
     return { sent: 0, total: leadIds.length }
+  }
+
+  // Approved RCS templates — fetched from local DB (populated via webhook or manual add)
+  const [rcsTemplates, setRcsTemplates] = useState([])
+  const fetchRcsTemplates = async () => {
+    try {
+      const res = await fetch('/api/rcs/templates')
+      if (res.ok) {
+        const data = await res.json()
+        setRcsTemplates(Array.isArray(data) ? data : [])
+        return data
+      }
+    } catch {}
+    return []
   }
 
   // Feature 6: Drip sequences
@@ -1113,6 +1130,7 @@ export function CcrmProvider({ children }) {
       // New features
       checkDuplicate, getNextAssignee,
       sendBulkWhatsApp, sendBulkSMS, sendBulkRCS,
+      rcsTemplates, fetchRcsTemplates,
       dripSequences, setDripSequences, enrollDrip,
       generatePaymentLink,
       callLogs, setCallLogs, logCall,

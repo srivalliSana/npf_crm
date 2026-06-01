@@ -60,7 +60,8 @@ const WA_TEMPLATES = [
 export default function LeadManager() {
   const navigate = useNavigate()
   const { leads, setLeads, addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData,
-          checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, enrollDrip, logCall } = useCcrm()
+          checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS,
+          rcsTemplates, fetchRcsTemplates, enrollDrip, logCall } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
   const [quickView, setQuickView] = useState('All Leads')
@@ -80,7 +81,14 @@ export default function LeadManager() {
   const [waTemplate, setWaTemplate]     = useState(0)
   const [waCustomMsg, setWaCustomMsg]   = useState('')
   const [waSending, setWaSending]       = useState(false)
-  const [sendChannels, setSendChannels] = useState({ whatsapp: true, sms: false, rcs: false })
+  const [sendChannels, setSendChannels] = useState({ whatsapp: true, sms: false })
+
+  // RCS-only modal state (separate from WhatsApp/SMS)
+  const [showRcsModal, setShowRcsModal]       = useState(false)
+  const [rcsCustomMsg, setRcsCustomMsg]       = useState('')
+  const [rcsTemplateId, setRcsTemplateId]     = useState('')
+  const [rcsRcsType, setRcsRcsType]           = useState('BASIC')
+  const [rcsSending, setRcsSending]           = useState(false)
 
   // Drip enroll
   const [dripLoading, setDripLoading] = useState(false)
@@ -234,15 +242,26 @@ export default function LeadManager() {
   // ----------- MULTI-CHANNEL SEND -----------
   const handleSendWA = async () => {
     if (!selectedRows.length) return showToast('Select at least one lead.', 'warning')
-    if (!sendChannels.whatsapp && !sendChannels.sms && !sendChannels.rcs) return showToast('Select at least one channel.', 'warning')
+    if (!sendChannels.whatsapp && !sendChannels.sms) return showToast('Select at least one channel.', 'warning')
     const tmpl = waCustomMsg || WA_TEMPLATES[waTemplate].msg
     if (!tmpl) return showToast('Please enter a message.', 'error')
     setWaSending(true)
     if (sendChannels.whatsapp) await sendBulkWhatsApp(selectedRows, tmpl, WA_TEMPLATES[waTemplate].label)
     if (sendChannels.sms)      await sendBulkSMS(selectedRows, tmpl)
-    if (sendChannels.rcs)      await sendBulkRCS(selectedRows, tmpl)
     setWaSending(false)
     setShowWAModal(false)
+    setSelectedRows([])
+  }
+
+  // ----------- RCS SEND -----------
+  const handleSendRCS = async () => {
+    if (!selectedRows.length) return showToast('Select at least one lead.', 'warning')
+    if (!rcsCustomMsg.trim()) return showToast('Enter the RCS message text.', 'error')
+    if (!rcsTemplateId) return showToast('Pick an approved template.', 'error')
+    setRcsSending(true)
+    await sendBulkRCS(selectedRows, rcsCustomMsg, { templateId: rcsTemplateId, rcsType: rcsRcsType })
+    setRcsSending(false)
+    setShowRcsModal(false)
     setSelectedRows([])
   }
 
@@ -441,6 +460,10 @@ export default function LeadManager() {
               <button onClick={() => setShowWAModal(true)}
                 className="flex items-center gap-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded-lg px-2.5 py-1 transition-colors">
                 <MessageSquare size={13} /> WhatsApp ({selectedRows.length})
+              </button>
+              <button onClick={async () => { await fetchRcsTemplates(); setShowRcsModal(true); setRcsCustomMsg(''); setRcsTemplateId('') }}
+                className="flex items-center gap-1 text-xs bg-pink-500 hover:bg-pink-600 text-white rounded-lg px-2.5 py-1 transition-colors">
+                ✨ RCS ({selectedRows.length})
               </button>
               <button onClick={handleEnrollDrip} disabled={dripLoading}
                 className="flex items-center gap-1 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-2.5 py-1 disabled:opacity-50">
@@ -736,7 +759,7 @@ export default function LeadManager() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-                <MessageSquare className="text-green-500" size={22} /> Multi-Channel Outreach
+                <MessageSquare className="text-green-500" size={22} /> WhatsApp / SMS Outreach
               </h2>
               <button onClick={() => setShowWAModal(false)}><X size={20} className="text-gray-400" /></button>
             </div>
@@ -747,7 +770,6 @@ export default function LeadManager() {
               {[
                 { key: 'whatsapp', label: 'WhatsApp', icon: '💬', color: 'border-green-400 bg-green-50 text-green-700' },
                 { key: 'sms',      label: 'SMS',       icon: '📱', color: 'border-blue-400  bg-blue-50  text-blue-700'  },
-                { key: 'rcs',      label: 'RCS',       icon: '✨', color: 'border-pink-400  bg-pink-50  text-pink-700'  },
               ].map(ch => (
                 <button key={ch.key} type="button"
                   onClick={() => setSendChannels(p => ({ ...p, [ch.key]: !p[ch.key] }))}
@@ -788,6 +810,77 @@ export default function LeadManager() {
                 className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
                 {waSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <MessageSquare size={16} />}
                 {waSending ? 'Sending...' : `Send to ${selectedRows.length} Leads`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ RCS MODAL ============ */}
+      {showRcsModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
+                <span className="text-pink-500">✨</span> RCS Bulk Send
+              </h2>
+              <button onClick={() => setShowRcsModal(false)}><X size={20} className="text-gray-400" /></button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">Sending to <strong className="text-gray-800">{selectedRows.length} leads</strong> via RCS</p>
+
+            {/* Template picker */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Approved Template *</label>
+                <button onClick={fetchRcsTemplates} className="text-[10px] text-pink-600 hover:underline">↻ Refresh</button>
+              </div>
+              {rcsTemplates.length === 0 ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
+                  <p className="font-semibold">No approved templates yet.</p>
+                  <p className="mt-1">Add templates in <strong>Integrations → RCS Templates</strong>, or ask rcssms.in support to configure the webhook URL: <code className="bg-yellow-100 px-1 rounded">https://crm.cutmap.ac.in/api/webhooks/rcssms-template</code></p>
+                </div>
+              ) : (
+                <select value={rcsTemplateId}
+                  onChange={e => {
+                    setRcsTemplateId(e.target.value)
+                    const t = rcsTemplates.find(x => x.templateId === e.target.value)
+                    if (t) setRcsRcsType(t.rcsType || 'BASIC')
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400">
+                  <option value="">— Select an approved template —</option>
+                  {rcsTemplates.filter(t => t.status === 'APPROVED').map(t => (
+                    <option key={t.templateId} value={t.templateId}>
+                      [{t.rcsType}] {t.name || t.templateId} ({t.templateId})
+                    </option>
+                  ))}
+                  {rcsTemplates.filter(t => t.status !== 'APPROVED').length > 0 && (
+                    <optgroup label="Pending / Other">
+                      {rcsTemplates.filter(t => t.status !== 'APPROVED').map(t => (
+                        <option key={t.templateId} value={t.templateId} disabled>
+                          [{t.status}] {t.name || t.templateId}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              )}
+            </div>
+
+            {/* Message body */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Message (substitutes into template variables)</label>
+              <textarea value={rcsCustomMsg} onChange={e => setRcsCustomMsg(e.target.value)}
+                rows={5} placeholder="Hi {name}! New offer for B.Tech CSE at CUTM…"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none" />
+              <p className="text-xs text-gray-400 mt-1">Variables: <code className="bg-gray-100 px-1 rounded">{'{name}'}</code></p>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowRcsModal(false)} className="flex-1 btn-secondary text-sm py-2.5">Cancel</button>
+              <button onClick={handleSendRCS} disabled={rcsSending || !rcsTemplateId}
+                className="flex-1 bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
+                {rcsSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : '✨'}
+                {rcsSending ? 'Sending...' : `Send RCS to ${selectedRows.length}`}
               </button>
             </div>
           </div>
