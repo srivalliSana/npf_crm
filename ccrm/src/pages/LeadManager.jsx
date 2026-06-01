@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, Download, RefreshCw, ChevronDown,
@@ -78,17 +78,44 @@ export default function LeadManager() {
 
   // Multi-channel send modal
   const [showWAModal, setShowWAModal]   = useState(false)
+
+  // Dedicated RCS modal state — templates come from context (rcsTemplates)
+  const [showRCSModal, setShowRCSModal]   = useState(false)
+  const [rcsTemplateId, setRcsTemplateId] = useState('')
+  const [rcsType, setRcsType]             = useState('BASIC')
+  const [rcsCustomMsg, setRcsCustomMsg]   = useState('')
+  const [rcsSending, setRcsSending]       = useState(false)
+
+  // Fetch templates from context whenever RCS modal opens
+  useEffect(() => {
+    if (!showRCSModal) return
+    fetchRcsTemplates?.()
+  }, [showRCSModal])
+
+  // Auto-pick first approved template once loaded
+  useEffect(() => {
+    if (!showRCSModal || rcsTemplateId) return
+    const approved = (rcsTemplates || []).find(t => t.status === 'APPROVED')
+    if (approved) {
+      setRcsTemplateId(approved.templateId)
+      setRcsType(approved.rcsType || 'BASIC')
+    }
+  }, [showRCSModal, rcsTemplates, rcsTemplateId])
+
+  const handleSendRCS = async () => {
+    if (!selectedRows.length) return showToast('Select at least one lead.', 'warning')
+    if (!rcsTemplateId)         return showToast('Please pick an approved template.', 'error')
+    if (!rcsCustomMsg.trim())   return showToast('Please enter the message text.', 'error')
+    setRcsSending(true)
+    await sendBulkRCS(selectedRows, rcsCustomMsg, { templateId: rcsTemplateId, rcsType })
+    setRcsSending(false)
+    setShowRCSModal(false)
+    setSelectedRows([])
+  }
   const [waTemplate, setWaTemplate]     = useState(0)
   const [waCustomMsg, setWaCustomMsg]   = useState('')
   const [waSending, setWaSending]       = useState(false)
   const [sendChannels, setSendChannels] = useState({ whatsapp: true, sms: false })
-
-  // RCS-only modal state (separate from WhatsApp/SMS)
-  const [showRcsModal, setShowRcsModal]       = useState(false)
-  const [rcsCustomMsg, setRcsCustomMsg]       = useState('')
-  const [rcsTemplateId, setRcsTemplateId]     = useState('')
-  const [rcsRcsType, setRcsRcsType]           = useState('BASIC')
-  const [rcsSending, setRcsSending]           = useState(false)
 
   // Drip enroll
   const [dripLoading, setDripLoading] = useState(false)
@@ -250,18 +277,6 @@ export default function LeadManager() {
     if (sendChannels.sms)      await sendBulkSMS(selectedRows, tmpl)
     setWaSending(false)
     setShowWAModal(false)
-    setSelectedRows([])
-  }
-
-  // ----------- RCS SEND -----------
-  const handleSendRCS = async () => {
-    if (!selectedRows.length) return showToast('Select at least one lead.', 'warning')
-    if (!rcsCustomMsg.trim()) return showToast('Enter the RCS message text.', 'error')
-    if (!rcsTemplateId) return showToast('Pick an approved template.', 'error')
-    setRcsSending(true)
-    await sendBulkRCS(selectedRows, rcsCustomMsg, { templateId: rcsTemplateId, rcsType: rcsRcsType })
-    setRcsSending(false)
-    setShowRcsModal(false)
     setSelectedRows([])
   }
 
@@ -461,7 +476,7 @@ export default function LeadManager() {
                 className="flex items-center gap-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded-lg px-2.5 py-1 transition-colors">
                 <MessageSquare size={13} /> WhatsApp ({selectedRows.length})
               </button>
-              <button onClick={async () => { await fetchRcsTemplates(); setShowRcsModal(true); setRcsCustomMsg(''); setRcsTemplateId('') }}
+              <button onClick={() => { setShowRCSModal(true); setRcsCustomMsg('') }}
                 className="flex items-center gap-1 text-xs bg-pink-500 hover:bg-pink-600 text-white rounded-lg px-2.5 py-1 transition-colors">
                 ✨ RCS ({selectedRows.length})
               </button>
@@ -754,6 +769,75 @@ export default function LeadManager() {
       )}
 
       {/* ============ WHATSAPP BULK MODAL ============ */}
+      {/* ============ RCS DEDICATED MODAL ============ */}
+      {showRCSModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
+                <span className="text-2xl">✨</span> RCS Business Messaging
+              </h2>
+              <button onClick={() => setShowRCSModal(false)}><X size={20} className="text-gray-400" /></button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Sending to <strong className="text-gray-800">{selectedRows.length} leads</strong> via rcssms.in
+            </p>
+
+            {/* Template picker */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Approved Template *</label>
+              {rcsTemplates.length === 0 ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
+                  ⚠️ No templates available. Go to <button onClick={() => navigate('/integrations')} className="font-semibold underline">Integrations</button> to add or wait for webhook approval.
+                </div>
+              ) : (
+                <>
+                  <select value={rcsTemplateId} onChange={e => {
+                    const t = rcsTemplates.find(x => x.templateId === e.target.value)
+                    setRcsTemplateId(e.target.value)
+                    if (t?.rcsType) setRcsType(t.rcsType)
+                  }} className="input-field text-sm">
+                    <option value="">— Select template —</option>
+                    {rcsTemplates.map(t => (
+                      <option key={t.templateId} value={t.templateId} disabled={t.status !== 'APPROVED'}>
+                        {t.name || t.templateId} — {t.rcsType} {t.status === 'APPROVED' ? '✓' : `(${t.status})`}
+                      </option>
+                    ))}
+                  </select>
+                  {rcsTemplateId && (
+                    <div className="text-[10px] text-gray-400 mt-1">
+                      Type: <strong className="text-pink-600">{rcsType}</strong> · Variables: as defined in template (will be filled with the message text below)
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Message body */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Message Variable Content *</label>
+              <textarea
+                value={rcsCustomMsg}
+                onChange={e => setRcsCustomMsg(e.target.value)}
+                rows={5}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none"
+                placeholder="Use {name} for personalization. This text fills the template's variable slot."
+              />
+              <p className="text-xs text-gray-400 mt-1">Variables: <code className="bg-gray-100 px-1 rounded">{'{name}'}</code></p>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowRCSModal(false)} className="flex-1 btn-secondary text-sm py-2.5">Cancel</button>
+              <button onClick={handleSendRCS} disabled={rcsSending || !rcsTemplateId}
+                className="flex-1 bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
+                {rcsSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <span>✨</span>}
+                {rcsSending ? 'Sending...' : `Send RCS to ${selectedRows.length}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showWAModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
@@ -810,77 +894,6 @@ export default function LeadManager() {
                 className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
                 {waSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <MessageSquare size={16} />}
                 {waSending ? 'Sending...' : `Send to ${selectedRows.length} Leads`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============ RCS MODAL ============ */}
-      {showRcsModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-                <span className="text-pink-500">✨</span> RCS Bulk Send
-              </h2>
-              <button onClick={() => setShowRcsModal(false)}><X size={20} className="text-gray-400" /></button>
-            </div>
-            <p className="text-sm text-gray-500 mb-4">Sending to <strong className="text-gray-800">{selectedRows.length} leads</strong> via RCS</p>
-
-            {/* Template picker */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase">Approved Template *</label>
-                <button onClick={fetchRcsTemplates} className="text-[10px] text-pink-600 hover:underline">↻ Refresh</button>
-              </div>
-              {rcsTemplates.length === 0 ? (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
-                  <p className="font-semibold">No approved templates yet.</p>
-                  <p className="mt-1">Add templates in <strong>Integrations → RCS Templates</strong>, or ask rcssms.in support to configure the webhook URL: <code className="bg-yellow-100 px-1 rounded">https://crm.cutmap.ac.in/api/webhooks/rcssms-template</code></p>
-                </div>
-              ) : (
-                <select value={rcsTemplateId}
-                  onChange={e => {
-                    setRcsTemplateId(e.target.value)
-                    const t = rcsTemplates.find(x => x.templateId === e.target.value)
-                    if (t) setRcsRcsType(t.rcsType || 'BASIC')
-                  }}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400">
-                  <option value="">— Select an approved template —</option>
-                  {rcsTemplates.filter(t => t.status === 'APPROVED').map(t => (
-                    <option key={t.templateId} value={t.templateId}>
-                      [{t.rcsType}] {t.name || t.templateId} ({t.templateId})
-                    </option>
-                  ))}
-                  {rcsTemplates.filter(t => t.status !== 'APPROVED').length > 0 && (
-                    <optgroup label="Pending / Other">
-                      {rcsTemplates.filter(t => t.status !== 'APPROVED').map(t => (
-                        <option key={t.templateId} value={t.templateId} disabled>
-                          [{t.status}] {t.name || t.templateId}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
-              )}
-            </div>
-
-            {/* Message body */}
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Message (substitutes into template variables)</label>
-              <textarea value={rcsCustomMsg} onChange={e => setRcsCustomMsg(e.target.value)}
-                rows={5} placeholder="Hi {name}! New offer for B.Tech CSE at CUTM…"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none" />
-              <p className="text-xs text-gray-400 mt-1">Variables: <code className="bg-gray-100 px-1 rounded">{'{name}'}</code></p>
-            </div>
-
-            <div className="flex gap-3">
-              <button onClick={() => setShowRcsModal(false)} className="flex-1 btn-secondary text-sm py-2.5">Cancel</button>
-              <button onClick={handleSendRCS} disabled={rcsSending || !rcsTemplateId}
-                className="flex-1 bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
-                {rcsSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : '✨'}
-                {rcsSending ? 'Sending...' : `Send RCS to ${selectedRows.length}`}
               </button>
             </div>
           </div>
