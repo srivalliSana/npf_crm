@@ -7,6 +7,8 @@ import {
 import { ChevronDown, TrendingUp, Users, FileText, CheckCircle, Target, MapPin, Trophy } from 'lucide-react'
 import ProductivityReport from './ProductivityReport'
 import IntegrationStatusWidget from '../components/IntegrationStatusWidget'
+import ServerHealthWidget      from '../components/ServerHealthWidget'
+import SecurityWidget          from '../components/SecurityWidget'
 
 const TABS = ['User Dashboard', 'Productivity Report']
 const CAMPUSES = ['All', 'Bhubaneswar', 'Vizianagaram', 'Paralakhemundi', 'Balasore']
@@ -186,6 +188,14 @@ export default function Dashboard() {
           <div className="mb-6">
             <IntegrationStatusWidget />
           </div>
+
+          {/* Server Health + Security (Admin / Manager only) */}
+          {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+              <ServerHealthWidget />
+              <SecurityWidget />
+            </div>
+          )}
 
           {/* Campus Filter Bar */}
           <div className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 p-3 shadow-sm">

@@ -1442,6 +1442,119 @@ app.get('/api/counselors', async (req, res) => {
 })
 
 
+// ── ADMIN — Server Health & Security Overview ────────────────────────────────
+app.get('/api/admin/server-health', async (req, res) => {
+  try {
+    const os = await import('os')
+    const startedAt = process.uptime()
+    const mem = process.memoryUsage()
+    const totalMem = os.totalmem()
+    const freeMem  = os.freemem()
+
+    let dbStatus = 'down', dbLatencyMs = null, dbTime = null
+    try {
+      const t0 = Date.now()
+      const r = await pool.query('SELECT NOW() as now, version() as version')
+      dbLatencyMs = Date.now() - t0
+      dbStatus = 'up'
+      dbTime = r.rows[0].now
+    } catch (e) {
+      dbStatus = `error: ${e.message}`
+    }
+
+    // Table row counts (privacy-safe)
+    const tableCounts = {}
+    try {
+      const tables = ['leads','applications','payments','users','tasks','queries','documents','email_logs','whatsapp_logs','call_logs','notifications']
+      for (const t of tables) {
+        try {
+          const r = await pool.query(`SELECT COUNT(*) as count FROM ${t}`)
+          tableCounts[t] = parseInt(r.rows[0].count)
+        } catch { tableCounts[t] = 0 }
+      }
+    } catch {}
+
+    res.json({
+      server: {
+        status: 'up',
+        uptimeSec: Math.floor(startedAt),
+        nodeVersion: process.version,
+        platform: process.platform,
+        hostname: os.hostname(),
+        loadAvg1m: os.loadavg()[0].toFixed(2),
+        cpuCount: os.cpus().length,
+      },
+      memory: {
+        heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+        heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+        rssMB: Math.round(mem.rss / 1024 / 1024),
+        systemTotalGB: (totalMem / 1024 / 1024 / 1024).toFixed(2),
+        systemFreeGB: (freeMem / 1024 / 1024 / 1024).toFixed(2),
+        systemUsedPct: Math.round((1 - freeMem / totalMem) * 100),
+      },
+      database: { status: dbStatus, latencyMs: dbLatencyMs, time: dbTime },
+      counts: tableCounts,
+      checkedAt: new Date().toISOString()
+    })
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: err.message })
+  }
+})
+
+// ── ADMIN — Security & User Access Overview ───────────────────────────────────
+app.get('/api/admin/security-overview', async (req, res) => {
+  try {
+    const userStats = await pool.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        SUM(CASE WHEN status='Active'   THEN 1 ELSE 0 END)::int AS active,
+        SUM(CASE WHEN status='Inactive' THEN 1 ELSE 0 END)::int AS inactive,
+        SUM(CASE WHEN role='Admin'      THEN 1 ELSE 0 END)::int AS admins,
+        SUM(CASE WHEN role='Manager'    THEN 1 ELSE 0 END)::int AS managers,
+        SUM(CASE WHEN role='Counselor'  THEN 1 ELSE 0 END)::int AS counselors,
+        SUM(CASE WHEN role='Finance'    THEN 1 ELSE 0 END)::int AS finance
+      FROM users;
+    `)
+
+    // Recent logins (top 8 most recent active users)
+    const recentLogins = await pool.query(`
+      SELECT name, email, role, last_login AS "lastLogin"
+      FROM users
+      WHERE last_login IS NOT NULL AND last_login <> ''
+      ORDER BY id DESC LIMIT 8;
+    `)
+
+    // Failed payment attempts in last 24h (proxy for suspicious activity)
+    let failedPayments = 0
+    try {
+      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM payments WHERE status = 'Failed';`)
+      failedPayments = r.rows[0].c
+    } catch {}
+
+    // SSL / SMTP / Telephony config checks
+    const checks = []
+    const intRes = await pool.query('SELECT key, value FROM integration_settings;')
+    const settings = Object.fromEntries(intRes.rows.map(r => [r.key, r.value]))
+
+    checks.push({ label: 'SMTP Email',     ok: !!(settings.smtp_host && settings.smtp_user && settings.smtp_pass) })
+    checks.push({ label: 'WhatsApp API',   ok: !!settings.whatsapp_access_token })
+    checks.push({ label: 'SMS Gateway',    ok: !!settings.sms_api_key })
+    checks.push({ label: 'Payment Gateway',ok: !!(settings.razorpay_key_id || settings.payu_merchant_key) })
+    checks.push({ label: 'Telephony',      ok: !!(settings.ameyo_api_url && settings.ameyo_username) })
+
+    res.json({
+      userStats: userStats.rows[0],
+      recentLogins: recentLogins.rows,
+      failedPayments,
+      integrationChecks: checks,
+      checkedAt: new Date().toISOString()
+    })
+  } catch (err) {
+    console.error('[security-overview]', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.get('/api/users', async (req, res) => {
   try {
     const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, last_login AS "lastLogin" FROM users ORDER BY id DESC;')

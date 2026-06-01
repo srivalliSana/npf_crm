@@ -3,7 +3,7 @@ import {
   CheckCircle2, AlertCircle, ExternalLink, RefreshCw,
   MessageCircle, CreditCard, Mail, BarChart2, Phone,
   Globe, Lock, Save, X, Eye, EyeOff, ChevronDown, ChevronRight,
-  Share2, Zap, Copy, CheckCheck, Bell, Linkedin, Search, PhoneCall,
+  Share2, Zap, Copy, CheckCheck, Bell, Linkedin, Search, PhoneCall, Instagram,
   Wallet
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
@@ -13,7 +13,7 @@ const INTEGRATIONS = [
   {
     id: 'meta',
     name: 'Facebook Lead Ads',
-    description: 'Auto-import leads from Facebook & Instagram Lead Ad campaigns. Uses Graph API to fetch full lead form data when a lead submits.',
+    description: 'Auto-import leads from Facebook Lead Ad campaigns. Uses Graph API to fetch full lead form data when a lead submits.',
     icon: Share2,
     color: 'text-blue-600',
     bg: 'bg-blue-50',
@@ -42,6 +42,23 @@ const INTEGRATIONS = [
       { key: 'googleads_client_secret',   label: 'Client Secret',    placeholder: 'OAuth client secret', secret: true },
       { key: 'googleads_refresh_token',   label: 'Refresh Token',    placeholder: 'Generated via OAuth flow', secret: true },
       { key: 'googleads_customer_id',     label: 'Customer ID',      placeholder: 'e.g. 123-456-7890', secret: false },
+    ]
+  },
+  {
+    id: 'instagram',
+    name: 'Instagram Ads',
+    description: 'Capture leads from Instagram Lead Ads and Story link campaigns. Uses Meta Graph API — shares webhook with Facebook Ads.',
+    icon: Instagram,
+    color: 'text-pink-600',
+    bg: 'bg-pink-50',
+    border: 'border-pink-200',
+    category: 'Social Media',
+    docsUrl: 'https://developers.facebook.com/docs/instagram-api/guides/lead-ads',
+    fields: [
+      { key: 'instagram_ig_business_id',  label: 'IG Business Account ID', placeholder: 'Instagram Business Account ID', secret: false },
+      { key: 'instagram_page_access_token', label: 'Page Access Token',   placeholder: 'EAAxxxx (linked Facebook Page token)', secret: true },
+      { key: 'instagram_app_id',           label: 'App ID',                placeholder: 'Your Meta App ID (can match Facebook App ID)', secret: false },
+      { key: 'instagram_app_secret',       label: 'App Secret',            placeholder: 'For webhook signature verification', secret: true },
     ]
   },
   {
