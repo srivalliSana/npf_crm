@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [leadsFilter, setLeadsFilter] = useState('Leads Assigned')
   const [appsFilter, setAppsFilter] = useState('Application Assigned')
   const [countFilter, setCountFilter] = useState('10 Selected')
+  const [domainFilter, setDomainFilter] = useState('All')   // All | cutm | cutmap
   const [showTargetModal, setShowTargetModal] = useState(false)
   const [targetForm, setTargetForm] = useState({ month: MONTHS[new Date().getMonth()], year: new Date().getFullYear(), campus: 'All', targetLeads: 100, targetApplications: 30, targetEnrollments: 10 })
   const [achievement, setAchievement] = useState(null)
@@ -82,22 +83,37 @@ export default function Dashboard() {
   ]
 
   // 2. Compute Counselors Lead vs App Data dynamically
-  const counselorData = counselors.map(c => {
-    // Leads where l.owner matches c.name
+  const counselorDataAll = counselors.map(c => {
     const simplName = c.name.split(' ')[0]
     const cLeads = leads.filter(l => l.owner === c.name || l.owner?.split(' ')[0] === simplName)
     const cApps = applications.filter(app => {
-      // Find matching lead to see owner
       const lead = leads.find(l => l.name === app.name)
       return lead && (lead.owner === c.name || lead.owner?.split(' ')[0] === simplName)
     })
-
+    // Per-stage counts for this counsellor
+    const byStage = (s, alt) => cLeads.filter(l => l.stage === s || (alt && l.stage === alt)).length
+    // Domain from email
+    const domain = (c.email || '').includes('@cutmap.ac.in') ? 'cutmap'
+                 : (c.email || '').includes('@cutm.ac.in') ? 'cutm'
+                 : 'other'
     return {
       name: c.name,
-      leads: cLeads.length || Math.floor(c.leads / 8), // upscale/fallback
-      apps: cApps.length || Math.floor(c.apps / 8)
+      email: c.email,
+      domain,
+      leads: cLeads.length,
+      apps: cApps.length,
+      untouched:   byStage('Untouched'),
+      interested:  byStage('Interested'),
+      followUp:    byStage('Follow Up'),          // "interested but for further discussion"
+      processPay:  byStage('Process for Payment', 'Qualified Leads'),
+      paymentSuccess: byStage('Payment Success', 'Converted'),
     }
   })
+
+  // Domain filter for the user-wise chart
+  const counselorData = (domainFilter === 'All'
+    ? counselorDataAll
+    : counselorDataAll.filter(c => c.domain === domainFilter))
 
   // 3. Compute stage distributions dynamically
   const getStageCount = (stage) => leads.filter(l => l.stage === stage).length
@@ -264,26 +280,30 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
               <div>
-                <h2 className="font-semibold text-gray-800 text-sm md:text-base">User Wise Lead and Application Count</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Performance breakdown by counselor</p>
+                <h2 className="font-semibold text-gray-800 text-sm md:text-base">User Wise Lead Stage Breakdown</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Untouched · Interested · Further Discussion · Process for Payment — per counsellor</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                {[
-                  { value: leadsFilter, setter: setLeadsFilter, opts: ['Leads Assigned', 'Leads Engaged'] },
-                  { value: appsFilter, setter: setAppsFilter, opts: ['Application Assigned', 'Payment Approved'] },
-                  { value: countFilter, setter: setCountFilter, opts: ['10 Selected', '5 Selected', 'All'] },
-                ].map((f, i) => (
-                  <div key={i} className="relative">
-                    <select
-                      value={f.value}
-                      onChange={e => f.setter(e.target.value)}
-                      className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-300 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer"
-                    >
-                      {f.opts.map(o => <option key={o}>{o}</option>)}
-                    </select>
-                    <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  </div>
-                ))}
+                {/* Domain tabs */}
+                <div className="flex bg-gray-100 rounded-lg p-0.5">
+                  {[
+                    { v: 'All',    label: 'All' },
+                    { v: 'cutm',   label: '@cutm.ac.in' },
+                    { v: 'cutmap', label: '@cutmap.ac.in' },
+                  ].map(d => (
+                    <button key={d.v} onClick={() => setDomainFilter(d.v)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${domainFilter === d.v ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <select value={countFilter} onChange={e => setCountFilter(e.target.value)}
+                    className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-300 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer">
+                    {['10 Selected', '5 Selected', 'All'].map(o => <option key={o}>{o}</option>)}
+                  </select>
+                  <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
               </div>
             </div>
 
@@ -312,8 +332,10 @@ export default function Dashboard() {
                   iconType="circle"
                   iconSize={8}
                 />
-                <Bar dataKey="leads" name="Leads" fill="#003087" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="apps"  name="Applications" fill="#f5a623" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="untouched"  name="Untouched"            fill="#f87171" radius={[3,3,0,0]} />
+                <Bar dataKey="interested" name="Interested"           fill="#34d399" radius={[3,3,0,0]} />
+                <Bar dataKey="followUp"   name="Further Discussion"   fill="#fbbf24" radius={[3,3,0,0]} />
+                <Bar dataKey="processPay" name="Process for Payment"  fill="#60a5fa" radius={[3,3,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

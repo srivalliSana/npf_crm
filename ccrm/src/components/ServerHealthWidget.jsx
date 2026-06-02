@@ -79,20 +79,6 @@ export default function ServerHealthWidget() {
             />
           </div>
 
-          {/* Table counts mini-grid */}
-          {data.counts && (
-            <div className="pt-3 border-t border-gray-100">
-              <p className="text-xs text-gray-400 font-medium mb-2">Database Records</p>
-              <div className="grid grid-cols-4 gap-2 text-xs">
-                {Object.entries(data.counts).map(([table, count]) => (
-                  <div key={table} className="bg-blue-50/60 rounded-md px-2 py-1.5">
-                    <div className="text-[10px] text-blue-500 uppercase font-bold">{table}</div>
-                    <div className="font-bold text-gray-700">{count.toLocaleString()}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
