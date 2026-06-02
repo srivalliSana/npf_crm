@@ -582,6 +582,7 @@ app.get('/api/leads', async (req, res) => {
        LIMIT ${limit} OFFSET ${offset};`,
       params
     )
+    console.log(`[GET /api/leads] page=${page}, limit=${limit}, offset=${offset}, returned=${rowsRes.rows.length} rows, total=${total}`)
     res.json({ rows: rowsRes.rows, total, page, limit })
   } catch (err) {
     console.error('[GET /api/leads]', err.message)
