@@ -1714,7 +1714,7 @@ app.get('/api/admin/security-overview', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
   try {
-    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, last_login AS "lastLogin" FROM users ORDER BY id DESC;')
+    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", last_login AS "lastLogin" FROM users ORDER BY id DESC;')
     res.json(usersRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch user accounts.' })
@@ -1722,13 +1722,13 @@ app.get('/api/users', async (req, res) => {
 })
 
 app.post('/api/users', async (req, res) => {
-  const { name, email, password, role, team, status } = req.body
+  const { name, email, password, role, team, status, mobile, reportsTo } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO users (name, email, password, role, team, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, name, email, role, team, status, picture, last_login AS "lastLogin";
-    `, [name, email, password || 'User@123', role || 'Counselor', team || 'Sales', status || 'Active'])
+      INSERT INTO users (name, email, password, role, team, status, mobile, reports_to)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", last_login AS "lastLogin";
+    `, [name, email, password || 'User@123', role || 'Counselor', team || 'Sales', status || 'Active', mobile || '', reportsTo || ''])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     console.error(err)
@@ -1738,21 +1738,20 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   const { id } = req.params
-  const { name, email, role, team, status, picture, password, mobile } = req.body
+  const { name, email, role, team, status, picture, password, mobile, reportsTo } = req.body
   try {
-    // Dynamically query based on what parameters were sent
-    let queryStr = 'UPDATE users SET name = COALESCE($1, name), role = COALESCE($2, role), team = COALESCE($3, team), status = COALESCE($4, status), picture = COALESCE($5, picture), mobile = COALESCE($6, mobile)'
-    const params = [name, role, team, status, picture, mobile || null]
+    let queryStr = 'UPDATE users SET name = COALESCE($1, name), role = COALESCE($2, role), team = COALESCE($3, team), status = COALESCE($4, status), picture = COALESCE($5, picture), mobile = COALESCE($6, mobile), reports_to = COALESCE($7, reports_to)'
+    const params = [name, role, team, status, picture, mobile ?? null, reportsTo ?? null]
 
     if (password) {
-      queryStr += ', password = $7 WHERE id = $8'
+      queryStr += ', password = $8 WHERE id = $9'
       params.push(password, id)
     } else {
-      queryStr += ' WHERE id = $7'
+      queryStr += ' WHERE id = $8'
       params.push(id)
     }
 
-    queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, last_login AS "lastLogin";'
+    queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", last_login AS "lastLogin";'
 
     const updateRes = await pool.query(queryStr, params)
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
