@@ -1,0 +1,146 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║          DEPLOY AUTOMATED REPORTING & S3 BACKUP TO PRODUCTION              ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+OPTION 1: Using the Deployment Script (Recommended)
+─────────────────────────────────────────────────────────────────────────────
+
+On your production server, run:
+
+  cd /path/to/npf_crm  (or wherever the repo is cloned)
+  bash DEPLOY.sh
+
+This script automatically:
+  ✓ Pulls latest code from GitHub
+  ✓ Installs dependencies (npm install)
+  ✓ Builds React frontend (npm run build)
+  ✓ Stops the backend service
+  ✓ Copies files to /var/www/ccrm/
+  ✓ Restarts the backend service
+  ✓ Shows service status
+
+
+OPTION 2: Manual Steps
+─────────────────────────────────────────────────────────────────────────────
+
+1. SSH to production server
+   ssh user@crm.cutmap.ac.in
+
+2. Pull latest code
+   cd /opt/npf_crm  (or wherever cloned)
+   git pull origin main
+
+3. Install dependencies
+   cd server
+   npm install
+   cd ..
+
+4. Build frontend
+   cd ccrm
+   npm run build
+   cd ..
+
+5. Copy to production directory
+   sudo cp -r server/* /var/www/ccrm/server/
+   sudo cp -r ccrm/dist/* /var/www/ccrm/ccrm/dist/
+
+6. Restart service
+   sudo systemctl restart ccrm-backend
+
+7. Check logs
+   sudo journalctl -u ccrm-backend -f
+
+
+CONFIGURE IN UI AFTER DEPLOYMENT
+─────────────────────────────────────────────────────────────────────────────
+
+1. Open https://crm.cutmap.ac.in
+   Login as Admin
+
+2. Go to Settings → Integrations
+
+3. Configure S3 Backup:
+   - AWS Access Key ID: [get from AWS IAM]
+   - AWS Secret Access Key: [get from AWS IAM]
+   - S3 Bucket Name: [e.g., cutm-ccrm-backups]
+   - AWS Region: [e.g., ap-south-1]
+   Click Save
+
+4. Configure Daily Email Reports:
+   - Email Recipients: admin@cutm.ac.in, manager@cutm.ac.in
+   Click Save
+
+5. Test (optional):
+   Open browser console and run:
+
+   fetch('/api/admin/test-daily-report', {method: 'POST'})
+     .then(r => r.json())
+     .then(console.log)
+
+   Should see: {status: "Email and backup triggered successfully"}
+
+
+VERIFY DEPLOYMENT
+─────────────────────────────────────────────────────────────────────────────
+
+Check backend logs:
+  sudo journalctl -u ccrm-backend -f
+
+Look for these lines:
+  ✓ "[Cron] Starting 3am daily tasks..."
+  ✓ "[Cron] Email report sent to X recipient(s)"
+  ✓ "[Backup] S3 backup complete: backups/2026-06-02/"
+
+Wait until 3:00 AM IST to see automated execution, OR test with the endpoint above.
+
+
+ROLLBACK (if needed)
+─────────────────────────────────────────────────────────────────────────────
+
+If something breaks, rollback to previous version:
+
+  cd /opt/npf_crm
+  git revert HEAD
+  bash DEPLOY.sh
+
+Or restore from S3 backup:
+  - Check your S3 bucket for db.sql.gz backup
+  - Restore: gunzip db.sql.gz && psql -U ccrm_user ccrm_db < db.sql
+
+
+TROUBLESHOOTING
+─────────────────────────────────────────────────────────────────────────────
+
+Problem: "Service failed to start"
+  → Check logs: sudo journalctl -u ccrm-backend -n 50
+  → Verify npm install succeeded: ls -la /var/www/ccrm/server/node_modules/
+
+Problem: "Email not sending"
+  → Check SMTP configured in Settings → Gmail / SMTP Email
+  → Verify recipients configured in Settings → Daily Email Reports
+  → Check logs for "[Cron] Email report failed:" messages
+
+Problem: "S3 backup failing"
+  → Verify AWS credentials in Settings → AWS S3 Backup
+  → Check IAM user has s3:PutObject permission
+  → Verify bucket exists and region is correct
+  → Check logs for "[Backup] S3 backup failed:" messages
+
+Problem: "Cron job not running"
+  → Verify time is correct: date
+  → Check timezone: timedatectl
+  → Manually test: POST /api/admin/test-daily-report
+
+
+SCHEDULED TIMES
+─────────────────────────────────────────────────────────────────────────────
+
+All jobs run at 3:00 AM IST (Asia/Kolkata timezone):
+  • Email Report: 3:00 AM → 3:05 AM
+  • S3 Backup: 3:05 AM → 3:15 AM
+
+Timezone conversion:
+  IST (UTC+5:30) = UTC-2:30 (EST summer)
+
+To change time, edit in server/index.js line ~4336:
+  cron.schedule('0 3 * * *', ...)  // 0 3 = 3:00 AM
