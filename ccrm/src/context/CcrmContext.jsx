@@ -412,16 +412,27 @@ export function CcrmProvider({ children }) {
 
   const deleteLead = async (id) => {
     try {
-      const res = await fetch(`/api/leads/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/leads/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requesterRole: currentUser?.role || '',
+          requesterName: currentUser?.name || ''
+        })
+      })
       if (res.ok) {
         setLeads(prev => prev.filter(l => l.id !== id))
         showToast('Lead deleted successfully.', 'success')
-        return
+        return { ok: true }
       }
-    } catch {}
-
-    setLeads(prev => prev.filter(l => l.id !== id))
-    showToast('Lead deleted successfully.', 'success')
+      // Server rejected (permission / stage rule) — show reason, do NOT delete locally
+      const err = await res.json().catch(() => ({}))
+      showToast(err.error || 'Cannot delete this lead.', 'error')
+      return { ok: false, error: err.error }
+    } catch {
+      showToast('Network error — lead not deleted.', 'error')
+      return { ok: false }
+    }
   }
 
   // Application Actions
