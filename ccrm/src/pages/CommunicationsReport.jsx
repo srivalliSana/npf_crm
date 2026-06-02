@@ -282,22 +282,31 @@ export default function CommunicationsReport() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
-                    <tr>{['Campaign Name','Message Preview','Recipients','Status','Sent At'].map(h => <th key={h} className="table-th text-xs">{h}</th>)}</tr>
+                    <tr>{['Campaign Name','Sent By','Message Preview','Recipients','Status','Sent At'].map(h => <th key={h} className="table-th text-xs">{h}</th>)}</tr>
                   </thead>
                   <tbody>
-                    {waLogs.map(w => (
+                    {waLogs.map(w => {
+                      const st = w.status || 'Sent'
+                      const stClass =
+                        st === 'Sent'           ? 'bg-green-100 text-green-700' :
+                        st === 'Partial'        ? 'bg-yellow-100 text-yellow-700' :
+                        st === 'Not Configured' ? 'bg-orange-100 text-orange-700' :
+                        st === 'Failed'         ? 'bg-red-100 text-red-700' :
+                                                  'bg-gray-100 text-gray-600'
+                      return (
                       <tr key={w.id} className="hover:bg-gray-50 border-t border-gray-100">
                         <td className="table-td font-semibold text-gray-800">{w.campaignName || 'Bulk Outreach'}</td>
+                        <td className="table-td text-xs text-gray-600">{w.sentBy || '—'}</td>
                         <td className="table-td text-xs text-gray-500 max-w-xs truncate" title={w.template}>{w.template?.substring(0, 80)}…</td>
                         <td className="table-td">
                           <span className="font-bold text-green-600">{w.recipientCount}</span>
                         </td>
                         <td className="table-td">
-                          <span className="badge bg-green-100 text-green-700 text-xs font-semibold">{w.status}</span>
+                          <span className={`badge text-xs font-semibold ${stClass}`}>{st}</span>
                         </td>
                         <td className="table-td text-xs text-gray-500 whitespace-nowrap">{fmtIST(w.sentAt)}</td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
