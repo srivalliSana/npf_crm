@@ -44,6 +44,9 @@ export default function Dashboard() {
   const [achievement, setAchievement] = useState(null)
   const [campusStats, setCampusStats] = useState([])
 
+  const [stats, setStats] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(true)
+
   useEffect(() => {
     // Fetch achievement data
     const m = MONTHS[new Date().getMonth()]
@@ -57,7 +60,17 @@ export default function Dashboard() {
       .then(r => r.ok ? r.json() : [])
       .then(data => setCampusStats(data))
       .catch(() => {})
-  }, [])
+
+    // Server-side aggregated dashboard stats — scales to millions of rows.
+    // Role-scoped: counsellor sees own, manager sees their team, admin sees all.
+    let q = ''
+    if (currentUser?.role === 'Counselor') q = `?owner=${encodeURIComponent(currentUser.name)}`
+    else if (currentUser?.role === 'Manager') q = `?manager=${encodeURIComponent(currentUser.name)}`
+    fetch(`/api/dashboard/stats${q}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { setStats(data); setStatsLoading(false) })
+      .catch(() => setStatsLoading(false))
+  }, [currentUser])
 
   const handleSaveTarget = async (e) => {
     e.preventDefault()
@@ -69,69 +82,30 @@ export default function Dashboard() {
       .then(data => { if (data) setAchievement(data) })
   }
 
-  // 1. Calculate Summary Cards
-  const totalLeads = leads.length
-  const totalApps = applications.length
-  const totalApprovedPayments = payments.filter(p => p.status === 'Approved' || p.status === 'Payment Approved').length
-  const enrolments = applications.filter(a => a.stage === 'Enrolment' || a.stage === 'Enrolments').length
-
+  // 1. Summary Cards — from server aggregate (instant at any scale)
+  const kpi = stats?.kpi || {}
   const SUMMARY_CARDS = [
-    { label: 'Total Leads',        value: totalLeads.toLocaleString(),        change: '+15%', icon: Users,       color: 'bg-blue-500',   light: 'bg-blue-50',   text: 'text-blue-600' },
-    { label: 'Total Applications', value: totalApps.toLocaleString(),         change: '+9%',  icon: FileText,    color: 'bg-orange-500', light: 'bg-orange-50', text: 'text-orange-600' },
-    { label: 'Approved Payments',  value: totalApprovedPayments.toLocaleString(), change: '+22%', icon: CheckCircle, color: 'bg-green-500',  light: 'bg-green-50',  text: 'text-green-600' },
-    { label: 'Enrolments',         value: enrolments.toLocaleString(),        change: '+6%',  icon: TrendingUp,  color: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-600' },
+    { label: 'Total Leads',        value: (kpi.totalLeads || 0).toLocaleString(),     change: '+15%', icon: Users,       color: 'bg-blue-500',   light: 'bg-blue-50',   text: 'text-blue-600' },
+    { label: 'Total Applications', value: (stats?.applications || 0).toLocaleString(),change: '+9%',  icon: FileText,    color: 'bg-orange-500', light: 'bg-orange-50', text: 'text-orange-600' },
+    { label: 'Revenue Collected',  value: `₹${((stats?.revenue || 0)/100000).toFixed(1)}L`, change: '+22%', icon: CheckCircle, color: 'bg-green-500',  light: 'bg-green-50',  text: 'text-green-600' },
+    { label: 'Enrolments',         value: (stats?.enrolments || 0).toLocaleString(),  change: '+6%',  icon: TrendingUp,  color: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-600' },
   ]
 
-  // 2. Compute Counselors Lead vs App Data dynamically
-  const counselorDataAll = counselors.map(c => {
-    const simplName = c.name.split(' ')[0]
-    const cLeads = leads.filter(l => l.owner === c.name || l.owner?.split(' ')[0] === simplName)
-    const cApps = applications.filter(app => {
-      const lead = leads.find(l => l.name === app.name)
-      return lead && (lead.owner === c.name || lead.owner?.split(' ')[0] === simplName)
-    })
-    // Per-stage counts for this counsellor
-    const byStage = (s, alt) => cLeads.filter(l => l.stage === s || (alt && l.stage === alt)).length
-    // Domain from email
-    const domain = (c.email || '').includes('@cutmap.ac.in') ? 'cutmap'
-                 : (c.email || '').includes('@cutm.ac.in') ? 'cutm'
-                 : 'other'
-    return {
-      name: c.name,
-      email: c.email,
-      domain,
-      leads: cLeads.length,
-      apps: cApps.length,
-      untouched:   byStage('Untouched'),
-      interested:  byStage('Interested'),
-      followUp:    byStage('Follow Up'),          // "interested but for further discussion"
-      processPay:  byStage('Process for Payment', 'Qualified Leads'),
-      paymentSuccess: byStage('Payment Success', 'Converted'),
-    }
-  })
-
-  // Domain filter for the user-wise chart
+  // 2. Per-counsellor data — from server GROUP BY (no client iteration)
+  const counselorDataAll = stats?.byCounsellor || []
   const counselorData = (domainFilter === 'All'
     ? counselorDataAll
     : counselorDataAll.filter(c => c.domain === domainFilter))
 
-  // 3. Compute stage distributions dynamically
-  const getStageCount = (stage) => leads.filter(l => l.stage === stage).length
-  const getStageCountOrAlt = (stage, alt) => leads.filter(l => l.stage === stage || l.stage === alt).length
-
-  const untouchedCount = getStageCount('Untouched')
-  const contactedCount = getStageCount('Contacted')
-  const interestedCount = getStageCountOrAlt('Interested', 'Qualified Leads')
-  const followupCount = getStageCount('Follow Up')
-  const convertedCount = getStageCountOrAlt('Converted', 'Qualified Leads')
-
-  const totalStagesSum = untouchedCount + contactedCount + interestedCount + followupCount + convertedCount || 1
+  // 3. Stage distribution — from server KPI counts
+  const totalStagesSum = (kpi.untouched + kpi.contacted + kpi.interested + kpi.followUp + kpi.processPay + kpi.paymentSuccess) || 1
   const STAGES_DIST = [
-    { stage: 'Untouched',  count: untouchedCount, pct: Math.round((untouchedCount / totalStagesSum) * 100) || 0, color: 'bg-red-400' },
-    { stage: 'Contacted',  count: contactedCount, pct: Math.round((contactedCount / totalStagesSum) * 100) || 0, color: 'bg-blue-400' },
-    { stage: 'Interested', count: interestedCount, pct: Math.round((interestedCount / totalStagesSum) * 100) || 0, color: 'bg-green-400' },
-    { stage: 'Follow Up',  count: followupCount, pct: Math.round((followupCount / totalStagesSum) * 100) || 0, color: 'bg-yellow-400' },
-    { stage: 'Converted', count: convertedCount, pct: Math.round((convertedCount / totalStagesSum) * 100) || 0, color: 'bg-emerald-400' },
+    { stage: 'Untouched',           count: kpi.untouched || 0,      pct: Math.round(((kpi.untouched||0) / totalStagesSum) * 100), color: 'bg-red-400' },
+    { stage: 'Contacted',           count: kpi.contacted || 0,      pct: Math.round(((kpi.contacted||0) / totalStagesSum) * 100), color: 'bg-blue-400' },
+    { stage: 'Interested',          count: kpi.interested || 0,     pct: Math.round(((kpi.interested||0) / totalStagesSum) * 100), color: 'bg-green-400' },
+    { stage: 'Follow Up',           count: kpi.followUp || 0,       pct: Math.round(((kpi.followUp||0) / totalStagesSum) * 100), color: 'bg-yellow-400' },
+    { stage: 'Process for Payment', count: kpi.processPay || 0,     pct: Math.round(((kpi.processPay||0) / totalStagesSum) * 100), color: 'bg-blue-500' },
+    { stage: 'Payment Success',     count: kpi.paymentSuccess || 0, pct: Math.round(((kpi.paymentSuccess||0) / totalStagesSum) * 100), color: 'bg-emerald-400' },
   ]
 
   const sortedCounselors = [...counselorData].sort((a, b) => b.leads - a.leads)
