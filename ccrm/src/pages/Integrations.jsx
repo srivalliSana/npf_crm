@@ -4,7 +4,7 @@ import {
   MessageCircle, CreditCard, Mail, BarChart2, Phone,
   Globe, Lock, Save, X, Eye, EyeOff, ChevronDown, ChevronRight,
   Share2, Zap, Copy, CheckCheck, Bell, Linkedin, Search, PhoneCall, Instagram,
-  Wallet
+  Wallet, Cloud
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
@@ -245,6 +245,39 @@ const INTEGRATIONS = [
       { key: 'ga4_api_secret',     label: 'API Secret',     placeholder: 'For Measurement Protocol', secret: true },
     ]
   },
+
+  // ── Backup & Reporting ───────────────────────────────────────────────────────
+  {
+    id: 's3backup',
+    name: 'AWS S3 Backup',
+    description: 'Automatic daily backups of database, uploads, and logs to Amazon S3. Runs at 3:00 AM IST daily.',
+    icon: Cloud,
+    color: 'text-orange-600',
+    bg: 'bg-orange-50',
+    border: 'border-orange-200',
+    category: 'Backup',
+    docsUrl: 'https://aws.amazon.com/s3/getting-started/',
+    fields: [
+      { key: 'aws_access_key_id',     label: 'AWS Access Key ID',     placeholder: 'AKIA...', secret: false },
+      { key: 'aws_secret_access_key', label: 'AWS Secret Access Key', placeholder: 'Your AWS secret key', secret: true },
+      { key: 'aws_s3_bucket',         label: 'S3 Bucket Name',        placeholder: 'my-ccrm-backup', secret: false },
+      { key: 'aws_region',            label: 'AWS Region',            placeholder: 'ap-south-1', secret: false },
+    ]
+  },
+  {
+    id: 'reporting',
+    name: 'Daily Email Reports',
+    description: 'Productivity Report sent to admin/managers every day at 3:00 AM IST. Requires SMTP to be configured.',
+    icon: Mail,
+    color: 'text-cyan-600',
+    bg: 'bg-cyan-50',
+    border: 'border-cyan-200',
+    category: 'Reporting',
+    docsUrl: 'https://support.google.com/accounts/answer/185833',
+    fields: [
+      { key: 'report_email_recipients', label: 'Email Recipients (comma-separated)', placeholder: 'admin@cutm.ac.in, manager@cutm.ac.in', secret: false, textarea: true },
+    ]
+  },
 ]
 
 const CATEGORY_COLORS = {
@@ -256,6 +289,8 @@ const CATEGORY_COLORS = {
   Email:          'bg-purple-100 text-purple-700',
   Productivity:   'bg-emerald-100 text-emerald-700',
   Analytics:      'bg-yellow-100 text-yellow-700',
+  Backup:         'bg-orange-100 text-orange-700',
+  Reporting:      'bg-cyan-100 text-cyan-700',
 }
 
 const WEBHOOK_INFO = [
@@ -700,26 +735,38 @@ export default function Integrations() {
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {integ.fields.map(field => (
-                          <div key={field.key}>
+                          <div key={field.key} className={field.textarea ? 'md:col-span-2' : ''}>
                             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
                               {field.label}
                             </label>
                             <div className="relative">
-                              <input
-                                type={field.secret && !showSecrets[field.key] ? 'password' : 'text'}
-                                value={formValues[field.key] || ''}
-                                onChange={e => setFormValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-                                placeholder={field.placeholder}
-                                className="input-field text-sm pr-9"
-                              />
-                              {field.secret && (
-                                <button
-                                  type="button"
-                                  onClick={() => setShowSecrets(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
-                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                >
-                                  {showSecrets[field.key] ? <EyeOff size={14} /> : <Eye size={14} />}
-                                </button>
+                              {field.textarea ? (
+                                <textarea
+                                  value={formValues[field.key] || ''}
+                                  onChange={e => setFormValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                  placeholder={field.placeholder}
+                                  rows="3"
+                                  className="input-field text-sm w-full"
+                                />
+                              ) : (
+                                <>
+                                  <input
+                                    type={field.secret && !showSecrets[field.key] ? 'password' : 'text'}
+                                    value={formValues[field.key] || ''}
+                                    onChange={e => setFormValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                    placeholder={field.placeholder}
+                                    className="input-field text-sm pr-9"
+                                  />
+                                  {field.secret && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowSecrets(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
+                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                      {showSecrets[field.key] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>
