@@ -2562,56 +2562,65 @@ app.post('/api/leads/recalculate-score/:id', async (req, res) => {
 
 // --- FEATURE 5: WHATSAPP BULK MESSAGING ---
 app.post('/api/leads/bulk-whatsapp', async (req, res) => {
-  const { leadIds, message, templateName } = req.body
+  const { leadIds, message, templateName, sentBy } = req.body
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
   try {
-    // Get integration config
-    const integCfg = req.body.integrationConfig || {}
-    const waApiUrl = integCfg.apiUrl || process.env.WA_API_URL
-    const waToken = integCfg.apiKey || process.env.WA_API_KEY
-    const waPhone = integCfg.phoneId || process.env.WA_PHONE_ID
+    // Read WhatsApp config from DB integration_settings (the source of truth)
+    const waToken = await getIntegrationSetting('whatsapp_access_token')
+    const waPhone = await getIntegrationSetting('whatsapp_phone_number_id')
+    const waApiUrl = 'https://graph.facebook.com/v21.0'
+    const isConfigured = !!(waToken && waPhone)
 
-    // Fetch lead mobiles
     const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
     const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
     const leads = leadsRes.rows
 
-    let sentCount = 0
+    let sentCount = 0, failed = 0
     for (const lead of leads) {
-      if (!waApiUrl || !waToken || !waPhone) {
-        // Simulate success in dev mode
-        console.log(`[WA Bulk] Simulating message to ${lead.name} (${lead.mobile}): ${message.substring(0, 50)}...`)
-        sentCount++
-      } else {
-        try {
-          const personalizedMsg = message.replace(/\{name\}/g, lead.name).replace(/\{mobile\}/g, lead.mobile)
-          // Call WhatsApp Business API
-          const waRes = await fetch(`${waApiUrl}/${waPhone}/messages`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${waToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messaging_product: 'whatsapp',
-              to: lead.mobile.replace(/\D/g, ''),
-              type: 'text',
-              text: { body: personalizedMsg }
-            })
+      if (!isConfigured) {
+        failed++  // can't actually send — not configured
+        continue
+      }
+      try {
+        const personalizedMsg = message.replace(/\{name\}/g, lead.name).replace(/\{mobile\}/g, lead.mobile)
+        const waRes = await fetch(`${waApiUrl}/${waPhone}/messages`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${waToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: `91${lead.mobile.replace(/\D/g, '').slice(-10)}`,
+            type: 'text',
+            text: { body: personalizedMsg }
           })
-          if (waRes.ok) sentCount++
-        } catch (e) {
-          console.error(`[WA Bulk] Failed for ${lead.mobile}:`, e.message)
-        }
+        })
+        if (waRes.ok) sentCount++
+        else { failed++; console.error(`[WA] ${lead.mobile}:`, await waRes.text()) }
+      } catch (e) {
+        failed++; console.error(`[WA] Failed ${lead.mobile}:`, e.message)
       }
     }
 
-    // Log the campaign
-    await pool.query(
-      'INSERT INTO whatsapp_logs (campaign_name, message_template, recipient_count, status) VALUES ($1, $2, $3, $4);',
-      [templateName || 'Bulk Outreach', message.substring(0, 255), sentCount, 'Sent']
-    )
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`WhatsApp bulk sent: ${sentCount} messages dispatched successfully`, 'Just now'])
+    // Honest status: 'Sent' only if actually delivered to the API,
+    // 'Not Configured' if WhatsApp isn't set up, 'Failed' if API rejected
+    const status = !isConfigured ? 'Not Configured'
+                 : sentCount === 0 ? 'Failed'
+                 : failed > 0 ? 'Partial'
+                 : 'Sent'
 
-    res.json({ success: true, sent: sentCount, total: leads.length })
+    await pool.query(
+      'INSERT INTO whatsapp_logs (campaign_name, message_template, recipient_count, status, sent_by, channel) VALUES ($1, $2, $3, $4, $5, $6);',
+      [templateName || 'Bulk Outreach', message.substring(0, 255), sentCount, status, sentBy || 'Unknown', 'whatsapp']
+    )
+
+    if (!isConfigured) {
+      return res.json({ success: false, sent: 0, total: leads.length,
+        error: 'WhatsApp Business API is NOT configured. Go to Integrations → WhatsApp Business API and add your Access Token + Phone Number ID. No messages were actually sent.' })
+    }
+
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+      [`WhatsApp by ${sentBy || 'a user'}: ${sentCount} sent, ${failed} failed`, 'Just now'])
+    res.json({ success: true, sent: sentCount, failed, total: leads.length })
   } catch (err) {
     console.error('[WA Bulk]', err)
     res.status(500).json({ error: 'Bulk WhatsApp failed.', sent: 0 })
@@ -3775,7 +3784,8 @@ app.get('/api/reports/whatsapp-logs', async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT id, campaign_name AS "campaignName", message_template AS "template",
-              recipient_count AS "recipientCount", status, sent_at AS "sentAt"
+              recipient_count AS "recipientCount", status, sent_by AS "sentBy",
+              channel, sent_at AS "sentAt"
        FROM whatsapp_logs ORDER BY sent_at DESC LIMIT 200;`
     )
     res.json(r.rows)

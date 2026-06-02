@@ -863,18 +863,19 @@ export function CcrmProvider({ children }) {
   // Feature 5: Bulk WhatsApp
   const sendBulkWhatsApp = async (leadIds, message, templateName) => {
     try {
-      const integCfg = JSON.parse(localStorage.getItem('ccrm_integrations') || '{}')?.whatsapp || {}
       const res = await fetch('/api/leads/bulk-whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadIds, message, templateName, integrationConfig: integCfg })
+        body: JSON.stringify({ leadIds, message, templateName, sentBy: currentUser?.name || 'Unknown' })
       })
-      if (res.ok) {
-        const data = await res.json()
-        showToast(`WhatsApp sent to ${data.sent} of ${data.total} leads.`, 'success')
-        addNotification(`WhatsApp bulk sent: ${data.sent} messages dispatched`)
+      const data = await res.json()
+      if (res.ok && data.success) {
+        showToast(`WhatsApp: ${data.sent} sent${data.failed ? `, ${data.failed} failed` : ''} of ${data.total}`, data.failed ? 'warning' : 'success')
         return data
       }
+      // Not configured or failed — show the real reason
+      showToast(data.error || 'WhatsApp send failed', 'error')
+      return data
     } catch (e) {
       showToast('WhatsApp bulk send failed.', 'error')
     }
