@@ -44,6 +44,8 @@ export function CcrmProvider({ children }) {
     }
   })
   const [notifications, setNotifications] = useState([])
+  const [loading, setLoading] = useState(true)   // global initial-data loading flag
+  const [leadsTotal, setLeadsTotal] = useState(0)
 
   // Toast system state
   const [toasts, setToasts] = useState([])
@@ -61,14 +63,39 @@ export function CcrmProvider({ children }) {
     setToasts(prev => prev.filter(t => t.id !== id))
   }
 
+  // Fetch ONE page of leads from the server (search/filter/role-scoped).
+  // Used by Lead Manager so the browser never loads the whole table.
+  const fetchLeadsPage = async ({ page = 1, limit = 50, search = '', stage = '', owner = '', state = '', source = '' } = {}) => {
+    const token = localStorage.getItem('ccrm_token')
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+    const qs = new URLSearchParams()
+    qs.set('page', page); qs.set('limit', limit)
+    if (search) qs.set('search', search)
+    if (stage)  qs.set('stage', stage)
+    if (owner)  qs.set('owner', owner)
+    if (state)  qs.set('state', state)
+    if (source) qs.set('source', source)
+    if (currentUser?.role) qs.set('requesterRole', currentUser.role)
+    if (currentUser?.name) qs.set('requesterName', currentUser.name)
+    const res = await fetch(`/api/leads?${qs.toString()}`, { headers })
+    if (!res.ok) throw new Error('Failed to load leads')
+    return res.json()   // { rows, total, page, limit }
+  }
+
   // Unified API Loader with offline LocalStorage fallback
   const fetchAllData = async () => {
     const token = localStorage.getItem('ccrm_token')
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+    setLoading(true)
 
     try {
-      const leadsRes = await fetch('/api/leads', { headers })
-      if (leadsRes.ok) setLeads(await leadsRes.json())
+      // Only pull a recent slice for incidental use — never the whole table.
+      const leadsRes = await fetch('/api/leads?limit=100', { headers })
+      if (leadsRes.ok) {
+        const data = await leadsRes.json()
+        setLeads(data.rows || data)
+        if (typeof data.total === 'number') setLeadsTotal(data.total)
+      }
       else throw new Error('Backend server is offline.')
 
       const appsRes = await fetch('/api/applications', { headers })
@@ -164,6 +191,8 @@ export function CcrmProvider({ children }) {
 
       const localNotif = localStorage.getItem('ccrm_notifications')
       setNotifications(localNotif ? JSON.parse(localNotif) : [])
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -1104,7 +1133,7 @@ export function CcrmProvider({ children }) {
   return (
     <CcrmContext.Provider value={{
       leads, setLeads, addLead, updateLead, deleteLead,
-      fetchAllData, refreshCounselors,
+      fetchAllData, refreshCounselors, fetchLeadsPage, loading, leadsTotal,
       applications, setApplications, addApplication, updateApplication, deleteApplication,
       counselors, setCounselors,
       campaigns, setCampaigns, addCampaign, toggleCampaignStatus,

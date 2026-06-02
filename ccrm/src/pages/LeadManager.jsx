@@ -6,7 +6,7 @@ import {
   Plus, X, Save, Upload, AlertCircle,
   CheckCircle2, FileSpreadsheet, HelpCircle, Trash2,
   MessageSquare, Zap, Target, BarChart2, ArrowRight,
-  Mail, Calendar, ArrowRightLeft
+  Mail, Calendar, ArrowRightLeft, Edit3
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
@@ -60,7 +60,7 @@ const WA_TEMPLATES = [
 
 export default function LeadManager() {
   const navigate = useNavigate()
-  const { leads, setLeads, addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData,
+  const { addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData, fetchLeadsPage,
           checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS,
           rcsTemplates, fetchRcsTemplates, enrollDrip, logCall } = useCcrm()
 
@@ -95,6 +95,7 @@ export default function LeadManager() {
       if (isAdminOrManager) {
         // Direct transfer
         await updateLead(transferLead.id, { owner: transferTo })
+        await refreshLeads()
         showToast(`Lead transferred to ${transferTo}`, 'success')
       } else {
         // Counsellor request → pending approval
@@ -116,29 +117,6 @@ export default function LeadManager() {
     }
     setTransferLoading(false)
     setTransferLead(null); setTransferTo(''); setTransferRemark('')
-  }
-
-  // Admin: preview + delete junk leads (course-as-name / invalid mobile)
-  const handleCleanJunk = async () => {
-    try {
-      const preview = await fetch('/api/admin/clean-junk-leads').then(r => r.json())
-      if (!preview.count) return showToast('No junk leads found — all clean!', 'success')
-
-      const sampleText = (preview.sample || []).slice(0, 8).map(s => `• ${s.name} (${s.mobile || 'no mobile'})`).join('\n')
-      if (!confirm(`Found ${preview.count} junk lead(s) — names that look like courses or invalid mobiles:\n\n${sampleText}\n\nDelete all ${preview.count}? This cannot be undone.`)) return
-
-      const res = await fetch('/api/admin/clean-junk-leads', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmPhrase: 'DELETE JUNK' })
-      })
-      const data = await res.json()
-      if (res.ok) {
-        showToast(`Removed ${data.deleted} junk leads`, 'success')
-        fetchAllData?.()
-      } else {
-        showToast(data.error || 'Cleanup failed', 'error')
-      }
-    } catch { showToast('Network error', 'error') }
   }
 
   const handleSchedule = (lead) => {
@@ -226,6 +204,7 @@ export default function LeadManager() {
     if (!niReason) return showToast('Please select a reason.', 'error')
     const reason = niReason === 'Other' ? (niOther || 'Other') : niReason
     await updateLead(niLead.id, { stage: 'Not Interested', stageColor: 'red', not_interested_reason: reason })
+    await refreshLeads()
     setNiLead(null); setNiReason(''); setNiOther('')
     showToast(`Lead marked as Not Interested: ${reason}`, 'info')
   }
@@ -237,56 +216,77 @@ export default function LeadManager() {
       stageColor: 'yellow',
       not_interested_reason: 'Unable to Connect — needs follow-up'
     })
+    await refreshLeads()
     showToast(`${lead.name} marked as Unable to Connect — moved to Follow Up`, 'info')
   }
 
-  const rowsPerPage = 15
+  const rowsPerPage = 25
 
-  // ----------- FILTERS -----------
-  // Counselors see only their own leads; Admin/Manager see all
-  const visibleLeads = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
-    ? leads
-    : leads.filter(l => l.owner?.toLowerCase() === (currentUser?.name || '').toLowerCase())
+  // ----------- SERVER-SIDE DATA (scales to 1cr+ rows) -----------
+  // The full table is never loaded into the browser. We fetch ONE page at a
+  // time with search/filters/role-scope applied in SQL.
+  const [rows, setRows] = useState([])
+  const [total, setTotal] = useState(0)
+  const [leadsLoading, setLeadsLoading] = useState(true)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
 
-  const matchQuickView = (l) => {
-    if (quickView === 'All Leads') return true
-    if (quickView === 'My Leads') return l.owner?.toLowerCase().includes(currentUser?.name?.split(' ')[0]?.toLowerCase() || '')
-    if (quickView === 'Untouched') return l.stage === 'Untouched'
-    if (quickView === 'Follow Up Today') return l.stage === 'Follow Up' || l.stage === 'Process for Payment'
-    if (quickView === 'Hot Leads') return (l.score || 0) > 70
-    return true
+  // Debounce the search box so we don't query on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setCurrentPage(1) }, 350)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Translate the quick-view tabs + filter dropdowns into server query params
+  const buildQuery = () => {
+    const q = { page: currentPage, limit: rowsPerPage, search: debouncedSearch }
+    if (filters.stage)    q.stage  = filters.stage
+    if (filters.state)    q.state  = filters.state
+    if (filters.owner)    q.owner  = filters.owner
+    if (filters.campaign) q.source = filters.campaign
+    if (quickView === 'My Leads')        q.owner = currentUser?.name || ''
+    if (quickView === 'Untouched')       q.stage = 'Untouched'
+    if (quickView === 'Follow Up Today') q.stage = 'Follow Up'
+    return q
   }
-  const matchSelectFilters = (l) => {
-    if (filters.stage && l.stage !== filters.stage) return false
-    if (filters.state && l.state !== filters.state) return false
-    if (filters.owner && l.owner !== filters.owner) return false
-    if (filters.campaign && l.source !== filters.campaign) return false
-    return true
-  }
-  const filtered = visibleLeads.filter(l => {
-    const s = search.toLowerCase()
-    return (!search || l.name.toLowerCase().includes(s) || (l.email || '').toLowerCase().includes(s) || l.mobile.includes(s) || (l.city || '').toLowerCase().includes(s))
-      && matchQuickView(l) && matchSelectFilters(l)
-  })
-  const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1
-  const pageData = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
-  
-  const toggleRow = (id) => setSelectedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id])
-  
-  const toggleAll = () => {
-    if (selectAllPages) {
-      setSelectedRows([])
-      setSelectAllPages(false)
-    } else if (selectedRows.length === pageData.length && pageData.length > 0) {
-      setSelectedRows([])
-    } else {
-      setSelectedRows(pageData.map(r => r.id))
+
+  const loadPage = async () => {
+    setLeadsLoading(true)
+    try {
+      const data = await fetchLeadsPage(buildQuery())
+      setRows(data.rows || [])
+      setTotal(data.total || 0)
+    } catch {
+      setRows([]); setTotal(0)
+      showToast('Could not load leads from server.', 'error')
+    } finally {
+      setLeadsLoading(false)
     }
   }
 
-  const handleSelectAllPages = () => {
-    setSelectedRows(filtered.map(l => l.id))
-    setSelectAllPages(true)
+  // Reload whenever paging / search / filters / quick-view / user change
+  useEffect(() => { loadPage() }, [currentPage, debouncedSearch, filters, quickView, currentUser])
+
+  const refreshLeads = () => loadPage()
+
+  // ----------- INLINE NAME EDIT (fix course-as-name etc. without opening lead) -----------
+  const [editingNameId, setEditingNameId]   = useState(null)
+  const [editingNameVal, setEditingNameVal] = useState('')
+  const startEditName = (lead) => { setEditingNameId(lead.id); setEditingNameVal(lead.name || '') }
+  const saveEditName = async (lead) => {
+    const v = editingNameVal.trim()
+    if (!v)  { showToast('Name cannot be empty.', 'error'); return }
+    if (v !== lead.name) { await updateLead(lead.id, { name: v }); await refreshLeads() }
+    setEditingNameId(null)
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / rowsPerPage))
+  const pageData = rows   // current page rows from the server
+
+  const toggleRow = (id) => setSelectedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id])
+
+  const toggleAll = () => {
+    if (selectedRows.length === pageData.length && pageData.length > 0) setSelectedRows([])
+    else setSelectedRows(pageData.map(r => r.id))
   }
 
   const handleClearSelection = () => {
@@ -321,6 +321,7 @@ export default function LeadManager() {
       score: calcScore(newLead.source, newLead.course, newLead)
     }
     await addLead(leadData)
+    await refreshLeads()
     setDupWarning(null)
     setAddLoading(false)
     setShowAddModal(false)
@@ -381,7 +382,7 @@ export default function LeadManager() {
     if (!selectedRows.length) return showToast('Select leads to enroll in drip.', 'warning')
     setDripLoading(true)
     for (const id of selectedRows) {
-      const lead = leads.find(l => l.id === id)
+      const lead = rows.find(l => l.id === id)
       if (lead) await enrollDrip(lead)
     }
     setDripLoading(false)
@@ -446,7 +447,7 @@ export default function LeadManager() {
         const data = await res.json()
         setUploadResult(data)
         setBulkStep(4)
-        fetchAllData()
+        refreshLeads()
         showToast(`Imported: ${data.imported}, Skipped: ${data.skipped}, Updated: ${data.updated}`, 'success')
       } else {
         const err = await res.json()
@@ -486,33 +487,53 @@ export default function LeadManager() {
   }
 
   // ----------- DELETE -----------
-  const confirmDelete = () => {
-    if (deleteConfirm === 'bulk') { 
-      selectedRows.forEach(id => deleteLead(id))
+  const confirmDelete = async () => {
+    if (deleteConfirm === 'bulk') {
+      for (const id of selectedRows) await deleteLead(id)
       setSelectedRows([])
       setSelectAllPages(false)
     }
-    else deleteLead(deleteConfirm)
+    else await deleteLead(deleteConfirm)
     setDeleteConfirm(null)
+    await refreshLeads()
   }
 
-  // ----------- EXPORT -----------
-  const handleExport = () => {
-    if (!filtered.length) return showToast('No leads to export.', 'warning')
-    const hdrs = ['Name','Email','Mobile','State','City','RegDate','Stage','Owner','Source','Score']
-    const rows = filtered.map(l => [l.name, l.email, l.mobile, l.state||'', l.city||'', l.regDate||'', l.stage, l.owner||'', l.source||'', l.score||0])
-    const csv = "data:text/csv;charset=utf-8," + [hdrs.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))].join('\n')
-    const a = document.createElement('a'); a.href = encodeURI(csv); a.download = `leads_${Date.now()}.csv`
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    showToast(`Exported ${filtered.length} leads.`, 'success')
+  // ----------- EXPORT (fetches matching rows from server, capped) -----------
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
+    if (!total) return showToast('No leads to export.', 'warning')
+    setExporting(true)
+    try {
+      const EXPORT_CAP = 5000
+      const all = []
+      let page = 1
+      while (all.length < Math.min(total, EXPORT_CAP)) {
+        const data = await fetchLeadsPage({ ...buildQuery(), page, limit: 200 })
+        if (!data.rows?.length) break
+        all.push(...data.rows)
+        if (data.rows.length < 200) break
+        page++
+      }
+      const hdrs = ['Name','Email','Mobile','State','City','RegDate','Stage','Owner','Source','Score']
+      const csvRows = all.map(l => [l.name, l.email, l.mobile, l.state||'', l.city||'', l.regDate||'', l.stage, l.owner||'', l.source||'', l.score||0])
+      const csv = "data:text/csv;charset=utf-8," + [hdrs.join(','), ...csvRows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(','))].join('\n')
+      const a = document.createElement('a'); a.href = encodeURI(csv); a.download = `leads_${Date.now()}.csv`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      showToast(`Exported ${all.length.toLocaleString()} leads${total > EXPORT_CAP ? ` (capped at ${EXPORT_CAP.toLocaleString()})` : ''}.`, 'success')
+    } catch {
+      showToast('Export failed.', 'error')
+    } finally {
+      setExporting(false)
+    }
   }
 
-  const stateOptions = [...new Set(visibleLeads.map(l => l.state).filter(Boolean))]
-  const sourceOptions = [...new Set(visibleLeads.map(l => l.source).filter(Boolean))]
-  const ownerOptions  = currentUser?.role === 'Admin' || currentUser?.role === 'Manager'
-    ? [...new Set(leads.map(l => l.owner).filter(Boolean))]
+  // Filter dropdown options — static/derived (the full table is never in memory)
+  const stateOptions  = STATES
+  const sourceOptions = SOURCES
+  const ownerOptions  = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
+    ? (counselors || []).map(c => c.name)
     : []
-  const stageOptions  = [...new Set(visibleLeads.map(l => l.stage).filter(Boolean))]
+  const stageOptions  = ['Untouched','Contacted','Follow Up','Interested','Process for Payment','Payment Success','Not Interested']
 
   return (
     <div className="p-6">
@@ -536,11 +557,6 @@ export default function LeadManager() {
           <button onClick={() => setShowBulkModal(true)} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
             <Upload size={14} /> Bulk Upload
           </button>
-          {currentUser?.role === 'Admin' && (
-            <button onClick={handleCleanJunk} className="flex items-center gap-1.5 text-sm text-orange-600 border border-orange-200 rounded-lg px-3 py-1.5 hover:bg-orange-50">
-              🧹 Clean Junk
-            </button>
-          )}
           <button onClick={() => setShowAddModal(true)} className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5">
             <Plus size={14} /> Add Lead
           </button>
@@ -577,26 +593,13 @@ export default function LeadManager() {
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-500">
-              Showing <span className="font-semibold text-gray-700">{filtered.length}</span> leads
+              {leadsLoading
+                ? <span className="text-primary-600 font-medium">Loading…</span>
+                : <>Total <span className="font-semibold text-gray-700">{total.toLocaleString()}</span> leads</>}
               {selectedRows.length > 0 && (
-                <span className="ml-2 text-primary-600 font-medium">· {selectedRows.length} selected</span>
+                <span className="ml-2 text-primary-600 font-medium">· {selectedRows.length} selected on this page</span>
               )}
             </span>
-            {/* "Select all N leads" banner */}
-            {selectedRows.length === pageData.length && pageData.length > 0 && !selectAllPages && filtered.length > rowsPerPage && (
-              <button
-                onClick={handleSelectAllPages}
-                className="text-xs text-primary-600 hover:text-primary-800 underline underline-offset-2 font-medium"
-              >
-                Select all {filtered.length} leads
-              </button>
-            )}
-            {selectAllPages && (
-              <span className="text-xs text-primary-700 font-semibold bg-primary-50 border border-primary-200 rounded-lg px-2 py-0.5">
-                All {filtered.length} leads selected ·{' '}
-                <button onClick={handleClearSelection} className="underline hover:no-underline">Clear</button>
-              </span>
-            )}
           </div>
           {selectedRows.length > 0 && (
             <div className="flex items-center gap-2">
@@ -655,7 +658,12 @@ export default function LeadManager() {
               </tr>
             </thead>
             <tbody>
-              {pageData.map(lead => {
+              {leadsLoading && (
+                <tr><td colSpan={10} className="text-center py-12 text-gray-400 text-sm">
+                  <span className="inline-flex items-center gap-2"><RefreshCw size={14} className="animate-spin" /> Please wait, loading leads…</span>
+                </td></tr>
+              )}
+              {!leadsLoading && pageData.map(lead => {
                 const colors = STAGE_COLORS[getStageColorName(lead.stage)] || STAGE_COLORS.blue
                 const score = lead.score || 0
                 const scoreColor = score >= 70 ? 'text-green-600' : score >= 40 ? 'text-yellow-600' : 'text-red-500'
@@ -670,8 +678,26 @@ export default function LeadManager() {
                         {lead.sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}{String(lead.id).padStart(4,'0')}
                       </span>
                     </td>
-                    <td className="table-td">
-                      <span className="text-primary-500 hover:text-primary-700 font-medium hover:underline">{lead.name}</span>
+                    <td className="table-td" onClick={e => e.stopPropagation()}>
+                      {editingNameId === lead.id ? (
+                        <span className="flex items-center gap-1">
+                          <input autoFocus value={editingNameVal}
+                            onChange={e => setEditingNameVal(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveEditName(lead); if (e.key === 'Escape') setEditingNameId(null) }}
+                            className="input-field text-sm py-1 w-44" />
+                          <button onClick={() => saveEditName(lead)} className="text-green-600 hover:text-green-700" title="Save"><Save size={14} /></button>
+                          <button onClick={() => setEditingNameId(null)} className="text-gray-400 hover:text-gray-600" title="Cancel"><X size={14} /></button>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 group">
+                          <span onClick={() => navigate(`/leads/${lead.id}`)}
+                            className="text-primary-500 hover:text-primary-700 font-medium hover:underline cursor-pointer">{lead.name}</span>
+                          <button onClick={() => startEditName(lead)}
+                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-600 transition-opacity" title="Edit name">
+                            <Edit3 size={12} />
+                          </button>
+                        </span>
+                      )}
                     </td>
                     <td className="table-td text-gray-600 text-xs whitespace-nowrap" title={lead.email ? `Email: ${lead.email}` : 'No email on file'}>
                       {lead.regDate
@@ -781,23 +807,30 @@ export default function LeadManager() {
                   </tr>
                 )
               })}
-              {pageData.length === 0 && (
+              {!leadsLoading && pageData.length === 0 && (
                 <tr><td colSpan={10} className="text-center py-10 text-gray-400 text-sm">No leads found matching your criteria.</td></tr>
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination */}
+        {/* Pagination — windowed around the current page (handles millions of pages) */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-          <span className="text-xs text-gray-500">Page {currentPage} of {totalPages} · {filtered.length} total</span>
+          <span className="text-xs text-gray-500">Page {currentPage.toLocaleString()} of {totalPages.toLocaleString()} · {total.toLocaleString()} total</span>
           <div className="flex items-center gap-1">
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage===1} className="px-2 py-1 rounded hover:bg-gray-200 disabled:opacity-40 text-xs">« First</button>
             <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage===1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-40"><ChevronLeft size={16} /></button>
-            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => i + 1).map(p => (
-              <button key={p} onClick={() => setCurrentPage(p)} className={`w-7 h-7 rounded text-xs font-medium ${p===currentPage ? 'bg-primary-500 text-white' : 'hover:bg-gray-200 text-gray-600'}`}>{p}</button>
-            ))}
-            {totalPages > 7 && <span className="text-gray-400 text-xs">...</span>}
+            {(() => {
+              const win = 5
+              let start = Math.max(1, currentPage - Math.floor(win / 2))
+              let end = Math.min(totalPages, start + win - 1)
+              start = Math.max(1, end - win + 1)
+              return Array.from({ length: end - start + 1 }, (_, i) => start + i).map(p => (
+                <button key={p} onClick={() => setCurrentPage(p)} className={`min-w-7 px-1.5 h-7 rounded text-xs font-medium ${p===currentPage ? 'bg-primary-500 text-white' : 'hover:bg-gray-200 text-gray-600'}`}>{p.toLocaleString()}</button>
+              ))
+            })()}
             <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage===totalPages} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-40"><ChevronRight size={16} /></button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage===totalPages} className="px-2 py-1 rounded hover:bg-gray-200 disabled:opacity-40 text-xs">Last »</button>
           </div>
         </div>
       </div>
@@ -1200,7 +1233,7 @@ export default function LeadManager() {
                   <p className="text-xs font-semibold text-gray-600 mb-2">Leads to delete:</p>
                   <ul className="space-y-1 text-xs text-gray-600">
                     {selectedRows.slice(0, 10).map(id => {
-                      const lead = filtered.find(l => l.id === id)
+                      const lead = rows.find(l => l.id === id)
                       return lead ? (
                         <li key={id} className="truncate">
                           • {lead.name} ({lead.mobile})
