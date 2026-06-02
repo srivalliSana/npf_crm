@@ -48,9 +48,10 @@ export default function ProductivityReport() {
           // Build owner lookup maps from fetched applications and payments
           let appsByOwner = {}
           let payByOwner = {}
+          let apps = []
 
           if (appsRes.ok) {
-            const apps = await appsRes.json()
+            apps = await appsRes.json()
             apps.forEach(app => {
               const owner = app.owner || 'Unassigned'
               appsByOwner[owner] = (appsByOwner[owner] || 0) + 1
@@ -59,7 +60,6 @@ export default function ProductivityReport() {
 
           if (paymentsRes.ok) {
             const pays = await paymentsRes.json()
-            const apps = appsRes.ok ? await appsRes.json() : []
             const appMap = {}
             apps.forEach(a => { appMap[a.appNo] = a })
 
