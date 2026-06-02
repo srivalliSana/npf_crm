@@ -620,9 +620,31 @@ app.put('/api/leads/:id', async (req, res) => {
 
 app.delete('/api/leads/:id', async (req, res) => {
   const { id } = req.params
+  // requesterRole + requesterName sent by the client so we can enforce rules server-side
+  const requesterRole = req.body?.requesterRole || req.query.requesterRole || ''
+  const requesterName = req.body?.requesterName || req.query.requesterName || ''
+
   try {
-    const deleteRes = await pool.query('DELETE FROM leads WHERE id = $1 RETURNING id;', [id])
-    if (deleteRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
+    const leadRes = await pool.query('SELECT id, owner, stage, name FROM leads WHERE id = $1;', [id])
+    if (leadRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
+    const lead = leadRes.rows[0]
+
+    // Admin / Manager can delete anything
+    const isAdmin = ['Admin', 'Manager'].includes(requesterRole)
+    if (!isAdmin) {
+      // Counsellor rules:
+      // 1. Can only delete their OWN leads
+      const ownsIt = lead.owner === requesterName || lead.owner?.split(' ')[0] === requesterName?.split(' ')[0]
+      if (!ownsIt) {
+        return res.status(403).json({ error: 'You can only delete leads assigned to you.' })
+      }
+      // 2. Can only delete while still Untouched
+      if (lead.stage !== 'Untouched') {
+        return res.status(403).json({ error: `Cannot delete — this lead is already in "${lead.stage}" stage. Only Untouched leads can be deleted.` })
+      }
+    }
+
+    await pool.query('DELETE FROM leads WHERE id = $1;', [id])
     res.json({ message: 'Lead deleted successfully.', id })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete lead.' })

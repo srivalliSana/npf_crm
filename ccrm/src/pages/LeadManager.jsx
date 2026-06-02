@@ -714,12 +714,20 @@ export default function LeadManager() {
                           className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500" title="Transfer lead to another counsellor">
                           <ArrowRightLeft size={12} />
                         </button>
-                        {currentUser?.role === 'Admin' && (
-                          <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(lead.id) }}
-                            className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500" title="Delete">
-                            <Trash2 size={12} />
-                          </button>
-                        )}
+                        {/* Delete: Admin/Manager anytime; Counsellor only own + Untouched */}
+                        {(() => {
+                          const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
+                          const ownsIt = lead.owner === currentUser?.name || lead.owner?.split(' ')[0] === currentUser?.name?.split(' ')[0]
+                          const canDelete = isAdmin || (ownsIt && lead.stage === 'Untouched')
+                          if (!canDelete) return null
+                          return (
+                            <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(lead.id) }}
+                              className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500"
+                              title={isAdmin ? 'Delete' : 'Delete your untouched lead'}>
+                              <Trash2 size={12} />
+                            </button>
+                          )
+                        })()}
                       </div>
                     </td>
                   </tr>
