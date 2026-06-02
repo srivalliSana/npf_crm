@@ -599,6 +599,15 @@ export default function LeadManager() {
         </div>
       )}
 
+      {/* No Results — Debug Hint */}
+      {!leadsLoading && total === 0 && (
+        <div className="mb-4 p-4 bg-amber-50 border-l-4 border-amber-500 rounded-lg shadow-sm">
+          <p className="text-sm text-amber-900"><strong>No leads found.</strong>
+          {currentUser?.role === 'Counselor' && ` You're logged as ${currentUser?.name} (Counselor). You can only see leads assigned to you.`}
+          {['Admin', 'Manager'].includes(currentUser?.role) && ` Database may be empty or filters are excluding all leads. Try clicking Reset.`}</p>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
