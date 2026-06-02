@@ -255,9 +255,13 @@ export default function LeadManager() {
       const data = await fetchLeadsPage(buildQuery())
       setRows(data.rows || [])
       setTotal(data.total || 0)
-    } catch {
+      if (!data.rows?.length && data.total === 0) {
+        console.log('[LeadManager] Query returned 0 leads. User:', currentUser?.name, 'Role:', currentUser?.role, 'Query:', buildQuery())
+      }
+    } catch (err) {
       setRows([]); setTotal(0)
-      showToast('Could not load leads from server.', 'error')
+      console.error('[LeadManager] Error loading leads:', err)
+      showToast(`Could not load leads: ${err.message}`, 'error')
     } finally {
       setLeadsLoading(false)
     }
@@ -602,9 +606,26 @@ export default function LeadManager() {
       {/* No Results — Debug Hint */}
       {!leadsLoading && total === 0 && (
         <div className="mb-4 p-4 bg-amber-50 border-l-4 border-amber-500 rounded-lg shadow-sm">
-          <p className="text-sm text-amber-900"><strong>No leads found.</strong>
-          {currentUser?.role === 'Counselor' && ` You're logged as ${currentUser?.name} (Counselor). You can only see leads assigned to you.`}
-          {['Admin', 'Manager'].includes(currentUser?.role) && ` Database may be empty or filters are excluding all leads. Try clicking Reset.`}</p>
+          <p className="text-sm text-amber-900"><strong>No leads found.</strong></p>
+          <p className="text-xs text-amber-700 mt-2">
+            <strong>Debug info:</strong> Logged as <code className="bg-white px-1 py-0.5 rounded">{currentUser?.name || 'Unknown'}</code> ({currentUser?.role || 'No role'})
+          </p>
+          {currentUser?.role === 'Counselor' && (
+            <p className="text-xs text-amber-700 mt-1">
+              💡 <strong>Counselor tip:</strong> You can only see leads assigned to you. If this count is 0, no leads are assigned to your name in the system.
+              <br/>Try asking an admin to assign leads to you, or check the Lead Manager as Admin to see all leads.
+            </p>
+          )}
+          {['Admin', 'Manager'].includes(currentUser?.role) && (
+            <p className="text-xs text-amber-700 mt-1">
+              💡 <strong>Admin/Manager tip:</strong> Your role allows seeing all leads. If count is still 0:
+              <ol className="list-decimal list-inside mt-1 ml-1">
+                <li>Try clicking <strong>Reset</strong> to clear all filters</li>
+                <li>Check if the dashboard shows leads (it should)</li>
+                <li>Check browser DevTools → Console for error messages</li>
+              </ol>
+            </p>
+          )}
         </div>
       )}
 
