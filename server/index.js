@@ -1459,6 +1459,38 @@ app.get('/api/counselors', async (req, res) => {
         [u.name, `${simplName}%`]
       )
 
+      // Telephony — call_logs by counsellor
+      let callsMade = 0, callsConnected = 0, avgCallDuration = '0:00', connectRate = '0%'
+      try {
+        const cRes = await pool.query(
+          "SELECT COUNT(*)::int AS total, SUM(CASE WHEN outcome='Connected' THEN 1 ELSE 0 END)::int AS connected FROM call_logs WHERE counselor = $1 OR counselor LIKE $2;",
+          [u.name, `${simplName}%`]
+        )
+        callsMade = cRes.rows[0].total || 0
+        callsConnected = cRes.rows[0].connected || 0
+        if (callsMade > 0) connectRate = Math.round((callsConnected / callsMade) * 100) + '%'
+      } catch {}
+
+      // Queries — by assignee
+      let queriesTotal = 0, queriesOpen = 0, queriesResolved = 0
+      try {
+        const qRes = await pool.query(
+          "SELECT COUNT(*)::int AS total, SUM(CASE WHEN status='Open' THEN 1 ELSE 0 END)::int AS open, SUM(CASE WHEN status IN ('Resolved','Closed') THEN 1 ELSE 0 END)::int AS resolved FROM queries WHERE assignee = $1 OR assignee LIKE $2;",
+          [u.name, `${simplName}%`]
+        )
+        queriesTotal = qRes.rows[0].total || 0
+        queriesOpen = qRes.rows[0].open || 0
+        queriesResolved = qRes.rows[0].resolved || 0
+      } catch {}
+
+      // Effort — WA + Email + SMS sent counts where this user was sender (best-effort)
+      let waSent = 0, emailsSent = 0, smsSent = 0
+      try {
+        const wRes = await pool.query("SELECT COALESCE(SUM(recipient_count),0)::int AS c FROM whatsapp_logs WHERE status = 'Sent';")
+        waSent = wRes.rows[0].c || 0
+      } catch {}
+      const totalTouches = callsMade + waSent + emailsSent + smsSent
+
       const leads = parseInt(leadsRes.rows[0].count)
       const untouched = parseInt(untouchedRes.rows[0].count)
       counselors.push({
@@ -1471,6 +1503,12 @@ app.get('/api/counselors', async (req, res) => {
         payApproved: parseInt(payRes.rows[0].count),
         submitted:  parseInt(submittedRes.rows[0].count),
         enrolled:   parseInt(enrolledRes.rows[0].count),
+        // Telephony
+        callsMade, callsConnected, avgCallDuration, connectRate,
+        // Queries
+        queriesTotal, queriesOpen, queriesResolved, avgResolutionHours: '—',
+        // Effort
+        totalTouches, waSent, emailsSent, smsSent,
       })
     }
     res.json(counselors)

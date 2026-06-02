@@ -62,11 +62,42 @@ export function qualifyLead(score) {
 }
 
 export default function Reports() {
-  const { leads, applications, payments, campaigns, counselors, showToast } = useCcrm()
+  const { leads: allLeads, applications: allApps, payments: allPayments, campaigns, counselors, showToast } = useCcrm()
   const [activeReport, setActiveReport] = useState('Lead Summary')
   const [dateRange, setDateRange] = useState('Last 30 Days')
 
-  // Build monthly trend from real data
+  // Parse DD/MM/YYYY or DD/MM/YYYY, HH:MM into Date
+  const parseDDMMYYYY = (s) => {
+    if (!s) return null
+    const parts = String(s).split(/[/,\s:]+/)
+    if (parts.length < 3) return null
+    const d = parseInt(parts[0], 10), m = parseInt(parts[1], 10) - 1, y = parseInt(parts[2], 10)
+    if (isNaN(d) || isNaN(m) || isNaN(y)) return null
+    return new Date(y, m, d)
+  }
+
+  // Date range → cutoff Date object
+  const cutoff = (() => {
+    const now = new Date()
+    if (dateRange === 'Last 7 Days')   { const d = new Date(now); d.setDate(d.getDate() - 7);  return d }
+    if (dateRange === 'Last 30 Days')  { const d = new Date(now); d.setDate(d.getDate() - 30); return d }
+    if (dateRange === 'Last 3 Months') { const d = new Date(now); d.setMonth(d.getMonth() - 3); return d }
+    if (dateRange === 'This Year')     return new Date(now.getFullYear(), 0, 1)
+    return new Date(0)  // all-time
+  })()
+
+  // Filter helper — keep records on/after cutoff
+  const onAfter = (record, dateField) => {
+    const t = parseDDMMYYYY(record[dateField])
+    return !t || t >= cutoff
+  }
+
+  // Apply filter to all the data the report reads
+  const leads        = allLeads.filter(l       => onAfter(l, 'regDate'))
+  const applications = allApps.filter(a        => onAfter(a, 'date'))
+  const payments     = allPayments.filter(p    => onAfter(p, 'date'))
+
+  // Build monthly trend from filtered data
   const monthlyData = buildMonthlyData(leads, applications)
 
   // 1. Calculate KPI Metrics dynamically
@@ -911,7 +942,9 @@ export default function Reports() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Reports &amp; Analytics</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Comprehensive business intelligence &amp; performance insights</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Showing data from <strong className="text-primary-600">{dateRange}</strong> · {leads.length} leads · {applications.length} apps · {payments.length} payments
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <select value={dateRange} onChange={e => setDateRange(e.target.value)}

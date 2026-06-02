@@ -20,7 +20,26 @@ const DOC_TYPES = [
 ]
 
 export default function Documents() {
-  const { documents, updateDocStatus, uploadDocument, deleteDocument, leads, currentUser, showToast } = useCcrm()
+  const { documents, setDocuments, updateDocStatus, uploadDocument, deleteDocument, leads, currentUser, showToast, fetchAllData } = useCcrm()
+
+  const resetDocsModule = async () => {
+    if (!confirm('⚠️ This will DELETE all document records permanently.\n\nType OK to continue.')) return
+    if (prompt('Type "RESET MODULE" to confirm') !== 'RESET MODULE') return showToast('Reset cancelled.', 'info')
+    try {
+      const res = await fetch('/api/admin/reset-module', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: 'documents', confirmPhrase: 'RESET MODULE' })
+      })
+      if (res.ok) {
+        showToast('Documents reset — all data cleared', 'success')
+        setDocuments?.([])
+        fetchAllData?.()
+      } else {
+        const e = await res.json()
+        showToast(e.error || 'Reset failed', 'error')
+      }
+    } catch { showToast('Network error', 'error') }
+  }
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All')
   const [showUpload, setShowUpload] = useState(false)
@@ -150,6 +169,12 @@ export default function Documents() {
           <button onClick={handleExport} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
             <Download size={14} /> Export
           </button>
+          {currentUser?.role === 'Admin' && (
+            <button onClick={resetDocsModule}
+              className="flex items-center gap-1.5 text-sm text-red-600 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50 transition-colors">
+              🗑️ Reset Documents
+            </button>
+          )}
           <button onClick={() => setShowUpload(true)}
             className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 transition-colors focus:outline-none">
             <Upload size={14} /> Upload Document
