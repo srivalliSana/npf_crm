@@ -1600,6 +1600,81 @@ app.get('/api/admin/version', (req, res) => {
 })
 
 // ── ADMIN — Server Health & Security Overview ────────────────────────────────
+// ── DASHBOARD STATS — all aggregation in SQL (scales to 1cr+ rows) ──────────
+// Optional ?owner=Name (counsellor) or ?manager=Name (their team) to scope.
+app.get('/api/dashboard/stats', async (req, res) => {
+  try {
+    const { owner, manager } = req.query
+
+    // Build an owner filter (parameterised) for role-scoped dashboards
+    let ownerWhere = ''
+    const params = []
+    if (owner) {
+      params.push(owner)
+      ownerWhere = `WHERE l.owner = $${params.length}`
+    } else if (manager) {
+      // manager + their reportees
+      params.push(manager)
+      ownerWhere = `WHERE (l.owner = $${params.length} OR l.owner IN (SELECT name FROM users WHERE reports_to = $${params.length}))`
+    }
+
+    // 1. Overall KPI counts (single scan)
+    const kpi = await pool.query(`
+      SELECT
+        COUNT(*)::int AS "totalLeads",
+        SUM(CASE WHEN stage='Untouched'           THEN 1 ELSE 0 END)::int AS untouched,
+        SUM(CASE WHEN stage='Contacted'           THEN 1 ELSE 0 END)::int AS contacted,
+        SUM(CASE WHEN stage='Follow Up'           THEN 1 ELSE 0 END)::int AS "followUp",
+        SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,
+        SUM(CASE WHEN stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
+        SUM(CASE WHEN stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess",
+        SUM(CASE WHEN stage='Not Interested'      THEN 1 ELSE 0 END)::int AS "notInterested"
+      FROM leads l ${ownerWhere};
+    `, params)
+
+    // 2. Application + payment totals
+    const appTotal  = await pool.query('SELECT COUNT(*)::int AS c FROM applications;')
+    const enrolTotal = await pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments');")
+    const revTotal  = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid');")
+
+    // 3. Per-counsellor stage breakdown — ONE GROUP BY, joined to users for domain
+    const perCounsellor = await pool.query(`
+      SELECT
+        u.name, u.email,
+        COUNT(l.id)::int AS leads,
+        SUM(CASE WHEN l.stage='Untouched'  THEN 1 ELSE 0 END)::int AS untouched,
+        SUM(CASE WHEN l.stage='Interested' THEN 1 ELSE 0 END)::int AS interested,
+        SUM(CASE WHEN l.stage='Follow Up'  THEN 1 ELSE 0 END)::int AS "followUp",
+        SUM(CASE WHEN l.stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
+        SUM(CASE WHEN l.stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess"
+      FROM users u
+      LEFT JOIN leads l ON l.owner = u.name
+      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager')
+      GROUP BY u.name, u.email
+      HAVING COUNT(l.id) > 0
+      ORDER BY leads DESC
+      LIMIT 50;
+    `)
+
+    const byCounsellor = perCounsellor.rows.map(r => ({
+      ...r,
+      domain: (r.email || '').includes('@cutmap.ac.in') ? 'cutmap'
+            : (r.email || '').includes('@cutm.ac.in') ? 'cutm' : 'other'
+    }))
+
+    res.json({
+      kpi: kpi.rows[0],
+      applications: appTotal.rows[0].c,
+      enrolments:   enrolTotal.rows[0].c,
+      revenue:      Number(revTotal.rows[0].s),
+      byCounsellor,
+    })
+  } catch (err) {
+    console.error('[dashboard/stats]', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.get('/api/admin/server-health', async (req, res) => {
   try {
     const os = await import('os')
