@@ -96,7 +96,6 @@ export default function ProductivityReport() {
     untouched:       stats.untouched || 0,
     interested:      stats.interested || 0,
     processPay:      stats.processPay || 0,
-    paymentSuccess:  stats.paymentSuccess || 0,
     appAssigned:     window._productivityAppCounts?.[stats.name] || 0,
     payApproved:     window._productivityPayCounts?.[stats.name] || 0,
   }))
@@ -107,10 +106,9 @@ export default function ProductivityReport() {
     untouched:       acc.untouched       + row.untouched,
     interested:      acc.interested      + row.interested,
     processPay:      acc.processPay      + row.processPay,
-    paymentSuccess:  acc.paymentSuccess  + row.paymentSuccess,
     appAssigned:     acc.appAssigned     + row.appAssigned,
     payApproved:     acc.payApproved     + row.payApproved,
-  }), { leadAssigned: 0, untouched: 0, interested: 0, processPay: 0, paymentSuccess: 0, appAssigned: 0, payApproved: 0 })
+  }), { leadAssigned: 0, untouched: 0, interested: 0, processPay: 0, appAssigned: 0, payApproved: 0 })
 
   const rowsPerPage = 6
   const totalPages = Math.ceil(REPORT_DATA.length / rowsPerPage) || 1
@@ -204,15 +202,14 @@ export default function ProductivityReport() {
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
+      <div className="grid grid-cols-4 lg:grid-cols-6 gap-3 mb-5">
         {[
           { label: 'Lead Assigned',    value: TOTALS.leadAssigned,    color: 'text-blue-600',   bg: 'bg-blue-50' },
           { label: 'Untouched',        value: TOTALS.untouched,       color: 'text-orange-600', bg: 'bg-orange-50' },
           { label: 'Interested',       value: TOTALS.interested,      color: 'text-green-600',  bg: 'bg-green-50' },
           { label: 'Process for Pay',  value: TOTALS.processPay,      color: 'text-yellow-600', bg: 'bg-yellow-50' },
-          { label: 'Payment Success',  value: TOTALS.paymentSuccess,  color: 'text-emerald-600',bg: 'bg-emerald-50' },
           { label: 'App Assigned',     value: TOTALS.appAssigned,     color: 'text-purple-600', bg: 'bg-purple-50' },
-          { label: 'Pay Approved',     value: TOTALS.payApproved,     color: 'text-pink-600',   bg: 'bg-pink-50' },
+          { label: 'Pay Approved',     value: TOTALS.payApproved,     color: 'text-emerald-600',bg: 'bg-emerald-50' },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center border border-white shadow-sm`}>
             <div className={`text-xl font-extrabold ${s.color}`}>{s.value}</div>
@@ -230,7 +227,7 @@ export default function ProductivityReport() {
             { label: 'Untouched',      key: 'untouched'     },
             { label: 'Interested',     key: 'interested'    },
             { label: 'Process for Pay',key: 'processPay'    },
-            { label: 'Payment Success',key: 'paymentSuccess'},
+            { label: 'Pay Approved',   key: 'payApproved'   },
             { label: 'App Assigned',   key: 'appAssigned'   },
           ],
           'Lead Summary': [
