@@ -1691,7 +1691,10 @@ app.get('/api/dashboard/stats', async (req, res) => {
     // 2. Application + payment totals
     const appTotal  = await pool.query('SELECT COUNT(*)::int AS c FROM applications;')
     const enrolTotal = await pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments');")
-    const revTotal  = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid');")
+    // Revenue counts ONLY admin-verified payments that have a UTR/reference on
+    // record — i.e. UTR entered AND verified. 'Payment Done' (UTR submitted but
+    // not yet approved) and any row without a UTR are excluded.
+    const revTotal  = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '';")
 
     // 3. Per-counsellor stage breakdown — ONE GROUP BY, joined to users for domain
     // Scope the visible counsellors the same way as the KPI (own / team / all)

@@ -134,8 +134,11 @@ export default function Payments() {
         || (p.txnId || '').toLowerCase().includes(q)
   })
 
-  const approved = payments.filter(p => p.status === 'Approved').reduce((s, p) => s + Number(p.amount || 0), 0)
-  const pending  = payments.filter(p => p.status === 'Pending').reduce((s, p) => s + Number(p.amount || 0), 0)
+  // Revenue = admin-verified payments (Paid/Approved) that have a UTR on record.
+  const isVerified = (p) => ['Paid','Approved','Payment Approved'].includes(p.status) && (p.utrNumber || '').trim() !== ''
+  const approved = payments.filter(isVerified).reduce((s, p) => s + Number(p.amount || 0), 0)
+  // Awaiting verification: UTR submitted (Payment Done) OR pending — not yet in revenue.
+  const pending  = payments.filter(p => ['Pending','Payment Done'].includes(p.status)).reduce((s, p) => s + Number(p.amount || 0), 0)
   const failed   = payments.filter(p => p.status === 'Failed').length
 
   const handleAppSelect = (appId) => {

@@ -579,25 +579,14 @@ export async function initDb() {
       }
     }
 
-    // Seed Campaigns
-    const campaignsCountRes = await client.query('SELECT COUNT(*) FROM campaigns;')
-    if (parseInt(campaignsCountRes.rows[0].count) === 0) {
-      console.log('Seeding initial campaigns...')
-      const seedCampaigns = [
-        ['CUEE 2026 Facebook Campaign', 'Facebook Ads', 'Active', 150000, 98000, 1240, 87, '01/04/2026', '30/06/2026'],
-        ['Google Search – B.Tech', 'Google Ads', 'Active', 200000, 145000, 2100, 156, '15/03/2026', '15/07/2026'],
-        ['LinkedIn MBA Campaign', 'LinkedIn', 'Paused', 80000, 62000, 430, 42, '01/04/2026', '31/05/2026'],
-        ['WhatsApp Drip – Agriculture', 'WhatsApp', 'Active', 30000, 18000, 680, 95, '10/04/2026', '10/07/2026'],
-        ['Education Fair – Vizag', 'Offline', 'Completed', 50000, 48500, 320, 38, '20/03/2026', '22/03/2026'],
-        ['SMS Blast – Odisha', 'SMS', 'Active', 25000, 12000, 890, 67, '01/05/2026', '31/05/2026']
-      ]
-      for (const c of seedCampaigns) {
-        await client.query(`
-          INSERT INTO campaigns (name, channel, status, budget, spent, leads, conversions, start_date, end_date)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `, c)
-      }
-    }
+    // Campaigns: no dummy seed. Admins create real campaigns from the UI.
+    // Remove the old demo campaigns from any existing database (idempotent).
+    await client.query(`
+      DELETE FROM campaigns WHERE name IN (
+        'CUEE 2026 Facebook Campaign', 'Google Search – B.Tech', 'LinkedIn MBA Campaign',
+        'WhatsApp Drip – Agriculture', 'Education Fair – Vizag', 'SMS Blast – Odisha'
+      );
+    `).catch(() => {})
 
     // Seed Notifications
     const notificationsCountRes = await client.query('SELECT COUNT(*) FROM notifications;')
