@@ -75,6 +75,22 @@ export default function ApplicationDetails() {
     showToast, currentUser
   } = useCcrm()
 
+  // The context only holds a recent slice of leads (the full table is paginated
+  // server-side), so a lead opened from search / an older page may not be in it.
+  // Fetch the single record by id as a fallback.
+  const [fetchedLead, setFetchedLead] = useState(null)
+  useEffect(() => {
+    if (isApp) { setFetchedLead(null); return }
+    const idNum = parseInt(id)
+    if (!idNum) return
+    if (leads.find(l => l.id === idNum)) { setFetchedLead(null); return }
+    const token = localStorage.getItem('ccrm_token')
+    fetch(`/api/leads/${idNum}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setFetchedLead(d || null))
+      .catch(() => setFetchedLead(null))
+  }, [id, isApp, leads])
+
   // 1. Fetch current lead or application
   let record = null
   let associatedLead = null
@@ -84,13 +100,13 @@ export default function ApplicationDetails() {
     record = applications.find(a => a.id === parseInt(id)) || applications[0]
     if (record) {
       associatedApp = record
-      associatedLead = leads.find(l => l.email.toLowerCase() === record.email.toLowerCase() || l.name.toLowerCase() === record.name.toLowerCase())
+      associatedLead = leads.find(l => l.email?.toLowerCase() === record.email?.toLowerCase() || l.name?.toLowerCase() === record.name?.toLowerCase())
     }
   } else {
-    record = leads.find(l => l.id === parseInt(id)) || leads[0]
+    record = leads.find(l => l.id === parseInt(id)) || fetchedLead || null
     if (record) {
       associatedLead = record
-      associatedApp = applications.find(a => a.email.toLowerCase() === record.email.toLowerCase() || a.name.toLowerCase() === record.name.toLowerCase())
+      associatedApp = applications.find(a => a.email?.toLowerCase() === record.email?.toLowerCase() || a.name?.toLowerCase() === record.name?.toLowerCase())
     }
   }
 
@@ -244,6 +260,19 @@ export default function ApplicationDetails() {
       .catch(() => setAmeyoReady(false))
   }, [])
   const [editMode, setEditMode] = useState(false)
+
+  // Quick click-to-edit for the header name (in addition to the full edit form)
+  const [editingHeaderName, setEditingHeaderName] = useState(false)
+  const [headerNameVal, setHeaderNameVal] = useState('')
+  const saveHeaderName = async () => {
+    const v = headerNameVal.trim()
+    if (!v) { showToast('Name cannot be empty.', 'error'); return }
+    if (associatedApp)  updateApplication(associatedApp.id, { name: v })
+    if (associatedLead) updateLead(associatedLead.id, { name: v })
+    setFormData(prev => ({ ...prev, name: v }))
+    setEditingHeaderName(false)
+    showToast('Name updated.', 'success')
+  }
   const [formData, setFormData] = useState({
     formInterest,
     email: studentEmail,
@@ -266,6 +295,24 @@ export default function ApplicationDetails() {
       schoolDept: '',
     },
   })
+
+  // Re-sync the edit form when the resolved record changes (navigation or a
+  // lead fetched by id arriving after mount), unless the user is mid-edit.
+  useEffect(() => {
+    if (editMode) return
+    setFormData({
+      formInterest, email: studentEmail, mobile: studentMobile, altMobile,
+      name: studentName, state: studentState, city: studentCity,
+      campus, school, course, owner, source,
+      leadDetails: associatedLead?.leadDetails || record.leadDetails || {
+        parentName: '', parentMobile: '', parentEmail: '',
+        aadharNumber: '', address: '', pincode: '',
+        tenthBoard: '', tenthSchool: '', tenthPercentage: '', tenthYear: '',
+        twelfthBoard: '', twelfthSchool: '', twelfthPercentage: '', twelfthYear: '',
+        schoolDept: '',
+      },
+    })
+  }, [record?.id])
 
   // Dynamic Timeline State stored inside the lead/app or generated
   const [localTimeline, setLocalTimeline] = useState(() => {
@@ -592,7 +639,24 @@ export default function ApplicationDetails() {
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xl font-bold shadow-md mb-3 select-none">
                 {getInitials(studentName)}
               </div>
-              <h2 className="font-bold text-gray-900 text-base">{studentName}</h2>
+              {editingHeaderName ? (
+                <div className="flex items-center gap-1">
+                  <input autoFocus value={headerNameVal}
+                    onChange={e => setHeaderNameVal(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveHeaderName(); if (e.key === 'Escape') setEditingHeaderName(false) }}
+                    className="input-field text-sm py-1 text-center w-48" />
+                  <button onClick={saveHeaderName} className="text-green-600 hover:text-green-700" title="Save"><Save size={15} /></button>
+                  <button onClick={() => setEditingHeaderName(false)} className="text-gray-400 hover:text-gray-600" title="Cancel"><X size={15} /></button>
+                </div>
+              ) : (
+                <h2 className="font-bold text-gray-900 text-base flex items-center gap-1.5 group">
+                  {studentName}
+                  <button onClick={() => { setHeaderNameVal(studentName); setEditingHeaderName(true) }}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-600 transition-opacity" title="Edit name">
+                    <Edit3 size={13} />
+                  </button>
+                </h2>
+              )}
               <div className="flex flex-wrap justify-center gap-1.5 mt-2">
                 <span className={`badge text-[10px] uppercase font-bold tracking-wider ${stageBadgeColor(leadStage)}`}>
                   {leadStage}
