@@ -1638,6 +1638,16 @@ app.get('/api/dashboard/stats', async (req, res) => {
     const revTotal  = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid');")
 
     // 3. Per-counsellor stage breakdown — ONE GROUP BY, joined to users for domain
+    // Scope the visible counsellors the same way as the KPI (own / team / all)
+    let userScope = ''
+    const userParams = []
+    if (owner) {
+      userParams.push(owner)
+      userScope = `AND u.name = $${userParams.length}`
+    } else if (manager) {
+      userParams.push(manager)
+      userScope = `AND (u.name = $${userParams.length} OR u.reports_to = $${userParams.length})`
+    }
     const perCounsellor = await pool.query(`
       SELECT
         u.name, u.email,
@@ -1649,12 +1659,12 @@ app.get('/api/dashboard/stats', async (req, res) => {
         SUM(CASE WHEN l.stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess"
       FROM users u
       LEFT JOIN leads l ON l.owner = u.name
-      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager')
+      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
       GROUP BY u.name, u.email
       HAVING COUNT(l.id) > 0
       ORDER BY leads DESC
       LIMIT 50;
-    `)
+    `, userParams)
 
     const byCounsellor = perCounsellor.rows.map(r => ({
       ...r,
