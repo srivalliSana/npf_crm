@@ -2403,24 +2403,18 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
             // Dedup check
             const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
             if (dupCheck.rows.length === 0) {
-              // Auto-assign
-              const assignRes = await pool.query(`SELECT lac.counselor_name FROM lead_assignment_counter lac JOIN users u ON u.name = lac.counselor_name WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ORDER BY lac.assignment_count ASC LIMIT 1;`)
-              const assignee = assignRes.rows[0]?.counselor_name || 'Unassigned'
-              if (assignee !== 'Unassigned') {
-                await pool.query('UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;', [assignee])
-              }
-
+              // Inbound leads land UNASSIGNED — admin/manager distributes manually
               const score = calculateLeadScore({ source: 'Facebook Ads', stage: 'Untouched', mobile, email, course })
               const newLead = await pool.query(`
                 INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
-                VALUES ($1, $2, $3, $4, $5, $6, 'Facebook Ads', $7, $8, $9, 'Untouched', 'red')
+                VALUES ($1, $2, $3, $4, $5, $6, 'Facebook Ads', 'Unassigned', $7, $8, 'Untouched', 'red')
                 RETURNING id;
-              `, [name, email, mobile, state, city, course, assignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
+              `, [name, email, mobile, state, city, course, new Date().toLocaleString('en-IN', { hour12: true }), score])
 
-              const leadId = newLead.rows[0]?.id
-              // Alert the assigned counselor
-              await alertCounselor(assignee, name, course, 'Facebook Ads', leadId)
-              console.log(`[Meta Webhook] New lead imported: ${name} → assigned to ${assignee}`)
+              // Notify admins a new unassigned lead arrived
+              await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
+                [`New Facebook Ads lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+              console.log(`[Meta Webhook] New lead imported UNASSIGNED: ${name}`)
             } else {
               console.log(`[Meta Webhook] Duplicate lead skipped: ${mobile} / ${email}`)
             }
@@ -2446,18 +2440,15 @@ app.post('/api/webhooks/google-leads', async (req, res) => {
 
     const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
     if (dupCheck.rows.length === 0) {
-      const assignRes = await pool.query(`SELECT lac.counselor_name FROM lead_assignment_counter lac JOIN users u ON u.name = lac.counselor_name WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ORDER BY lac.assignment_count ASC LIMIT 1;`)
-      const assignee = assignRes.rows[0]?.counselor_name || 'Unassigned'
-      if (assignee !== 'Unassigned') {
-        await pool.query('UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;', [assignee])
-      }
+      // Inbound leads land UNASSIGNED — admin/manager distributes manually
       const score = calculateLeadScore({ source: 'Google Ads', stage: 'Untouched', mobile, email, course })
-      const glResult = await pool.query(`
+      await pool.query(`
         INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
-        VALUES ($1, $2, $3, $4, 'Google Ads', $5, $6, $7, 'Untouched', 'red')
+        VALUES ($1, $2, $3, $4, 'Google Ads', 'Unassigned', $5, $6, 'Untouched', 'red')
         RETURNING id;
-      `, [name, email, mobile, course, assignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
-      await alertCounselor(assignee, name, course, 'Google Ads', glResult.rows[0]?.id)
+      `, [name, email, mobile, course, new Date().toLocaleString('en-IN', { hour12: true }), score])
+      await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
+        [`New Google Ads lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
     }
     res.status(200).json({ received: true })
   } catch (err) {
@@ -2489,19 +2480,15 @@ app.post('/api/webhooks/whatsapp-bot', async (req, res) => {
         const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 LIMIT 1;', [from])
         if (dupCheck.rows.length === 0) {
           const score = calculateLeadScore({ source: 'WhatsApp', stage: 'Untouched', mobile: from, email: `wa_${from}@noemail.com`, course })
-          // Auto-assign
-          const waAssignRes = await pool.query(`SELECT lac.counselor_name FROM lead_assignment_counter lac JOIN users u ON u.name = lac.counselor_name WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ORDER BY lac.assignment_count ASC LIMIT 1;`)
-          const waAssignee = waAssignRes.rows[0]?.counselor_name || 'Unassigned'
-          if (waAssignee !== 'Unassigned') {
-            await pool.query('UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;', [waAssignee])
-          }
+          // Inbound leads land UNASSIGNED — admin/manager distributes manually
           const waLeadName = `WhatsApp Lead (${from.slice(-4)})`
-          const waResult = await pool.query(`
+          await pool.query(`
             INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
-            VALUES ($1, $2, $3, $4, 'WhatsApp', $5, $6, $7, 'Untouched', 'red')
+            VALUES ($1, $2, $3, $4, 'WhatsApp', 'Unassigned', $5, $6, 'Untouched', 'red')
             RETURNING id;
-          `, [waLeadName, `wa_${from}@noemail.com`, from, course, waAssignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
-          await alertCounselor(waAssignee, waLeadName, course, 'WhatsApp Bot', waResult.rows[0]?.id)
+          `, [waLeadName, `wa_${from}@noemail.com`, from, course, new Date().toLocaleString('en-IN', { hour12: true }), score])
+          await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
+            [`New WhatsApp lead (unassigned): ${waLeadName} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
         }
       }
     }
@@ -3180,23 +3167,18 @@ app.post('/api/public/inquiry', async (req, res) => {
       return res.status(200).json({ message: 'Your inquiry was already received. Our team will contact you shortly.', duplicate: true })
     }
 
-    // Auto-assign
-    const assignRes = await pool.query(`SELECT lac.counselor_name FROM lead_assignment_counter lac JOIN users u ON u.name = lac.counselor_name WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ORDER BY lac.assignment_count ASC LIMIT 1;`)
-    const assignee = assignRes.rows[0]?.counselor_name || 'Unassigned'
-    if (assignee !== 'Unassigned') {
-      await pool.query('UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;', [assignee])
-    }
-
+    // Inbound landing-page leads land UNASSIGNED — admin/manager distributes manually
     const score = calculateLeadScore({ source: source || 'Website', stage: 'Untouched', mobile, email, course })
     const insertRes = await pool.query(`
       INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Untouched', 'red')
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'Unassigned', $8, $9, 'Untouched', 'red')
       RETURNING id, name, course;
-    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', assignee, new Date().toLocaleString('en-IN', { hour12: true }), score])
+    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score])
 
     const pubLead = insertRes.rows[0]
-    // Alert the assigned counselor
-    await alertCounselor(assignee, name, course || 'B.Tech CSE', source || 'Website', pubLead?.id)
+    // Notify admins a new unassigned lead arrived from the landing page
+    await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
+      [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
 
     res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: pubLead })
   } catch (err) {
