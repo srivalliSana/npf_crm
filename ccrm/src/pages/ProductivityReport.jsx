@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
 import { ChevronDown, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react'
 
@@ -20,55 +20,88 @@ function BlueNum({ n }) {
 }
 
 export default function ProductivityReport() {
-  const { leads, applications, payments, counselors, showToast } = useCcrm()
+  const { counselors, showToast } = useCcrm()
   const [activeView, setActiveView] = useState('Quick Summary')
   const [dateFilter, setDateFilter] = useState('Last 30 Days')
   const [currentPage, setCurrentPage] = useState(1)
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [statsData, setStatsData] = useState([])
 
-  // 1. Compile REPORT_DATA — use live stats from counselors API directly
-  const REPORT_DATA = counselors.map(c => {
-    const simplName = c.name.split(' ')[0]
+  // Fetch pre-computed counselor stats from server (scales better than O(counselors × leads))
+  useEffect(() => {
+    const fetchStats = async () => {
+      setStatsLoading(true)
+      try {
+        const token = localStorage.getItem('ccrm_token')
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
 
-    // Use pre-computed stats from /api/counselors if available (non-zero)
-    // Fall back to cross-referencing local leads/apps/payments arrays
-    const assignedLeads  = c.leads   > 0 ? c.leads   : leads.filter(l => l.owner === c.name || l.owner?.split(' ')[0] === simplName).length
-    const untouchedCount = c.untouched > 0 ? c.untouched : leads.filter(l => (l.owner === c.name || l.owner?.split(' ')[0] === simplName) && l.stage === 'Untouched').length
-    const engagedCount   = c.engaged  > 0 ? c.engaged  : assignedLeads - untouchedCount
-    const assignedApps   = c.apps     > 0 ? c.apps     : applications.filter(app => {
-      const lead = leads.find(l => l.name === app.name)
-      return lead && (lead.owner === c.name || lead.owner?.split(' ')[0] === simplName)
-    }).length
-    const approvedCount  = c.payApproved > 0 ? c.payApproved : payments.filter(p => {
-      if (p.status !== 'Approved' && p.status !== 'Payment Approved') return false
-      const app = applications.find(a => a.appNo === p.appNo)
-      if (!app) return false
-      const lead = leads.find(l => l.name === app.name)
-      return lead && (lead.owner === c.name || lead.owner?.split(' ')[0] === simplName)
-    }).length
-    const submittedCount = c.submitted > 0 ? c.submitted : applications.filter(app => {
-      if (app.stage !== 'Application Submitted') return false
-      const lead = leads.find(l => l.name === app.name)
-      return lead && (lead.owner === c.name || lead.owner?.split(' ')[0] === simplName)
-    }).length
-    const enrolledCount  = c.enrolled  > 0 ? c.enrolled  : applications.filter(app => {
-      if (app.stage !== 'Enrolment' && app.stage !== 'Enrolments') return false
-      const lead = leads.find(l => l.name === app.name)
-      return lead && (lead.owner === c.name || lead.owner?.split(' ')[0] === simplName)
-    }).length
+        const [statsRes, appsRes, paymentsRes] = await Promise.all([
+          fetch('/api/dashboard/stats', { headers }),
+          fetch('/api/applications', { headers }),
+          fetch('/api/payments', { headers })
+        ])
 
-    return {
-      owner: c.name,
-      email: c.email || `${simplName.toLowerCase()}@cutm.ac.in`,
-      leadAssigned:    assignedLeads,
-      leadsNotEngaged: untouchedCount,
-      leadsEngaged:    engagedCount,
-      untouched:       untouchedCount,
-      appAssigned:     assignedApps,
-      payApproved:     approvedCount,
-      appSubmitted:    submittedCount,
-      enrolment:       enrolledCount,
+        let appsByOwner = {}
+        let payByOwner = {}
+
+        if (statsRes.ok) {
+          const data = await statsRes.json()
+          setStatsData(data.byCounsellor || [])
+
+          // Compute per-owner app/payment counts from fetched data
+          if (appsRes.ok) {
+            const apps = await appsRes.json()
+            appsByOwner = apps.reduce((acc, app) => {
+              const owner = app.owner || 'Unassigned'
+              acc[owner] = (acc[owner] || 0) + 1
+              return acc
+            }, {})
+          }
+
+          if (paymentsRes.ok) {
+            const pays = await paymentsRes.json()
+            payByOwner = pays.reduce((acc, p) => {
+              if (p.status === 'Approved' || p.status === 'Payment Approved' || p.status === 'Paid') {
+                const app = (data.applications || []).find(a => a.appNo === p.appNo)
+                if (app) {
+                  const owner = app.owner || 'Unassigned'
+                  acc[owner] = (acc[owner] || 0) + 1
+                }
+              }
+              return acc
+            }, {})
+          }
+
+          // Store app/payment counts for use in REPORT_DATA
+          window._productivityAppCounts = appsByOwner
+          window._productivityPayCounts = payByOwner
+        }
+      } catch (e) {
+        console.error('[Productivity]', e.message)
+        setStatsData([])
+      } finally {
+        setStatsLoading(false)
+      }
     }
-  })
+    fetchStats()
+  }, [])
+
+  // 1. Compile REPORT_DATA — use server-aggregated stats + fetched app/payment counts
+  const appCounts = window._productivityAppCounts || {}
+  const payCounts = window._productivityPayCounts || {}
+
+  const REPORT_DATA = statsData.map(stats => ({
+    owner: stats.name,
+    email: stats.email || `${stats.name.split(' ')[0].toLowerCase()}@cutm.ac.in`,
+    leadAssigned:    stats.leads || 0,
+    leadsNotEngaged: stats.untouched || 0,
+    leadsEngaged:    (stats.leads || 0) - (stats.untouched || 0),
+    untouched:       stats.untouched || 0,
+    appAssigned:     appCounts[stats.name] || 0,
+    payApproved:     payCounts[stats.name] || 0,
+    appSubmitted:    0,  // Would need to fetch and filter by stage
+    enrolment:       0,  // Would need to fetch and filter by stage
+  }))
 
   // 2. Compute TOTALS dynamically
   const TOTALS = REPORT_DATA.reduce((acc, row) => ({
@@ -109,6 +142,20 @@ export default function ProductivityReport() {
     link.click()
     document.body.removeChild(link)
     showToast('Exported counselor productivity stats.', 'success')
+  }
+
+  if (statsLoading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center gap-3 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+          <RefreshCw size={20} className="text-blue-600 animate-spin flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-blue-900">Loading Productivity Report…</p>
+            <p className="text-xs text-blue-700">Aggregating counselor-wise metrics from server</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
