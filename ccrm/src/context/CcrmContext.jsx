@@ -188,54 +188,32 @@ export function CcrmProvider({ children }) {
     return () => clearInterval(interval)
   }, [currentUser])
 
-  // Sync to local storage as fallback cache
-  useEffect(() => {
-    if (leads.length > 0) localStorage.setItem('ccrm_leads', JSON.stringify(leads))
-  }, [leads])
+  // Safe localStorage write — never crash the app if quota is exceeded.
+  // Large operational arrays (leads/applications/payments/etc.) are NOT cached
+  // because they are always re-fetched from the API via fetchAllData() on load.
+  // Caching 12k+ leads here was overflowing the ~5MB localStorage quota.
+  const safeSetItem = (key, value) => {
+    try {
+      localStorage.setItem(key, value)
+    } catch (e) {
+      // QuotaExceededError — purge stale big caches so the app keeps working
+      try {
+        ['ccrm_leads','ccrm_applications','ccrm_payments','ccrm_queries',
+         'ccrm_documents','ccrm_tasks','ccrm_events','ccrm_notifications',
+         'ccrm_campaigns','ccrm_users'].forEach(k => localStorage.removeItem(k))
+      } catch {}
+    }
+  }
 
-  useEffect(() => {
-    if (applications.length > 0) localStorage.setItem('ccrm_applications', JSON.stringify(applications))
-  }, [applications])
-
-  useEffect(() => {
-    if (campaigns.length > 0) localStorage.setItem('ccrm_campaigns', JSON.stringify(campaigns))
-  }, [campaigns])
-
-  useEffect(() => {
-    if (tasks.length > 0) localStorage.setItem('ccrm_tasks', JSON.stringify(tasks))
-  }, [tasks])
-
-  useEffect(() => {
-    if (payments.length > 0) localStorage.setItem('ccrm_payments', JSON.stringify(payments))
-  }, [payments])
-
-  useEffect(() => {
-    if (queries.length > 0) localStorage.setItem('ccrm_queries', JSON.stringify(queries))
-  }, [queries])
-
-  useEffect(() => {
-    if (documents.length > 0) localStorage.setItem('ccrm_documents', JSON.stringify(documents))
-  }, [documents])
-
-  useEffect(() => {
-    if (events.length > 0) localStorage.setItem('ccrm_events', JSON.stringify(events))
-  }, [events])
-
-  useEffect(() => {
-    if (users.length > 0) localStorage.setItem('ccrm_users', JSON.stringify(users))
-  }, [users])
-
+  // Only persist lightweight, session-critical state to localStorage.
+  // Everything else comes fresh from the API.
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('ccrm_current_user', JSON.stringify(currentUser))
+      safeSetItem('ccrm_current_user', JSON.stringify(currentUser))
     } else {
       localStorage.removeItem('ccrm_current_user')
     }
   }, [currentUser])
-
-  useEffect(() => {
-    if (notifications.length > 0) localStorage.setItem('ccrm_notifications', JSON.stringify(notifications))
-  }, [notifications])
 
   const addNotification = (text) => {
     // Optimistically add to local state; server creates it via createNotification() on actions
