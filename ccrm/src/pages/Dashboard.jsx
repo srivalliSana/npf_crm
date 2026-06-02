@@ -53,10 +53,10 @@ export default function Dashboard() {
   // 1. Summary Cards — from server aggregate (instant at any scale)
   const kpi = stats?.kpi || {}
   const SUMMARY_CARDS = [
-    { label: 'Total Leads',        value: (kpi.totalLeads || 0).toLocaleString(),     change: '+15%', icon: Users,       color: 'bg-blue-500',   light: 'bg-blue-50',   text: 'text-blue-600' },
-    { label: 'Total Applications', value: (stats?.applications || 0).toLocaleString(),change: '+9%',  icon: FileText,    color: 'bg-orange-500', light: 'bg-orange-50', text: 'text-orange-600' },
-    { label: 'Revenue Collected',  value: `₹${((stats?.revenue || 0)/100000).toFixed(1)}L`, change: '+22%', icon: CheckCircle, color: 'bg-green-500',  light: 'bg-green-50',  text: 'text-green-600' },
-    { label: 'Enrolments',         value: (stats?.enrolments || 0).toLocaleString(),  change: '+6%',  icon: TrendingUp,  color: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-600' },
+    { label: 'Total Leads',        value: ((kpi?.totalLeads || 0)).toLocaleString(),     change: '+15%', icon: Users,       color: 'bg-blue-500',   light: 'bg-blue-50',   text: 'text-blue-600' },
+    { label: 'Total Applications', value: ((stats?.applications ?? 0)).toLocaleString(),change: '+9%',  icon: FileText,    color: 'bg-orange-500', light: 'bg-orange-50', text: 'text-orange-600' },
+    { label: 'Revenue Collected',  value: `₹${(((stats?.revenue ?? 0))/100000).toFixed(1)}L`, change: '+22%', icon: CheckCircle, color: 'bg-green-500',  light: 'bg-green-50',  text: 'text-green-600' },
+    { label: 'Enrolments',         value: ((stats?.enrolments ?? 0)).toLocaleString(),  change: '+6%',  icon: TrendingUp,  color: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-600' },
   ]
 
   return (
