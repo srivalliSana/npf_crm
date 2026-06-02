@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Users, FileText, CheckSquare, Megaphone,
   BarChart2, Settings, LogOut, CreditCard,
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
-  Trophy, Mail, Globe, ExternalLink, Zap, Radio
+  Trophy, Mail, Globe, ExternalLink, Zap, Radio,
+  PieChart, Activity, Plug, Server, ShieldCheck
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -17,6 +18,8 @@ const NAV_ITEMS = [
   { icon: Calendar,        label: 'Calendar',      to: '/calendar',         roles: null },
   { icon: FileCheck,       label: 'Documents',     to: '/documents',        roles: null },
   { icon: HelpCircle,      label: 'Queries',       to: '/queries',          roles: null },
+  { icon: PieChart,        label: 'Analytics',     to: '/analytics',        roles: ['Admin', 'Manager'] },
+  { icon: Activity,        label: 'Productivity',  to: '/productivity',     roles: ['Admin', 'Manager'] },
   { icon: BarChart2,       label: 'Reports',       to: '/reports',          roles: ['Admin', 'Manager'] },
   { icon: Radio,           label: 'Comms',         to: '/comms-report',     roles: ['Admin'] },
   { icon: Trophy,          label: 'Leaderboard',   to: '/leaderboard',      roles: ['Admin', 'Manager'] },
@@ -25,6 +28,9 @@ const NAV_ITEMS = [
   { icon: Shield,          label: 'Users',         to: '/users',            roles: ['Admin'] },
   { icon: ExternalLink,    label: 'Transfers',     to: '/transfer-approvals', roles: ['Admin', 'Manager'] },
   { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin'] },
+  { icon: Plug,            label: 'Integration Health', to: '/integration-health', roles: ['Admin'] },
+  { icon: Server,          label: 'Server Health', to: '/server-health',    roles: ['Admin'] },
+  { icon: ShieldCheck,     label: 'Security & Access', to: '/security',      roles: ['Admin'] },
   { icon: Settings,        label: 'Settings',      to: '/settings',         roles: null },
   { icon: HelpCircle,      label: 'Help',          to: '/help',             roles: null },
 ]

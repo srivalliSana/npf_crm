@@ -26,6 +26,10 @@ import Help from './pages/Help'
 import TransferApprovals from './pages/TransferApprovals'
 import PublicInquiry from './pages/PublicInquiry'
 import StudentPortal from './pages/StudentPortal'
+import Analytics from './pages/Analytics'
+import IntegrationHealth from './pages/IntegrationHealth'
+import ServerHealth from './pages/ServerHealth'
+import SecurityAccess from './pages/SecurityAccess'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -76,6 +80,14 @@ export default function App() {
             <Route path="dashboard"        element={<Dashboard />} />
             <Route path="reports"          element={<Reports />} />
             <Route path="productivity"     element={<ProductivityReport />} />
+            <Route element={<RoleGuard roles={['Admin','Manager']} />}>
+              <Route path="analytics"      element={<Analytics />} />
+            </Route>
+            <Route element={<RoleGuard roles={['Admin']} />}>
+              <Route path="integration-health" element={<IntegrationHealth />} />
+              <Route path="server-health"      element={<ServerHealth />} />
+              <Route path="security"           element={<SecurityAccess />} />
+            </Route>
             <Route path="campaigns"        element={<Campaigns />} />
             <Route path="tasks"            element={<Tasks />} />
             <Route path="payments"         element={<Payments />} />
