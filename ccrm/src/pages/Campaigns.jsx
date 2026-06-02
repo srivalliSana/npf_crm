@@ -26,16 +26,15 @@ const CHANNEL_COLORS = {
   'SMS':          'bg-purple-500',
 }
 
-const roiData = [
-  { month: 'Jan', spend: 80000,  leads: 620,  conversions: 48  },
-  { month: 'Feb', spend: 95000,  leads: 780,  conversions: 62  },
-  { month: 'Mar', spend: 120000, leads: 1050, conversions: 89  },
-  { month: 'Apr', spend: 145000, leads: 1380, conversions: 112 },
-  { month: 'May', spend: 160000, leads: 1640, conversions: 138 },
-]
-
 export default function Campaigns() {
   const { campaigns, setCampaigns, toggleCampaignStatus, addCampaign, currentUser, showToast, fetchAllData } = useCcrm()
+
+  // Real ROI dataset — one point per campaign (no dummy data)
+  const roiData = (campaigns || []).map(c => ({
+    label: c.name?.length > 14 ? c.name.slice(0, 13) + '…' : c.name,
+    leads: Number(c.leads || 0),
+    conversions: Number(c.conversions || 0),
+  }))
 
   const resetModule = async () => {
     if (!confirm('⚠️ This will DELETE all campaigns data permanently.\n\nType OK to continue.')) return
@@ -186,32 +185,31 @@ export default function Campaigns() {
         ))}
       </div>
 
-      {/* ROI Chart */}
+      {/* ROI Chart — real data per campaign */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="font-semibold text-gray-800">Campaign ROI Trend</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Monthly spend vs leads vs conversions</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <select className="text-xs border border-gray-300 rounded-lg px-2 py-1 bg-white text-gray-600">
-              <option>Last 5 Months</option>
-              <option>Last 3 Months</option>
-              <option>This Year</option>
-            </select>
+            <h2 className="font-semibold text-gray-800">Campaign Performance</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Leads vs conversions per campaign</p>
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={roiData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
-            <Line type="monotone" dataKey="leads"       name="Leads"       stroke="#003087" strokeWidth={2} dot={{ r: 4 }} />
-            <Line type="monotone" dataKey="conversions" name="Conversions" stroke="#f5a623" strokeWidth={2} dot={{ r: 4 }} />
-          </LineChart>
-        </ResponsiveContainer>
+        {roiData.length === 0 ? (
+          <div className="text-center py-12 text-gray-400 text-sm">
+            No campaign data yet. Create a campaign to start tracking performance.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={roiData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
+              <Line type="monotone" dataKey="leads"       name="Leads"       stroke="#003087" strokeWidth={2} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="conversions" name="Conversions" stroke="#f5a623" strokeWidth={2} dot={{ r: 4 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Campaign list */}
