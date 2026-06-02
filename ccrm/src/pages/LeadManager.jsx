@@ -588,6 +588,17 @@ export default function LeadManager() {
         </div>
       </div>
 
+      {/* Prominent Loading Banner */}
+      {leadsLoading && (
+        <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg flex items-center gap-3 shadow-sm">
+          <RefreshCw size={20} className="text-blue-600 animate-spin flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-blue-900">Loading leads…</p>
+            <p className="text-xs text-blue-700">Please wait. Do not refresh or navigate away.</p>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
