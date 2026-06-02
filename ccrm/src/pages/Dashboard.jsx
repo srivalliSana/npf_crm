@@ -26,8 +26,8 @@ export default function Dashboard() {
     // Fetch campus stats
     fetch('/api/campus/stats')
       .then(r => r.ok ? r.json() : [])
-      .then(data => setCampusStats(data))
-      .catch(() => {})
+      .then(data => setCampusStats(Array.isArray(data) ? data : []))
+      .catch(() => setCampusStats([]))
 
     // Server-side aggregated dashboard stats — scales to millions of rows.
     // Role-scoped: counsellor sees own, manager sees their team, admin sees all.
@@ -117,13 +117,13 @@ export default function Dashboard() {
             {c}
           </button>
         ))}
-        {campusStats.length > 0 && activeCampus !== 'All' && (() => {
-          const stat = campusStats.find(s => s.campus === activeCampus)
+        {Array.isArray(campusStats) && campusStats.length > 0 && activeCampus !== 'All' && (() => {
+          const stat = campusStats.find(s => s?.campus === activeCampus)
           return stat ? (
             <div className="ml-auto flex items-center gap-4 text-xs text-gray-500">
-              <span>Apps: <strong className="text-gray-700">{stat.applications}</strong></span>
-              <span>Enrolled: <strong className="text-green-600">{stat.enrolled}</strong></span>
-              <span>Paid: <strong className="text-primary-600">{stat.paid}</strong></span>
+              <span>Apps: <strong className="text-gray-700">{stat.applications ?? 0}</strong></span>
+              <span>Enrolled: <strong className="text-green-600">{stat.enrolled ?? 0}</strong></span>
+              <span>Paid: <strong className="text-primary-600">{stat.paid ?? 0}</strong></span>
             </div>
           ) : null
         })()}
