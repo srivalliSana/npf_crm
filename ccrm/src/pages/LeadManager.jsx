@@ -60,11 +60,12 @@ const WA_TEMPLATES = [
 
 export default function LeadManager() {
   const navigate = useNavigate()
-  const { leads, setLeads, addLead, deleteLead, updateLead, currentUser, counselors, users, showToast, fetchAllData,
+  const { leads, setLeads, addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData,
           checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS,
           rcsTemplates, fetchRcsTemplates, enrollDrip, logCall } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
+  const [selectAllPages, setSelectAllPages] = useState(false)
   const [quickView, setQuickView] = useState('All Leads')
   const [currentPage, setCurrentPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -180,6 +181,7 @@ export default function LeadManager() {
     setRcsSending(false)
     setShowRCSModal(false)
     setSelectedRows([])
+    setSelectAllPages(false)
   }
   const [waTemplate, setWaTemplate]     = useState(0)
   const [waCustomMsg, setWaCustomMsg]   = useState('')
@@ -241,24 +243,10 @@ export default function LeadManager() {
   const rowsPerPage = 15
 
   // ----------- FILTERS -----------
-  // Visibility by role:
-  //  • Admin           → all leads
-  //  • Manager / Dean  → own leads + leads of counsellors reporting to them (their team)
-  //  • Counsellor      → own leads only
-  const visibleLeads = (() => {
-    if (currentUser?.role === 'Admin') return leads
-    const myName = (currentUser?.name || '').toLowerCase()
-    if (currentUser?.role === 'Manager') {
-      // names of users who report to this manager
-      const reportees = (users || [])
-        .filter(u => (u.reportsTo || '').toLowerCase() === myName)
-        .map(u => u.name.toLowerCase())
-      const team = new Set([myName, ...reportees])
-      return leads.filter(l => team.has((l.owner || '').toLowerCase()))
-    }
-    // Counsellor
-    return leads.filter(l => l.owner?.toLowerCase() === myName)
-  })()
+  // Counselors see only their own leads; Admin/Manager see all
+  const visibleLeads = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
+    ? leads
+    : leads.filter(l => l.owner?.toLowerCase() === (currentUser?.name || '').toLowerCase())
 
   const matchQuickView = (l) => {
     if (quickView === 'All Leads') return true
@@ -282,8 +270,29 @@ export default function LeadManager() {
   })
   const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1
   const pageData = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
+  
   const toggleRow = (id) => setSelectedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id])
-  const toggleAll = () => setSelectedRows(selectedRows.length === pageData.length ? [] : pageData.map(r => r.id))
+  
+  const toggleAll = () => {
+    if (selectAllPages) {
+      setSelectedRows([])
+      setSelectAllPages(false)
+    } else if (selectedRows.length === pageData.length && pageData.length > 0) {
+      setSelectedRows([])
+    } else {
+      setSelectedRows(pageData.map(r => r.id))
+    }
+  }
+
+  const handleSelectAllPages = () => {
+    setSelectedRows(filtered.map(l => l.id))
+    setSelectAllPages(true)
+  }
+
+  const handleClearSelection = () => {
+    setSelectedRows([])
+    setSelectAllPages(false)
+  }
 
   // ----------- ADD LEAD WITH DEDUP + AUTO-ASSIGN -----------
   const handleMobileBlur = async () => {
@@ -364,6 +373,7 @@ export default function LeadManager() {
     setWaSending(false)
     setShowWAModal(false)
     setSelectedRows([])
+    setSelectAllPages(false)
   }
 
   // ----------- DRIP ENROLL -----------
@@ -376,6 +386,7 @@ export default function LeadManager() {
     }
     setDripLoading(false)
     setSelectedRows([])
+    setSelectAllPages(false)
     showToast(`${selectedRows.length} leads enrolled in drip sequence.`, 'success')
   }
 
@@ -476,7 +487,11 @@ export default function LeadManager() {
 
   // ----------- DELETE -----------
   const confirmDelete = () => {
-    if (deleteConfirm === 'bulk') { selectedRows.forEach(id => deleteLead(id)); setSelectedRows([]) }
+    if (deleteConfirm === 'bulk') { 
+      selectedRows.forEach(id => deleteLead(id))
+      setSelectedRows([])
+      setSelectAllPages(false)
+    }
     else deleteLead(deleteConfirm)
     setDeleteConfirm(null)
   }
@@ -560,10 +575,29 @@ export default function LeadManager() {
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
-          <span className="text-xs text-gray-500">
-            Showing <span className="font-semibold text-gray-700">{filtered.length}</span> leads
-            {selectedRows.length > 0 && <span className="ml-2 text-primary-600 font-medium">· {selectedRows.length} selected</span>}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">
+              Showing <span className="font-semibold text-gray-700">{filtered.length}</span> leads
+              {selectedRows.length > 0 && (
+                <span className="ml-2 text-primary-600 font-medium">· {selectedRows.length} selected</span>
+              )}
+            </span>
+            {/* "Select all N leads" banner */}
+            {selectedRows.length === pageData.length && pageData.length > 0 && !selectAllPages && filtered.length > rowsPerPage && (
+              <button
+                onClick={handleSelectAllPages}
+                className="text-xs text-primary-600 hover:text-primary-800 underline underline-offset-2 font-medium"
+              >
+                Select all {filtered.length} leads
+              </button>
+            )}
+            {selectAllPages && (
+              <span className="text-xs text-primary-700 font-semibold bg-primary-50 border border-primary-200 rounded-lg px-2 py-0.5">
+                All {filtered.length} leads selected ·{' '}
+                <button onClick={handleClearSelection} className="underline hover:no-underline">Clear</button>
+              </span>
+            )}
+          </div>
           {selectedRows.length > 0 && (
             <div className="flex items-center gap-2">
               <button onClick={() => setShowWAModal(true)}
@@ -578,9 +612,9 @@ export default function LeadManager() {
                 className="flex items-center gap-1 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-2.5 py-1 disabled:opacity-50">
                 <Zap size={13} /> {dripLoading ? 'Enrolling...' : 'Drip Enroll'}
               </button>
-              {currentUser?.role === 'Admin' && (
+              {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
                 <button onClick={() => setDeleteConfirm('bulk')}
-                  className="flex items-center gap-1 text-xs text-red-500 border border-red-200 rounded-lg px-2.5 py-1 hover:bg-red-50">
+                  className="flex items-center gap-1 text-xs text-red-500 border border-red-200 rounded-lg px-2.5 py-1 hover:bg-red-50 transition-colors">
                   <Trash2 size={13} /> Delete ({selectedRows.length})
                 </button>
               )}
@@ -888,7 +922,6 @@ export default function LeadManager() {
         </div>
       )}
 
-      {/* ============ WHATSAPP BULK MODAL ============ */}
       {/* ============ RCS DEDICATED MODAL ============ */}
       {showRCSModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -958,6 +991,7 @@ export default function LeadManager() {
         </div>
       )}
 
+      {/* ============ WHATSAPP BULK MODAL ============ */}
       {showWAModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
@@ -1061,6 +1095,45 @@ export default function LeadManager() {
       )}
 
       {/* ============ NOT INTERESTED MODAL ============ */}
+      {niLead && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <X size={16} className="text-red-500" /> Not Interested
+              </h2>
+              <button onClick={() => setNiLead(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Mark <strong>{niLead.name}</strong> as Not Interested and record reason.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Reason *</label>
+                <select value={niReason} onChange={e => setNiReason(e.target.value)} className="input-field text-sm">
+                  <option value="">-- Select reason --</option>
+                  {NI_REASONS.map(r => <option key={r}>{r}</option>)}
+                </select>
+              </div>
+              {niReason === 'Other' && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Specify</label>
+                  <input value={niOther} onChange={e => setNiOther(e.target.value)}
+                    className="input-field text-sm" placeholder="Enter reason..." />
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setNiLead(null)} className="flex-1 btn-secondary text-sm">Cancel</button>
+              <button onClick={handleMarkNotInterested}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ============ TRANSFER LEAD MODAL ============ */}
       {transferLead && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -1109,45 +1182,6 @@ export default function LeadManager() {
         </div>
       )}
 
-      {niLead && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-900 flex items-center gap-2">
-                <X size={16} className="text-red-500" /> Not Interested
-              </h2>
-              <button onClick={() => setNiLead(null)}><X size={18} className="text-gray-400" /></button>
-            </div>
-            <p className="text-sm text-gray-500 mb-4">
-              Mark <strong>{niLead.name}</strong> as Not Interested and record reason.
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Reason *</label>
-                <select value={niReason} onChange={e => setNiReason(e.target.value)} className="input-field text-sm">
-                  <option value="">-- Select reason --</option>
-                  {NI_REASONS.map(r => <option key={r}>{r}</option>)}
-                </select>
-              </div>
-              {niReason === 'Other' && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Specify</label>
-                  <input value={niOther} onChange={e => setNiOther(e.target.value)}
-                    className="input-field text-sm" placeholder="Enter reason..." />
-                </div>
-              )}
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button onClick={() => setNiLead(null)} className="flex-1 btn-secondary text-sm">Cancel</button>
-              <button onClick={handleMarkNotInterested}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ============ DELETE CONFIRM MODAL ============ */}
       {deleteConfirm !== null && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -1155,7 +1189,30 @@ export default function LeadManager() {
             <div className="flex flex-col items-center text-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center"><Trash2 size={22} className="text-red-500" /></div>
               <h3 className="font-bold text-gray-900 text-base">Delete Lead{deleteConfirm === 'bulk' ? 's' : ''}</h3>
-              <p className="text-sm text-gray-500">{deleteConfirm === 'bulk' ? `Delete ${selectedRows.length} selected leads? Cannot be undone.` : 'Delete this lead permanently?'}</p>
+              <p className="text-sm text-gray-500">
+                {deleteConfirm === 'bulk' 
+                  ? `Delete ${selectedRows.length} selected lead${selectedRows.length !== 1 ? 's' : ''}? This cannot be undone.` 
+                  : 'Delete this lead permanently?'
+                }
+              </p>
+              {deleteConfirm === 'bulk' && selectedRows.length > 0 && (
+                <div className="max-h-40 overflow-y-auto w-full bg-gray-50 rounded-lg p-2 mt-2 text-left">
+                  <p className="text-xs font-semibold text-gray-600 mb-2">Leads to delete:</p>
+                  <ul className="space-y-1 text-xs text-gray-600">
+                    {selectedRows.slice(0, 10).map(id => {
+                      const lead = filtered.find(l => l.id === id)
+                      return lead ? (
+                        <li key={id} className="truncate">
+                          • {lead.name} ({lead.mobile})
+                        </li>
+                      ) : null
+                    })}
+                    {selectedRows.length > 10 && (
+                      <li className="text-gray-400 italic">+ {selectedRows.length - 10} more...</li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfirm(null)} className="flex-1 btn-secondary py-2 text-sm">Cancel</button>
