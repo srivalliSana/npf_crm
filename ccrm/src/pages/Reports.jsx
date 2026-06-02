@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -66,6 +66,21 @@ export default function Reports() {
   const [activeReport, setActiveReport] = useState('Lead Summary')
   const [dateRange, setDateRange] = useState('Last 30 Days')
 
+  // Server-side aggregated report data — correct at any scale (the context only
+  // holds a recent slice of leads/apps). Falls back to client compute if offline.
+  const [overview, setOverview] = useState(null)
+  const [ovLoading, setOvLoading] = useState(true)
+  useEffect(() => {
+    const rangeMap = { 'Last 7 Days': '7', 'Last 30 Days': '30', 'Last 3 Months': '90', 'This Year': 'year', 'All Time': 'all' }
+    const range = rangeMap[dateRange] || 'all'
+    setOvLoading(true)
+    const token = localStorage.getItem('ccrm_token')
+    fetch(`/api/reports/overview?range=${range}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setOverview(d); setOvLoading(false) })
+      .catch(() => setOvLoading(false))
+  }, [dateRange])
+
   // Parse DD/MM/YYYY or DD/MM/YYYY, HH:MM into Date
   const parseDDMMYYYY = (s) => {
     if (!s) return null
@@ -97,32 +112,32 @@ export default function Reports() {
   const applications = allApps.filter(a        => onAfter(a, 'date'))
   const payments     = allPayments.filter(p    => onAfter(p, 'date'))
 
-  // Build monthly trend from filtered data
-  const monthlyData = buildMonthlyData(leads, applications)
+  // ── Headline datasets: prefer server aggregates, fall back to client ────────
+  // Monthly trend
+  const monthlyData = overview?.monthly || buildMonthlyData(leads, applications)
 
-  // 1. Calculate KPI Metrics dynamically
-  const totalLeads = leads.length
-  const totalApps = applications.length
-  const enrolledCount = applications.filter(a => a.stage === 'Enrolment' || a.stage === 'Enrolments').length
-  const totalRevenue = payments.filter(p => p.status === 'Approved' || p.status === 'Payment Approved').reduce((s, p) => s + Number(p.amount || 0), 0)
+  // 1. KPI metrics
+  const totalLeads    = overview?.kpi?.totalLeads ?? leads.length
+  const totalApps     = overview?.kpi?.totalApps ?? applications.length
+  const enrolledCount = overview?.kpi?.enrolled ?? applications.filter(a => a.stage === 'Enrolment' || a.stage === 'Enrolments').length
+  const totalRevenue  = overview?.kpi?.revenue ?? payments.filter(p => ['Paid','Approved','Payment Approved'].includes(p.status) && (p.utrNumber||'').trim()).reduce((s, p) => s + Number(p.amount || 0), 0)
 
-  // 2. Compute dynamic sources
-  const allSources = Array.from(new Set(leads.map(l => l.source).filter(Boolean)))
-  const sourceData = allSources.map(src => {
-    const count = leads.filter(l => l.source === src).length
-    return {
-      source: src,
-      leads: count,
-      pct: Math.round((count / (leads.length || 1)) * 100)
-    }
-  }).filter(s => s.leads > 0).sort((a, b) => b.leads - a.leads)
+  // 2. Sources
+  const sourceData = overview?.sourceData || (() => {
+    const allSources = Array.from(new Set(leads.map(l => l.source).filter(Boolean)))
+    return allSources.map(src => {
+      const count = leads.filter(l => l.source === src).length
+      return { source: src, leads: count, pct: Math.round((count / (leads.length || 1)) * 100) }
+    }).filter(s => s.leads > 0).sort((a, b) => b.leads - a.leads)
+  })()
 
-  // 3. Compute dynamic funnel
-  const contacted = leads.filter(l => l.stage !== 'Untouched').length
-  const interested = leads.filter(l => l.stage === 'Interested' || l.stage === 'Qualified Leads').length
-  const started = applications.length
-  const paid = payments.filter(p => p.status === 'Approved' || p.status === 'Payment Approved').length
-  const enrolled = enrolledCount
+  // 3. Funnel
+  const f = overview?.funnel
+  const contacted  = f?.contacted  ?? leads.filter(l => l.stage !== 'Untouched').length
+  const interested = f?.interested ?? leads.filter(l => l.stage === 'Interested' || l.stage === 'Qualified Leads').length
+  const started    = f?.started    ?? applications.length
+  const paid       = f?.paid       ?? payments.filter(p => ['Paid','Approved','Payment Approved'].includes(p.status) && (p.utrNumber||'').trim()).length
+  const enrolled   = f?.enrolled   ?? enrolledCount
 
   const funnelData = [
     { name: 'Total Leads',          value: totalLeads, fill: '#003087' },
@@ -133,17 +148,15 @@ export default function Reports() {
     { name: 'Enrolled',             value: enrolled,   fill: '#bfdbfe' },
   ]
 
-  // 4. Compute dynamic courses (from actual application data)
-  const allCourses = Array.from(new Set(applications.map(a => a.course).filter(Boolean)))
-  const courseData = allCourses.map(c => {
-    const cApps = applications.filter(a => a.course === c).length
-    const cEnrolled = applications.filter(a => a.course === c && (a.stage === 'Enrolment' || a.stage === 'Enrolments')).length
-    const cPaid = payments.filter(p => {
-      const app = applications.find(a => a.appNo === p.appNo && a.course === c)
-      return app && (p.status === 'Approved' || p.status === 'Payment Approved')
-    }).length
-    return { course: c, apps: cApps, enrolled: cEnrolled, paid: cPaid }
-  }).sort((a, b) => b.apps - a.apps)
+  // 4. Courses
+  const courseData = overview?.courseData || (() => {
+    const allCourses = Array.from(new Set(applications.map(a => a.course).filter(Boolean)))
+    return allCourses.map(c => {
+      const cApps = applications.filter(a => a.course === c).length
+      const cEnrolled = applications.filter(a => a.course === c && (a.stage === 'Enrolment' || a.stage === 'Enrolments')).length
+      return { course: c, apps: cApps, enrolled: cEnrolled, paid: 0 }
+    }).sort((a, b) => b.apps - a.apps)
+  })()
 
   // 5. Campaign performance data (from live campaigns)
   const campaignData = campaigns.map(c => ({
@@ -171,9 +184,10 @@ export default function Reports() {
     convRate: c.leads > 0 ? Math.round((c.apps / c.leads) * 100) : 0,
   })).filter(c => c.leads > 0).sort((a, b) => b.leads - a.leads)
 
-  // 7. Payment breakdown
-  const payApproved = payments.filter(p => p.status === 'Approved' || p.status === 'Payment Approved')
-  const payPending  = payments.filter(p => p.status === 'Pending')
+  // 7. Payment breakdown — verified = admin-approved (Paid/Approved) with a UTR
+  const isVerifiedPay = (p) => ['Paid','Approved','Payment Approved'].includes(p.status) && (p.utrNumber || '').trim() !== ''
+  const payApproved = payments.filter(isVerifiedPay)
+  const payPending  = payments.filter(p => ['Pending','Payment Done'].includes(p.status))
   const payFailed   = payments.filter(p => p.status === 'Failed')
   const payMethodData = [
     { method: 'Online',  count: payments.filter(p => p.method === 'Online').length,  amount: payments.filter(p => p.method === 'Online').reduce((s,p) => s+Number(p.amount||0), 0) },
@@ -448,7 +462,6 @@ export default function Reports() {
                     <Legend wrapperStyle={{ fontSize: '12px' }} iconType="circle" iconSize={8} />
                     <Bar dataKey="apps" name="Applications" fill="#003087" radius={[0,4,4,0]} />
                     <Bar dataKey="enrolled" name="Enrolled" fill="#10b981" radius={[0,4,4,0]} />
-                    <Bar dataKey="paid" name="Payment Approved" fill="#f5a623" radius={[0,4,4,0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -943,13 +956,15 @@ export default function Reports() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Reports &amp; Analytics</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Showing data from <strong className="text-primary-600">{dateRange}</strong> · {leads.length} leads · {applications.length} apps · {payments.length} payments
+            {ovLoading
+              ? <span className="text-primary-600 font-medium">Please wait, loading reports…</span>
+              : <>Showing data from <strong className="text-primary-600">{dateRange}</strong> · {totalLeads.toLocaleString()} leads · {totalApps.toLocaleString()} apps · {payments.length.toLocaleString()} payments</>}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <select value={dateRange} onChange={e => setDateRange(e.target.value)}
             className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400">
-            {['Last 7 Days','Last 30 Days','Last 3 Months','This Year'].map(o => <option key={o}>{o}</option>)}
+            {['Last 7 Days','Last 30 Days','Last 3 Months','This Year','All Time'].map(o => <option key={o}>{o}</option>)}
           </select>
           <button onClick={handleExport} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
             <Download size={14} /> Export

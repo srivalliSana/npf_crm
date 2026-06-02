@@ -1744,6 +1744,108 @@ app.get('/api/dashboard/stats', async (req, res) => {
   }
 })
 
+// ── REPORTS OVERVIEW — all aggregates computed in SQL (scales to millions) ───
+app.get('/api/reports/overview', async (req, res) => {
+  try {
+    const range = req.query.range || 'all'
+    const now = new Date()
+    let cutoff = null
+    if (range === '7')        { cutoff = new Date(now); cutoff.setDate(now.getDate() - 7) }
+    else if (range === '30')  { cutoff = new Date(now); cutoff.setDate(now.getDate() - 30) }
+    else if (range === '90')  { cutoff = new Date(now); cutoff.setMonth(now.getMonth() - 3) }
+    else if (range === 'year'){ cutoff = new Date(now.getFullYear(), 0, 1) }
+    const cutoffISO = cutoff ? cutoff.toISOString().slice(0, 10) : null
+
+    // Safe text→date for 'DD/MM/YYYY[, ...]' columns (NULL when unparseable)
+    const dExpr = (col) =>
+      `CASE WHEN ${col} ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}' ` +
+      `THEN to_date(substring(${col} from '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}'),'DD/MM/YYYY') END`
+    // Date predicate: keep rows in range OR with no parseable date (matches client)
+    const datePred = (col, idx) => cutoffISO ? `(${dExpr(col)} IS NULL OR ${dExpr(col)} >= $${idx}::date)` : 'TRUE'
+    const lp = cutoffISO ? [cutoffISO] : []   // leads params
+    const lw = `WHERE ${datePred('reg_date', 1)}`
+    const aw = `WHERE ${datePred('date', 1)}`
+    const pw = `WHERE ${datePred('date', 1)}`
+
+    // KPI + funnel from leads
+    const leadAgg = await pool.query(`
+      SELECT
+        COUNT(*)::int AS "totalLeads",
+        SUM(CASE WHEN stage <> 'Untouched' THEN 1 ELSE 0 END)::int AS contacted,
+        SUM(CASE WHEN stage IN ('Interested','Qualified Leads') THEN 1 ELSE 0 END)::int AS interested
+      FROM leads ${lw};`, lp)
+
+    const sourceData = await pool.query(`
+      SELECT COALESCE(NULLIF(source,''),'Unknown') AS source, COUNT(*)::int AS leads
+      FROM leads ${lw} GROUP BY 1 ORDER BY leads DESC LIMIT 12;`, lp)
+
+    // Applications
+    const appAgg = await pool.query(`
+      SELECT COUNT(*)::int AS "totalApps",
+             SUM(CASE WHEN stage IN ('Enrolment','Enrolments') THEN 1 ELSE 0 END)::int AS enrolled
+      FROM applications ${aw};`, lp)
+
+    const courseData = await pool.query(`
+      SELECT COALESCE(NULLIF(course,''),'Unspecified') AS course,
+             COUNT(*)::int AS apps,
+             SUM(CASE WHEN stage IN ('Enrolment','Enrolments') THEN 1 ELSE 0 END)::int AS enrolled
+      FROM applications ${aw} GROUP BY 1 ORDER BY apps DESC LIMIT 12;`, lp)
+
+    // Payments — revenue counts only verified (Paid/Approved) with a UTR
+    const payAgg = await pool.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '' THEN amount ELSE 0 END),0)::bigint AS revenue,
+        SUM(CASE WHEN status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '' THEN 1 ELSE 0 END)::int AS paid,
+        SUM(CASE WHEN status IN ('Pending','Payment Done') THEN 1 ELSE 0 END)::int AS pending,
+        SUM(CASE WHEN status = 'Failed' THEN 1 ELSE 0 END)::int AS failed,
+        SUM(CASE WHEN status IN ('Pending','Payment Done') THEN amount ELSE 0 END)::bigint AS "pendingAmount",
+        SUM(CASE WHEN method = 'Online'  THEN 1 ELSE 0 END)::int AS "onlineCount",
+        SUM(CASE WHEN method = 'Offline' THEN 1 ELSE 0 END)::int AS "offlineCount"
+      FROM payments ${pw};`, lp)
+
+    // Monthly trend (last 6 months) — leads + apps + enrolled
+    const leadsByMonth = await pool.query(`
+      SELECT to_char(d,'YYYY-MM') AS ym, COUNT(*)::int AS c FROM (
+        SELECT ${dExpr('reg_date')} AS d FROM leads ${lw}
+      ) t WHERE d IS NOT NULL GROUP BY 1;`, lp)
+    const appsByMonth = await pool.query(`
+      SELECT to_char(d,'YYYY-MM') AS ym,
+             COUNT(*)::int AS c,
+             SUM(CASE WHEN stg IN ('Enrolment','Enrolments') THEN 1 ELSE 0 END)::int AS e FROM (
+        SELECT ${dExpr('date')} AS d, stage AS stg FROM applications ${aw}
+      ) t WHERE d IS NOT NULL GROUP BY 1;`, lp)
+
+    const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const lm = Object.fromEntries(leadsByMonth.rows.map(r => [r.ym, r.c]))
+    const amCount = Object.fromEntries(appsByMonth.rows.map(r => [r.ym, r.c]))
+    const amEnr = Object.fromEntries(appsByMonth.rows.map(r => [r.ym, r.e]))
+    const monthly = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      monthly.push({ month: MONTH_LABELS[d.getMonth()], leads: lm[ym] || 0, apps: amCount[ym] || 0, enrolled: amEnr[ym] || 0 })
+    }
+
+    const la = leadAgg.rows[0], pa = payAgg.rows[0], aa = appAgg.rows[0]
+    const totalLeads = la.totalLeads || 0
+    res.json({
+      kpi: { totalLeads, totalApps: aa.totalApps || 0, enrolled: aa.enrolled || 0, revenue: Number(pa.revenue) },
+      sourceData: sourceData.rows.map(s => ({ source: s.source, leads: s.leads, pct: Math.round((s.leads / (totalLeads || 1)) * 100) })),
+      funnel: { totalLeads, contacted: la.contacted || 0, interested: la.interested || 0, started: aa.totalApps || 0, paid: pa.paid || 0, enrolled: aa.enrolled || 0 },
+      courseData: courseData.rows,
+      payments: {
+        paid: pa.paid || 0, pending: pa.pending || 0, failed: pa.failed || 0,
+        revenue: Number(pa.revenue), pendingAmount: Number(pa.pendingAmount),
+        onlineCount: pa.onlineCount || 0, offlineCount: pa.offlineCount || 0,
+      },
+      monthly,
+    })
+  } catch (err) {
+    console.error('[reports/overview]', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.get('/api/admin/server-health', async (req, res) => {
   try {
     const os = await import('os')
