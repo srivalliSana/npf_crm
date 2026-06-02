@@ -8,6 +8,11 @@ import XLSXPkg from 'xlsx'
 const XLSX = XLSXPkg.default ?? XLSXPkg
 import { fileURLToPath } from 'url'
 import { pool, initDb } from './db.js'
+import cron from 'node-cron'
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { promisify } from 'util'
+import { exec } from 'child_process'
+const execAsync = promisify(exec)
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -4134,9 +4139,223 @@ if (fs.existsSync(distPath)) {
   })
 }
 
+// --- DAILY CRON JOBS: Email Report + S3 Backup ---
+async function sendProductivityEmailReport() {
+  try {
+    const recipients = await getIntegrationSetting('report_email_recipients')
+    if (!recipients) {
+      console.log('[Cron] Email report recipients not configured — skipping')
+      return
+    }
+
+    const emails = recipients.split(',').map(e => e.trim()).filter(e => e)
+    if (emails.length === 0) return
+
+    // Fetch dashboard stats
+    const statsRes = await pool.query(`
+      SELECT
+        COUNT(*)::int AS "totalLeads",
+        SUM(CASE WHEN stage='Untouched'           THEN 1 ELSE 0 END)::int AS untouched,
+        SUM(CASE WHEN stage='Contacted'           THEN 1 ELSE 0 END)::int AS contacted,
+        SUM(CASE WHEN stage='Follow Up'           THEN 1 ELSE 0 END)::int AS "followUp",
+        SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,
+        SUM(CASE WHEN stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
+        SUM(CASE WHEN stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess"
+      FROM leads;
+    `)
+    const kpi = statsRes.rows[0]
+
+    const appRes = await pool.query('SELECT COUNT(*)::int AS c FROM applications;')
+    const applications = appRes.rows[0].c
+
+    const enrRes = await pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments');")
+    const enrolments = enrRes.rows[0].c
+
+    const revRes = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '';")
+    const revenue = Number(revRes.rows[0].s)
+
+    // Fetch per-counsellor stats
+    const counselRes = await pool.query(`
+      SELECT
+        u.name, u.email,
+        COUNT(l.id)::int AS leads,
+        SUM(CASE WHEN l.stage='Untouched'  THEN 1 ELSE 0 END)::int AS untouched,
+        SUM(CASE WHEN l.stage='Interested' THEN 1 ELSE 0 END)::int AS interested,
+        SUM(CASE WHEN l.stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
+        SUM(CASE WHEN l.stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess"
+      FROM users u
+      LEFT JOIN leads l ON l.owner = u.name
+      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager')
+      GROUP BY u.name, u.email
+      HAVING COUNT(l.id) > 0
+      ORDER BY leads DESC
+      LIMIT 50;
+    `)
+
+    // Build HTML email
+    const dateStr = new Date().toLocaleDateString('en-IN')
+    const htmlBody = `
+      <html>
+        <body style="font-family: Arial, sans-serif;">
+          <h2>Productivity Report — ${dateStr}</h2>
+          <p>Daily counselor-wise lead and application metrics.</p>
+
+          <h3>KPI Summary</h3>
+          <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+            <tr style="background-color: #f0f0f0;">
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Total Leads</strong></td>
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>${(kpi.totalLeads || 0).toLocaleString()}</strong></td>
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Untouched</strong></td>
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>${(kpi.untouched || 0).toLocaleString()}</strong></td>
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Interested</strong></td>
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>${(kpi.interested || 0).toLocaleString()}</strong></td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Applications</strong></td>
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>${(applications || 0).toLocaleString()}</strong></td>
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Enrolments</strong></td>
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>${(enrolments || 0).toLocaleString()}</strong></td>
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Revenue (₹)</strong></td>
+              <td style="border: 1px solid #ddd; padding: 8px;"><strong>₹${(revenue / 100000).toFixed(2)}L</strong></td>
+            </tr>
+          </table>
+
+          <h3>Counselor-wise Breakdown</h3>
+          <table style="border-collapse: collapse; width: 100%;">
+            <tr style="background-color: #0066cc; color: white;">
+              <th style="border: 1px solid #ddd; padding: 8px;">Counselor Name</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Leads</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Untouched</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Interested</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Process for Pay</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Payment Success</th>
+            </tr>
+            ${counselRes.rows.map(r => `
+              <tr style="background-color: ${counselRes.rows.indexOf(r) % 2 === 0 ? '#f9f9f9' : 'white'};">
+                <td style="border: 1px solid #ddd; padding: 8px;">${r.name}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.leads || 0).toLocaleString()}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.untouched || 0).toLocaleString()}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.interested || 0).toLocaleString()}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.processPay || 0).toLocaleString()}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.paymentSuccess || 0).toLocaleString()}</td>
+              </tr>
+            `).join('')}
+          </table>
+          <p style="margin-top: 20px; color: #666; font-size: 12px;">Sent automatically at 3:00 AM IST</p>
+        </body>
+      </html>
+    `
+
+    // Send emails
+    const cfg = await createMailTransporter()
+    if (cfg.error) {
+      console.error('[Cron] SMTP not configured:', cfg.error)
+      return
+    }
+
+    for (const email of emails) {
+      await cfg.transporter.sendMail({
+        from: cfg.from,
+        to: email,
+        subject: `Productivity Report — ${dateStr}`,
+        html: htmlBody
+      })
+    }
+
+    console.log(`[Cron] Email report sent to ${emails.length} recipient(s)`)
+  } catch (e) {
+    console.error('[Cron] Email report failed:', e.message)
+  }
+}
+
+async function performS3Backup() {
+  try {
+    const accessKeyId = await getIntegrationSetting('aws_access_key_id')
+    const secretAccessKey = await getIntegrationSetting('aws_secret_access_key')
+    const bucket = await getIntegrationSetting('aws_s3_bucket')
+    const region = await getIntegrationSetting('aws_region') || 'ap-south-1'
+
+    if (!accessKeyId || !secretAccessKey || !bucket) {
+      console.log('[Backup] S3 credentials not configured — skipping')
+      return
+    }
+
+    const s3 = new S3Client({ region, credentials: { accessKeyId, secretAccessKey } })
+    const dateStr = new Date().toISOString().split('T')[0]
+    const keyPrefix = `backups/${dateStr}`
+
+    console.log('[Backup] Starting S3 backup...')
+
+    // 1. Database dump
+    const dbCommand = `PGPASSWORD="${process.env.DB_PASS || 'ccrm@123'}" pg_dump -h localhost -U ccrm_user ccrm_db 2>/dev/null | gzip`
+    const { stdout: dbBuffer } = await execAsync(dbCommand)
+    await s3.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: `${keyPrefix}/db.sql.gz`,
+      Body: Buffer.from(dbBuffer, 'binary')
+    }))
+    console.log('[Backup] Database uploaded to S3')
+
+    // 2. Uploads directory tar
+    const uploadsDir = path.join(__dirname, 'uploads')
+    if (fs.existsSync(uploadsDir)) {
+      const { stdout: uploadsBuffer } = await execAsync(`tar -czf - -C "${__dirname}" uploads 2>/dev/null`)
+      await s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: `${keyPrefix}/uploads.tar.gz`,
+        Body: Buffer.from(uploadsBuffer, 'binary')
+      }))
+      console.log('[Backup] Uploads directory uploaded to S3')
+    }
+
+    // 3. Server logs (last 24 hours)
+    try {
+      const { stdout: logsBuffer } = await execAsync(`journalctl -u ccrm-backend --since "24 hours ago" 2>/dev/null | gzip`)
+      await s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: `${keyPrefix}/server.log.gz`,
+        Body: Buffer.from(logsBuffer, 'binary')
+      }))
+      console.log('[Backup] Server logs uploaded to S3')
+    } catch {
+      console.warn('[Backup] Could not fetch journalctl logs (expected on non-systemd systems)')
+    }
+
+    // Update last backup timestamp
+    await pool.query('INSERT INTO integration_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();',
+      ['s3_last_backup_at', new Date().toISOString()])
+
+    console.log(`[Backup] S3 backup complete: s3://${bucket}/${keyPrefix}/`)
+  } catch (e) {
+    console.error('[Backup] S3 backup failed:', e.message)
+  }
+}
+
 // --- SERVER LAUNCH BOOTSTRAP ---
 async function startServer() {
   await initDb()
+
+  // Schedule daily cron jobs at 3:00 AM IST
+  cron.schedule('0 3 * * *', async () => {
+    console.log('[Cron] Starting 3am daily tasks...')
+    await sendProductivityEmailReport()
+    await performS3Backup()
+  }, { timezone: 'Asia/Kolkata' })
+
+  // Test endpoint to manually trigger daily report
+  app.post('/api/admin/test-daily-report', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin only' })
+    }
+    try {
+      await sendProductivityEmailReport()
+      await performS3Backup()
+      res.json({ status: 'Email and backup triggered successfully' })
+    } catch (e) {
+      res.status(500).json({ error: e.message })
+    }
+  })
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`====================================================`)
     console.log(`CCRM Backend Server is successfully running!`)
