@@ -77,9 +77,17 @@ export function CcrmProvider({ children }) {
     if (source) qs.set('source', source)
     if (currentUser?.role) qs.set('requesterRole', currentUser.role)
     if (currentUser?.name) qs.set('requesterName', currentUser.name)
-    const res = await fetch(`/api/leads?${qs.toString()}`, { headers })
-    if (!res.ok) throw new Error('Failed to load leads')
-    return res.json()   // { rows, total, page, limit }
+    const url = `/api/leads?${qs.toString()}`
+    console.log('[fetchLeadsPage]', { url, currentUser: currentUser?.name, role: currentUser?.role })
+    const res = await fetch(url, { headers })
+    if (!res.ok) {
+      const errText = await res.text()
+      console.error('[fetchLeadsPage]', res.status, errText)
+      throw new Error(`Failed to load leads: ${res.status}`)
+    }
+    const data = await res.json()
+    console.log('[fetchLeadsPage] result:', { rows: data.rows?.length, total: data.total })
+    return data   // { rows, total, page, limit }
   }
 
   // Unified API Loader with offline LocalStorage fallback
