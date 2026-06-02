@@ -541,10 +541,66 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // --- LEADS ROUTERS ---
 app.get('/api/leads', async (req, res) => {
   try {
-    const leadsRes = await pool.query('SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType", owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor", not_interested_reason AS "notInterestedReason", lead_details AS "leadDetails" FROM leads ORDER BY id DESC;')
-    res.json(leadsRes.rows)
+    // ── Server-side pagination + search + filters + role scoping ──────────────
+    // Loading the whole table into the browser freezes at scale (1cr rows),
+    // so we always page. Returns { rows, total, page, limit }.
+    const page  = Math.max(1, parseInt(req.query.page)  || 1)
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
+    const offset = (page - 1) * limit
+
+    const { search, stage, owner, state, source, requesterRole, requesterName } = req.query
+
+    const where = []
+    const params = []
+    const add = (clause, value) => { params.push(value); where.push(clause.replace('$$', `$${params.length}`)) }
+
+    // Role scoping: counsellors only see their own; admin/manager see all
+    if (requesterRole && !['Admin', 'Manager'].includes(requesterRole) && requesterName) {
+      add('LOWER(owner) = LOWER($$)', requesterName)
+    }
+    if (search) {
+      params.push(`%${search}%`)
+      const p = `$${params.length}`
+      where.push(`(name ILIKE ${p} OR email ILIKE ${p} OR mobile ILIKE ${p})`)
+    }
+    if (stage)  add('stage  = $$', stage)
+    if (owner)  add('owner  = $$', owner)
+    if (state)  add('state  = $$', state)
+    if (source) add('source = $$', source)
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM leads ${whereSql};`, params)
+    const total = countRes.rows[0].total
+
+    const rowsRes = await pool.query(
+      `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
+              owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor",
+              not_interested_reason AS "notInterestedReason", lead_details AS "leadDetails"
+       FROM leads ${whereSql}
+       ORDER BY id DESC
+       LIMIT ${limit} OFFSET ${offset};`,
+      params
+    )
+    res.json({ rows: rowsRes.rows, total, page, limit })
   } catch (err) {
+    console.error('[GET /api/leads]', err.message)
     res.status(500).json({ error: 'Failed to fetch leads.' })
+  }
+})
+
+// Single lead by numeric id — used by detail page so it never needs the full list
+app.get('/api/leads/:id(\\d+)', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
+              owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor",
+              not_interested_reason AS "notInterestedReason", lead_details AS "leadDetails"
+       FROM leads WHERE id = $1;`, [req.params.id])
+    if (!r.rows.length) return res.status(404).json({ error: 'Lead not found.' })
+    res.json(r.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch lead.' })
   }
 })
 
