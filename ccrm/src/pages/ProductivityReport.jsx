@@ -41,38 +41,40 @@ export default function ProductivityReport() {
           fetch('/api/payments', { headers })
         ])
 
-        let appsByOwner = {}
-        let payByOwner = {}
-
         if (statsRes.ok) {
-          const data = await statsRes.json()
-          setStatsData(data.byCounsellor || [])
+          const statsData = await statsRes.json()
+          setStatsData(statsData.byCounsellor || [])
 
-          // Compute per-owner app/payment counts from fetched data
+          // Build owner lookup maps from fetched applications and payments
+          let appsByOwner = {}
+          let payByOwner = {}
+
           if (appsRes.ok) {
             const apps = await appsRes.json()
-            appsByOwner = apps.reduce((acc, app) => {
+            apps.forEach(app => {
               const owner = app.owner || 'Unassigned'
-              acc[owner] = (acc[owner] || 0) + 1
-              return acc
-            }, {})
+              appsByOwner[owner] = (appsByOwner[owner] || 0) + 1
+            })
           }
 
           if (paymentsRes.ok) {
             const pays = await paymentsRes.json()
-            payByOwner = pays.reduce((acc, p) => {
+            const apps = appsRes.ok ? await appsRes.json() : []
+            const appMap = {}
+            apps.forEach(a => { appMap[a.appNo] = a })
+
+            pays.forEach(p => {
               if (p.status === 'Approved' || p.status === 'Payment Approved' || p.status === 'Paid') {
-                const app = (data.applications || []).find(a => a.appNo === p.appNo)
+                const app = appMap[p.appNo]
                 if (app) {
                   const owner = app.owner || 'Unassigned'
-                  acc[owner] = (acc[owner] || 0) + 1
+                  payByOwner[owner] = (payByOwner[owner] || 0) + 1
                 }
               }
-              return acc
-            }, {})
+            })
           }
 
-          // Store app/payment counts for use in REPORT_DATA
+          // Store for use in REPORT_DATA mapping below
           window._productivityAppCounts = appsByOwner
           window._productivityPayCounts = payByOwner
         }
