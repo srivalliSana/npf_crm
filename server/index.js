@@ -576,7 +576,7 @@ app.get('/api/leads', async (req, res) => {
     const rowsRes = await pool.query(
       `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
               owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor",
-              not_interested_reason AS "notInterestedReason", lead_details AS "leadDetails"
+              not_interested_reason AS "notInterestedReason"
        FROM leads ${whereSql}
        ORDER BY id DESC
        LIMIT ${limit} OFFSET ${offset};`,
