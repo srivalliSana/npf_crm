@@ -60,7 +60,7 @@ const WA_TEMPLATES = [
 
 export default function LeadManager() {
   const navigate = useNavigate()
-  const { leads, setLeads, addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData,
+  const { leads, setLeads, addLead, deleteLead, updateLead, currentUser, counselors, users, showToast, fetchAllData,
           checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS,
           rcsTemplates, fetchRcsTemplates, enrollDrip, logCall } = useCcrm()
 
@@ -241,10 +241,24 @@ export default function LeadManager() {
   const rowsPerPage = 15
 
   // ----------- FILTERS -----------
-  // Counselors see only their own leads; Admin/Manager see all
-  const visibleLeads = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
-    ? leads
-    : leads.filter(l => l.owner?.toLowerCase() === (currentUser?.name || '').toLowerCase())
+  // Visibility by role:
+  //  • Admin           → all leads
+  //  • Manager / Dean  → own leads + leads of counsellors reporting to them (their team)
+  //  • Counsellor      → own leads only
+  const visibleLeads = (() => {
+    if (currentUser?.role === 'Admin') return leads
+    const myName = (currentUser?.name || '').toLowerCase()
+    if (currentUser?.role === 'Manager') {
+      // names of users who report to this manager
+      const reportees = (users || [])
+        .filter(u => (u.reportsTo || '').toLowerCase() === myName)
+        .map(u => u.name.toLowerCase())
+      const team = new Set([myName, ...reportees])
+      return leads.filter(l => team.has((l.owner || '').toLowerCase()))
+    }
+    // Counsellor
+    return leads.filter(l => l.owner?.toLowerCase() === myName)
+  })()
 
   const matchQuickView = (l) => {
     if (quickView === 'All Leads') return true

@@ -23,7 +23,7 @@ const PERMISSIONS = {
 // Fallback values if API hasn't loaded yet
 const FALLBACK_ROLES = ['Admin','Manager','Counselor','Finance']
 const FALLBACK_TEAMS = ['Management','Admissions','Sales','Marketing','Finance']
-const EMPTY_FORM = { name: '', email: '', mobile: '', role: 'Counselor', team: 'Admissions', status: 'Active', password: '' }
+const EMPTY_FORM = { name: '', email: '', mobile: '', role: 'Counselor', team: 'Admissions', status: 'Active', password: '', reportsTo: '' }
 
 function initials(name = '') {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -215,7 +215,7 @@ export default function UserManagement({ currentUser }) {
   // ── Open edit modal ────────────────────────────────────────────────────────
   function openEdit(u) {
     setEditingUser(u)
-    setForm({ name: u.name, email: u.email, mobile: u.mobile || '', role: u.role, team: u.team, status: u.status, password: '' })
+    setForm({ name: u.name, email: u.email, mobile: u.mobile || '', role: u.role, team: u.team, status: u.status, password: '', reportsTo: u.reportsTo || '' })
     setFormError('')
     setShowModal(true)
   }
@@ -234,7 +234,8 @@ export default function UserManagement({ currentUser }) {
         mobile: form.mobile,
         role: form.role,
         team: form.team,
-        status: form.status
+        status: form.status,
+        reportsTo: form.reportsTo
       })
     } else {
       addUser({
@@ -244,7 +245,8 @@ export default function UserManagement({ currentUser }) {
         role: form.role,
         team: form.team,
         status: form.status,
-        password: form.password
+        password: form.password,
+        reportsTo: form.reportsTo
       })
     }
     setShowModal(false)
@@ -380,7 +382,7 @@ export default function UserManagement({ currentUser }) {
                       onChange={selectAll}
                       className="w-4 h-4 rounded border-gray-300 text-primary-500" />
                   </th>
-                  {['Name','Email','Role','Team','Status','Last Login','Actions'].map(h => (
+                  {['Name','Email','Role','Team','Reports To','Status','Last Login','Actions'].map(h => (
                     <th key={h} className="table-th">{h}</th>
                   ))}
                 </tr>
@@ -414,6 +416,7 @@ export default function UserManagement({ currentUser }) {
                         <span className={`badge ${rc.bg} ${rc.text}`}>{u.role}</span>
                       </td>
                       <td className="table-td text-gray-600">{u.team}</td>
+                      <td className="table-td text-gray-600 text-xs">{u.reportsTo || <span className="text-gray-300">—</span>}</td>
                       <td className="table-td">
                         <span className={`badge ${u.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                           {u.status}
@@ -572,6 +575,24 @@ export default function UserManagement({ currentUser }) {
                 >
                   {TEAMS.map(t => <option key={t}>{t}</option>)}
                 </select>
+              </div>
+
+              {/* Reports To — Manager / Dean */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Reports To <span className="text-[10px] text-gray-400">(Manager / Dean)</span>
+                </label>
+                <select
+                  value={form.reportsTo}
+                  onChange={e => setForm(f => ({ ...f, reportsTo: e.target.value }))}
+                  className="input-field text-sm"
+                >
+                  <option value="">— None (top level) —</option>
+                  {users
+                    .filter(u => ['Admin','Manager'].includes(u.role) && u.name !== form.name)
+                    .map(u => <option key={u.id} value={u.name}>{u.name} ({u.role})</option>)}
+                </select>
+                <p className="text-[10px] text-gray-400 mt-0.5">Counsellor's reporting manager/dean — used for team-wise reporting.</p>
               </div>
 
               {/* Mobile (for WhatsApp alerts) */}

@@ -276,6 +276,8 @@ export async function initDb() {
 
     // Users: add mobile field for WhatsApp alerts to counselors
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile VARCHAR(50) DEFAULT '';`).catch(() => {})
+    // Reporting hierarchy — counsellor reports to a manager/dean (stores manager's name)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reports_to VARCHAR(255) DEFAULT '';`).catch(() => {})
 
     // Applications: full admission details (KYC + academics) + letter dispatch tracking
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
