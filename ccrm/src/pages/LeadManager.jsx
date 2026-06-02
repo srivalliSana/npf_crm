@@ -1211,20 +1211,28 @@ export default function LeadManager() {
                     </div>
                   </div>
 
-                  {/* Duplicate handling */}
-                  {previewData.duplicateCount > 0 && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                      <p className="text-sm font-semibold text-yellow-800 mb-2">⚠️ Duplicates detected — how should we handle them?</p>
-                      <div className="flex gap-3">
-                        {[{v:'skip',label:'Skip duplicates'},{v:'update',label:'Update existing'},{v:'import',label:'Import all'}].map(o => (
-                          <label key={o.v} className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg border cursor-pointer ${dupHandling===o.v ? 'border-yellow-500 bg-yellow-100 font-semibold text-yellow-800' : 'border-yellow-200 text-yellow-700'}`}>
-                            <input type="radio" name="dup" value={o.v} checked={dupHandling===o.v} onChange={e => setDupHandling(e.target.value)} className="hidden" />
-                            {o.label}
-                          </label>
-                        ))}
-                      </div>
+                  {/* Duplicate handling — always shown so user picks intentionally */}
+                  <div className={`rounded-xl p-4 border ${previewData.duplicateCount > 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-blue-50 border-blue-200'}`}>
+                    <p className={`text-sm font-semibold mb-2 ${previewData.duplicateCount > 0 ? 'text-yellow-800' : 'text-blue-800'}`}>
+                      {previewData.duplicateCount > 0
+                        ? `⚠️ ${previewData.duplicateCount} duplicate${previewData.duplicateCount === 1 ? '' : 's'} found in first 20 rows — what should we do?`
+                        : '🔄 Duplicate Handling (applies when mobile/email already exists)'
+                      }
+                    </p>
+                    <div className="flex gap-3 flex-wrap">
+                      {[
+                        { v: 'skip',   label: 'Skip duplicates',   desc: 'Default — leave existing leads untouched' },
+                        { v: 'update', label: 'Update existing',   desc: 'Refresh name/course/source on matched leads' },
+                        { v: 'import', label: 'Import all',        desc: 'Always create new leads (allows dupes)' },
+                      ].map(o => (
+                        <label key={o.v} className={`flex-1 min-w-[140px] cursor-pointer p-3 rounded-lg border-2 transition ${dupHandling === o.v ? 'border-primary-500 bg-white shadow-sm' : 'border-gray-200 bg-white/50 hover:border-primary-300'}`}>
+                          <input type="radio" name="dup" value={o.v} checked={dupHandling === o.v} onChange={e => setDupHandling(e.target.value)} className="hidden" />
+                          <div className={`text-sm font-semibold ${dupHandling === o.v ? 'text-primary-700' : 'text-gray-700'}`}>{o.label}</div>
+                          <div className="text-[10px] text-gray-500 mt-0.5">{o.desc}</div>
+                        </label>
+                      ))}
                     </div>
-                  )}
+                  </div>
 
                   {/* Lead assignment — admins choose round-robin OR specific counsellor */}
                   {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
@@ -1317,7 +1325,7 @@ export default function LeadManager() {
 
               {/* STEP 4: Done */}
               {bulkStep === 4 && uploadResult && (
-                <div className="py-8 text-center space-y-4">
+                <div className="py-6 text-center space-y-4">
                   <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto mb-2">
                     <CheckCircle2 size={36} />
                   </div>
@@ -1327,6 +1335,26 @@ export default function LeadManager() {
                     <div className="bg-yellow-50 rounded-xl p-3"><div className="text-xl font-bold text-yellow-700">{uploadResult.skipped}</div><div className="text-xs text-yellow-500">Skipped</div></div>
                     <div className="bg-blue-50 rounded-xl p-3"><div className="text-xl font-bold text-blue-700">{uploadResult.updated}</div><div className="text-xs text-blue-500">Updated</div></div>
                   </div>
+
+                  {/* Hint when most rows skipped */}
+                  {uploadResult.hint && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-left max-w-2xl mx-auto">
+                      <p className="text-sm text-yellow-800 whitespace-pre-line">{uploadResult.hint}</p>
+                    </div>
+                  )}
+
+                  {/* Sample skip reasons */}
+                  {uploadResult.skipReasons?.length > 0 && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-left max-w-2xl mx-auto">
+                      <p className="text-xs font-bold text-gray-600 uppercase mb-2">Why rows were skipped (first {uploadResult.skipReasons.length})</p>
+                      <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                        {uploadResult.skipReasons.map((r, i) => <li key={i}>{r}</li>)}
+                      </ul>
+                      <p className="text-[11px] text-gray-400 mt-3">
+                        Tip: switch the <strong>Duplicate Handling</strong> option above from "Skip" to <strong>"Update existing"</strong> if you want these rows to refresh existing leads.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

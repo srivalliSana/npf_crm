@@ -3343,9 +3343,11 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
     const client = await pool.connect()
     let imported = 0, skipped = 0, updated = 0
     const assignmentCounts = {}
+    const skipReasons = []   // sample of why rows were skipped (max 5)
     try {
       await client.query('BEGIN')
-      for (const row of rawData) {
+      for (let rowNum = 0; rowNum < rawData.length; rowNum++) {
+        const row = rawData[rowNum]
         const name   = String(row[columnMap.name]   || row.Name   || row.name   || 'Unnamed').substring(0, 100)
         const email  = String(row[columnMap.email]  || row.Email  || row.email  || `lead_${Date.now()}@noemail.com`).substring(0, 100)
         const mobile = String(row[columnMap.mobile] || row.Mobile || row.mobile || '0000000000').replace(/\D/g, '').substring(0, 50) || '0000000000'
@@ -3360,9 +3362,17 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
         const owner  = getNextOwner()
         assignmentCounts[owner] = (assignmentCounts[owner] || 0) + 1
 
-        const dup = await client.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
+        const dup = await client.query('SELECT id, name, mobile, email FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
         if (dup.rows.length > 0) {
-          if (dupHandling === 'skip') { skipped++; continue }
+          if (dupHandling === 'skip') {
+            skipped++
+            // Capture reason for first 5 skipped rows so user knows what happened
+            if (skipReasons.length < 5) {
+              const matchedOn = dup.rows[0].mobile === mobile ? `mobile ${mobile}` : `email ${email}`
+              skipReasons.push(`Row ${rowNum + 1}: "${name}" matches existing lead #${dup.rows[0].id} ("${dup.rows[0].name}") on ${matchedOn}`)
+            }
+            continue
+          }
           if (dupHandling === 'update') {
             await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5 WHERE id=$6;',
               [name, course, source, score, sourceType, dup.rows[0].id])
@@ -3400,7 +3410,17 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
       const summary = Object.entries(assignmentCounts).map(([n,c])=>`${n}: ${c}`).join(', ')
       await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
         [`Bulk upload: ${imported} leads imported (${summary||'none'}) · ${skipped} skipped · ${updated} updated`, 'Just now'])
-      res.json({ success: true, imported, skipped, updated, total: rawData.length, assignments: assignmentCounts })
+      // Generate a helpful hint if everything was skipped
+      let hint = null
+      if (skipped === rawData.length && imported === 0) {
+        hint = '⚠️ All rows skipped because they match existing leads. Either:\n' +
+               '  • The file contains leads already in CRM, OR\n' +
+               '  • Choose "Update existing" or "Import all" on the duplicate-handling option, OR\n' +
+               '  • Admin can wipe leads via Settings → Production Reset before re-importing'
+      } else if (skipped > rawData.length * 0.5) {
+        hint = `Over 50% of rows skipped (${skipped}/${rawData.length}). Consider switching duplicate handling to "Update existing" if these are intentional re-uploads.`
+      }
+      res.json({ success: true, imported, skipped, updated, total: rawData.length, assignments: assignmentCounts, skipReasons, hint })
     } catch (dbErr) {
       await client.query('ROLLBACK')
       throw dbErr
