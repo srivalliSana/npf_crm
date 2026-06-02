@@ -117,6 +117,29 @@ export default function LeadManager() {
     setTransferLead(null); setTransferTo(''); setTransferRemark('')
   }
 
+  // Admin: preview + delete junk leads (course-as-name / invalid mobile)
+  const handleCleanJunk = async () => {
+    try {
+      const preview = await fetch('/api/admin/clean-junk-leads').then(r => r.json())
+      if (!preview.count) return showToast('No junk leads found — all clean!', 'success')
+
+      const sampleText = (preview.sample || []).slice(0, 8).map(s => `• ${s.name} (${s.mobile || 'no mobile'})`).join('\n')
+      if (!confirm(`Found ${preview.count} junk lead(s) — names that look like courses or invalid mobiles:\n\n${sampleText}\n\nDelete all ${preview.count}? This cannot be undone.`)) return
+
+      const res = await fetch('/api/admin/clean-junk-leads', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmPhrase: 'DELETE JUNK' })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showToast(`Removed ${data.deleted} junk leads`, 'success')
+        fetchAllData?.()
+      } else {
+        showToast(data.error || 'Cleanup failed', 'error')
+      }
+    } catch { showToast('Network error', 'error') }
+  }
+
   const handleSchedule = (lead) => {
     // Quick-schedule via prompt — full calendar event creation lives in lead detail
     const date = prompt(`Schedule follow-up call for ${lead.name}\n\nEnter date+time (DD/MM/YYYY HH:MM):`)
@@ -484,6 +507,11 @@ export default function LeadManager() {
           <button onClick={() => setShowBulkModal(true)} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
             <Upload size={14} /> Bulk Upload
           </button>
+          {currentUser?.role === 'Admin' && (
+            <button onClick={handleCleanJunk} className="flex items-center gap-1.5 text-sm text-orange-600 border border-orange-200 rounded-lg px-3 py-1.5 hover:bg-orange-50">
+              🧹 Clean Junk
+            </button>
+          )}
           <button onClick={() => setShowAddModal(true)} className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5">
             <Plus size={14} /> Add Lead
           </button>

@@ -98,6 +98,42 @@ async function adminOnly(req, res, next) {
   }
 }
 
+// ── CLEAN JUNK LEADS — remove rows where name is a course / invalid ─────────
+// GET = dry-run preview (count + sample). POST = actually delete.
+const JUNK_LEAD_SQL = `
+  FROM leads
+  WHERE
+    -- name looks like a course/program rather than a person
+    name ~* '^(m\\.?\\s?sc|b\\.?\\s?sc|b\\.?\\s?tech|m\\.?\\s?tech|mba|bba|bca|mca|b\\.?\\s?com|m\\.?\\s?com|ph\\.?d|diploma|llb|llm|pharm|nursing|genetics|genomics)'
+    -- or name is empty / placeholder
+    OR name IS NULL OR TRIM(name) = '' OR LOWER(name) IN ('unnamed','unnamed lead','na','n/a')
+    -- or name has fewer than 3 letters
+    OR LENGTH(REGEXP_REPLACE(name, '[^a-zA-Z]', '', 'g')) < 3
+    -- or mobile is invalid
+    OR mobile IS NULL OR LENGTH(REGEXP_REPLACE(mobile, '[^0-9]', '', 'g')) < 10
+`
+
+app.get('/api/admin/clean-junk-leads', adminOnly, async (req, res) => {
+  try {
+    const countRes  = await pool.query(`SELECT COUNT(*)::int AS c ${JUNK_LEAD_SQL};`)
+    const sampleRes = await pool.query(`SELECT id, name, mobile, course, owner ${JUNK_LEAD_SQL} LIMIT 15;`)
+    res.json({ count: countRes.rows[0].c, sample: sampleRes.rows })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/admin/clean-junk-leads', adminOnly, async (req, res) => {
+  const { confirmPhrase } = req.body
+  if (confirmPhrase !== 'DELETE JUNK') {
+    return res.status(400).json({ error: 'Send { confirmPhrase: "DELETE JUNK" }' })
+  }
+  try {
+    const r = await pool.query(`DELETE ${JUNK_LEAD_SQL} RETURNING id;`)
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+      [`Cleaned up ${r.rowCount} junk leads (course-as-name / invalid mobile)`, 'Just now'])
+    res.json({ ok: true, deleted: r.rowCount })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // ── PER-MODULE RESET — wipe one module's data (admin only) ──────────────────
 app.post('/api/admin/reset-module', adminOnly, async (req, res) => {
   const { module: mod, confirmPhrase } = req.body
@@ -3348,12 +3384,32 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
       await client.query('BEGIN')
       for (let rowNum = 0; rowNum < rawData.length; rowNum++) {
         const row = rawData[rowNum]
-        const name   = String(row[columnMap.name]   || row.Name   || row.name   || 'Unnamed').substring(0, 100)
+        const name   = String(row[columnMap.name]   || row.Name   || row.name   || '').trim().substring(0, 100)
         const email  = String(row[columnMap.email]  || row.Email  || row.email  || `lead_${Date.now()}@noemail.com`).substring(0, 100)
-        const mobile = String(row[columnMap.mobile] || row.Mobile || row.mobile || '0000000000').replace(/\D/g, '').substring(0, 50) || '0000000000'
+        const mobile = String(row[columnMap.mobile] || row.Mobile || row.mobile || '').replace(/\D/g, '').substring(0, 50)
         const state  = String(row[columnMap.state]  || row.State  || row.state  || '').substring(0, 100)
         const city   = String(row[columnMap.city]   || row.City   || row.city   || '').substring(0, 100)
         const course = String(row[columnMap.course] || row.Course || row.course || '').substring(0, 100)
+
+        // ── VALIDATION — reject junk rows (course-as-name, no mobile, etc.) ──
+        const validMobile = mobile.length >= 10
+        const COURSE_RX = /^(m\.?\s?sc|b\.?\s?sc|b\.?\s?tech|m\.?\s?tech|mba|bba|bca|mca|b\.?\s?com|m\.?\s?com|ph\.?d|diploma|b\.?\s?a\b|m\.?\s?a\b|llb|llm|b\.?pharm|pharm|nursing|genetics|genomics)/i
+        const nameLooksLikeCourse = COURSE_RX.test(name)
+        const nameTooShort = name.replace(/[^a-zA-Z]/g, '').length < 3
+        const nameMissing = !name || name.toLowerCase() === 'unnamed' || name.toLowerCase() === 'na'
+
+        if (nameMissing || nameTooShort || nameLooksLikeCourse || !validMobile) {
+          skipped++
+          if (skipReasons.length < 8) {
+            let why = []
+            if (nameMissing)        why.push('name is empty')
+            if (nameTooShort && !nameMissing) why.push('name too short')
+            if (nameLooksLikeCourse) why.push(`"${name}" looks like a course, not a person`)
+            if (!validMobile)       why.push('mobile is missing/invalid (<10 digits)')
+            skipReasons.push(`Row ${rowNum + 2}: ${why.join(' · ')}`)
+          }
+          continue
+        }
         // Source must be 'AI' (admin/internal import) or 'SM' (social media)
         const rawSrc = String(row[columnMap.source] || row.Source || row.source || 'AI').trim().toUpperCase()
         const source = rawSrc === 'SM' ? 'Social Media' : 'Admin Import'
