@@ -39,6 +39,25 @@ CCRM is a web-based application designed to:
 
 ---
 
+## 1.4 System Modules Overview (Quick Reference)
+
+This section provides a high-level summary of all major modules in CCRM for quick understanding:
+
+| # | Module | Purpose | Key Features | Users |
+|---|--------|---------|--------------|-------|
+| 1 | **Lead Management** | Import & track prospective students | Import from 7 sources, assign to counselors, track stages, search/filter | Counselors, Managers, Admins |
+| 2 | **Application Management** | Process student applications | Create apps from leads, upload docs, track stages, admin review | Counselors, Admins |
+| 3 | **Payment Management** | Handle online & manual payments | Razorpay/PayU integration, UTR verification, revenue tracking | Admins, Finance |
+| 4 | **User & Team Management** | Manage users and organizational structure | Role-based access (Admin/Manager/Counselor), team assignment, activity logs | Admins |
+| 5 | **Dashboard & KPIs** | Real-time performance metrics | Total Leads, Applications, Revenue, Enrollments, campus-wise breakdown | All Users |
+| 6 | **Productivity Report** | Counselor performance analysis | Counselor-wise stats, lead stages, applications, exportable reports | Managers, Admins |
+| 7 | **Daily Email Reports** | Automated productivity emails | 3:00 AM IST, HTML formatted, KPI + counselor breakdown, configurable recipients | Admins, Managers |
+| 8 | **S3 Backup & Recovery** | Automated daily backups | Database, files, logs, source code backed up to AWS S3 daily | Admins |
+| 9 | **Integration Health** | Monitor external integrations | Status of Facebook, Google, SMS, Email, WhatsApp, Payments, Telephony | Admins |
+| 10 | **Settings & Configuration** | System-wide configuration | SMTP, AWS S3, WhatsApp, SMS, Payment gateways, Google services | Admins |
+
+---
+
 ## 2. OVERALL DESCRIPTION
 
 ### 2.1 Product Vision
