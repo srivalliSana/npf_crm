@@ -580,12 +580,38 @@ export default function Integrations() {
         const data = await res.json()
         if (data.ok) showToast(`✓ ${data.message}`, 'success')
         else         showToast(`✗ ${data.error}`, 'error')
+      } else if (integ.id === 'reporting') {
+        // Test daily email report and S3 backup (admin only)
+        const token = localStorage.getItem('ccrm_token')
+        const res = await fetch('/api/admin/test-daily-report', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const data = await res.json()
+        if (res.ok) {
+          showToast('✓ Email report and S3 backup triggered! Check logs in 2-3 minutes.', 'success')
+        } else {
+          showToast(`✗ ${data.error || 'Test failed'}`, 'error')
+        }
+      } else if (integ.id === 's3backup') {
+        // Test S3 backup connectivity
+        const token = localStorage.getItem('ccrm_token')
+        const res = await fetch('/api/admin/test-daily-report', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const data = await res.json()
+        if (res.ok) {
+          showToast('✓ S3 backup test triggered! Check your S3 bucket for backups/YYYY-MM-DD/', 'success')
+        } else {
+          showToast(`✗ ${data.error || 'Test failed'}`, 'error')
+        }
       } else {
         await new Promise(r => setTimeout(r, 1000))
         showToast(`${integ.name} configuration saved — live test requires API credentials.`, 'info')
       }
-    } catch {
-      showToast('Test failed — server unreachable.', 'error')
+    } catch (e) {
+      showToast(`Test failed: ${e.message}`, 'error')
     }
     setTesting(null)
   }
