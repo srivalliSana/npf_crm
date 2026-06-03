@@ -4280,28 +4280,43 @@ async function performS3Backup() {
       return
     }
 
-    console.log(`[Backup] Starting S3 backup to: s3://${bucket}/backups/...`)
-    console.log(`[Backup] Using region: ${region}`)
+    // Trim credentials to remove any accidental spaces
+    const trimmedAccessKeyId = accessKeyId.trim()
+    const trimmedSecretAccessKey = secretAccessKey.trim()
+    const trimmedBucket = bucket.trim()
 
-    const s3 = new S3Client({ region, credentials: { accessKeyId, secretAccessKey } })
+    console.log(`[Backup] Starting S3 backup to: s3://${trimmedBucket}/backups/...`)
+    console.log(`[Backup] Using region: ${region}`)
+    console.log(`[Backup] Access Key ID: ${trimmedAccessKeyId.substring(0, 10)}...`)
+
+    const s3 = new S3Client({ region, credentials: { accessKeyId: trimmedAccessKeyId, secretAccessKey: trimmedSecretAccessKey } })
     const dateStr = new Date().toISOString().split('T')[0]
     const keyPrefix = `backups/${dateStr}`
+    const finalBucket = trimmedBucket
 
     // 1. Database dump
     try {
       console.log('[Backup] Creating database dump...')
-      const dbCommand = `PGPASSWORD="${process.env.DB_PASS || 'ccrm@123'}" pg_dump -h localhost -U ccrm_user ccrm_db 2>&1 | gzip`
-      const { stdout: dbBuffer, stderr } = await execAsync(dbCommand)
+      const pgPass = (process.env.DB_PASS || 'ccrm@123').trim()
+      const dbCommand = `PGPASSWORD='${pgPass}' pg_dump -h localhost -U ccrm_user ccrm_db 2>&1 | gzip`
+      const { stdout: dbBuffer, stderr } = await execAsync(dbCommand, { maxBuffer: 100 * 1024 * 1024 })
+
+      if (!dbBuffer || dbBuffer.length === 0) {
+        throw new Error('Database dump is empty - pg_dump may have failed')
+      }
       console.log(`[Backup] Database dump created (${(dbBuffer.length / 1024 / 1024).toFixed(2)} MB)`)
 
       await s3.send(new PutObjectCommand({
-        Bucket: bucket,
+        Bucket: finalBucket,
         Key: `${keyPrefix}/db.sql.gz`,
         Body: Buffer.from(dbBuffer, 'binary')
       }))
       console.log('[Backup] ✓ Database uploaded to S3')
     } catch (err) {
       console.error('[Backup] ✗ Database backup failed:', err.message)
+      if (err.message.includes('PGPASSWORD')) {
+        console.error('[Backup] Hint: Check database password in environment or code')
+      }
     }
 
     // 2. Uploads directory tar
@@ -4309,7 +4324,7 @@ async function performS3Backup() {
     if (fs.existsSync(uploadsDir)) {
       try {
         console.log('[Backup] Creating uploads tar...')
-        const { stdout: uploadsBuffer } = await execAsync(`tar -czf - -C "${__dirname}" uploads 2>&1`)
+        const { stdout: uploadsBuffer } = await execAsync(`tar -czf - -C "${__dirname}" uploads 2>&1`, { maxBuffer: 100 * 1024 * 1024 })
         console.log(`[Backup] Uploads tar created (${(uploadsBuffer.length / 1024 / 1024).toFixed(2)} MB)`)
 
         await s3.send(new PutObjectCommand({
@@ -4320,6 +4335,9 @@ async function performS3Backup() {
         console.log('[Backup] ✓ Uploads directory uploaded to S3')
       } catch (err) {
         console.error('[Backup] ✗ Uploads backup failed:', err.message)
+        if (err.message.includes('maxBuffer')) {
+          console.error('[Backup] Hint: Uploads directory is too large, increase maxBuffer limit')
+        }
       }
     } else {
       console.log('[Backup] ⚠️  Uploads directory not found, skipping')
@@ -4328,11 +4346,11 @@ async function performS3Backup() {
     // 3. Server logs (last 24 hours)
     try {
       console.log('[Backup] Fetching server logs...')
-      const { stdout: logsBuffer } = await execAsync(`journalctl -u ccrm-backend --since "24 hours ago" 2>&1 | gzip`)
+      const { stdout: logsBuffer } = await execAsync(`journalctl -u ccrm-backend --since "24 hours ago" 2>&1 | gzip`, { maxBuffer: 50 * 1024 * 1024 })
       console.log(`[Backup] Logs created (${(logsBuffer.length / 1024 / 1024).toFixed(2)} MB)`)
 
       await s3.send(new PutObjectCommand({
-        Bucket: bucket,
+        Bucket: finalBucket,
         Key: `${keyPrefix}/server.log.gz`,
         Body: Buffer.from(logsBuffer, 'binary')
       }))
@@ -4345,7 +4363,7 @@ async function performS3Backup() {
     await pool.query('INSERT INTO integration_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();',
       ['s3_last_backup_at', new Date().toISOString()])
 
-    console.log(`[Backup] ✅ S3 backup complete: s3://${bucket}/${keyPrefix}/`)
+    console.log(`[Backup] ✅ S3 backup complete: s3://${finalBucket}/${keyPrefix}/`)
   } catch (e) {
     console.error('[Backup] ❌ S3 backup failed:', e.message)
     console.error('[Backup] Stack:', e.stack)
