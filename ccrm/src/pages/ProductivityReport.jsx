@@ -102,10 +102,14 @@ export default function ProductivityReport() {
     owner: stats.name,
     email: stats.email || `${stats.name.split(' ')[0].toLowerCase()}@cutm.ac.in`,
     domain: getDomain(stats.email || `${stats.name.split(' ')[0].toLowerCase()}@cutm.ac.in`),
-    leadAssigned:    stats.leads || 0,
+    leads:           stats.leads || 0,
     untouched:       stats.untouched || 0,
+    contacted:       stats.contacted || 0,
+    followUp:        stats.followUp || 0,
     interested:      stats.interested || 0,
-    processPay:      stats.processPay || 0,
+    notInterested:   stats.notInterested || 0,
+    qualified:       stats.qualified || 0,
+    converted:       stats.converted || 0,
     appAssigned:     window._productivityAppCounts?.[stats.name] || 0,
     payApproved:     window._productivityPayCounts?.[stats.name] || 0,
   }))
@@ -117,13 +121,17 @@ export default function ProductivityReport() {
 
   // 2. Compute TOTALS dynamically
   const TOTALS = REPORT_DATA.reduce((acc, row) => ({
-    leadAssigned:    acc.leadAssigned    + row.leadAssigned,
+    leads:           acc.leads           + row.leads,
     untouched:       acc.untouched       + row.untouched,
+    contacted:       acc.contacted       + row.contacted,
+    followUp:        acc.followUp        + row.followUp,
     interested:      acc.interested      + row.interested,
-    processPay:      acc.processPay      + row.processPay,
+    notInterested:   acc.notInterested   + row.notInterested,
+    qualified:       acc.qualified       + row.qualified,
+    converted:       acc.converted       + row.converted,
     appAssigned:     acc.appAssigned     + row.appAssigned,
     payApproved:     acc.payApproved     + row.payApproved,
-  }), { leadAssigned: 0, untouched: 0, interested: 0, processPay: 0, appAssigned: 0, payApproved: 0 })
+  }), { leads: 0, untouched: 0, contacted: 0, followUp: 0, interested: 0, notInterested: 0, qualified: 0, converted: 0, appAssigned: 0, payApproved: 0 })
 
   const rowsPerPage = 6
   const totalPages = Math.ceil(REPORT_DATA.length / rowsPerPage) || 1
@@ -240,15 +248,19 @@ export default function ProductivityReport() {
         ))}
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-4 lg:grid-cols-6 gap-3 mb-5">
+      {/* Summary stats - Lead Funnel */}
+      <div className="grid grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
         {[
-          { label: 'Lead Assigned',    value: TOTALS.leadAssigned,    color: 'text-blue-600',   bg: 'bg-blue-50' },
+          { label: 'Total Leads',      value: TOTALS.leads,           color: 'text-blue-600',   bg: 'bg-blue-50' },
           { label: 'Untouched',        value: TOTALS.untouched,       color: 'text-orange-600', bg: 'bg-orange-50' },
+          { label: 'Contacted',        value: TOTALS.contacted,       color: 'text-yellow-600', bg: 'bg-yellow-50' },
+          { label: 'Follow Up',        value: TOTALS.followUp,        color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { label: 'Interested',       value: TOTALS.interested,      color: 'text-green-600',  bg: 'bg-green-50' },
-          { label: 'Process for Pay',  value: TOTALS.processPay,      color: 'text-yellow-600', bg: 'bg-yellow-50' },
-          { label: 'App Assigned',     value: TOTALS.appAssigned,     color: 'text-purple-600', bg: 'bg-purple-50' },
-          { label: 'Pay Approved',     value: TOTALS.payApproved,     color: 'text-emerald-600',bg: 'bg-emerald-50' },
+          { label: 'Not Interested',   value: TOTALS.notInterested,   color: 'text-red-600',    bg: 'bg-red-50' },
+          { label: 'Qualified',        value: TOTALS.qualified,       color: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: 'Converted',        value: TOTALS.converted,       color: 'text-emerald-600',bg: 'bg-emerald-50' },
+          { label: 'App Assigned',     value: TOTALS.appAssigned,     color: 'text-cyan-600',   bg: 'bg-cyan-50' },
+          { label: 'Pay Approved',     value: TOTALS.payApproved,     color: 'text-teal-600',   bg: 'bg-teal-50' },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center border border-white shadow-sm`}>
             <div className={`text-xl font-extrabold ${s.color}`}>{s.value}</div>
@@ -262,18 +274,24 @@ export default function ProductivityReport() {
         // Define column sets per subtab
         const VIEW_COLUMNS = {
           'Quick Summary': [
-            { label: 'Lead Assigned',  key: 'leadAssigned'  },
+            { label: 'Total Leads',    key: 'leads'         },
             { label: 'Untouched',      key: 'untouched'     },
+            { label: 'Contacted',      key: 'contacted'     },
+            { label: 'Follow Up',      key: 'followUp'      },
             { label: 'Interested',     key: 'interested'    },
-            { label: 'Process for Pay',key: 'processPay'    },
-            { label: 'Pay Approved',   key: 'payApproved'   },
-            { label: 'App Assigned',   key: 'appAssigned'   },
+            { label: 'Not Interested', key: 'notInterested' },
+            { label: 'Qualified',      key: 'qualified'     },
+            { label: 'Converted',      key: 'converted'     },
           ],
           'Lead Summary': [
-            { label: 'Lead Assigned',  key: 'leadAssigned'  },
+            { label: 'Total Leads',    key: 'leads'         },
             { label: 'Untouched',      key: 'untouched'     },
+            { label: 'Contacted',      key: 'contacted'     },
+            { label: 'Follow Up',      key: 'followUp'      },
             { label: 'Interested',     key: 'interested'    },
-            { label: 'Process for Pay',key: 'processPay'    },
+            { label: 'Not Interested', key: 'notInterested' },
+            { label: 'Qualified',      key: 'qualified'     },
+            { label: 'Converted',      key: 'converted'     },
           ],
           'Application Summary': [
             { label: 'Application Assigned',  key: 'appAssigned'   },
