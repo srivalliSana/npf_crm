@@ -4276,70 +4276,107 @@ async function performS3Backup() {
     const region = await getIntegrationSetting('aws_region') || 'ap-south-1'
 
     if (!accessKeyId || !secretAccessKey || !bucket) {
-      console.log('[Backup] S3 credentials not configured — skipping')
+      console.warn('[Backup] S3 credentials not configured — skipping backup')
       return
     }
+
+    console.log(`[Backup] Starting S3 backup to: s3://${bucket}/backups/...`)
+    console.log(`[Backup] Using region: ${region}`)
 
     const s3 = new S3Client({ region, credentials: { accessKeyId, secretAccessKey } })
     const dateStr = new Date().toISOString().split('T')[0]
     const keyPrefix = `backups/${dateStr}`
 
-    console.log('[Backup] Starting S3 backup...')
-
     // 1. Database dump
-    const dbCommand = `PGPASSWORD="${process.env.DB_PASS || 'ccrm@123'}" pg_dump -h localhost -U ccrm_user ccrm_db 2>/dev/null | gzip`
-    const { stdout: dbBuffer } = await execAsync(dbCommand)
-    await s3.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: `${keyPrefix}/db.sql.gz`,
-      Body: Buffer.from(dbBuffer, 'binary')
-    }))
-    console.log('[Backup] Database uploaded to S3')
+    try {
+      console.log('[Backup] Creating database dump...')
+      const dbCommand = `PGPASSWORD="${process.env.DB_PASS || 'ccrm@123'}" pg_dump -h localhost -U ccrm_user ccrm_db 2>&1 | gzip`
+      const { stdout: dbBuffer, stderr } = await execAsync(dbCommand)
+      console.log(`[Backup] Database dump created (${(dbBuffer.length / 1024 / 1024).toFixed(2)} MB)`)
+
+      await s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: `${keyPrefix}/db.sql.gz`,
+        Body: Buffer.from(dbBuffer, 'binary')
+      }))
+      console.log('[Backup] ✓ Database uploaded to S3')
+    } catch (err) {
+      console.error('[Backup] ✗ Database backup failed:', err.message)
+    }
 
     // 2. Uploads directory tar
     const uploadsDir = path.join(__dirname, 'uploads')
     if (fs.existsSync(uploadsDir)) {
-      const { stdout: uploadsBuffer } = await execAsync(`tar -czf - -C "${__dirname}" uploads 2>/dev/null`)
-      await s3.send(new PutObjectCommand({
-        Bucket: bucket,
-        Key: `${keyPrefix}/uploads.tar.gz`,
-        Body: Buffer.from(uploadsBuffer, 'binary')
-      }))
-      console.log('[Backup] Uploads directory uploaded to S3')
+      try {
+        console.log('[Backup] Creating uploads tar...')
+        const { stdout: uploadsBuffer } = await execAsync(`tar -czf - -C "${__dirname}" uploads 2>&1`)
+        console.log(`[Backup] Uploads tar created (${(uploadsBuffer.length / 1024 / 1024).toFixed(2)} MB)`)
+
+        await s3.send(new PutObjectCommand({
+          Bucket: bucket,
+          Key: `${keyPrefix}/uploads.tar.gz`,
+          Body: Buffer.from(uploadsBuffer, 'binary')
+        }))
+        console.log('[Backup] ✓ Uploads directory uploaded to S3')
+      } catch (err) {
+        console.error('[Backup] ✗ Uploads backup failed:', err.message)
+      }
+    } else {
+      console.log('[Backup] ⚠️  Uploads directory not found, skipping')
     }
 
     // 3. Server logs (last 24 hours)
     try {
-      const { stdout: logsBuffer } = await execAsync(`journalctl -u ccrm-backend --since "24 hours ago" 2>/dev/null | gzip`)
+      console.log('[Backup] Fetching server logs...')
+      const { stdout: logsBuffer } = await execAsync(`journalctl -u ccrm-backend --since "24 hours ago" 2>&1 | gzip`)
+      console.log(`[Backup] Logs created (${(logsBuffer.length / 1024 / 1024).toFixed(2)} MB)`)
+
       await s3.send(new PutObjectCommand({
         Bucket: bucket,
         Key: `${keyPrefix}/server.log.gz`,
         Body: Buffer.from(logsBuffer, 'binary')
       }))
-      console.log('[Backup] Server logs uploaded to S3')
-    } catch {
-      console.warn('[Backup] Could not fetch journalctl logs (expected on non-systemd systems)')
+      console.log('[Backup] ✓ Server logs uploaded to S3')
+    } catch (err) {
+      console.warn('[Backup] ⚠️  Could not fetch/upload journalctl logs:', err.message)
     }
 
     // Update last backup timestamp
     await pool.query('INSERT INTO integration_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();',
       ['s3_last_backup_at', new Date().toISOString()])
 
-    console.log(`[Backup] S3 backup complete: s3://${bucket}/${keyPrefix}/`)
+    console.log(`[Backup] ✅ S3 backup complete: s3://${bucket}/${keyPrefix}/`)
   } catch (e) {
-    console.error('[Backup] S3 backup failed:', e.message)
+    console.error('[Backup] ❌ S3 backup failed:', e.message)
+    console.error('[Backup] Stack:', e.stack)
   }
 }
 
 // --- SERVER LAUNCH BOOTSTRAP ---
+let cronJobRunning = false  // Prevent duplicate execution
+
 async function startServer() {
   await initDb()
 
   // Schedule daily cron jobs at 3:00 AM IST
   cron.schedule('0 3 * * *', async () => {
+    // Prevent duplicate execution if cron triggers twice
+    if (cronJobRunning) {
+      console.warn('[Cron] ⚠️  Job already running, skipping duplicate execution')
+      return
+    }
+
+    cronJobRunning = true
     console.log('[Cron] Starting 3am daily tasks...')
-    await sendProductivityEmailReport()
-    await performS3Backup()
+    try {
+      await sendProductivityEmailReport()
+      await performS3Backup()
+      console.log('[Cron] ✅ Daily tasks completed successfully')
+    } catch (e) {
+      console.error('[Cron] ❌ Daily tasks failed:', e.message)
+    } finally {
+      cronJobRunning = false
+    }
   }, { timezone: 'Asia/Kolkata' })
 
   // Test endpoint to manually trigger daily report
