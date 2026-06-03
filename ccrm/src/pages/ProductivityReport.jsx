@@ -26,6 +26,7 @@ export default function ProductivityReport() {
   const [currentPage, setCurrentPage] = useState(1)
   const [statsLoading, setStatsLoading] = useState(true)
   const [statsData, setStatsData] = useState([])
+  const [activeDomain, setActiveDomain] = useState('all') // 'all', 'cutm', 'cutmap'
 
   // Fetch pre-computed counselor stats from server (scales better than O(counselors × leads))
   useEffect(() => {
@@ -88,10 +89,19 @@ export default function ProductivityReport() {
     fetchStats()
   }, [])
 
+  // Helper function to determine domain from email
+  const getDomain = (email) => {
+    if (!email) return 'other'
+    if (email.includes('@cutm.ac.in')) return 'cutm'
+    if (email.includes('@cutmap.ac.in')) return 'cutmap'
+    return 'other'
+  }
+
   // 1. Compile REPORT_DATA — use server-aggregated stats
-  const REPORT_DATA = statsData.map(stats => ({
+  const allReportData = statsData.map(stats => ({
     owner: stats.name,
     email: stats.email || `${stats.name.split(' ')[0].toLowerCase()}@cutm.ac.in`,
+    domain: getDomain(stats.email || `${stats.name.split(' ')[0].toLowerCase()}@cutm.ac.in`),
     leadAssigned:    stats.leads || 0,
     untouched:       stats.untouched || 0,
     interested:      stats.interested || 0,
@@ -99,6 +109,11 @@ export default function ProductivityReport() {
     appAssigned:     window._productivityAppCounts?.[stats.name] || 0,
     payApproved:     window._productivityPayCounts?.[stats.name] || 0,
   }))
+
+  // Filter data based on selected domain
+  const REPORT_DATA = activeDomain === 'all'
+    ? allReportData
+    : allReportData.filter(r => r.domain === activeDomain)
 
   // 2. Compute TOTALS dynamically
   const TOTALS = REPORT_DATA.reduce((acc, row) => ({
@@ -182,6 +197,30 @@ export default function ProductivityReport() {
             <RefreshCw size={16} />
           </button>
         </div>
+      </div>
+
+      {/* Domain Tabs */}
+      <div className="flex gap-2 mb-4">
+        {[
+          { id: 'all', label: 'All Domains' },
+          { id: 'cutm', label: 'CUTM (@cutm.ac.in)' },
+          { id: 'cutmap', label: 'CUTMAP (@cutmap.ac.in)' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              setActiveDomain(tab.id)
+              setCurrentPage(1)
+            }}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all focus:outline-none ${
+              activeDomain === tab.id
+                ? 'bg-primary-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Quick Views */}
