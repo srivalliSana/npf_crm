@@ -18,7 +18,7 @@ export default function Dashboard() {
   useEffect(() => {
     // Fetch achievement data
     const m = MONTHS[new Date().getMonth()]
-    fetch(`/api/targets/achievement?month=${m}&year=${new Date().getFullYear()}&campus=All`)
+    fetch(`/api/targets/achievement?month=${m}&year=${new Date().getFullYear()}&campus=${activeCampus}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setAchievement(data) })
       .catch(() => {})
@@ -31,14 +31,15 @@ export default function Dashboard() {
 
     // Server-side aggregated dashboard stats — scales to millions of rows.
     // Role-scoped: counsellor sees own, manager sees their team, admin sees all.
-    let q = ''
-    if (currentUser?.role === 'Counselor') q = `?owner=${encodeURIComponent(currentUser.name)}`
-    else if (currentUser?.role === 'Manager') q = `?manager=${encodeURIComponent(currentUser.name)}`
+    setStatsLoading(true)
+    let q = `?campus=${encodeURIComponent(activeCampus)}`
+    if (currentUser?.role === 'Counselor') q += `&owner=${encodeURIComponent(currentUser.name)}`
+    else if (currentUser?.role === 'Manager') q += `&manager=${encodeURIComponent(currentUser.name)}`
     fetch(`/api/dashboard/stats${q}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { setStats(data); setStatsLoading(false) })
       .catch(() => setStatsLoading(false))
-  }, [currentUser])
+  }, [currentUser, activeCampus])
 
   const handleSaveTarget = async (e) => {
     e.preventDefault()
@@ -81,11 +82,8 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <select className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer">
-              <option>Last 30 Days</option>
-              <option>Last 7 Days</option>
-              <option>This Month</option>
-              <option>This Quarter</option>
+            <select value={activeCampus} onChange={e => setActiveCampus(e.target.value)} className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer">
+              {CAMPUSES.map(campus => <option key={campus} value={campus}>{campus}</option>)}
             </select>
             <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           </div>
