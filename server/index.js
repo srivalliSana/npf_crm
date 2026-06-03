@@ -1685,12 +1685,9 @@ app.get('/api/dashboard/stats', async (req, res) => {
       SELECT
         COUNT(*)::int AS "totalLeads",
         SUM(CASE WHEN stage='Untouched'           THEN 1 ELSE 0 END)::int AS untouched,
-        SUM(CASE WHEN stage='Contacted'           THEN 1 ELSE 0 END)::int AS contacted,
         SUM(CASE WHEN stage='Follow Up'           THEN 1 ELSE 0 END)::int AS "followUp",
         SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,
-        SUM(CASE WHEN stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
-        SUM(CASE WHEN stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess",
-        SUM(CASE WHEN stage='Not Interested'      THEN 1 ELSE 0 END)::int AS "notInterested"
+        SUM(CASE WHEN not_interested_reason IS NOT NULL AND TRIM(not_interested_reason) <> '' THEN 1 ELSE 0 END)::int AS "notInterested"
       FROM leads l ${ownerWhere};
     `, params)
 
