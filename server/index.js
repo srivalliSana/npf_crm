@@ -4359,6 +4359,26 @@ async function performS3Backup() {
       console.warn('[Backup] ⚠️  Could not fetch/upload journalctl logs:', err.message)
     }
 
+    // 4. Source code backup (server + frontend)
+    try {
+      console.log('[Backup] Creating source code backup...')
+      const codeDir = path.join(__dirname, '..')  // Go up to project root
+      const { stdout: codeBuffer } = await execAsync(`tar -czf - -C "${codeDir}" server ccrm/dist --exclude=node_modules --exclude=.git 2>&1`, { maxBuffer: 200 * 1024 * 1024 })
+      console.log(`[Backup] Source code created (${(codeBuffer.length / 1024 / 1024).toFixed(2)} MB)`)
+
+      await s3.send(new PutObjectCommand({
+        Bucket: finalBucket,
+        Key: `${keyPrefix}/source-code.tar.gz`,
+        Body: Buffer.from(codeBuffer, 'binary')
+      }))
+      console.log('[Backup] ✓ Source code uploaded to S3')
+    } catch (err) {
+      console.error('[Backup] ✗ Source code backup failed:', err.message)
+      if (err.message.includes('maxBuffer')) {
+        console.error('[Backup] Hint: Source code is too large, increase maxBuffer limit or exclude more directories')
+      }
+    }
+
     // Update last backup timestamp
     await pool.query('INSERT INTO integration_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();',
       ['s3_last_backup_at', new Date().toISOString()])
