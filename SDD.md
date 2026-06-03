@@ -23,6 +23,79 @@
 - **Performance:** Indexed database queries, optimized API responses
 - **Reliability:** Error handling, transaction consistency, automated backups
 
+### 1.3 System Modules Architecture (Quick Reference)
+
+**Core Modules & Their Interactions:**
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                                                            │
+│                   CCRM SYSTEM MODULES ARCHITECTURE                        │
+│                                                                            │
+│  FRONTEND LAYER (React)                 BACKEND LAYER (Node.js)           │
+│  ─────────────────────────────────      ──────────────────────────        │
+│                                                                            │
+│  1. Dashboard                           Lead Service                      │
+│     └─ KPIs, Campus Filter              ├─ Import from 7 sources          │
+│     └─ Target Tracker                   ├─ Assign/Reassign                │
+│                                         ├─ Stage Management               │
+│  2. Lead Manager                        ├─ Search/Filter/Paginate         │
+│     └─ List, Search, Filter             └─ Activity Logging               │
+│     └─ Bulk Operations                                                    │
+│     └─ Inline Editing                   Application Service               │
+│                                         ├─ Create from Lead               │
+│  3. Applications                        ├─ Document Upload                │
+│     └─ List, Create, Submit             ├─ Stage Tracking                 │
+│     └─ Document Management              └─ Admin Approval                 │
+│                                                                            │
+│  4. Payments                            Payment Service                   │
+│     └─ Payment List                     ├─ Razorpay Integration           │
+│     └─ Payment Status                   ├─ PayU Integration               │
+│     └─ Revenue Dashboard                ├─ UTR Verification               │
+│                                         ├─ Revenue Calculation            │
+│  5. Productivity Report                 └─ Webhook Handling               │
+│     └─ Counselor Stats                                                    │
+│     └─ Export/Print                     User Management Service           │
+│                                         ├─ User CRUD                      │
+│  6. Settings & Integrations             ├─ Role Assignment                │
+│     └─ AWS S3 Config                    ├─ Team Structure                 │
+│     └─ SMTP Config                      └─ Activity Logs                  │
+│     └─ Webhook Status                                                     │
+│                                         Automation Service                │
+│  7. Dashboard (Analytics)               ├─ Daily Email Report (3 AM IST)  │
+│     └─ Lead Distribution                ├─ S3 Backup (3 AM IST)           │
+│     └─ Top Performers                   ├─ Scheduled Tasks                │
+│     └─ Targets vs Achievement           └─ Cron Job Management            │
+│                                                                            │
+│                                         Integration Service               │
+│                                         ├─ Facebook Ads Webhook           │
+│                                         ├─ Google Ads Webhook             │
+│                                         ├─ LinkedIn Webhook               │
+│                                         ├─ WhatsApp API                   │
+│                                         ├─ SMS Gateway                    │
+│                                         └─ Telephony (Ameyo)              │
+│                                                                            │
+│  DATABASE LAYER (PostgreSQL)                                             │
+│  ────────────────────────────                                            │
+│  ├─ leads (203,978+ records)      │ Data Storage                         │
+│  ├─ applications                  │ & Relationships                      │
+│  ├─ payments                       │                                      │
+│  ├─ users                          │                                      │
+│  ├─ documents                      │                                      │
+│  └─ integration_settings           │                                      │
+│                                                                            │
+│  FILE STORAGE & BACKUPS                                                   │
+│  ────────────────────────                                                 │
+│  ├─ Local: /var/www/ccrm/uploads/                                        │
+│  └─ AWS S3: backups/YYYY-MM-DD/                                          │
+│     ├─ db.sql.gz (database)                                              │
+│     ├─ uploads.tar.gz (files)                                            │
+│     ├─ server.log.gz (logs)                                              │
+│     └─ source-code.tar.gz (code)                                         │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## 2. SYSTEM ARCHITECTURE
