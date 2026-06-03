@@ -1666,19 +1666,30 @@ app.get('/api/admin/version', (req, res) => {
 // Optional ?owner=Name (counsellor) or ?manager=Name (their team) to scope.
 app.get('/api/dashboard/stats', async (req, res) => {
   try {
-    const { owner, manager } = req.query
+    const { owner, manager, campus } = req.query
 
-    // Build an owner filter (parameterised) for role-scoped dashboards
+    // Build filters (parameterised) for role-scoped dashboards
     let ownerWhere = ''
     const params = []
+    const whereConditions = []
+
+    // Campus filter (if not "All")
+    if (campus && campus !== 'All') {
+      params.push(campus)
+      whereConditions.push(`l.campus = $${params.length}`)
+    }
+
+    // Owner/Manager scope
     if (owner) {
       params.push(owner)
-      ownerWhere = `WHERE l.owner = $${params.length}`
+      whereConditions.push(`l.owner = $${params.length}`)
     } else if (manager) {
-      // manager + their reportees
       params.push(manager)
-      ownerWhere = `WHERE (l.owner = $${params.length} OR l.owner IN (SELECT name FROM users WHERE reports_to = $${params.length}))`
+      params.push(manager)
+      whereConditions.push(`(l.owner = $${params.length - 1} OR l.owner IN (SELECT name FROM users WHERE reports_to = $${params.length}))`)
     }
+
+    ownerWhere = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''
 
     // 1. Overall KPI counts (single scan)
     const kpi = await pool.query(`
