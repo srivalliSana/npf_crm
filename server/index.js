@@ -1721,7 +1721,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
         SUM(CASE WHEN l.stage='Contacted' THEN 1 ELSE 0 END)::int AS contacted,
         SUM(CASE WHEN l.stage='Follow Up' THEN 1 ELSE 0 END)::int AS "followUp",
         SUM(CASE WHEN l.stage='Interested' THEN 1 ELSE 0 END)::int AS interested,
-        SUM(CASE WHEN l.not_interested_reason IS NOT NULL THEN 1 ELSE 0 END)::int AS "notInterested",
+        SUM(CASE WHEN l.not_interested_reason IS NOT NULL AND TRIM(l.not_interested_reason) <> '' THEN 1 ELSE 0 END)::int AS "notInterested",
         SUM(CASE WHEN l.stage='Qualified Leads' THEN 1 ELSE 0 END)::int AS qualified,
         SUM(CASE WHEN l.stage='Converted' THEN 1 ELSE 0 END)::int AS converted
       FROM users u
