@@ -1717,13 +1717,15 @@ app.get('/api/dashboard/stats', async (req, res) => {
       SELECT
         u.name, u.email,
         COUNT(l.id)::int AS leads,
-        SUM(CASE WHEN l.stage='Untouched'  THEN 1 ELSE 0 END)::int AS untouched,
+        SUM(CASE WHEN l.stage='Untouched' THEN 1 ELSE 0 END)::int AS untouched,
+        SUM(CASE WHEN l.stage='Contacted' THEN 1 ELSE 0 END)::int AS contacted,
+        SUM(CASE WHEN l.stage='Follow Up' THEN 1 ELSE 0 END)::int AS "followUp",
         SUM(CASE WHEN l.stage='Interested' THEN 1 ELSE 0 END)::int AS interested,
-        SUM(CASE WHEN l.stage='Follow Up'  THEN 1 ELSE 0 END)::int AS "followUp",
-        SUM(CASE WHEN l.stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
-        SUM(CASE WHEN l.stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess"
+        SUM(CASE WHEN l.not_interested_reason IS NOT NULL THEN 1 ELSE 0 END)::int AS "notInterested",
+        SUM(CASE WHEN l.stage='Qualified Leads' THEN 1 ELSE 0 END)::int AS qualified,
+        SUM(CASE WHEN l.stage='Converted' THEN 1 ELSE 0 END)::int AS converted
       FROM users u
-      LEFT JOIN leads l ON l.owner = u.name
+      LEFT JOIN leads l ON LOWER(l.owner) = LOWER(u.name)
       WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
       GROUP BY u.name, u.email
       HAVING COUNT(l.id) > 0
