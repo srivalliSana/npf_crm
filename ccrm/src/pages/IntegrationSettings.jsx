@@ -19,8 +19,12 @@ export default function IntegrationSettings() {
 
   const fetchConfig = async () => {
     try {
+      const token = localStorage.getItem('ccrm_auth_token')
       const res = await fetch('/api/integrations/messaging-provider/calling', {
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
       })
       if (res.ok) {
         const data = await res.json()
@@ -47,9 +51,13 @@ export default function IntegrationSettings() {
 
     setConfigLoading(true)
     try {
+      const token = localStorage.getItem('ccrm_auth_token')
       const res = await fetch('/api/integrations/messaging-provider', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           provider: 'easygoivr',
           config: easyGoConfig

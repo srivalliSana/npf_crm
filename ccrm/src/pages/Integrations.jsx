@@ -174,6 +174,22 @@ const INTEGRATIONS = [
 
   // ── Telephony ───────────────────────────────────────────────────────────────
   {
+    id: 'easygoivr',
+    name: 'EasyGoIVR',
+    description: 'Click-to-call from leads with automatic call logging. Make outbound calls directly from the CRM with real-time status tracking.',
+    icon: PhoneCall,
+    color: 'text-green-600',
+    bg: 'bg-green-50',
+    border: 'border-green-200',
+    category: 'Telephony',
+    docsUrl: 'https://client.easygoivr.com/',
+    fields: [
+      { key: 'easygo_email',        label: 'Email (Username)',        placeholder: 'admin@truckmitr.com', secret: false },
+      { key: 'easygo_password_hash', label: 'Password Hash',          placeholder: '6515a6cb823fcbe20f7287bd4659d5ba', secret: true },
+      { key: 'easygo_did',          label: 'DID (Direct Inward Dial)', placeholder: '8062814103 — shown to recipients', secret: false },
+    ]
+  },
+  {
     id: 'ameyo',
     name: 'Telephony (Ameyo / Exotel)',
     description: 'Click-to-call counselors via Ameyo or Exotel. Supports both providers — detected automatically from the API URL.',
