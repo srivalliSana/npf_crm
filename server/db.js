@@ -207,6 +207,24 @@ export async function initDb() {
       );
     `)
 
+    // 13b. Calls (EasyGoIVR integration)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS calls (
+        id SERIAL PRIMARY KEY,
+        lead_id INTEGER NOT NULL,
+        lead_name VARCHAR(100) NOT NULL,
+        phone_number VARCHAR(50) NOT NULL,
+        caller_extension VARCHAR(50) NOT NULL,
+        status VARCHAR(50) DEFAULT 'initiated',
+        call_duration INTEGER DEFAULT 0,
+        initiated_by VARCHAR(100) NOT NULL,
+        initiated_at TIMESTAMP DEFAULT NOW(),
+        completed_at TIMESTAMP,
+        provider VARCHAR(50) DEFAULT 'easygoivr',
+        recording_url TEXT DEFAULT ''
+      );
+    `)
+
     // 14. Admission Targets (target vs achievement)
     await client.query(`
       CREATE TABLE IF NOT EXISTS admission_targets (

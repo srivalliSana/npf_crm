@@ -1037,6 +1037,43 @@ export function CcrmProvider({ children }) {
     return null
   }
 
+  // EasyGoIVR Click-to-Call
+  const initiateCall = async (leadId, phoneNumber, counselorExtension) => {
+    try {
+      const res = await fetch('/api/calls/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, phoneNumber, counselorExtension })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        showToast(`Call initiated to ${phoneNumber}`, 'success')
+        return data
+      } else {
+        const err = await res.json()
+        showToast(err.error || 'Failed to initiate call', 'error')
+        return null
+      }
+    } catch (e) {
+      showToast(e.message || 'Call initiation failed', 'error')
+      return null
+    }
+  }
+
+  const getCallHistory = async (leadId) => {
+    try {
+      const res = await fetch(`/api/calls/history/${leadId}`, {
+        headers: { 'Content-Type': 'application/json' }
+      })
+      if (res.ok) {
+        return await res.json()
+      }
+    } catch (e) {
+      console.error('Failed to fetch call history:', e)
+    }
+    return []
+  }
+
   // Feature 17: Campus filter
   const [activeCampus, setActiveCampus] = useState('All')
 
@@ -1155,6 +1192,7 @@ export function CcrmProvider({ children }) {
       dripSequences, setDripSequences, enrollDrip,
       generatePaymentLink,
       callLogs, setCallLogs, logCall,
+      initiateCall, getCallHistory,
       activeCampus, setActiveCampus,
       targets, setTargets, saveTarget,
       emailCampaigns, setEmailCampaigns, addEmailCampaign, sendEmailCampaign, deleteEmailCampaign,

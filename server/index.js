@@ -12,6 +12,7 @@ import cron from 'node-cron'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { promisify } from 'util'
 import { exec } from 'child_process'
+import axios from 'axios'
 const execAsync = promisify(exec)
 
 const __filename = fileURLToPath(import.meta.url)
@@ -100,6 +101,72 @@ async function adminOnly(req, res, next) {
     next()
   } catch {
     res.status(403).json({ error: 'Invalid or expired token.' })
+  }
+}
+
+// === EASYGO IVR PROVIDER CLASS ===
+class EasyGoIVRProvider {
+  constructor(email, passwordHash) {
+    this.email = email
+    this.passwordHash = passwordHash
+    this.token = null
+    this.tokenExpiry = null
+    this.tokenRefreshBuffer = 5 * 60 * 1000 // Refresh 5 min before expiry
+  }
+
+  async getToken() {
+    // Check if token is still valid (with 5 min buffer)
+    if (this.token && this.tokenExpiry && Date.now() < this.tokenExpiry - this.tokenRefreshBuffer) {
+      return this.token
+    }
+
+    try {
+      const response = await axios.post(
+        'https://client.easygoivr.com/masterapiJwt/gentoken',
+        {},
+        {
+          auth: {
+            username: this.email,
+            password: this.passwordHash
+          }
+        }
+      )
+
+      this.token = response.data.token || response.data
+      // Assume token valid for 24 hours
+      this.tokenExpiry = Date.now() + 24 * 60 * 60 * 1000
+      return this.token
+    } catch (err) {
+      console.error('[EasyGoIVR] Token generation failed:', err.message)
+      throw new Error(`EasyGoIVR token generation failed: ${err.message}`)
+    }
+  }
+
+  async initiateCall(extension, phoneNumber, did) {
+    const token = await this.getToken()
+
+    try {
+      const response = await axios.post(
+        'https://client.easygoivr.com/easygoapiJwt/request/dial',
+        { exten: extension, number: phoneNumber, did: did },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'API_TOKEN': token
+          }
+        }
+      )
+
+      return {
+        success: true,
+        callId: response.data.call_id || response.data.id || `${Date.now()}`,
+        timestamp: new Date(),
+        data: response.data
+      }
+    } catch (err) {
+      console.error('[EasyGoIVR] Call initiation failed:', err.message)
+      throw new Error(`Failed to initiate call: ${err.message}`)
+    }
   }
 }
 
@@ -2808,6 +2875,159 @@ app.post('/api/document-upload/:token', uploadDoc.single('file'), async (req, re
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Upload failed.' })
+  }
+})
+
+// === EASYGO IVR: CLICK-TO-CALL ENDPOINTS ===
+
+// POST /api/calls/initiate — Click-to-call from lead detail
+app.post('/api/calls/initiate', authenticateToken, async (req, res) => {
+  try {
+    const { leadId, phoneNumber, counselorExtension } = req.body
+    if (!leadId || !phoneNumber || !counselorExtension) {
+      return res.status(400).json({ error: 'Missing leadId, phoneNumber, or counselorExtension.' })
+    }
+
+    // Fetch EasyGoIVR credentials from integration_settings
+    const emailRes = await getIntegrationSetting('easygo_email')
+    const hashRes = await getIntegrationSetting('easygo_password_hash')
+    const didRes = await getIntegrationSetting('easygo_did')
+
+    if (!emailRes || !hashRes || !didRes) {
+      return res.status(400).json({ error: 'EasyGoIVR not configured. Contact admin.' })
+    }
+
+    // Initiate call via EasyGoIVR
+    const provider = new EasyGoIVRProvider(emailRes, hashRes)
+    const callResult = await provider.initiateCall(counselorExtension, phoneNumber, didRes)
+
+    // Log call in database
+    const leadRes = await pool.query('SELECT name, email FROM leads WHERE id = $1;', [leadId])
+    const leadName = leadRes.rows[0]?.name || 'Unknown'
+
+    await pool.query(
+      `INSERT INTO calls (lead_id, lead_name, phone_number, caller_extension, status, call_duration, initiated_by, initiated_at, provider)
+       VALUES ($1, $2, $3, $4, 'initiated', 0, $5, NOW(), 'easygoivr')
+       RETURNING id;`,
+      [leadId, leadName, phoneNumber, counselorExtension, req.user.name]
+    )
+
+    res.json({ success: true, message: 'Call initiated.', callData: callResult })
+  } catch (err) {
+    console.error('[Call Initiate]', err)
+    res.status(500).json({ error: err.message || 'Failed to initiate call.' })
+  }
+})
+
+// GET /api/calls/history/:leadId — Call history for a lead
+app.get('/api/calls/history/:leadId', authenticateToken, async (req, res) => {
+  try {
+    const { leadId } = req.params
+    const callsRes = await pool.query(
+      `SELECT id, phone_number, caller_extension, status, call_duration, initiated_by, initiated_at, completed_at
+       FROM calls
+       WHERE lead_id = $1
+       ORDER BY initiated_at DESC
+       LIMIT 50;`,
+      [leadId]
+    )
+
+    res.json(callsRes.rows)
+  } catch (err) {
+    console.error('[Call History]', err)
+    res.status(500).json({ error: 'Failed to fetch call history.' })
+  }
+})
+
+// POST /api/calls/webhook — Receive call status updates from EasyGoIVR
+app.post('/api/calls/webhook', async (req, res) => {
+  try {
+    const { callId, status, duration, completedAt } = req.body
+    if (!callId) {
+      return res.status(400).json({ error: 'Missing callId in webhook body.' })
+    }
+
+    await pool.query(
+      `UPDATE calls SET status = $1, call_duration = $2, completed_at = $3 WHERE id = $4;`,
+      [status || 'completed', duration || 0, completedAt || new Date(), callId]
+    )
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[Call Webhook]', err)
+    res.status(500).json({ error: 'Webhook processing failed.' })
+  }
+})
+
+// POST /api/integrations/messaging-provider — Configure EasyGoIVR provider
+app.post('/api/integrations/messaging-provider', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin only.' })
+    }
+
+    const { provider, config } = req.body
+    if (provider !== 'easygoivr') {
+      return res.status(400).json({ error: 'Only easygoivr supported currently.' })
+    }
+
+    const { email, passwordHash, did } = config
+    if (!email || !passwordHash || !did) {
+      return res.status(400).json({ error: 'Missing email, passwordHash, or did.' })
+    }
+
+    // Test the credentials by getting a token
+    try {
+      const testProvider = new EasyGoIVRProvider(email, passwordHash)
+      await testProvider.getToken()
+    } catch (testErr) {
+      return res.status(400).json({ error: `EasyGoIVR credentials invalid: ${testErr.message}` })
+    }
+
+    // Save credentials
+    await pool.query(
+      `INSERT INTO integration_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();`,
+      ['easygo_email', email]
+    )
+    await pool.query(
+      `INSERT INTO integration_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();`,
+      ['easygo_password_hash', passwordHash]
+    )
+    await pool.query(
+      `INSERT INTO integration_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();`,
+      ['easygo_did', did]
+    )
+
+    res.json({ success: true, message: 'EasyGoIVR configured and tested.' })
+  } catch (err) {
+    console.error('[Provider Config]', err)
+    res.status(500).json({ error: 'Failed to configure provider.' })
+  }
+})
+
+// GET /api/integrations/messaging-provider/:channel — Get current provider config
+app.get('/api/integrations/messaging-provider/:channel', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin only.' })
+    }
+
+    if (req.params.channel !== 'calling') {
+      return res.status(400).json({ error: 'Only calling channel supported.' })
+    }
+
+    const emailRes = await getIntegrationSetting('easygo_email')
+    const didRes = await getIntegrationSetting('easygo_did')
+
+    res.json({
+      provider: 'easygoivr',
+      configured: !!(emailRes && didRes),
+      email: emailRes ? emailRes.substring(0, 3) + '***' : null,
+      did: didRes
+    })
+  } catch (err) {
+    console.error('[Provider Get]', err)
+    res.status(500).json({ error: 'Failed to fetch provider config.' })
   }
 })
 
