@@ -120,6 +120,14 @@ class EasyGoIVRProvider {
       return this.token
     }
 
+    // If passwordHash looks like a JWT token (starts with eyJ), use it directly
+    if (this.passwordHash && this.passwordHash.startsWith('eyJ')) {
+      this.token = this.passwordHash
+      // JWT tokens have exp field, estimate 24 hours for safety
+      this.tokenExpiry = Date.now() + 24 * 60 * 60 * 1000
+      return this.token
+    }
+
     try {
       const response = await axios.post(
         'https://client.easygoivr.com/masterapiJwt/gentoken',
