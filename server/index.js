@@ -140,9 +140,11 @@ class EasyGoIVRProvider {
         }
       )
 
-      this.token = response.data.token || response.data
+      // Extract API_TOKEN from response (uppercase field name)
+      this.token = response.data.API_TOKEN || response.data.token || response.data
       // Assume token valid for 24 hours
       this.tokenExpiry = Date.now() + 24 * 60 * 60 * 1000
+      console.log('[EasyGoIVR] Token generated successfully')
       return this.token
     } catch (err) {
       console.error('[EasyGoIVR] Token generation failed:', err.message)
