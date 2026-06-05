@@ -30,6 +30,7 @@ import Analytics from './pages/Analytics'
 import IntegrationHealth from './pages/IntegrationHealth'
 import ServerHealth from './pages/ServerHealth'
 import SecurityAccess from './pages/SecurityAccess'
+import UserProfile from './pages/UserProfile'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -101,6 +102,7 @@ export default function App() {
             <Route path="drip-workflows"     element={<DripWorkflows />} />
             <Route path="comms-report"       element={<CommunicationsReport />} />
             <Route path="help"               element={<Help />} />
+            <Route path="profile"            element={<UserProfile />} />
             <Route element={<RoleGuard roles={['Admin','Manager']} />}>
               <Route path="transfer-approvals" element={<TransferApprovals />} />
             </Route>

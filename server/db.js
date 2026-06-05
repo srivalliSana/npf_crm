@@ -274,8 +274,25 @@ export async function initDb() {
       );
     `).catch(() => {})
 
-    // Users: add mobile field for WhatsApp alerts to counselors
+    // Users: add mobile field for WhatsApp alerts to counselors + mobile_number for calling
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile VARCHAR(50) DEFAULT '';`).catch(() => {})
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(20) DEFAULT '';`).catch(() => {})
+
+    // Leads: add lead_source tracking (facebook, form, counselor_upload, manual)
+    await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_source VARCHAR(50) DEFAULT 'form';`).catch(() => {})
+
+    // Document links for shareable upload URLs
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS document_links (
+        id SERIAL PRIMARY KEY,
+        lead_id INTEGER NOT NULL,
+        token VARCHAR(100) UNIQUE NOT NULL,
+        created_by VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        expiry_date TIMESTAMP,
+        views_count INTEGER DEFAULT 0
+      );
+    `).catch(() => {})
     // Reporting hierarchy — counsellor reports to a manager/dean (stores manager's name)
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reports_to VARCHAR(255) DEFAULT '';`).catch(() => {})
 

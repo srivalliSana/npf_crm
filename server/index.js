@@ -553,7 +553,7 @@ app.get('/api/leads', async (req, res) => {
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
     const offset = (page - 1) * limit
 
-    const { search, stage, owner, state, source, requesterRole, requesterName } = req.query
+    const { search, stage, owner, state, source, unassigned, requesterRole, requesterName } = req.query
 
     const where = []
     const params = []
@@ -568,8 +568,12 @@ app.get('/api/leads', async (req, res) => {
       const p = `$${params.length}`
       where.push(`(name ILIKE ${p} OR email ILIKE ${p} OR mobile ILIKE ${p})`)
     }
-    if (stage)  add('stage  = $$', stage)
-    if (owner)  add('owner  = $$', owner)
+    if (unassigned === 'true') {
+      where.push('(owner IS NULL OR owner = \'\')')
+    } else {
+      if (stage)  add('stage  = $$', stage)
+      if (owner)  add('owner  = $$', owner)
+    }
     if (state)  add('state  = $$', state)
     if (source) add('source = $$', source)
 
@@ -2628,6 +2632,183 @@ app.get('/api/leads/next-assignee', async (req, res) => {
   }
 })
 
+// === FEATURE B: UNASSIGNED LEADS WITH SOURCE TRACKING ===
+app.get('/api/leads/unassigned', async (req, res) => {
+  try {
+    const unassignedRes = await pool.query(`
+      SELECT COUNT(*) as total FROM leads WHERE owner IS NULL OR owner = '';
+    `)
+    const sourceRes = await pool.query(`
+      SELECT
+        lead_source,
+        COUNT(*) as count
+      FROM leads
+      WHERE owner IS NULL OR owner = ''
+      GROUP BY lead_source
+      ORDER BY count DESC;
+    `)
+    const leadsRes = await pool.query(`
+      SELECT id, name, email, mobile, lead_source, created_at
+      FROM leads
+      WHERE owner IS NULL OR owner = ''
+      ORDER BY created_at DESC
+      LIMIT 100;
+    `)
+    res.json({
+      total: parseInt(unassignedRes.rows[0]?.total || 0),
+      bySource: sourceRes.rows.map(r => ({ source: r.lead_source, count: parseInt(r.count) })),
+      leads: leadsRes.rows
+    })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to fetch unassigned leads.' })
+  }
+})
+
+// === FEATURE C: COUNSELOR MOBILE NUMBER PROFILE UPDATE ===
+app.put('/api/users/:id/profile', authenticateToken, async (req, res) => {
+  try {
+    const { mobile_number } = req.body
+    if (!mobile_number || mobile_number.trim() === '') {
+      return res.status(400).json({ error: 'Mobile number is required.' })
+    }
+    if (!/^(\+91|0)?[6-9]\d{9}$/.test(mobile_number.replace(/[^\d]/g, ''))) {
+      return res.status(400).json({ error: 'Invalid mobile number format.' })
+    }
+    const updateRes = await pool.query(
+      'UPDATE users SET mobile_number = $1 WHERE id = $2 RETURNING id, name, email, mobile_number;',
+      [mobile_number, req.params.id]
+    )
+    if (updateRes.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found.' })
+    }
+    res.json({ success: true, user: updateRes.rows[0] })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to update profile.' })
+  }
+})
+
+app.get('/api/users/:id/profile', authenticateToken, async (req, res) => {
+  try {
+    const userRes = await pool.query(
+      'SELECT id, name, email, mobile_number, role FROM users WHERE id = $1;',
+      [req.params.id]
+    )
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found.' })
+    }
+    res.json(userRes.rows[0])
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to fetch profile.' })
+  }
+})
+
+// === FEATURE D: DOCUMENT UPLOAD - LINK GENERATION ===
+app.post('/api/leads/:id/documents/generate-link', authenticateToken, async (req, res) => {
+  try {
+    const leadId = req.params.id
+    const token = require('crypto').randomBytes(16).toString('hex')
+    const expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+
+    await pool.query(
+      `INSERT INTO document_links (lead_id, token, created_by, expiry_date)
+       VALUES ($1, $2, $3, $4);`,
+      [leadId, token, req.user.name, expiryDate]
+    )
+    const shareUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/document-upload/${token}`
+    res.json({ token, shareUrl, expiryDate })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to generate document link.' })
+  }
+})
+
+// === FEATURE D: DOCUMENT UPLOAD - DIRECT UPLOAD ===
+app.post('/api/leads/:id/documents/upload', authenticateToken, uploadDoc.single('file'), async (req, res) => {
+  try {
+    const leadId = req.params.id
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded.' })
+    }
+    const fileUrl = `/uploads/documents/${req.file.filename}`
+    const docType = req.body.docType || 'General'
+
+    const docRes = await pool.query(
+      `INSERT INTO documents (student, type, file_url, status, upload_date)
+       VALUES ((SELECT name FROM leads WHERE id = $1), $2, $3, 'Uploaded', NOW())
+       RETURNING id, file_url;`,
+      [leadId, docType, fileUrl]
+    )
+    res.json({ success: true, document: docRes.rows[0] })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Document upload failed.' })
+  }
+})
+
+app.get('/api/leads/:id/documents', async (req, res) => {
+  try {
+    const docsRes = await pool.query(
+      `SELECT id, type, file_url, status, upload_date FROM documents
+       WHERE student = (SELECT name FROM leads WHERE id = $1)
+       ORDER BY upload_date DESC;`,
+      [req.params.id]
+    )
+    res.json(docsRes.rows)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to fetch documents.' })
+  }
+})
+
+// === FEATURE D: PUBLIC DOCUMENT UPLOAD VIA SHARED LINK ===
+app.get('/api/document-upload/:token', async (req, res) => {
+  try {
+    const linkRes = await pool.query(
+      `SELECT dl.*, l.name, l.email FROM document_links dl
+       JOIN leads l ON dl.lead_id = l.id
+       WHERE dl.token = $1 AND (dl.expiry_date IS NULL OR dl.expiry_date > NOW());`,
+      [req.params.token]
+    )
+    if (linkRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Link expired or invalid.' })
+    }
+    const link = linkRes.rows[0]
+    await pool.query('UPDATE document_links SET views_count = views_count + 1 WHERE token = $1;', [req.params.token])
+    res.json({ lead_id: link.lead_id, lead_name: link.name, lead_email: link.email })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Invalid document link.' })
+  }
+})
+
+app.post('/api/document-upload/:token', uploadDoc.single('file'), async (req, res) => {
+  try {
+    const linkRes = await pool.query(
+      `SELECT lead_id FROM document_links
+       WHERE token = $1 AND (expiry_date IS NULL OR expiry_date > NOW());`,
+      [req.params.token]
+    )
+    if (linkRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Link expired or invalid.' })
+    }
+    const leadId = linkRes.rows[0].lead_id
+    const fileUrl = `/uploads/documents/${req.file.filename}`
+
+    await pool.query(
+      `INSERT INTO documents (student, type, file_url, status, upload_date)
+       VALUES ((SELECT name FROM leads WHERE id = $1), 'Candidate Upload', $2, 'Uploaded', NOW());`,
+      [leadId, fileUrl]
+    )
+    res.json({ success: true, message: 'Document uploaded successfully.' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Upload failed.' })
+  }
+})
+
 // --- FEATURE 3 & 4: META LEAD ADS WEBHOOK ---
 app.get('/api/webhooks/meta-leads', (req, res) => {
   // Facebook webhook verification
@@ -3452,11 +3633,12 @@ app.post('/api/public/inquiry', async (req, res) => {
 
     // Inbound landing-page leads land UNASSIGNED — admin/manager distributes manually
     const score = calculateLeadScore({ source: source || 'Website', stage: 'Untouched', mobile, email, course })
+    const leadSource = source?.toLowerCase().includes('facebook') ? 'facebook' : 'form'
     const insertRes = await pool.query(`
-      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'Unassigned', $8, $9, 'Untouched', 'red')
+      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'Unassigned', $8, $9, 'Untouched', 'red', $10)
       RETURNING id, name, course;
-    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score])
+    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource])
 
     const pubLead = insertRes.rows[0]
     // Notify admins a new unassigned lead arrived from the landing page
@@ -3709,11 +3891,12 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
             updated++; continue
           }
         }
+        const leadSource = isCounselor ? 'counselor_upload' : (source?.toLowerCase().includes('facebook') ? 'facebook' : 'form')
         await client.query(`
-          INSERT INTO leads (name, email, mobile, state, city, course, source, source_type, owner, reg_date, score, stage, stage_color)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Untouched','red');
+          INSERT INTO leads (name, email, mobile, state, city, course, source, source_type, owner, reg_date, score, stage, stage_color, lead_source)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Untouched','red',$12);
         `, [name, email, mobile, state, city, course, source, sourceType, owner,
-            new Date().toLocaleString('en-IN', { hour12: true }), score])
+            new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource])
         imported++
       }
       await client.query('COMMIT')

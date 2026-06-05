@@ -28,7 +28,7 @@ const getStageColorName = (stage) => ({
   'Qualified Leads': 'orange', 'Converted': 'emerald',
 }[stage] || 'blue')
 
-const QUICK_VIEWS = ['All Leads', 'My Leads', 'Untouched', 'Follow Up Today', 'Hot Leads']
+const QUICK_VIEWS = ['All Leads', 'My Leads', 'Unassigned', 'Untouched', 'Follow Up Today', 'Hot Leads']
 
 // Reference Colleges (formerly 'Course Preference') — dropdown only
 const REFERENCE_COLLEGES = [
@@ -244,6 +244,7 @@ export default function LeadManager() {
     if (filters.owner)    q.owner  = filters.owner
     if (filters.campaign) q.source = filters.campaign
     if (quickView === 'My Leads')        q.owner = currentUser?.name || ''
+    if (quickView === 'Unassigned')      q.unassigned = true
     if (quickView === 'Untouched')       q.stage = 'Untouched'
     if (quickView === 'Follow Up Today') q.stage = 'Follow Up'
     return q
