@@ -31,6 +31,7 @@ import IntegrationHealth from './pages/IntegrationHealth'
 import ServerHealth from './pages/ServerHealth'
 import SecurityAccess from './pages/SecurityAccess'
 import UserProfile from './pages/UserProfile'
+import IntegrationSettings from './pages/IntegrationSettings'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -97,6 +98,9 @@ export default function App() {
             <Route path="calendar"         element={<CalendarPro />} />
             <Route path="settings"         element={<Settings />} />
             <Route path="integrations"     element={<Integrations />} />
+            <Route element={<RoleGuard roles={['Admin']} />}>
+              <Route path="integration-settings" element={<IntegrationSettings />} />
+            </Route>
             <Route path="leaderboard"      element={<Leaderboard />} />
             <Route path="email-campaigns"  element={<EmailCampaigns />} />
             <Route path="drip-workflows"     element={<DripWorkflows />} />
