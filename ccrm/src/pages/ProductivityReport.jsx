@@ -103,6 +103,7 @@ export default function ProductivityReport() {
     email: stats.email || `${stats.name.split(' ')[0].toLowerCase()}@cutm.ac.in`,
     domain: getDomain(stats.email || `${stats.name.split(' ')[0].toLowerCase()}@cutm.ac.in`),
     leads:           stats.leads || 0,
+    unassigned:      stats.unassigned || 0,
     untouched:       stats.untouched || 0,
     contacted:       stats.contacted || 0,
     followUp:        stats.followUp || 0,
@@ -122,6 +123,7 @@ export default function ProductivityReport() {
   // 2. Compute TOTALS dynamically
   const TOTALS = REPORT_DATA.reduce((acc, row) => ({
     leads:           acc.leads           + row.leads,
+    unassigned:      acc.unassigned      + row.unassigned,
     untouched:       acc.untouched       + row.untouched,
     contacted:       acc.contacted       + row.contacted,
     followUp:        acc.followUp        + row.followUp,
@@ -131,7 +133,7 @@ export default function ProductivityReport() {
     converted:       acc.converted       + row.converted,
     appAssigned:     acc.appAssigned     + row.appAssigned,
     payApproved:     acc.payApproved     + row.payApproved,
-  }), { leads: 0, untouched: 0, contacted: 0, followUp: 0, interested: 0, notInterested: 0, qualified: 0, converted: 0, appAssigned: 0, payApproved: 0 })
+  }), { leads: 0, unassigned: 0, untouched: 0, contacted: 0, followUp: 0, interested: 0, notInterested: 0, qualified: 0, converted: 0, appAssigned: 0, payApproved: 0 })
 
   const rowsPerPage = 6
   const totalPages = Math.ceil(REPORT_DATA.length / rowsPerPage) || 1
@@ -275,6 +277,7 @@ export default function ProductivityReport() {
         const VIEW_COLUMNS = {
           'Quick Summary': [
             { label: 'Total Leads',    key: 'leads'         },
+            { label: 'Unassigned',     key: 'unassigned'    },
             { label: 'Untouched',      key: 'untouched'     },
             { label: 'Contacted',      key: 'contacted'     },
             { label: 'Follow Up',      key: 'followUp'      },
@@ -285,6 +288,7 @@ export default function ProductivityReport() {
           ],
           'Lead Summary': [
             { label: 'Total Leads',    key: 'leads'         },
+            { label: 'Unassigned',     key: 'unassigned'    },
             { label: 'Untouched',      key: 'untouched'     },
             { label: 'Contacted',      key: 'contacted'     },
             { label: 'Follow Up',      key: 'followUp'      },
