@@ -1699,6 +1699,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
     const kpi = await pool.query(`
       SELECT
         COUNT(*)::int AS "totalLeads",
+        SUM(CASE WHEN owner IS NULL OR owner = '' THEN 1 ELSE 0 END)::int AS unassigned,
         SUM(CASE WHEN stage='Untouched'           THEN 1 ELSE 0 END)::int AS untouched,
         SUM(CASE WHEN stage='Follow Up'           THEN 1 ELSE 0 END)::int AS "followUp",
         SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,

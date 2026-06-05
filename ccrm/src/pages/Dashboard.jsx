@@ -65,6 +65,7 @@ export default function Dashboard() {
     { label: 'Not Interested',  value: ((byCounsellor?.notInterested ?? 0)).toLocaleString(), icon: CheckCircle, color: 'bg-red-500',    light: 'bg-red-50',    text: 'text-red-600' },
   ] : [
     { label: 'Total Leads',     value: ((kpi?.totalLeads || 0)).toLocaleString(),           icon: Users,       color: 'bg-blue-500',   light: 'bg-blue-50',   text: 'text-blue-600' },
+    { label: 'Unassigned',      value: ((kpi?.unassigned ?? 0)).toLocaleString(),           icon: Users,       color: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-600' },
     { label: 'Untouched',       value: ((kpi?.untouched ?? 0)).toLocaleString(),            icon: Users,       color: 'bg-orange-500', light: 'bg-orange-50', text: 'text-orange-600' },
     { label: 'Interested',      value: ((kpi?.interested ?? 0)).toLocaleString(),           icon: FileText,    color: 'bg-green-500',  light: 'bg-green-50',  text: 'text-green-600' },
     { label: 'Follow Up',       value: ((kpi?.followUp ?? 0)).toLocaleString(),             icon: TrendingUp,  color: 'bg-yellow-500', light: 'bg-yellow-50', text: 'text-yellow-600' },
