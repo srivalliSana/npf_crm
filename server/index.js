@@ -1730,6 +1730,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
       SELECT
         u.name, u.email,
         COUNT(l.id)::int AS leads,
+        SUM(CASE WHEN l.owner IS NULL OR l.owner = '' OR l.owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
         SUM(CASE WHEN l.stage='Untouched' THEN 1 ELSE 0 END)::int AS untouched,
         SUM(CASE WHEN l.stage='Contacted' THEN 1 ELSE 0 END)::int AS contacted,
         SUM(CASE WHEN l.stage='Follow Up' THEN 1 ELSE 0 END)::int AS "followUp",
