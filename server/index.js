@@ -569,7 +569,7 @@ app.get('/api/leads', async (req, res) => {
       where.push(`(name ILIKE ${p} OR email ILIKE ${p} OR mobile ILIKE ${p})`)
     }
     if (unassigned === 'true') {
-      where.push('(owner IS NULL OR owner = \'\')')
+      where.push('(owner IS NULL OR owner = \'\' OR owner = \'Unassigned\')')
     } else {
       if (stage)  add('stage  = $$', stage)
       if (owner)  add('owner  = $$', owner)
@@ -1699,7 +1699,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
     const kpi = await pool.query(`
       SELECT
         COUNT(*)::int AS "totalLeads",
-        SUM(CASE WHEN owner IS NULL OR owner = '' THEN 1 ELSE 0 END)::int AS unassigned,
+        SUM(CASE WHEN owner IS NULL OR owner = '' OR owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
         SUM(CASE WHEN stage='Untouched'           THEN 1 ELSE 0 END)::int AS untouched,
         SUM(CASE WHEN stage='Follow Up'           THEN 1 ELSE 0 END)::int AS "followUp",
         SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,
@@ -3810,25 +3810,14 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
     const assignMode    = (req.body.assignMode || 'round_robin').toLowerCase()
     const assignedTo    = req.body.assignedTo || ''  // counselor name when assignMode = 'specific'
 
-    // Pre-fetch round-robin counselors when needed
-    let counselors = [], rrIndex = 0
-    if (!isCounselor && assignMode === 'round_robin') {
-      const cRes = await pool.query(`
-        SELECT lac.counselor_name FROM lead_assignment_counter lac
-        JOIN users u ON u.name = lac.counselor_name
-        WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager')
-        ORDER BY lac.assignment_count ASC;
-      `)
-      counselors = cRes.rows.map(r => r.counselor_name)
-    }
+    // NO AUTO-ASSIGN: Don't fetch counselors anymore
+    // All uploads stay Unassigned until manually assigned
     const getNextOwner = () => {
       // Counsellor uploading → all leads go to them
       if (isCounselor) return uploaderName || 'Unassigned'
-      // Admin chose specific counsellor → all leads go to that person
-      if (assignMode === 'specific' && assignedTo) return assignedTo
-      // Default: round-robin across active counsellors
-      if (!counselors.length) return 'Unassigned'
-      return counselors[rrIndex++ % counselors.length]
+      // NO AUTO-ASSIGN: Admin/Manager uploads → all leads stay Unassigned
+      // Admins must manually assign leads via Lead Manager
+      return 'Unassigned'
     }
     // Keep the original anonymous fn signature for backward compat below
     const SM_SOURCES = ['facebook', 'google ads', 'linkedin', 'instagram', 'whatsapp', 'sm', 'social']
@@ -3902,28 +3891,13 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
       }
       await client.query('COMMIT')
 
-      // Update round-robin counters (only for admin upload)
-      if (!isCounselor) {
-        for (const [cn, count] of Object.entries(assignmentCounts)) {
-          await pool.query('UPDATE lead_assignment_counter SET assignment_count=assignment_count+$1, last_assigned=NOW() WHERE counselor_name=$2;', [count, cn])
-        }
-      }
+      // NO AUTO-ASSIGN: Don't update assignment counters or send emails
+      // Leads stay Unassigned until manually assigned by admin/manager
 
-      // Email each counselor a summary of leads assigned to them
-      for (const [counselorName, count] of Object.entries(assignmentCounts)) {
-        const userRow = await pool.query('SELECT email FROM users WHERE name=$1 LIMIT 1;', [counselorName])
-        const cEmail  = userRow.rows[0]?.email
-        if (cEmail) {
-          sendSystemMailAlert(cEmail,
-            `CCRM: ${count} new lead${count>1?'s':''} assigned to you`,
-            `Hello ${counselorName},\n\n${count} new lead${count>1?'s have':' has'} been assigned to you in CCRM.\n\nPlease log in and follow up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`
-          )
-        }
-      }
-
-      const summary = Object.entries(assignmentCounts).map(([n,c])=>`${n}: ${c}`).join(', ')
+      // Notify admins about the import
+      const summary = `${imported} unassigned leads`
       await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
-        [`Bulk upload: ${imported} leads imported (${summary||'none'}) · ${skipped} skipped · ${updated} updated`, 'Just now'])
+        [`Bulk upload: ${summary} imported · ${skipped} skipped · ${updated} updated · All leads remain Unassigned (manual assignment required)`, 'Just now'])
       // Generate a helpful hint if everything was skipped
       let hint = null
       if (skipped === rawData.length && imported === 0) {
