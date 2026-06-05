@@ -1873,11 +1873,12 @@ export default function ApplicationDetails() {
 }
 
 // ── Inline Documents Tab — upload + verify in the lead window directly ───────
-function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocStatus, deleteDocument, showToast, currentUser }) {
+function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocStatus, deleteDocument, showToast, currentUser, leadId }) {
   const fileRef = React.useRef(null)
   const [docType, setDocType]   = React.useState('10th Marksheet')
   const [uploading, setUploading] = React.useState(false)
   const [dragOver, setDragOver] = React.useState(false)
+  const [generatingLink, setGeneratingLink] = React.useState(false)
   const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
 
   const REQUIRED = [
@@ -1918,6 +1919,28 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
     setUploading(false)
   }
 
+  const handleGenerateShareLink = async () => {
+    if (!leadId) return showToast('Lead ID not available', 'error')
+    setGeneratingLink(true)
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Authorization': `Bearer ${token}` }
+      const res = await fetch(`/api/leads/${leadId}/documents/generate-link`, { method: 'POST', headers })
+      if (res.ok) {
+        const { shareUrl } = await res.json()
+        navigator.clipboard.writeText(shareUrl)
+        showToast('Share link copied to clipboard!', 'success')
+      } else {
+        showToast('Failed to generate share link', 'error')
+      }
+    } catch (err) {
+      console.error(err)
+      showToast('Error generating share link', 'error')
+    } finally {
+      setGeneratingLink(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -1929,6 +1952,16 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
 
       {/* Inline upload area */}
       <div className="bg-blue-50/40 border border-blue-100 rounded-xl p-4 mb-5">
+        <div className="flex justify-between items-center mb-3">
+          <h4 className="text-sm font-semibold text-gray-700">Upload Documents</h4>
+          <button
+            onClick={handleGenerateShareLink}
+            disabled={generatingLink}
+            className="text-xs px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded hover:bg-emerald-100 disabled:opacity-50"
+          >
+            {generatingLink ? 'Generating...' : '🔗 Share Upload Link'}
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
           <div className="md:col-span-1">
             <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Document Type</label>
