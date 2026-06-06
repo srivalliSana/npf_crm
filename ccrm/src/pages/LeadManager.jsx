@@ -300,6 +300,30 @@ export default function LeadManager() {
   const totalPages = Math.max(1, Math.ceil(total / rowsPerPage))
   const pageData = rows   // current page rows from the server
 
+  // Normalize lead data based on which table (activeFilter) it came from
+  const getNormalizedLead = (lead) => {
+    if (activeFilter === 'gttech') {
+      return {
+        ...lead,
+        name: lead.full_name,
+        email: lead.email,
+        mobile: lead.phone,
+        course: lead.designation,
+        source: lead.industry_sector
+      }
+    } else if (['ftl', 'gtib', 'esse'].includes(activeFilter)) {
+      return {
+        ...lead,
+        name: lead.name,
+        email: lead.email_id,
+        mobile: lead.phone,
+        course: lead.looking_for,
+        regDate: lead.created_at
+      }
+    }
+    return lead
+  }
+
   const toggleRow = (id) => setSelectedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id])
 
   const toggleAll = () => {
@@ -741,70 +765,71 @@ export default function LeadManager() {
                 </td></tr>
               )}
               {!leadsLoading && pageData.map(lead => {
-                const colors = STAGE_COLORS[getStageColorName(lead.stage)] || STAGE_COLORS.blue
-                const score = lead.score || 0
+                const normalizedLead = getNormalizedLead(lead)
+                const colors = STAGE_COLORS[getStageColorName(normalizedLead.stage)] || STAGE_COLORS.blue
+                const score = normalizedLead.score || 0
                 const scoreColor = score >= 70 ? 'text-green-600' : score >= 40 ? 'text-yellow-600' : 'text-red-500'
                 return (
-                  <tr key={lead.id} className={`hover:bg-blue-50/30 transition-colors cursor-pointer border-l-4 ${colors.border}`}
-                    onClick={() => navigate(`/leads/${lead.id}`)}>
+                  <tr key={normalizedLead.id} className={`hover:bg-blue-50/30 transition-colors cursor-pointer border-l-4 ${colors.border}`}
+                    onClick={() => navigate(`/leads/${normalizedLead.id}`)}>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={selectedRows.includes(lead.id)} onChange={() => toggleRow(lead.id)} className="w-4 h-4 rounded border-gray-300 text-primary-500" />
+                      <input type="checkbox" checked={selectedRows.includes(normalizedLead.id)} onChange={() => toggleRow(normalizedLead.id)} className="w-4 h-4 rounded border-gray-300 text-primary-500" />
                     </td>
                     <td className="table-td">
                       <span className="font-mono text-[11px] bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded">
-                        {lead.sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}{String(lead.id).padStart(4,'0')}
+                        {normalizedLead.sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}{String(normalizedLead.id).padStart(4,'0')}
                       </span>
                     </td>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
-                      {editingNameId === lead.id ? (
+                      {editingNameId === normalizedLead.id ? (
                         <span className="flex items-center gap-1">
                           <input autoFocus value={editingNameVal}
                             onChange={e => setEditingNameVal(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') saveEditName(lead); if (e.key === 'Escape') setEditingNameId(null) }}
+                            onKeyDown={e => { if (e.key === 'Enter') saveEditName(normalizedLead); if (e.key === 'Escape') setEditingNameId(null) }}
                             className="input-field text-sm py-1 w-44" />
-                          <button onClick={() => saveEditName(lead)} className="text-green-600 hover:text-green-700" title="Save"><Save size={14} /></button>
+                          <button onClick={() => saveEditName(normalizedLead)} className="text-green-600 hover:text-green-700" title="Save"><Save size={14} /></button>
                           <button onClick={() => setEditingNameId(null)} className="text-gray-400 hover:text-gray-600" title="Cancel"><X size={14} /></button>
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 group">
-                          <span onClick={() => navigate(`/leads/${lead.id}`)}
-                            className="text-primary-500 hover:text-primary-700 font-medium hover:underline cursor-pointer">{lead.name}</span>
-                          <button onClick={() => startEditName(lead)}
+                          <span onClick={() => navigate(`/leads/${normalizedLead.id}`)}
+                            className="text-primary-500 hover:text-primary-700 font-medium hover:underline cursor-pointer">{normalizedLead.name}</span>
+                          <button onClick={() => startEditName(normalizedLead)}
                             className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-600 transition-opacity" title="Edit name">
                             <Edit3 size={12} />
                           </button>
                         </span>
                       )}
                     </td>
-                    <td className="table-td text-gray-600 text-xs whitespace-nowrap" title={lead.email ? `Email: ${lead.email}` : 'No email on file'}>
-                      {lead.regDate
-                        ? lead.regDate.split(',')[0]   // "DD/MM/YYYY, HH:MM" → "DD/MM/YYYY"
+                    <td className="table-td text-gray-600 text-xs whitespace-nowrap" title={normalizedLead.email ? `Email: ${normalizedLead.email}` : 'No email on file'}>
+                      {normalizedLead.regDate
+                        ? normalizedLead.regDate.split(',')[0]   // "DD/MM/YYYY, HH:MM" → "DD/MM/YYYY"
                         : '—'}
                     </td>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-gray-700 text-sm">{lead.mobile}</span>
-                        <a href={`https://wa.me/91${lead.mobile}`} target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-600" title="WhatsApp">
+                        <span className="text-gray-700 text-sm">{normalizedLead.mobile}</span>
+                        <a href={`https://wa.me/91${normalizedLead.mobile}`} target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-600" title="WhatsApp">
                           <MessageCircle size={13} />
                         </a>
-                        <button onClick={() => { setCallLead(lead); setCallOutcome('Called'); setCallNotes('') }}
+                        <button onClick={() => { setCallLead(normalizedLead); setCallOutcome('Called'); setCallNotes('') }}
                           className="text-blue-400 hover:text-blue-600" title="Log Call">
                           <Phone size={13} />
                         </button>
                       </div>
                     </td>
                     <td className="table-td text-xs">
-                      {lead.course
-                        ? <span className="text-gray-600">{lead.course}</span>
+                      {normalizedLead.course
+                        ? <span className="text-gray-600">{normalizedLead.course}</span>
                         : <span className="text-blue-400 italic hover:text-blue-600 hover:underline" title="Click row to open lead and pick reference college">+ Pick college</span>}
                     </td>
-                    <td className="table-td text-gray-500 text-xs">{lead.source || '—'}</td>
+                    <td className="table-td text-gray-500 text-xs">{normalizedLead.source || '—'}</td>
                     <td className="table-td">
                       <div className="flex flex-col gap-0.5">
-                        <span className={`badge ${colors.bg} ${colors.text}`}>{lead.stage}</span>
+                        <span className={`badge ${colors.bg} ${colors.text}`}>{normalizedLead.stage}</span>
                         {lead.notInterestedReason && (
-                          <span className="text-[9px] text-red-500 italic truncate max-w-24" title={lead.notInterestedReason}>
-                            {lead.notInterestedReason}
+                          <span className="text-[9px] text-red-500 italic truncate max-w-24" title={normalizedLead.notInterestedReason}>
+                            {normalizedLead.notInterestedReason}
                           </span>
                         )}
                       </div>
@@ -817,13 +842,13 @@ export default function LeadManager() {
                         </span>
                       </div>
                     </td>
-                    <td className="table-td text-gray-500 text-xs">{lead.owner || 'Unassigned'}</td>
+                    <td className="table-td text-gray-500 text-xs">{normalizedLead.owner || 'Unassigned'}</td>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         {/* Interested — green pill */}
                         {!['Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
                           <button
-                            onClick={e => { e.stopPropagation(); navigate(`/leads/${lead.id}`) }}
+                            onClick={e => { e.stopPropagation(); navigate(`/leads/${normalizedLead.id}`) }}
                             className="text-[10px] px-2 py-1 rounded-md bg-green-100 text-green-700 hover:bg-green-200 font-semibold whitespace-nowrap"
                             title="Open lead to mark Interested or change stage">
                             ✓ Interested
@@ -832,7 +857,7 @@ export default function LeadManager() {
                         {/* Unable to Connect — hides once you've connected (Contacted, Interested, etc.) */}
                         {!['Contacted','Follow Up','Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
                           <button
-                            onClick={e => { e.stopPropagation(); handleUnableToConnect(lead) }}
+                            onClick={e => { e.stopPropagation(); handleUnableToConnect(normalizedLead) }}
                             className="text-[10px] px-2 py-1 rounded-md bg-yellow-100 text-yellow-700 hover:bg-yellow-200 font-semibold whitespace-nowrap"
                             title="Unable to Connect — move to Follow Up">
                             📞 Unable to Connect
@@ -841,7 +866,7 @@ export default function LeadManager() {
                         {/* Not Interested — hides once they've shown interest */}
                         {!['Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
                           <button
-                            onClick={e => { e.stopPropagation(); setNiLead(lead); setNiReason(''); setNiOther('') }}
+                            onClick={e => { e.stopPropagation(); setNiLead(normalizedLead); setNiReason(''); setNiOther('') }}
                             className="text-[10px] px-2 py-1 rounded-md bg-red-100 text-red-600 hover:bg-red-200 font-semibold whitespace-nowrap"
                             title="Mark as Not Interested with reason">
                             ✗ Not Interested
