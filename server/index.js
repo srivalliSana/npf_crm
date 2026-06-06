@@ -3224,18 +3224,26 @@ app.post('/api/calls/initiate', authenticateToken, async (req, res) => {
     const callResult = await provider.initiateCall(counselorExtension, phoneNumber, didRes)
     console.log('[API] Call initiated successfully:', callResult)
 
-    // Log call in database
-    const leadRes = await pool.query('SELECT name, email FROM leads WHERE id = $1;', [leadId])
-    const leadName = leadRes.rows[0]?.name || 'Unknown'
+    // Log call in database — never let a logging failure fail the call itself,
+    // since EasyGoIVR has already dialed successfully at this point.
+    try {
+      const leadRes = await pool.query('SELECT name, email FROM leads WHERE id = $1;', [leadId])
+      const leadName = leadRes.rows[0]?.name || 'Unknown'
+      // JWT only carries id/email/role — resolve a display name, fall back to email.
+      const userRes = await pool.query('SELECT name FROM users WHERE id = $1;', [req.user.id])
+      const initiatedBy = userRes.rows[0]?.name || req.user.email || 'Unknown'
 
-    await pool.query(
-      `INSERT INTO calls (lead_id, lead_name, phone_number, caller_extension, status, call_duration, initiated_by, initiated_at, provider)
-       VALUES ($1, $2, $3, $4, 'initiated', 0, $5, NOW(), 'easygoivr')
-       RETURNING id;`,
-      [leadId, leadName, phoneNumber, counselorExtension, req.user.name]
-    )
+      await pool.query(
+        `INSERT INTO calls (lead_id, lead_name, phone_number, caller_extension, status, call_duration, initiated_by, initiated_at, provider)
+         VALUES ($1, $2, $3, $4, 'initiated', 0, $5, NOW(), 'easygoivr')
+         RETURNING id;`,
+        [leadId, leadName, phoneNumber, counselorExtension, initiatedBy]
+      )
+      console.log('[API] Call logged to database successfully')
+    } catch (logErr) {
+      console.error('[API] Call dialed but DB logging failed:', logErr.message)
+    }
 
-    console.log('[API] Call logged to database successfully')
     res.json({ success: true, message: 'Call initiated.', callData: callResult })
   } catch (err) {
     console.error('[Call Initiate] ERROR:', err.message)
