@@ -144,7 +144,7 @@ export default function IntegrationSettings() {
               value={easyGoConfig.did}
               onChange={e => setEasyGoConfig(prev => ({ ...prev, did: e.target.value }))}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-              placeholder="8062814103"
+              placeholder="8065573687"
             />
             <p className="text-xs text-gray-500 mt-1">The phone number shown to the recipient</p>
           </div>
