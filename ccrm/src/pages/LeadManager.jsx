@@ -248,11 +248,11 @@ export default function LeadManager() {
     if (quickView === 'Unassigned')      q.unassigned = true
     if (quickView === 'Untouched')       q.stage = 'Untouched'
     if (quickView === 'Follow Up Today') q.stage = 'Follow Up'
-    // Filter logic: ftl/esse/gttech/gtib = website, cutm/cutmap = domain
+    // Filter logic: ftl/esse/gttech/gtib = separate tables, cutm/cutmap = domain filter
     if (activeFilter === 'ftl' || activeFilter === 'esse' || activeFilter === 'gttech' || activeFilter === 'gtib') {
-      q.website_code = activeFilter
+      q.tableSource = activeFilter  // Use separate table endpoint
     } else if (activeFilter === 'cutm' || activeFilter === 'cutmap') {
-      q.domain = activeFilter
+      q.domain = activeFilter  // Use domain filter on main leads table
     }
     console.log(`[buildQuery] activeFilter=${activeFilter}, quickView=${quickView}, page=${currentPage}, result:`, q)
     return q
