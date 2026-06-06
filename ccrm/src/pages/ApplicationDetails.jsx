@@ -4,9 +4,10 @@ import {
   ArrowLeft, MessageCircle, Mail, Share2, Edit3,
   Calendar, ArrowRightLeft, Star, Phone, MapPin, X,
   User, BookOpen, Building2, GraduationCap, ChevronRight,
-  Clock, CheckCircle2, Circle, AlertCircle, Plus, Send, Save, HelpCircle, PhoneCall
+  Clock, CheckCircle2, Circle, AlertCircle, Plus, Send, Save, HelpCircle, PhoneCall, Sparkles
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
+import RcsComposeModal from '../components/RcsComposeModal'
 
 async function initiateAmeyoCall(mobile) {
   // Always call our backend — avoids CORS and handles Exotel/Ameyo detection server-side
@@ -140,6 +141,7 @@ export default function ApplicationDetails() {
   const [ameyoReady, setAmeyoReady]       = useState(null)
   const [ameyoCfg, setAmeyoCfg]           = useState(null)
   const [easyGoReady, setEasyGoReady]     = useState(null)
+  const [showRcsModal, setShowRcsModal]   = useState(false)
 
   // Payment modal state
   const [showPayModal, setShowPayModal]   = useState(false)
@@ -690,6 +692,11 @@ export default function ApplicationDetails() {
                     className="text-green-500 hover:text-green-600" title="WhatsApp">
                     <MessageCircle size={14} />
                   </a>
+                  {/* RCS message */}
+                  <button onClick={() => setShowRcsModal(true)}
+                    className="text-fuchsia-500 hover:text-fuchsia-700" title="Send RCS message">
+                    <Sparkles size={14} />
+                  </button>
                   {/* Click-to-Call */}
                   {ameyoReady === true || easyGoReady === true ? (
                     <button
@@ -1818,6 +1825,13 @@ export default function ApplicationDetails() {
           </div>
         </div>
       </div>
+    )}
+
+    {showRcsModal && (
+      <RcsComposeModal
+        lead={{ id: associatedLead?.id || associatedApp?.lead_id, name: studentName, mobile: studentMobile }}
+        onClose={() => setShowRcsModal(false)}
+      />
     )}
 
     {showPayModal && associatedApp && (
