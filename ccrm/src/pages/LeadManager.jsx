@@ -70,6 +70,7 @@ export default function LeadManager() {
   const [currentPage, setCurrentPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({ stage: '', owner: '', campaign: '', state: '' })
+  const [activeWebsite, setActiveWebsite] = useState('all') // Website filter: all, ftl, esse, gttech, gtib
 
   // Add Lead modal
   const [showAddModal, setShowAddModal] = useState(false)
@@ -247,6 +248,8 @@ export default function LeadManager() {
     if (quickView === 'Unassigned')      q.unassigned = true
     if (quickView === 'Untouched')       q.stage = 'Untouched'
     if (quickView === 'Follow Up Today') q.stage = 'Follow Up'
+    // Website filter
+    if (activeWebsite && activeWebsite !== 'all') q.website_code = activeWebsite
     return q
   }
 
@@ -269,7 +272,7 @@ export default function LeadManager() {
   }
 
   // Reload whenever paging / search / filters / quick-view / user change
-  useEffect(() => { loadPage() }, [currentPage, debouncedSearch, filters, quickView, currentUser])
+  useEffect(() => { loadPage() }, [currentPage, debouncedSearch, filters, quickView, activeWebsite, currentUser])
 
   const refreshLeads = () => loadPage()
 
@@ -566,6 +569,17 @@ export default function LeadManager() {
             <Plus size={14} /> Add Lead
           </button>
         </div>
+      </div>
+
+      {/* Website Filter Tabs */}
+      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 shadow-sm flex items-center gap-2">
+        <span className="text-xs font-semibold text-gray-600 mr-2">Website:</span>
+        {['all', 'ftl', 'esse', 'gttech', 'gtib'].map(site => (
+          <button key={site} onClick={() => { setActiveWebsite(site); setCurrentPage(1) }}
+            className={`px-3 py-1 rounded text-xs font-medium transition ${activeWebsite === site ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            {site === 'all' ? 'All Websites' : site.toUpperCase()}
+          </button>
+        ))}
       </div>
 
       {/* Filter bar */}
