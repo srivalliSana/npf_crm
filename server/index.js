@@ -2290,20 +2290,20 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   const { id } = req.params
-  const { name, email, role, team, status, picture, password, mobile, reportsTo } = req.body
+  const { name, email, role, team, status, picture, password, mobile, mobile_number, reportsTo } = req.body
   try {
-    let queryStr = 'UPDATE users SET name = COALESCE($1, name), role = COALESCE($2, role), team = COALESCE($3, team), status = COALESCE($4, status), picture = COALESCE($5, picture), mobile = COALESCE($6, mobile), reports_to = COALESCE($7, reports_to)'
-    const params = [name, role, team, status, picture, mobile ?? null, reportsTo ?? null]
+    let queryStr = 'UPDATE users SET name = COALESCE($1, name), role = COALESCE($2, role), team = COALESCE($3, team), status = COALESCE($4, status), picture = COALESCE($5, picture), mobile = COALESCE($6, mobile), reports_to = COALESCE($7, reports_to), mobile_number = COALESCE($8, mobile_number)'
+    const params = [name, role, team, status, picture, mobile ?? null, reportsTo ?? null, mobile_number ?? null]
 
     if (password) {
-      queryStr += ', password = $8 WHERE id = $9'
+      queryStr += ', password = $9 WHERE id = $10'
       params.push(password, id)
     } else {
-      queryStr += ' WHERE id = $8'
+      queryStr += ' WHERE id = $9'
       params.push(id)
     }
 
-    queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", last_login AS "lastLogin";'
+    queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, mobile_number, reports_to AS "reportsTo", last_login AS "lastLogin";'
 
     const updateRes = await pool.query(queryStr, params)
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })

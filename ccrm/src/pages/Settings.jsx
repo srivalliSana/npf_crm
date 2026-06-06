@@ -103,7 +103,7 @@ export default function Settings() {
     firstName: first,
     lastName: last,
     email: currentUser?.email || '',
-    phone: currentUser?.phone || '+91 9876543210',
+    phone: currentUser?.mobile_number || '',
     designation: currentUser?.role === 'Admin' ? 'Admissions Head' : 'Counselor Officer',
     department: currentUser?.team || 'Admissions'
   })
@@ -121,7 +121,7 @@ export default function Settings() {
       const mergedName = `${profileForm.firstName} ${profileForm.lastName}`.trim()
       updateUser(currentUser.id, {
         name: mergedName,
-        phone: profileForm.phone,
+        mobile_number: profileForm.phone,
         team: profileForm.department
       })
       showToast('Profile settings saved successfully.', 'success')
