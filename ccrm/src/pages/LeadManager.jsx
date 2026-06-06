@@ -579,12 +579,12 @@ export default function LeadManager() {
       <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 shadow-sm flex items-center gap-2 flex-wrap">
         {[
           { id: 'all', label: 'All Leads' },
-          { id: 'ftl', label: 'FTL' },
-          { id: 'esse', label: 'ESSE' },
+          { id: 'cutm', label: 'CUTM' },
+          { id: 'cutmap', label: 'CUTMAP' },
           { id: 'gttech', label: 'GTTECH' },
           { id: 'gtib', label: 'GTIB' },
-          { id: 'cutm', label: '@CUTM' },
-          { id: 'cutmap', label: '@CUTMAP' }
+          { id: 'ftl', label: 'FTL' },
+          { id: 'esse', label: 'ESSE' }
         ].map(tab => (
           <button key={tab.id} onClick={() => { setActiveFilter(tab.id); setCurrentPage(1) }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeFilter === tab.id ? 'bg-primary-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>

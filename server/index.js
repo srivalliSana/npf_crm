@@ -657,9 +657,9 @@ app.get('/api/leads', async (req, res) => {
     if (website_code) add('LOWER(lead_source) LIKE LOWER($$)', `%${website_code}%`)
     // Domain filter: filter by owner email domain (@cutm.ac.in or @cutmap.ac.in)
     if (domain === 'cutm') {
-      where.push('(owner ILIKE \'%@cutm.ac.in\' OR owner IS NULL OR owner = \'\' OR owner = \'Unassigned\')')
+      where.push('owner ILIKE \'%@cutm.ac.in\'')
     } else if (domain === 'cutmap') {
-      where.push('(owner ILIKE \'%@cutmap.ac.in\')')
+      where.push('owner ILIKE \'%@cutmap.ac.in\'')
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
