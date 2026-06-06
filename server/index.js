@@ -168,7 +168,7 @@ class EasyGoIVRProvider {
         {
           headers: {
             'Content-Type': 'application/json',
-            'API_TOKEN': token
+            'Authorization': `Bearer ${token}`
           }
         }
       )
