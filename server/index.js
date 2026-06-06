@@ -714,6 +714,156 @@ app.get('/api/leads/:id(\\d+)', async (req, res) => {
   }
 })
 
+// === SEPARATE ENDPOINTS FOR WEBSITE FORMS ===
+
+// GET /api/gttech-leads — GTTECH inquiry leads
+app.get('/api/gttech-leads', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
+    const offset = (page - 1) * limit
+    const search = req.query.search || ''
+
+    const where = []
+    const params = []
+
+    if (search) {
+      params.push(`%${search}%`)
+      const p = `$${params.length}`
+      where.push(`(full_name ILIKE ${p} OR email ILIKE ${p} OR phone ILIKE ${p} OR organization_name ILIKE ${p})`)
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM gttech_leads ${whereSql};`, params)
+    const total = countRes.rows[0].total
+
+    const rowsRes = await pool.query(
+      `SELECT id, full_name, organization_name, designation, industry_sector, interested_in, email, phone, created_at, status
+       FROM gttech_leads ${whereSql}
+       ORDER BY created_at DESC
+       LIMIT ${limit} OFFSET ${offset};`,
+      params
+    )
+
+    res.json({ rows: rowsRes.rows, total, page, limit })
+  } catch (err) {
+    console.error('[GET /api/gttech-leads]', err.message)
+    res.status(500).json({ error: 'Failed to fetch GTTECH leads.' })
+  }
+})
+
+// GET /api/ftl-leads — FTL inquiry leads
+app.get('/api/ftl-leads', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
+    const offset = (page - 1) * limit
+    const search = req.query.search || ''
+
+    const where = []
+    const params = []
+
+    if (search) {
+      params.push(`%${search}%`)
+      const p = `$${params.length}`
+      where.push(`(name ILIKE ${p} OR email_id ILIKE ${p} OR phone ILIKE ${p})`)
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM ftl_leads ${whereSql};`, params)
+    const total = countRes.rows[0].total
+
+    const rowsRes = await pool.query(
+      `SELECT id, name, email_id, phone, looking_for, created_at, status
+       FROM ftl_leads ${whereSql}
+       ORDER BY created_at DESC
+       LIMIT ${limit} OFFSET ${offset};`,
+      params
+    )
+
+    res.json({ rows: rowsRes.rows, total, page, limit })
+  } catch (err) {
+    console.error('[GET /api/ftl-leads]', err.message)
+    res.status(500).json({ error: 'Failed to fetch FTL leads.' })
+  }
+})
+
+// GET /api/gtib-leads — GTIB inquiry leads
+app.get('/api/gtib-leads', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
+    const offset = (page - 1) * limit
+    const search = req.query.search || ''
+
+    const where = []
+    const params = []
+
+    if (search) {
+      params.push(`%${search}%`)
+      const p = `$${params.length}`
+      where.push(`(name ILIKE ${p} OR email_id ILIKE ${p} OR phone ILIKE ${p})`)
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM gtib_leads ${whereSql};`, params)
+    const total = countRes.rows[0].total
+
+    const rowsRes = await pool.query(
+      `SELECT id, name, email_id, phone, looking_for, created_at, status
+       FROM gtib_leads ${whereSql}
+       ORDER BY created_at DESC
+       LIMIT ${limit} OFFSET ${offset};`,
+      params
+    )
+
+    res.json({ rows: rowsRes.rows, total, page, limit })
+  } catch (err) {
+    console.error('[GET /api/gtib-leads]', err.message)
+    res.status(500).json({ error: 'Failed to fetch GTIB leads.' })
+  }
+})
+
+// GET /api/esse-leads — ESSE inquiry leads
+app.get('/api/esse-leads', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
+    const offset = (page - 1) * limit
+    const search = req.query.search || ''
+
+    const where = []
+    const params = []
+
+    if (search) {
+      params.push(`%${search}%`)
+      const p = `$${params.length}`
+      where.push(`(name ILIKE ${p} OR email_id ILIKE ${p} OR phone ILIKE ${p})`)
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM esse_leads ${whereSql};`, params)
+    const total = countRes.rows[0].total
+
+    const rowsRes = await pool.query(
+      `SELECT id, name, email_id, phone, looking_for, created_at, status
+       FROM esse_leads ${whereSql}
+       ORDER BY created_at DESC
+       LIMIT ${limit} OFFSET ${offset};`,
+      params
+    )
+
+    res.json({ rows: rowsRes.rows, total, page, limit })
+  } catch (err) {
+    console.error('[GET /api/esse-leads]', err.message)
+    res.status(500).json({ error: 'Failed to fetch ESSE leads.' })
+  }
+})
+
 app.post('/api/leads', authenticateToken, async (req, res) => {
   const { name, email, mobile, state, city, course, source, owner: requestOwner, regDate, score, stage, stageColor } = req.body
   const finalRegDate = regDate || new Date().toLocaleString('en-IN', { hour12: true })
