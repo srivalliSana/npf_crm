@@ -1057,9 +1057,13 @@ export function CcrmProvider({ children }) {
   // EasyGoIVR Click-to-Call
   const initiateCall = async (leadId, phoneNumber, counselorExtension) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
       const res = await fetch('/api/calls/initiate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ leadId, phoneNumber, counselorExtension })
       })
       if (res.ok) {
@@ -1079,8 +1083,12 @@ export function CcrmProvider({ children }) {
 
   const getCallHistory = async (leadId) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
       const res = await fetch(`/api/calls/history/${leadId}`, {
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
       })
       if (res.ok) {
         return await res.json()
