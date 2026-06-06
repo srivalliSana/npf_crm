@@ -699,7 +699,7 @@ export default function ApplicationDetails() {
                         try {
                           // Prefer EasyGoIVR if configured, else use Ameyo
                           if (easyGoReady === true) {
-                            const data = await initiateCall(associatedLead?.id || associatedApp?.lead_id, studentMobile, currentUser?.extension)
+                            const data = await initiateCall(associatedLead?.id || associatedApp?.lead_id, studentMobile, currentUser?.mobile_number)
                             if (data?.success) {
                               showToast(`Call initiated via EasyGoIVR ✓`, 'success')
                             }

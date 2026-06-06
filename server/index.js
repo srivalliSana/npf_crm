@@ -505,6 +505,7 @@ app.post('/api/auth/login', async (req, res) => {
         team: user.team,
         picture: user.picture,
         status: user.status,
+        mobile_number: user.mobile_number,
         lastLogin: lastLoginStr
       }
     })
