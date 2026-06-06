@@ -70,8 +70,7 @@ export default function LeadManager() {
   const [currentPage, setCurrentPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({ stage: '', owner: '', campaign: '', state: '' })
-  const [activeWebsite, setActiveWebsite] = useState('all') // Website filter: all, ftl, esse, gttech, gtib
-  const [activeDomain, setActiveDomain] = useState('all') // Domain filter: all, cutm, cutmap
+  const [activeFilter, setActiveFilter] = useState('all') // ftl, esse, gttech, gtib, cutm, cutmap, all
 
   // Add Lead modal
   const [showAddModal, setShowAddModal] = useState(false)
@@ -249,10 +248,12 @@ export default function LeadManager() {
     if (quickView === 'Unassigned')      q.unassigned = true
     if (quickView === 'Untouched')       q.stage = 'Untouched'
     if (quickView === 'Follow Up Today') q.stage = 'Follow Up'
-    // Website filter
-    if (activeWebsite && activeWebsite !== 'all') q.website_code = activeWebsite
-    // Domain filter
-    if (activeDomain && activeDomain !== 'all') q.domain = activeDomain
+    // Filter logic: ftl/esse/gttech/gtib = website, cutm/cutmap = domain
+    if (activeFilter === 'ftl' || activeFilter === 'esse' || activeFilter === 'gttech' || activeFilter === 'gtib') {
+      q.website_code = activeFilter
+    } else if (activeFilter === 'cutm' || activeFilter === 'cutmap') {
+      q.domain = activeFilter
+    }
     return q
   }
 
@@ -275,7 +276,7 @@ export default function LeadManager() {
   }
 
   // Reload whenever paging / search / filters / quick-view / user change
-  useEffect(() => { loadPage() }, [currentPage, debouncedSearch, filters, quickView, activeWebsite, activeDomain, currentUser])
+  useEffect(() => { loadPage() }, [currentPage, debouncedSearch, filters, quickView, activeFilter, currentUser])
 
   const refreshLeads = () => loadPage()
 
@@ -574,24 +575,20 @@ export default function LeadManager() {
         </div>
       </div>
 
-      {/* Website Filter Tabs */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-3 shadow-sm flex items-center gap-2">
-        <span className="text-xs font-semibold text-gray-600 mr-2">Website:</span>
-        {['all', 'ftl', 'esse', 'gttech', 'gtib'].map(site => (
-          <button key={site} onClick={() => { setActiveWebsite(site); setCurrentPage(1) }}
-            className={`px-3 py-1 rounded text-xs font-medium transition ${activeWebsite === site ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {site === 'all' ? 'All Websites' : site.toUpperCase()}
-          </button>
-        ))}
-      </div>
-
-      {/* Domain Filter Tabs */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 shadow-sm flex items-center gap-2">
-        <span className="text-xs font-semibold text-gray-600 mr-2">Domain:</span>
-        {['all', 'cutm', 'cutmap'].map(domain => (
-          <button key={domain} onClick={() => { setActiveDomain(domain); setCurrentPage(1) }}
-            className={`px-3 py-1 rounded text-xs font-medium transition ${activeDomain === domain ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {domain === 'all' ? 'All Domains' : domain === 'cutm' ? '@CUTM' : '@CUTMAP'}
+      {/* Filter Tabs */}
+      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 shadow-sm flex items-center gap-2 flex-wrap">
+        {[
+          { id: 'all', label: 'All Leads' },
+          { id: 'ftl', label: 'FTL' },
+          { id: 'esse', label: 'ESSE' },
+          { id: 'gttech', label: 'GTTECH' },
+          { id: 'gtib', label: 'GTIB' },
+          { id: 'cutm', label: '@CUTM' },
+          { id: 'cutmap', label: '@CUTMAP' }
+        ].map(tab => (
+          <button key={tab.id} onClick={() => { setActiveFilter(tab.id); setCurrentPage(1) }}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeFilter === tab.id ? 'bg-primary-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            {tab.label}
           </button>
         ))}
       </div>
