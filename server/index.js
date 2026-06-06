@@ -160,6 +160,8 @@ class EasyGoIVRProvider {
 
   async initiateCall(extension, phoneNumber, did) {
     const token = await this.getToken()
+    console.log('[EasyGoIVR] Token retrieved:', token ? 'OK' : 'MISSING')
+    console.log('[EasyGoIVR] Call params:', { exten: extension, number: phoneNumber, did })
 
     try {
       const response = await axios.post(
@@ -168,11 +170,12 @@ class EasyGoIVRProvider {
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'API_TOKEN': token
           }
         }
       )
 
+      console.log('[EasyGoIVR] Call response:', response.data)
       return {
         success: true,
         callId: response.data.call_id || response.data.id || `${Date.now()}`,
@@ -180,8 +183,8 @@ class EasyGoIVRProvider {
         data: response.data
       }
     } catch (err) {
-      console.error('[EasyGoIVR] Call initiation failed:', err.message)
-      throw new Error(`Failed to initiate call: ${err.message}`)
+      console.error('[EasyGoIVR] Call initiation failed:', err.response?.data || err.message)
+      throw new Error(`Failed to initiate call: ${err.response?.data?.msg || err.message}`)
     }
   }
 }
