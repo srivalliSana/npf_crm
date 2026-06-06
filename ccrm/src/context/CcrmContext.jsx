@@ -65,7 +65,7 @@ export function CcrmProvider({ children }) {
 
   // Fetch ONE page of leads from the server (search/filter/role-scoped).
   // Used by Lead Manager so the browser never loads the whole table.
-  const fetchLeadsPage = async ({ page = 1, limit = 50, search = '', stage = '', owner = '', state = '', source = '', unassigned = false } = {}) => {
+  const fetchLeadsPage = async ({ page = 1, limit = 50, search = '', stage = '', owner = '', state = '', source = '', unassigned = false, website_code = '', domain = '' } = {}) => {
     const token = localStorage.getItem('ccrm_token')
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
     const qs = new URLSearchParams()
@@ -76,6 +76,8 @@ export function CcrmProvider({ children }) {
     if (state)  qs.set('state', state)
     if (source) qs.set('source', source)
     if (unassigned) qs.set('unassigned', true)
+    if (website_code) qs.set('website_code', website_code)
+    if (domain) qs.set('domain', domain)
     if (currentUser?.role) qs.set('requesterRole', currentUser.role)
     if (currentUser?.name) qs.set('requesterName', currentUser.name)
     const url = `/api/leads?${qs.toString()}`
