@@ -3007,6 +3007,150 @@ app.post('/api/webhooks/inquiry-form', async (req, res) => {
   }
 })
 
+// === GTTECH INQUIRY FORM WEBHOOK ===
+app.post('/api/webhooks/gttech-form', async (req, res) => {
+  try {
+    const { full_name, organization_name, designation, industry_sector, interested_in, email, phone } = req.body
+
+    if (!full_name || !email || !phone) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: full_name, email, phone' })
+    }
+
+    const cleanPhone = phone.replace(/[^\d]/g, '')
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({ success: false, error: 'Invalid phone number.' })
+    }
+
+    const insertRes = await pool.query(
+      `INSERT INTO gttech_leads (full_name, organization_name, designation, industry_sector, interested_in, email, phone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, full_name, email, phone;`,
+      [full_name, organization_name, designation, industry_sector, JSON.stringify(interested_in || []), email, cleanPhone]
+    )
+
+    const lead = insertRes.rows[0]
+    console.log(`[GTTECH Webhook] New lead: ${lead.full_name} (${lead.email})`)
+
+    res.status(201).json({
+      success: true,
+      message: 'GTTECH inquiry received',
+      leadId: lead.id,
+      lead: { id: lead.id, full_name: lead.full_name, email: lead.email, phone: lead.phone }
+    })
+  } catch (err) {
+    console.error('[GTTECH Webhook Error]', err.message)
+    res.status(500).json({ success: false, error: 'Failed to process inquiry.' })
+  }
+})
+
+// === FTL INQUIRY FORM WEBHOOK ===
+app.post('/api/webhooks/ftl-form', async (req, res) => {
+  try {
+    const { name, email_id, phone, looking_for } = req.body
+
+    if (!name || !email_id || !phone) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: name, email_id, phone' })
+    }
+
+    const cleanPhone = phone.replace(/[^\d]/g, '')
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({ success: false, error: 'Invalid phone number.' })
+    }
+
+    const insertRes = await pool.query(
+      `INSERT INTO ftl_leads (name, email_id, phone, looking_for)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, email_id, phone;`,
+      [name, email_id, cleanPhone, looking_for]
+    )
+
+    const lead = insertRes.rows[0]
+    console.log(`[FTL Webhook] New lead: ${lead.name} (${lead.email_id})`)
+
+    res.status(201).json({
+      success: true,
+      message: 'FTL inquiry received',
+      leadId: lead.id,
+      lead: { id: lead.id, name: lead.name, email: lead.email_id, phone: lead.phone }
+    })
+  } catch (err) {
+    console.error('[FTL Webhook Error]', err.message)
+    res.status(500).json({ success: false, error: 'Failed to process inquiry.' })
+  }
+})
+
+// === GTIB INQUIRY FORM WEBHOOK ===
+app.post('/api/webhooks/gtib-form', async (req, res) => {
+  try {
+    const { name, email_id, phone, looking_for } = req.body
+
+    if (!name || !email_id || !phone) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: name, email_id, phone' })
+    }
+
+    const cleanPhone = phone.replace(/[^\d]/g, '')
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({ success: false, error: 'Invalid phone number.' })
+    }
+
+    const insertRes = await pool.query(
+      `INSERT INTO gtib_leads (name, email_id, phone, looking_for)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, email_id, phone;`,
+      [name, email_id, cleanPhone, looking_for]
+    )
+
+    const lead = insertRes.rows[0]
+    console.log(`[GTIB Webhook] New lead: ${lead.name} (${lead.email_id})`)
+
+    res.status(201).json({
+      success: true,
+      message: 'GTIB inquiry received',
+      leadId: lead.id,
+      lead: { id: lead.id, name: lead.name, email: lead.email_id, phone: lead.phone }
+    })
+  } catch (err) {
+    console.error('[GTIB Webhook Error]', err.message)
+    res.status(500).json({ success: false, error: 'Failed to process inquiry.' })
+  }
+})
+
+// === ESSE INQUIRY FORM WEBHOOK ===
+app.post('/api/webhooks/esse-form', async (req, res) => {
+  try {
+    const { name, email_id, phone, looking_for } = req.body
+
+    if (!name || !email_id || !phone) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: name, email_id, phone' })
+    }
+
+    const cleanPhone = phone.replace(/[^\d]/g, '')
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({ success: false, error: 'Invalid phone number.' })
+    }
+
+    const insertRes = await pool.query(
+      `INSERT INTO esse_leads (name, email_id, phone, looking_for)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, email_id, phone;`,
+      [name, email_id, cleanPhone, looking_for]
+    )
+
+    const lead = insertRes.rows[0]
+    console.log(`[ESSE Webhook] New lead: ${lead.name} (${lead.email_id})`)
+
+    res.status(201).json({
+      success: true,
+      message: 'ESSE inquiry received',
+      leadId: lead.id,
+      lead: { id: lead.id, name: lead.name, email: lead.email_id, phone: lead.phone }
+    })
+  } catch (err) {
+    console.error('[ESSE Webhook Error]', err.message)
+    res.status(500).json({ success: false, error: 'Failed to process inquiry.' })
+  }
+})
+
 // === EASYGO IVR: CLICK-TO-CALL ENDPOINTS ===
 
 // POST /api/calls/initiate — Click-to-call from lead detail
