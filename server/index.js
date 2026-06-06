@@ -3920,7 +3920,7 @@ app.post('/api/rcs/templates', async (req, res) => {
   try {
     const r = await pool.query(`
       INSERT INTO rcs_templates (template_id, name, rcs_type, status, provider, variables, preview, approved_at)
-      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, CASE WHEN $4 = 'APPROVED' THEN NOW() ELSE NULL END)
+      VALUES ($1, $2, $3, $4::text, $5, $6::jsonb, $7, CASE WHEN $4::text = 'APPROVED' THEN NOW() ELSE NULL END)
       ON CONFLICT (template_id) DO UPDATE
         SET name      = EXCLUDED.name,
             rcs_type  = EXCLUDED.rcs_type,
@@ -3952,7 +3952,7 @@ app.post('/api/webhooks/rcssms-template', async (req, res) => {
     const upStatus = (status || 'APPROVED').toUpperCase()
     await pool.query(`
       INSERT INTO rcs_templates (template_id, status, provider, approved_at)
-      VALUES ($1, $2, 'rcssms', CASE WHEN $2 = 'APPROVED' THEN NOW() ELSE NULL END)
+      VALUES ($1, $2::text, 'rcssms', CASE WHEN $2::text = 'APPROVED' THEN NOW() ELSE NULL END)
       ON CONFLICT (template_id) DO UPDATE
         SET status = EXCLUDED.status,
             approved_at = CASE WHEN EXCLUDED.status = 'APPROVED' AND rcs_templates.status != 'APPROVED' THEN NOW() ELSE rcs_templates.approved_at END;
