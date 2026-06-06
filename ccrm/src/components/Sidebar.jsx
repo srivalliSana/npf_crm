@@ -11,6 +11,10 @@ import {
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',     to: '/dashboard',        roles: null },
   { icon: Users,           label: 'Leads',         to: '/leads',            roles: null },
+  { icon: Users,           label: 'FTL Leads',     to: '/ftl-leads',        roles: null },
+  { icon: Users,           label: 'GTIB Leads',    to: '/gtib-leads',       roles: null },
+  { icon: Users,           label: 'GTTECH Leads',  to: '/gttech-leads',     roles: null },
+  { icon: Users,           label: 'ESSE Leads',    to: '/esse-leads',       roles: null },
   { icon: FileText,        label: 'Applications',  to: '/applications',     roles: null },
   { icon: CheckSquare,     label: 'Tasks',         to: '/tasks',            roles: null },
   { icon: Megaphone,       label: 'Campaigns',     to: '/campaigns',        roles: null },
