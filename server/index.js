@@ -675,12 +675,19 @@ app.get('/api/leads', async (req, res) => {
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total ${fromClause} ${whereSql};`, params)
     const total = countRes.rows[0].total
 
-    const rowsRes = await pool.query(
-      `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
+    // Use table prefix for columns when joining with users table to avoid ambiguity
+    const selectCols = needsUserJoin
+      ? `SELECT leads.id, leads.name, leads.email, leads.mobile, leads.state, leads.city, leads.course, leads.source, leads.source_type AS "sourceType",
+              leads.owner, leads.reg_date AS "regDate", leads.score, leads.stage, leads.stage_color AS "stageColor",
+              leads.not_interested_reason AS "notInterestedReason"`
+      : `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
               owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor",
-              not_interested_reason AS "notInterestedReason"
+              not_interested_reason AS "notInterestedReason"`
+
+    const rowsRes = await pool.query(
+      `${selectCols}
        ${fromClause} ${whereSql}
-       ORDER BY id DESC
+       ORDER BY ${needsUserJoin ? 'leads.id' : 'id'} DESC
        LIMIT ${limit} OFFSET ${offset};`,
       params
     )
