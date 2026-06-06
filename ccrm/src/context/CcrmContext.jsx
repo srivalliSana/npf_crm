@@ -1001,6 +1001,20 @@ export function CcrmProvider({ children }) {
     }
   }
 
+  // Fetch per-lead RCS send history (sent / failed / delivered)
+  const getRcsHistory = async (leadId) => {
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch(`/api/leads/${leadId}/rcs-history`, {
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) return await res.json()
+    } catch (e) {
+      console.error('Failed to fetch RCS history:', e)
+    }
+    return []
+  }
+
   // Approved RCS templates — fetched from local DB (populated via webhook or manual add)
   const [rcsTemplates, setRcsTemplates] = useState([])
   const fetchRcsTemplates = async () => {
@@ -1234,7 +1248,7 @@ export function CcrmProvider({ children }) {
       notifications, setNotifications, addNotification, markNotificationRead, markAllNotificationsRead, fetchNotifications,
       // New features
       checkDuplicate, getNextAssignee,
-      sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, sendRcsToLead,
+      sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, sendRcsToLead, getRcsHistory,
       rcsTemplates, fetchRcsTemplates,
       dripSequences, setDripSequences, enrollDrip,
       generatePaymentLink,

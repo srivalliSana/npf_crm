@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react'
-import { Sparkles, MessageCircle, X, AlertCircle } from 'lucide-react'
+import { Sparkles, MessageCircle, X, AlertCircle, CheckCircle2, Clock, History } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
 // Reusable RCS compose modal — pick an approved template, fill variables,
 // preview, and send to a single lead. Used in LeadManager and ApplicationDetails.
 // Props: lead = { id, name, mobile }, onClose()
 export default function RcsComposeModal({ lead, onClose }) {
-  const { rcsTemplates, fetchRcsTemplates, sendRcsToLead, showToast } = useCcrm()
+  const { rcsTemplates, fetchRcsTemplates, sendRcsToLead, getRcsHistory, showToast } = useCcrm()
   const [templateId, setTemplateId] = useState('')
   const [vars, setVars] = useState({})
   const [sending, setSending] = useState(false)
+  const [history, setHistory] = useState([])
 
-  useEffect(() => { fetchRcsTemplates() }, [])
+  const loadHistory = async () => {
+    if (!lead?.id) return
+    const rows = await getRcsHistory(lead.id)
+    setHistory(rows || [])
+  }
+
+  useEffect(() => { fetchRcsTemplates(); loadHistory() }, [])
 
   const approved = (rcsTemplates || []).filter(t => (t.status || '').toUpperCase() === 'APPROVED')
   const selected = approved.find(t => t.templateId === templateId)
@@ -37,7 +44,18 @@ export default function RcsComposeModal({ lead, onClose }) {
       variables: vars
     })
     setSending(false)
-    if (result?.success) onClose()
+    if (result?.success) {
+      setVars({})
+      loadHistory()  // refresh the sent-history list so the new send shows up
+    }
+  }
+
+  const statusBadge = (s) => {
+    const v = (s || '').toLowerCase()
+    if (v === 'sent')                      return 'bg-blue-100 text-blue-700'
+    if (v === 'delivered' || v === 'read') return 'bg-green-100 text-green-700'
+    if (v === 'failed')                    return 'bg-red-100 text-red-700'
+    return 'bg-gray-100 text-gray-700'
   }
 
   return (
@@ -105,7 +123,7 @@ export default function RcsComposeModal({ lead, onClose }) {
         )}
 
         <div className="flex gap-3 mt-4">
-          <button onClick={onClose} className="flex-1 btn-secondary text-sm py-2">Cancel</button>
+          <button onClick={onClose} className="flex-1 btn-secondary text-sm py-2">Close</button>
           <button
             onClick={handleSend}
             disabled={sending || !templateId || approved.length === 0}
@@ -113,6 +131,40 @@ export default function RcsComposeModal({ lead, onClose }) {
           >
             <Sparkles size={15} /> {sending ? 'Sending...' : 'Send RCS'}
           </button>
+        </div>
+
+        {/* Sent history — confirms whether past messages went through */}
+        <div className="mt-5 pt-4 border-t border-gray-100">
+          <div className="flex items-center gap-2 mb-2 text-gray-600">
+            <History size={14} />
+            <span className="text-xs font-semibold uppercase">Sent History</span>
+          </div>
+          {history.length === 0 ? (
+            <p className="text-xs text-gray-400">No RCS messages sent to this lead yet.</p>
+          ) : (
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {history.map(h => (
+                <div key={h.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-gray-800 truncate">{h.templateId}</div>
+                    <div className="text-[11px] text-gray-400">
+                      {h.createdAt ? new Date(h.createdAt).toLocaleString('en-IN') : ''}
+                      {h.sentBy ? ` · ${h.sentBy}` : ''}
+                    </div>
+                    {h.status === 'failed' && h.errorCode && (
+                      <div className="text-[11px] text-red-500 truncate">{h.errorCode}</div>
+                    )}
+                  </div>
+                  <span className={`badge text-[11px] font-bold flex items-center gap-1 ${statusBadge(h.status)}`}>
+                    {(h.status || '').toLowerCase() === 'failed'
+                      ? <AlertCircle size={11} />
+                      : (['delivered', 'read'].includes((h.status || '').toLowerCase()) ? <CheckCircle2 size={11} /> : <Clock size={11} />)}
+                    {h.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
