@@ -6,7 +6,7 @@ import {
   Plus, X, Save, Upload, AlertCircle,
   CheckCircle2, FileSpreadsheet, HelpCircle, Trash2,
   MessageSquare, Zap, Target, BarChart2, ArrowRight,
-  Mail, Calendar, ArrowRightLeft, Edit3
+  Mail, Calendar, ArrowRightLeft, Edit3, Sparkles
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
@@ -61,7 +61,7 @@ const WA_TEMPLATES = [
 export default function LeadManager() {
   const navigate = useNavigate()
   const { addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData, fetchLeadsPage,
-          checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS,
+          checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, sendRcsToLead,
           rcsTemplates, fetchRcsTemplates, enrollDrip, logCall } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
@@ -175,6 +175,12 @@ export default function LeadManager() {
   const [callOutcome, setCallOutcome] = useState('Called')
   const [callNotes, setCallNotes] = useState('')
   const [callDuration, setCallDuration] = useState('')
+
+  // RCS single-lead compose modal (distinct from the bulk RCS modal above)
+  const [rcsLead, setRcsLead] = useState(null)                    // lead being messaged
+  const [rcsLeadTemplateId, setRcsLeadTemplateId] = useState('')  // selected approved template
+  const [rcsVars, setRcsVars] = useState({})                      // { var1: '', var2: '' }
+  const [rcsLeadSending, setRcsLeadSending] = useState(false)
 
   // Bulk upload wizard
   const [showBulkModal, setShowBulkModal] = useState(false)
@@ -412,6 +418,46 @@ export default function LeadManager() {
     if (!callLead) return
     await logCall({ leadName: callLead.name, leadMobile: callLead.mobile, counselor: currentUser?.name || 'Unknown', duration: callDuration, outcome: callOutcome, notes: callNotes })
     setCallLead(null); setCallOutcome('Called'); setCallNotes(''); setCallDuration('')
+  }
+
+  // ----------- RCS SINGLE SEND -----------
+  const openRcs = (lead) => {
+    setRcsLead(lead)
+    setRcsLeadTemplateId('')
+    setRcsVars({})
+    fetchRcsTemplates()
+  }
+
+  // Approved templates only — rcssms requires an approved templateid for every send
+  const approvedRcsTemplates = (rcsTemplates || []).filter(t => (t.status || '').toUpperCase() === 'APPROVED')
+  const rcsSelected = approvedRcsTemplates.find(t => t.templateId === rcsLeadTemplateId)
+  // Normalize a template's variable list to display labels (API still uses var1..varN by sequence)
+  const rcsSelectedVars = Array.isArray(rcsSelected?.variables) ? rcsSelected.variables : []
+
+  const rcsPreview = (() => {
+    if (!rcsSelected) return ''
+    let txt = rcsSelected.preview || ''
+    rcsSelectedVars.forEach((v, i) => {
+      const label = typeof v === 'string' ? v : (v?.name || v?.key || `var${i + 1}`)
+      const val = rcsVars[`var${i + 1}`] || `{${label}}`
+      txt = txt.split(`{${label}}`).join(val).split(`{var${i + 1}}`).join(val)
+    })
+    return txt
+  })()
+
+  const handleSendRcs = async () => {
+    if (!rcsLead) return
+    if (!rcsLeadTemplateId) return showToast('Please select an approved template.', 'error')
+    setRcsLeadSending(true)
+    const result = await sendRcsToLead(rcsLead.id, {
+      templateId: rcsLeadTemplateId,
+      rcsType: rcsSelected?.rcsType || 'BASIC',
+      variables: rcsVars
+    })
+    setRcsLeadSending(false)
+    if (result?.success) {
+      setRcsLead(null); setRcsLeadTemplateId(''); setRcsVars({})
+    }
   }
 
   // ----------- BULK UPLOAD WITH PREVIEW -----------
@@ -781,6 +827,10 @@ export default function LeadManager() {
                         <a href={`https://wa.me/91${lead.mobile}`} target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-600" title="WhatsApp">
                           <MessageCircle size={13} />
                         </a>
+                        <button onClick={() => openRcs(lead)}
+                          className="text-fuchsia-500 hover:text-fuchsia-700" title="Send RCS message">
+                          <Sparkles size={13} />
+                        </button>
                         <button onClick={() => { setCallLead(lead); setCallOutcome('Called'); setCallNotes('') }}
                           className="text-blue-400 hover:text-blue-600" title="Log Call">
                           <Phone size={13} />
@@ -1152,6 +1202,88 @@ export default function LeadManager() {
                 className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
                 {waSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <MessageSquare size={16} />}
                 {waSending ? 'Sending...' : `Send to ${selectedRows.length} Leads`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ RCS COMPOSE MODAL ============ */}
+      {rcsLead && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <Sparkles size={18} className="text-fuchsia-500" /> Send RCS Message
+              </h2>
+              <button onClick={() => setRcsLead(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+
+            <div className="bg-fuchsia-50 rounded-xl p-3 mb-4">
+              <div className="font-semibold text-slate-800">{rcsLead.name}</div>
+              <div className="text-fuchsia-600 font-mono text-sm font-bold flex items-center gap-2">
+                <MessageCircle size={14} /> {rcsLead.mobile}
+              </div>
+            </div>
+
+            {approvedRcsTemplates.length === 0 ? (
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+                <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800">
+                  No approved RCS templates yet. Add/approve a template in
+                  Integrations → RCS before sending.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Template</label>
+                  <select value={rcsLeadTemplateId} onChange={e => { setRcsLeadTemplateId(e.target.value); setRcsVars({}) }} className="input-field text-sm">
+                    <option value="">-- Select approved template --</option>
+                    {approvedRcsTemplates.map(t => (
+                      <option key={t.templateId} value={t.templateId}>
+                        {t.name || t.templateId} ({t.rcsType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {rcsSelectedVars.map((v, i) => {
+                  const label = typeof v === 'string' ? v : (v?.name || v?.key || `Variable ${i + 1}`)
+                  const key = `var${i + 1}`
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">{label}</label>
+                      <input
+                        type="text"
+                        value={rcsVars[key] || ''}
+                        onChange={e => setRcsVars(prev => ({ ...prev, [key]: e.target.value }))}
+                        className="input-field text-sm"
+                        placeholder={`Enter ${label}`}
+                      />
+                    </div>
+                  )
+                })}
+
+                {rcsSelected?.preview && (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Preview</label>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap">
+                      {rcsPreview}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setRcsLead(null)} className="flex-1 btn-secondary text-sm py-2">Cancel</button>
+              <button
+                onClick={handleSendRcs}
+                disabled={rcsLeadSending || !rcsLeadTemplateId || approvedRcsTemplates.length === 0}
+                className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-700 disabled:opacity-50 text-white text-sm font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
+                <Sparkles size={15} /> {rcsLeadSending ? 'Sending...' : 'Send RCS'}
               </button>
             </div>
           </div>
