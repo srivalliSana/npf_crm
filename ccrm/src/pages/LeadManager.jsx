@@ -254,6 +254,7 @@ export default function LeadManager() {
     } else if (activeFilter === 'cutm' || activeFilter === 'cutmap') {
       q.domain = activeFilter
     }
+    console.log(`[buildQuery] activeFilter=${activeFilter}, quickView=${quickView}, page=${currentPage}, result:`, q)
     return q
   }
 
@@ -278,7 +279,10 @@ export default function LeadManager() {
   }
 
   // Reload whenever paging / search / filters / quick-view / user change
-  useEffect(() => { loadPage() }, [currentPage, debouncedSearch, filters, quickView, activeFilter, currentUser])
+  useEffect(() => {
+    console.log(`[useEffect] Triggered! activeFilter=${activeFilter}, quickView=${quickView}, currentPage=${currentPage}`)
+    loadPage()
+  }, [currentPage, debouncedSearch, filters, quickView, activeFilter, currentUser])
 
   const refreshLeads = () => loadPage()
 
@@ -588,7 +592,11 @@ export default function LeadManager() {
           { id: 'ftl', label: 'FTL' },
           { id: 'esse', label: 'ESSE' }
         ].map(tab => (
-          <button key={tab.id} onClick={() => { setActiveFilter(tab.id); setCurrentPage(1) }}
+          <button key={tab.id} onClick={() => {
+            console.log(`[Tab Click] Clicked tab: ${tab.id}`)
+            setActiveFilter(tab.id)
+            setCurrentPage(1)
+          }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeFilter === tab.id ? 'bg-primary-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             {tab.label}
           </button>
