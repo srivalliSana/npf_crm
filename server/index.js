@@ -123,11 +123,13 @@ class EasyGoIVRProvider {
   async getToken() {
     // Check if token is still valid (with 5 min buffer)
     if (this.token && this.tokenExpiry && Date.now() < this.tokenExpiry - this.tokenRefreshBuffer) {
+      console.log('[EasyGoIVR] Using cached token')
       return this.token
     }
 
     // If passwordHash looks like a JWT token (starts with eyJ), use it directly
     if (this.passwordHash && this.passwordHash.startsWith('eyJ')) {
+      console.log('[EasyGoIVR] Using passwordHash as token (JWT detected)')
       this.token = this.passwordHash
       // JWT tokens have exp field, estimate 24 hours for safety
       this.tokenExpiry = Date.now() + 24 * 60 * 60 * 1000
@@ -135,6 +137,8 @@ class EasyGoIVRProvider {
     }
 
     try {
+      console.log('[EasyGoIVR] Generating new token...')
+      console.log('[EasyGoIVR] Email:', this.email)
       const response = await axios.post(
         'https://client.easygoivr.com/masterapiJwt/gentoken',
         {},
@@ -146,15 +150,22 @@ class EasyGoIVRProvider {
         }
       )
 
+      console.log('[EasyGoIVR] Token response status:', response.status)
+      console.log('[EasyGoIVR] Token response data:', response.data)
+
       // Extract API_TOKEN from response (uppercase field name)
       this.token = response.data.API_TOKEN || response.data.token || response.data
+      console.log('[EasyGoIVR] Extracted token:', this.token ? `${this.token.substring(0, 20)}...` : 'EMPTY')
+
       // Assume token valid for 24 hours
       this.tokenExpiry = Date.now() + 24 * 60 * 60 * 1000
       console.log('[EasyGoIVR] Token generated successfully')
       return this.token
     } catch (err) {
-      console.error('[EasyGoIVR] Token generation failed:', err.message)
-      throw new Error(`EasyGoIVR token generation failed: ${err.message}`)
+      console.error('[EasyGoIVR] Token generation failed!')
+      console.error('[EasyGoIVR] Error:', err.response?.data || err.message)
+      console.error('[EasyGoIVR] Status:', err.response?.status)
+      throw new Error(`EasyGoIVR token generation failed: ${err.response?.data?.msg || err.message}`)
     }
   }
 
@@ -3184,22 +3195,33 @@ app.post('/api/webhooks/esse-form', (req, res) => esseWebhook(req, res, pool))
 app.post('/api/calls/initiate', authenticateToken, async (req, res) => {
   try {
     const { leadId, phoneNumber, counselorExtension } = req.body
+    console.log('[API] Call initiate request:', { leadId, phoneNumber, counselorExtension })
+
     if (!leadId || !phoneNumber || !counselorExtension) {
       return res.status(400).json({ error: 'Missing leadId, phoneNumber, or counselorExtension.' })
     }
 
     // Fetch EasyGoIVR credentials from integration_settings
+    console.log('[API] Fetching EasyGoIVR credentials...')
     const emailRes = await getIntegrationSetting('easygo_email')
     const hashRes = await getIntegrationSetting('easygo_password_hash')
     const didRes = await getIntegrationSetting('easygo_did')
+
+    console.log('[API] Credentials retrieved:', {
+      email: emailRes ? 'YES' : 'NO',
+      password: hashRes ? 'YES' : 'NO',
+      did: didRes ? 'YES' : 'NO'
+    })
 
     if (!emailRes || !hashRes || !didRes) {
       return res.status(400).json({ error: 'EasyGoIVR not configured. Contact admin.' })
     }
 
     // Initiate call via EasyGoIVR
+    console.log('[API] Creating EasyGoIVRProvider and initiating call...')
     const provider = new EasyGoIVRProvider(emailRes, hashRes)
     const callResult = await provider.initiateCall(counselorExtension, phoneNumber, didRes)
+    console.log('[API] Call initiated successfully:', callResult)
 
     // Log call in database
     const leadRes = await pool.query('SELECT name, email FROM leads WHERE id = $1;', [leadId])
@@ -3212,9 +3234,11 @@ app.post('/api/calls/initiate', authenticateToken, async (req, res) => {
       [leadId, leadName, phoneNumber, counselorExtension, req.user.name]
     )
 
+    console.log('[API] Call logged to database successfully')
     res.json({ success: true, message: 'Call initiated.', callData: callResult })
   } catch (err) {
-    console.error('[Call Initiate]', err)
+    console.error('[Call Initiate] ERROR:', err.message)
+    console.error('[Call Initiate] Full error:', err)
     res.status(500).json({ error: err.message || 'Failed to initiate call.' })
   }
 })
