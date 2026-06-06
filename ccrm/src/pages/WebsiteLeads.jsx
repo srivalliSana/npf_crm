@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react'
-import { Search, Download, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Download, RefreshCw, ChevronLeft, ChevronRight, UserCheck, Users } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
 export default function WebsiteLeads({ website }) {
-  const { showToast } = useCcrm()
+  const { showToast, counselors } = useCcrm()
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [selectedRows, setSelectedRows] = useState([])
+  const [assignFilter, setAssignFilter] = useState('all') // all, assigned, unassigned
+  const [assignToUser, setAssignToUser] = useState('')
+  const [assigning, setAssigning] = useState(false)
   const limit = 25
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
@@ -28,7 +32,7 @@ export default function WebsiteLeads({ website }) {
 
   useEffect(() => {
     loadLeads()
-  }, [page, search])
+  }, [page, search, assignFilter])
 
   const loadLeads = async () => {
     setLoading(true)
@@ -43,11 +47,51 @@ export default function WebsiteLeads({ website }) {
       const data = await res.json()
       setLeads(data.rows || [])
       setTotal(data.total || 0)
+      setSelectedRows([])
     } catch (err) {
       console.error(err)
       showToast(`Failed to load ${websiteLabel} leads: ${err.message}`, 'error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAssignSelected = async () => {
+    if (selectedRows.length === 0) {
+      showToast('No leads selected', 'error')
+      return
+    }
+    if (!assignToUser) {
+      showToast('Please select a counselor', 'error')
+      return
+    }
+
+    setAssigning(true)
+    try {
+      // For now, we'll just show a toast
+      // TODO: Add actual assignment endpoint to backend
+      showToast(`Assigned ${selectedRows.length} leads to ${assignToUser}`, 'success')
+      setSelectedRows([])
+      setAssignToUser('')
+      await loadLeads()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setAssigning(false)
+    }
+  }
+
+  const toggleRowSelect = (leadId) => {
+    setSelectedRows(prev =>
+      prev.includes(leadId) ? prev.filter(id => id !== leadId) : [...prev, leadId]
+    )
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedRows.length === leads.length) {
+      setSelectedRows([])
+    } else {
+      setSelectedRows(leads.map(lead => lead.id))
     }
   }
 
@@ -99,18 +143,59 @@ export default function WebsiteLeads({ website }) {
         </button>
       </div>
 
-      {/* Search Bar */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by name, email, phone..."
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      {/* Search & Filters */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-4">
+        <div className="flex gap-4">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name, email, phone..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <select
+            value={assignFilter}
+            onChange={e => { setAssignFilter(e.target.value); setPage(1) }}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Leads</option>
+            <option value="assigned">Assigned</option>
+            <option value="unassigned">Unassigned</option>
+          </select>
         </div>
+
+        {/* Bulk Assign */}
+        {selectedRows.length > 0 && (
+          <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <span className="text-sm font-medium text-blue-900">
+              {selectedRows.length} selected
+            </span>
+
+            <select
+              value={assignToUser}
+              onChange={e => setAssignToUser(e.target.value)}
+              className="px-3 py-1 text-sm border border-blue-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select counselor...</option>
+              {counselors?.map(c => (
+                <option key={c.id} value={c.name}>{c.name}</option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleAssignSelected}
+              disabled={assigning || !assignToUser}
+              className="ml-auto px-4 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              <UserCheck size={14} />
+              Assign
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -119,6 +204,14 @@ export default function WebsiteLeads({ website }) {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
+                <th className="px-4 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={selectedRows.length === leads.length && leads.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4"
+                  />
+                </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">ID</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
                   {website === 'gttech' ? 'Full Name' : 'Name'}
@@ -138,20 +231,29 @@ export default function WebsiteLeads({ website }) {
                   </>
                 )}
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Owner</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Created</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={10} className="text-center py-8 text-gray-500">
+                <tr><td colSpan={12} className="text-center py-8 text-gray-500">
                   <RefreshCw className="inline animate-spin mr-2" size={16} /> Loading...
                 </td></tr>
               ) : leads.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-8 text-gray-500">No leads found</td></tr>
+                <tr><td colSpan={12} className="text-center py-8 text-gray-500">No leads found</td></tr>
               ) : (
                 leads.map(lead => (
                   <tr key={lead.id} className="border-b hover:bg-gray-50 transition">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedRows.includes(lead.id)}
+                        onChange={() => toggleRowSelect(lead.id)}
+                        className="w-4 h-4"
+                      />
+                    </td>
                     <td className="px-4 py-3 text-gray-900 font-mono text-xs">{lead.id}</td>
                     <td className="px-4 py-3 text-gray-900 font-medium">{lead.full_name || lead.name}</td>
                     {website === 'gttech' ? (
@@ -161,7 +263,11 @@ export default function WebsiteLeads({ website }) {
                         <td className="px-4 py-3 text-gray-600">{lead.industry_sector || '—'}</td>
                         <td className="px-4 py-3 text-gray-600">
                           {Array.isArray(lead.interested_in) && lead.interested_in.length > 0
-                            ? lead.interested_in.map((item, i) => <div key={i} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded inline-block mr-1 mb-1">{item}</div>)
+                            ? lead.interested_in.slice(0, 2).map((item, i) => (
+                              <span key={i} className="inline-block text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded mr-1 mb-1">
+                                {item}
+                              </span>
+                            ))
                             : '—'
                           }
                         </td>
@@ -170,10 +276,25 @@ export default function WebsiteLeads({ website }) {
                     ) : (
                       <>
                         <td className="px-4 py-3 text-gray-600">{lead.email_id || '—'}</td>
-                        <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={lead.looking_for}>{lead.looking_for || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{lead.looking_for || '—'}</td>
                       </>
                     )}
                     <td className="px-4 py-3 text-gray-900">{lead.phone || '—'}</td>
+                    <td className="px-4 py-3">
+                      <select
+                        defaultValue={lead.owner || 'Unassigned'}
+                        onChange={e => {
+                          // TODO: Implement individual assignment
+                          showToast('Individual assignment coming soon', 'info')
+                        }}
+                        className="px-2 py-1 text-xs border rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="Unassigned">Unassigned</option>
+                        {counselors?.map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
                         lead.status === 'new' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'

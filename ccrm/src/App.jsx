@@ -36,6 +36,7 @@ import FTLLeads from './pages/FTLLeads'
 import GTIBLeads from './pages/GTIBLeads'
 import GTTECHLeads from './pages/GTTECHLeads'
 import ESSELeads from './pages/ESSELeads'
+import WebsitesDashboard from './pages/WebsitesDashboard'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -81,6 +82,7 @@ export default function App() {
           <Route element={<AuthGuard />}>
             <Route path="leads"            element={<LeadManager />} />
             <Route path="leads/:id"        element={<ApplicationDetails />} />
+            <Route path="websites-dashboard" element={<WebsitesDashboard />} />
             <Route path="ftl-leads"        element={<FTLLeads />} />
             <Route path="gtib-leads"       element={<GTIBLeads />} />
             <Route path="gttech-leads"     element={<GTTECHLeads />} />
