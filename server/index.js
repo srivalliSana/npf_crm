@@ -3848,11 +3848,13 @@ async function sendRcsViaProvider({ provider, apiKey, clientSecret, agentId, sen
       const text = await r.text()
       let data = {}
       try { data = JSON.parse(text) } catch {}
-      // Success → { data: [{ msgid, msisdn }] }; failure → numeric error code
-      const code = data.errorcode ?? data.error ?? data.code
+      // Success → { data: [{ msgid, msisdn }] }
+      // Failure formats seen: { errorcode } | { error } | { Error: { ErrorCode, ErrorDesc } }
+      const code    = data.errorcode ?? data.error ?? data.code ?? data?.Error?.ErrorCode
+      const errDesc = data?.Error?.ErrorDesc
       const succeeded = r.ok && Array.isArray(data.data) && data.data.length > 0
       if (!succeeded) {
-        const errText = code != null ? mapRcsError(code) : (text || 'unknown error')
+        const errText = errDesc || (code != null ? mapRcsError(code) : (text || 'unknown error'))
         console.error('[RCS:rcssms]', errText, data || text)
         return { ok: false, error: errText }
       }
