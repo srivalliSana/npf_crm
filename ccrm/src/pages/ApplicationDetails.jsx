@@ -72,7 +72,8 @@ export default function ApplicationDetails() {
     documents, uploadDocument, updateDocStatus, deleteDocument,
     generatePaymentLink,
     users, counselors,
-    showToast, currentUser
+    showToast, currentUser,
+    initiateCall
   } = useCcrm()
 
   // The context only holds a recent slice of leads (the full table is paginated
@@ -138,6 +139,7 @@ export default function ApplicationDetails() {
   const [ameyoCalling, setAmeyoCalling]   = useState(false)
   const [ameyoReady, setAmeyoReady]       = useState(null)
   const [ameyoCfg, setAmeyoCfg]           = useState(null)
+  const [easyGoReady, setEasyGoReady]     = useState(null)
 
   // Payment modal state
   const [showPayModal, setShowPayModal]   = useState(false)
@@ -256,8 +258,14 @@ export default function ApplicationDetails() {
           ? !!(cfg.ameyo_api_url && cfg.ameyo_username && cfg.ameyo_password && cfg.ameyo_virtual_number && cfg.ameyo_agent_number)
           : !!(cfg.ameyo_api_url && cfg.ameyo_username && cfg.ameyo_password)
         setAmeyoReady(ready)
+        // Check EasyGoIVR configuration
+        const easyGoConfigured = !!(cfg.easygo_email && cfg.easygo_password_hash && cfg.easygo_did)
+        setEasyGoReady(easyGoConfigured)
       })
-      .catch(() => setAmeyoReady(false))
+      .catch(() => {
+        setAmeyoReady(false)
+        setEasyGoReady(false)
+      })
   }, [])
   const [editMode, setEditMode] = useState(false)
 
@@ -683,14 +691,22 @@ export default function ApplicationDetails() {
                     <MessageCircle size={14} />
                   </a>
                   {/* Click-to-Call */}
-                  {ameyoReady === true ? (
+                  {ameyoReady === true || easyGoReady === true ? (
                     <button
                       disabled={ameyoCalling}
                       onClick={async () => {
                         setAmeyoCalling(true)
                         try {
-                          const data = await initiateAmeyoCall(studentMobile)
-                          showToast(`Call initiated via ${data.provider === 'exotel' ? 'Exotel' : 'Ameyo'} ✓`, 'success')
+                          // Prefer EasyGoIVR if configured, else use Ameyo
+                          if (easyGoReady === true) {
+                            const data = await initiateCall(associatedLead?.id || associatedApp?.lead_id, studentMobile, currentUser?.extension)
+                            if (data?.success) {
+                              showToast(`Call initiated via EasyGoIVR ✓`, 'success')
+                            }
+                          } else {
+                            const data = await initiateAmeyoCall(studentMobile)
+                            showToast(`Call initiated via ${data.provider === 'exotel' ? 'Exotel' : 'Ameyo'} ✓`, 'success')
+                          }
                         } catch (e) {
                           showToast(e.message || 'Call failed.', 'error')
                         }
