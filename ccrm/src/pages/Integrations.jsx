@@ -349,7 +349,7 @@ function RcsTemplatesManager() {
   const [templates, setTemplates] = useState([])
   const [loading, setLoading]     = useState(false)
   const [showAdd, setShowAdd]     = useState(false)
-  const [form, setForm] = useState({ templateId: '', name: '', rcsType: 'BASIC', status: 'APPROVED' })
+  const [form, setForm] = useState({ templateId: '', name: '', rcsType: 'BASIC', status: 'APPROVED', variables: '', preview: '' })
 
   const load = async () => {
     setLoading(true)
@@ -363,12 +363,25 @@ function RcsTemplatesManager() {
 
   const save = async () => {
     if (!form.templateId.trim()) return alert('Template ID required')
-    const r = await fetch('/api/rcs/templates', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form)
-    })
-    if (r.ok) { setShowAdd(false); setForm({ templateId: '', name: '', rcsType: 'BASIC', status: 'APPROVED' }); load() }
-    else alert('Save failed')
+    // variables typed as comma-separated names → array (in sequence: var1, var2, ...)
+    const variables = (form.variables || '')
+      .split(',').map(v => v.trim()).filter(Boolean)
+    try {
+      const r = await fetch('/api/rcs/templates', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, variables })
+      })
+      if (r.ok) {
+        setShowAdd(false)
+        setForm({ templateId: '', name: '', rcsType: 'BASIC', status: 'APPROVED', variables: '', preview: '' })
+        load()
+      } else {
+        const err = await r.json().catch(() => ({}))
+        alert(`Save failed: ${err.error || r.status}`)
+      }
+    } catch (e) {
+      alert(`Save failed: ${e.message}`)
+    }
   }
   const del = async (id) => {
     if (!confirm('Delete this template?')) return
@@ -469,6 +482,19 @@ function RcsTemplatesManager() {
                     <option>APPROVED</option><option>PENDING</option><option>REJECTED</option>
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Variables (comma-separated, in order)</label>
+                <input value={form.variables} onChange={e => setForm(p => ({ ...p, variables: e.target.value }))}
+                  placeholder="e.g. name, course, date" className="input-field text-sm" />
+                <p className="text-[11px] text-gray-400 mt-1">Maps to var1, var2, … in sequence. Leave blank if the template has no variables.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Preview Text</label>
+                <textarea value={form.preview} onChange={e => setForm(p => ({ ...p, preview: e.target.value }))}
+                  rows={2} className="input-field text-sm resize-none"
+                  placeholder="Hi {name}, your {course} application is confirmed." />
+                <p className="text-[11px] text-gray-400 mt-1">Use {'{variableName}'} placeholders — shown as a live preview when composing.</p>
               </div>
             </div>
             <div className="flex gap-3 mt-5">
