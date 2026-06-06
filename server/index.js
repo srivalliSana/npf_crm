@@ -655,43 +655,31 @@ app.get('/api/leads', async (req, res) => {
     if (source) add('source = $$', source)
     // Website filter: match against lead_source field (e.g., "Website (ftl)", "Website (esse)")
     if (website_code) add('LOWER(lead_source) LIKE LOWER($$)', `%${website_code}%`)
-    // Domain filter: filter by owner email domain (@cutm.ac.in or @cutmap.ac.in)
-    if (domain === 'cutm') {
-      where.push('owner ILIKE \'%@cutm.ac.in\'')
-    } else if (domain === 'cutmap') {
-      where.push('owner ILIKE \'%@cutmap.ac.in\'')
+
+    // Domain filter: join with users table and filter by email domain
+    const needsUserJoin = domain === 'cutm' || domain === 'cutmap'
+    if (needsUserJoin) {
+      if (domain === 'cutm') {
+        where.push(`users.email ILIKE '%@cutm.ac.in'`)
+      } else if (domain === 'cutmap') {
+        where.push(`users.email ILIKE '%@cutmap.ac.in'`)
+      }
     }
 
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
-
-    // If domain filter is applied, need to join with users table to filter by email
-    const needsUserJoin = domain && (domain === 'cutm' || domain === 'cutmap')
     const fromClause = needsUserJoin
       ? `FROM leads LEFT JOIN users ON LOWER(leads.owner) = LOWER(users.name)`
       : `FROM leads`
 
-    // Adjust WHERE clause for email domain filter when using JOIN
-    let adjustedWhere = where
-    if (needsUserJoin) {
-      adjustedWhere = where.map(clause => {
-        if (clause.includes('@cutm.ac.in')) {
-          return `users.email ILIKE '%@cutm.ac.in'`
-        } else if (clause.includes('@cutmap.ac.in')) {
-          return `users.email ILIKE '%@cutmap.ac.in'`
-        }
-        return clause
-      })
-    }
-    const adjustedWhereSql = adjustedWhere.length ? `WHERE ${adjustedWhere.join(' AND ')}` : ''
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
-    const countRes = await pool.query(`SELECT COUNT(*)::int AS total ${fromClause} ${adjustedWhereSql};`, params)
+    const countRes = await pool.query(`SELECT COUNT(*)::int AS total ${fromClause} ${whereSql};`, params)
     const total = countRes.rows[0].total
 
     const rowsRes = await pool.query(
       `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
               owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor",
               not_interested_reason AS "notInterestedReason"
-       ${fromClause} ${adjustedWhereSql}
+       ${fromClause} ${whereSql}
        ORDER BY id DESC
        LIMIT ${limit} OFFSET ${offset};`,
       params
