@@ -65,22 +65,37 @@ export function CcrmProvider({ children }) {
 
   // Fetch ONE page of leads from the server (search/filter/role-scoped).
   // Used by Lead Manager so the browser never loads the whole table.
-  const fetchLeadsPage = async ({ page = 1, limit = 50, search = '', stage = '', owner = '', state = '', source = '', unassigned = false, website_code = '', domain = '' } = {}) => {
+  const fetchLeadsPage = async ({ page = 1, limit = 50, search = '', stage = '', owner = '', state = '', source = '', unassigned = false, website_code = '', domain = '', tableSource = '' } = {}) => {
     const token = localStorage.getItem('ccrm_token')
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
     const qs = new URLSearchParams()
     qs.set('page', page); qs.set('limit', limit)
     if (search) qs.set('search', search)
-    if (stage)  qs.set('stage', stage)
-    if (owner)  qs.set('owner', owner)
-    if (state)  qs.set('state', state)
-    if (source) qs.set('source', source)
-    if (unassigned) qs.set('unassigned', true)
-    if (website_code) qs.set('website_code', website_code)
-    if (domain) qs.set('domain', domain)
-    if (currentUser?.role) qs.set('requesterRole', currentUser.role)
-    if (currentUser?.name) qs.set('requesterName', currentUser.name)
-    const url = `/api/leads?${qs.toString()}`
+
+    // Determine which endpoint to use based on tableSource (website code)
+    let endpoint = '/api/leads'
+    if (tableSource === 'gttech') {
+      endpoint = '/api/gttech-leads'
+    } else if (tableSource === 'ftl') {
+      endpoint = '/api/ftl-leads'
+    } else if (tableSource === 'gtib') {
+      endpoint = '/api/gtib-leads'
+    } else if (tableSource === 'esse') {
+      endpoint = '/api/esse-leads'
+    } else {
+      // For main leads table
+      if (stage)  qs.set('stage', stage)
+      if (owner)  qs.set('owner', owner)
+      if (state)  qs.set('state', state)
+      if (source) qs.set('source', source)
+      if (unassigned) qs.set('unassigned', true)
+      if (website_code) qs.set('website_code', website_code)
+      if (domain) qs.set('domain', domain)
+      if (currentUser?.role) qs.set('requesterRole', currentUser.role)
+      if (currentUser?.name) qs.set('requesterName', currentUser.name)
+    }
+
+    const url = `${endpoint}?${qs.toString()}`
     const res = await fetch(url, { headers })
     if (!res.ok) throw new Error('Failed to load leads')
     return res.json()   // { rows, total, page, limit }
