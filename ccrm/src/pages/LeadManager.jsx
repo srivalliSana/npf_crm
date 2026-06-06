@@ -1168,9 +1168,9 @@ export default function LeadManager() {
             </div>
             <div className="bg-blue-50 rounded-xl p-3 mb-4">
               <div className="font-semibold text-slate-800">{callLead.name}</div>
-              <a href={`tel:${callLead.mobile}`} className="text-blue-600 font-mono text-lg font-bold flex items-center gap-2">
+              <div className="text-blue-600 font-mono text-lg font-bold flex items-center gap-2">
                 <Phone size={16} /> {callLead.mobile}
-              </a>
+              </div>
             </div>
             <div className="space-y-3">
               <div>
