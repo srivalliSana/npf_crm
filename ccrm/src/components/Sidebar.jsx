@@ -5,16 +5,23 @@ import {
   BarChart2, Settings, LogOut, CreditCard,
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
   Trophy, Mail, Globe, ExternalLink, Zap, Radio,
-  PieChart, Activity, Plug, Server, ShieldCheck
+  PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',     to: '/dashboard',        roles: null },
   { icon: Users,           label: 'Leads',         to: '/leads',            roles: null },
-  { icon: Users,           label: 'FTL Leads',     to: '/ftl-leads',        roles: null },
-  { icon: Users,           label: 'GTIB Leads',    to: '/gtib-leads',       roles: null },
-  { icon: Users,           label: 'GTTECH Leads',  to: '/gttech-leads',     roles: null },
-  { icon: Users,           label: 'ESSE Leads',    to: '/esse-leads',       roles: null },
+  {
+    icon: Users,
+    label: 'GT Entities',
+    roles: null,
+    submenu: [
+      { label: 'FTL',    to: '/ftl-leads' },
+      { label: 'GTIB',   to: '/gtib-leads' },
+      { label: 'GTTECH', to: '/gttech-leads' },
+      { label: 'ESSE',   to: '/esse-leads' }
+    ]
+  },
   { icon: FileText,        label: 'Applications',  to: '/applications',     roles: null },
   { icon: CheckSquare,     label: 'Tasks',         to: '/tasks',            roles: null },
   { icon: Megaphone,       label: 'Campaigns',     to: '/campaigns',        roles: null },
@@ -42,8 +49,8 @@ const NAV_ITEMS = [
 export default function Sidebar({ onLogout, user }) {
   const navigate = useNavigate()
   const userRole = user?.role || 'Counselor'
-  // Sidebar stays expanded always — no hover-collapse
   const expanded = true
+  const [openSubmenu, setOpenSubmenu] = useState(null)
 
   const visibleItems = NAV_ITEMS.filter(item =>
     !item.roles || item.roles.includes(userRole)
@@ -69,21 +76,65 @@ export default function Sidebar({ onLogout, user }) {
 
       {/* Nav items */}
       <nav className="flex-1 flex flex-col w-full mt-1 overflow-y-auto scrollbar-hide">
-        {visibleItems.map(({ icon: Icon, label, to }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              `sidebar-icon${isActive ? ' active' : ''}`
-            }
-            title={!expanded ? label : undefined}
-          >
-            <Icon size={20} strokeWidth={1.8} className="flex-shrink-0" />
-            <span className={`text-[13px] font-medium whitespace-nowrap overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0 w-0'}`}>
-              {label}
-            </span>
-          </NavLink>
-        ))}
+        {visibleItems.map((item) => {
+          const { icon: Icon, label, to, submenu } = item
+
+          // Regular nav item (no submenu)
+          if (!submenu) {
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  `sidebar-icon${isActive ? ' active' : ''}`
+                }
+                title={!expanded ? label : undefined}
+              >
+                <Icon size={20} strokeWidth={1.8} className="flex-shrink-0" />
+                <span className={`text-[13px] font-medium whitespace-nowrap overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0 w-0'}`}>
+                  {label}
+                </span>
+              </NavLink>
+            )
+          }
+
+          // Submenu item
+          const isOpen = openSubmenu === label
+          return (
+            <div key={label} className="flex flex-col">
+              <button
+                onClick={() => setOpenSubmenu(isOpen ? null : label)}
+                className="flex items-center gap-3 px-4 py-2 text-white hover:bg-primary-600 transition-colors rounded-lg mx-2 mb-1"
+              >
+                <Icon size={20} strokeWidth={1.8} className="flex-shrink-0" />
+                <span className="text-[13px] font-medium whitespace-nowrap flex-1 text-left">
+                  {label}
+                </span>
+                <ChevronDown
+                  size={16}
+                  className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {isOpen && (
+                <div className="bg-primary-600 bg-opacity-50 rounded-lg mx-2 mb-2 overflow-hidden">
+                  {submenu.map(({ label: subLabel, to: subTo }) => (
+                    <NavLink
+                      key={subTo}
+                      to={subTo}
+                      className={({ isActive }) =>
+                        `block px-4 py-2 text-[13px] text-white hover:bg-primary-700 transition-colors ${
+                          isActive ? 'bg-primary-700 font-medium' : ''
+                        }`
+                      }
+                    >
+                      {subLabel}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
 
         {/* Divider + Inquiry */}
         <div className="mx-4 h-px bg-primary-400 my-1" />
