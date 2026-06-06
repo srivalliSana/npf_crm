@@ -12,7 +12,6 @@ export default function WebsiteLeads({ website }) {
   const limit = 25
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
-  // Map website to API endpoint
   const apiEndpoint = {
     ftl: '/api/ftl-leads',
     gtib: '/api/gtib-leads',
@@ -34,7 +33,6 @@ export default function WebsiteLeads({ website }) {
   const loadLeads = async () => {
     setLoading(true)
     try {
-      const offset = (page - 1) * limit
       const qs = new URLSearchParams()
       qs.set('page', page)
       qs.set('limit', limit)
@@ -54,18 +52,36 @@ export default function WebsiteLeads({ website }) {
   }
 
   const handleExport = () => {
-    const csv = [
-      ['ID', 'Name', 'Email', 'Phone', 'Created', 'Status'].join(','),
-      ...leads.map(lead => [
-        lead.id,
-        lead.name || lead.full_name,
-        lead.email_id || lead.email,
-        lead.phone,
-        lead.created_at,
-        lead.status
-      ].map(v => `"${v}"`).join(','))
-    ].join('\n')
+    let csvHeaders, csvRows
 
+    if (website === 'gttech') {
+      csvHeaders = ['ID', 'Full Name', 'Organization', 'Designation', 'Industry', 'Interested In', 'Email', 'Phone', 'Status', 'Created']
+      csvRows = leads.map(lead => [
+        lead.id,
+        lead.full_name,
+        lead.organization_name || '',
+        lead.designation || '',
+        lead.industry_sector || '',
+        Array.isArray(lead.interested_in) ? lead.interested_in.join('; ') : '',
+        lead.email || '',
+        lead.phone || '',
+        lead.status,
+        lead.created_at
+      ])
+    } else {
+      csvHeaders = ['ID', 'Name', 'Email', 'Phone', 'Looking For', 'Status', 'Created']
+      csvRows = leads.map(lead => [
+        lead.id,
+        lead.name,
+        lead.email_id || '',
+        lead.phone || '',
+        lead.looking_for || '',
+        lead.status,
+        lead.created_at
+      ])
+    }
+
+    const csv = [csvHeaders.join(','), ...csvRows.map(row => row.map(v => `"${v}"`).join(','))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -100,59 +116,72 @@ export default function WebsiteLeads({ website }) {
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">ID</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">
                   {website === 'gttech' ? 'Full Name' : 'Name'}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Phone</th>
-                {website === 'gttech' && (
+                {website === 'gttech' ? (
                   <>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Organization</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Designation</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Organization</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Designation</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Industry</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Interested In</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Looking For</th>
                   </>
                 )}
-                {['ftl', 'gtib', 'esse'].includes(website) && (
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Looking For</th>
-                )}
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Created</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Created</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="text-center py-8 text-gray-500">
+                <tr><td colSpan={10} className="text-center py-8 text-gray-500">
                   <RefreshCw className="inline animate-spin mr-2" size={16} /> Loading...
                 </td></tr>
               ) : leads.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-gray-500">No leads found</td></tr>
+                <tr><td colSpan={10} className="text-center py-8 text-gray-500">No leads found</td></tr>
               ) : (
                 leads.map(lead => (
-                  <tr key={lead.id} className="border-b hover:bg-gray-50">
-                    <td className="px-6 py-3 text-sm text-gray-900">{lead.id}</td>
-                    <td className="px-6 py-3 text-sm text-gray-900">{lead.name || lead.full_name}</td>
-                    <td className="px-6 py-3 text-sm text-gray-600">{lead.email_id || lead.email}</td>
-                    <td className="px-6 py-3 text-sm text-gray-900">{lead.phone}</td>
-                    {website === 'gttech' && (
+                  <tr key={lead.id} className="border-b hover:bg-gray-50 transition">
+                    <td className="px-4 py-3 text-gray-900 font-mono text-xs">{lead.id}</td>
+                    <td className="px-4 py-3 text-gray-900 font-medium">{lead.full_name || lead.name}</td>
+                    {website === 'gttech' ? (
                       <>
-                        <td className="px-6 py-3 text-sm text-gray-600">{lead.organization_name || '—'}</td>
-                        <td className="px-6 py-3 text-sm text-gray-600">{lead.designation || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600">{lead.organization_name || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600">{lead.designation || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600">{lead.industry_sector || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {Array.isArray(lead.interested_in) && lead.interested_in.length > 0
+                            ? lead.interested_in.map((item, i) => <div key={i} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded inline-block mr-1 mb-1">{item}</div>)
+                            : '—'
+                          }
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{lead.email || '—'}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3 text-gray-600">{lead.email_id || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={lead.looking_for}>{lead.looking_for || '—'}</td>
                       </>
                     )}
-                    {['ftl', 'gtib', 'esse'].includes(website) && (
-                      <td className="px-6 py-3 text-sm text-gray-600">{lead.looking_for || '—'}</td>
-                    )}
-                    <td className="px-6 py-3">
+                    <td className="px-4 py-3 text-gray-900">{lead.phone || '—'}</td>
+                    <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
                         lead.status === 'new' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
                       }`}>
                         {lead.status || 'new'}
                       </span>
                     </td>
-                    <td className="px-6 py-3 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-gray-600 text-xs">
                       {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '—'}
                     </td>
                   </tr>
@@ -176,7 +205,7 @@ export default function WebsiteLeads({ website }) {
               >
                 <ChevronLeft size={16} /> Prev
               </button>
-              <span className="px-3 py-1">{page} / {totalPages}</span>
+              <span className="px-3 py-1 text-sm">{page} / {totalPages}</span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
