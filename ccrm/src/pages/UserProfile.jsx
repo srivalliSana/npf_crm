@@ -21,8 +21,11 @@ export default function UserProfile() {
       const res = await fetch(`/api/users/${currentUser.id}/profile`, { headers })
       if (res.ok) {
         const data = await res.json()
+        console.log('[Profile] Loaded:', data)
         setProfile(data)
         setMobileNumber(data.mobile_number || '')
+      } else {
+        console.error('[Profile] Load failed:', res.status, await res.json())
       }
     } catch (err) {
       console.error('Failed to load profile:', err)
@@ -36,6 +39,7 @@ export default function UserProfile() {
     if (!mobileNumber.trim()) {
       return showToast('Mobile number is required', 'error')
     }
+    console.log('[Profile] Saving mobile:', mobileNumber)
     setSaving(true)
     try {
       const token = localStorage.getItem('ccrm_token')
@@ -46,10 +50,13 @@ export default function UserProfile() {
         body: JSON.stringify({ mobile_number: mobileNumber })
       })
       if (res.ok) {
+        const data = await res.json()
+        console.log('[Profile] Save response:', data)
         await loadProfile()
         showToast('Profile updated successfully', 'success')
       } else {
         const err = await res.json()
+        console.error('[Profile] Save error:', err)
         showToast(err.error || 'Failed to update profile', 'error')
       }
     } catch (err) {
