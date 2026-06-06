@@ -721,10 +721,18 @@ export default function ApplicationDetails() {
                       <PhoneCall size={14} />
                     </button>
                   ) : (
-                    // No telephony configured — plain tel: link
-                    <a href={`tel:${studentMobile}`} className="text-blue-400 hover:text-blue-600" title="Call">
+                    // No telephony configured — show disabled button with tooltip
+                    <button
+                      disabled
+                      onClick={() => {
+                        showToast('Telephony not configured. Go to Integration Settings to configure EasyGoIVR.', 'warning')
+                        navigate('/integration-settings')
+                      }}
+                      className="text-gray-400 hover:text-gray-500 cursor-not-allowed disabled:opacity-50"
+                      title="Telephony not configured — click to configure"
+                    >
                       <PhoneCall size={14} />
-                    </a>
+                    </button>
                   )}
                 </div>
               </div>
