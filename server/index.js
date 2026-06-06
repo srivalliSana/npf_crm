@@ -630,7 +630,7 @@ app.get('/api/leads', async (req, res) => {
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
     const offset = (page - 1) * limit
 
-    const { search, stage, owner, state, source, unassigned, website_code, requesterRole, requesterName } = req.query
+    const { search, stage, owner, state, source, unassigned, website_code, domain, requesterRole, requesterName } = req.query
 
     const where = []
     const params = []
@@ -655,6 +655,12 @@ app.get('/api/leads', async (req, res) => {
     if (source) add('source = $$', source)
     // Website filter: match against lead_source field (e.g., "Website (ftl)", "Website (esse)")
     if (website_code) add('LOWER(lead_source) LIKE LOWER($$)', `%${website_code}%`)
+    // Domain filter: filter by owner email domain (@cutm.ac.in or @cutmap.ac.in)
+    if (domain === 'cutm') {
+      where.push('(owner ILIKE \'%@cutm.ac.in\' OR owner IS NULL OR owner = \'\' OR owner = \'Unassigned\')')
+    } else if (domain === 'cutmap') {
+      where.push('(owner ILIKE \'%@cutmap.ac.in\')')
+    }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 

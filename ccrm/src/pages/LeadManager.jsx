@@ -71,6 +71,7 @@ export default function LeadManager() {
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({ stage: '', owner: '', campaign: '', state: '' })
   const [activeWebsite, setActiveWebsite] = useState('all') // Website filter: all, ftl, esse, gttech, gtib
+  const [activeDomain, setActiveDomain] = useState('all') // Domain filter: all, cutm, cutmap
 
   // Add Lead modal
   const [showAddModal, setShowAddModal] = useState(false)
@@ -250,6 +251,8 @@ export default function LeadManager() {
     if (quickView === 'Follow Up Today') q.stage = 'Follow Up'
     // Website filter
     if (activeWebsite && activeWebsite !== 'all') q.website_code = activeWebsite
+    // Domain filter
+    if (activeDomain && activeDomain !== 'all') q.domain = activeDomain
     return q
   }
 
@@ -272,7 +275,7 @@ export default function LeadManager() {
   }
 
   // Reload whenever paging / search / filters / quick-view / user change
-  useEffect(() => { loadPage() }, [currentPage, debouncedSearch, filters, quickView, activeWebsite, currentUser])
+  useEffect(() => { loadPage() }, [currentPage, debouncedSearch, filters, quickView, activeWebsite, activeDomain, currentUser])
 
   const refreshLeads = () => loadPage()
 
@@ -572,12 +575,23 @@ export default function LeadManager() {
       </div>
 
       {/* Website Filter Tabs */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 shadow-sm flex items-center gap-2">
+      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-3 shadow-sm flex items-center gap-2">
         <span className="text-xs font-semibold text-gray-600 mr-2">Website:</span>
         {['all', 'ftl', 'esse', 'gttech', 'gtib'].map(site => (
           <button key={site} onClick={() => { setActiveWebsite(site); setCurrentPage(1) }}
             className={`px-3 py-1 rounded text-xs font-medium transition ${activeWebsite === site ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             {site === 'all' ? 'All Websites' : site.toUpperCase()}
+          </button>
+        ))}
+      </div>
+
+      {/* Domain Filter Tabs */}
+      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 shadow-sm flex items-center gap-2">
+        <span className="text-xs font-semibold text-gray-600 mr-2">Domain:</span>
+        {['all', 'cutm', 'cutmap'].map(domain => (
+          <button key={domain} onClick={() => { setActiveDomain(domain); setCurrentPage(1) }}
+            className={`px-3 py-1 rounded text-xs font-medium transition ${activeDomain === domain ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            {domain === 'all' ? 'All Domains' : domain === 'cutm' ? '@CUTM' : '@CUTMAP'}
           </button>
         ))}
       </div>
