@@ -9,8 +9,9 @@ import {
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: 'Dashboard',     to: '/dashboard',        roles: null },
-  { icon: Users,           label: 'Leads',         to: '/leads',            roles: null },
+  { icon: LayoutDashboard, label: 'Dashboard',          to: '/dashboard',              roles: null },
+  { icon: Users,           label: 'Leads',              to: '/leads',                  roles: null },
+  { icon: Users,           label: 'Website Leads',      to: '/websites-dashboard',     roles: null },
   {
     icon: Users,
     label: 'GT Entities',
