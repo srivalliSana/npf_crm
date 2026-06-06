@@ -383,6 +383,20 @@ function RcsTemplatesManager() {
       alert(`Save failed: ${e.message}`)
     }
   }
+  const openEdit = (t) => {
+    const varsStr = (t.variables || [])
+      .map(v => typeof v === 'string' ? v : (v?.name || v?.key || ''))
+      .filter(Boolean).join(', ')
+    setForm({
+      templateId: t.templateId || '',
+      name: t.name || '',
+      rcsType: t.rcsType || 'BASIC',
+      status: t.status || 'APPROVED',
+      variables: varsStr,
+      preview: t.preview || ''
+    })
+    setShowAdd(true)
+  }
   const del = async (id) => {
     if (!confirm('Delete this template?')) return
     await fetch(`/api/rcs/templates/${id}`, { method: 'DELETE' })
@@ -408,7 +422,7 @@ function RcsTemplatesManager() {
           <button onClick={load} className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">
             ↻ Refresh
           </button>
-          <button onClick={() => setShowAdd(true)} className="text-xs bg-pink-500 hover:bg-pink-600 text-white rounded-lg px-2.5 py-1">
+          <button onClick={() => { setForm({ templateId: '', name: '', rcsType: 'BASIC', status: 'APPROVED', variables: '', preview: '' }); setShowAdd(true) }} className="text-xs bg-pink-500 hover:bg-pink-600 text-white rounded-lg px-2.5 py-1">
             + Add Template
           </button>
         </div>
@@ -443,6 +457,7 @@ function RcsTemplatesManager() {
                 </td>
                 <td className="px-4 py-2.5 text-xs text-gray-500">{t.approvedAt ? new Date(t.approvedAt).toLocaleDateString('en-IN') : '—'}</td>
                 <td className="px-4 py-2.5 text-right">
+                  <button onClick={() => openEdit(t)} className="text-xs text-blue-500 hover:text-blue-700 mr-3">Edit</button>
                   <button onClick={() => del(t.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>
                 </td>
               </tr>
