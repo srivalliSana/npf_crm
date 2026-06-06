@@ -699,7 +699,25 @@ export default function ApplicationDetails() {
                         try {
                           // Prefer EasyGoIVR if configured, else use Ameyo
                           if (easyGoReady === true) {
-                            const data = await initiateCall(associatedLead?.id || associatedApp?.lead_id, studentMobile, currentUser?.mobile_number)
+                            // Get counselor's mobile number
+                            let counselorMobile = currentUser?.mobile_number
+                            if (!counselorMobile) {
+                              // Fetch from profile if not in currentUser
+                              const token = localStorage.getItem('ccrm_token')
+                              const res = await fetch(`/api/users/${currentUser?.id}/profile`, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                              })
+                              if (res.ok) {
+                                const userData = await res.json()
+                                counselorMobile = userData.mobile_number
+                              }
+                            }
+
+                            if (!counselorMobile) {
+                              return showToast('Please set your mobile number in Profile Settings first.', 'error')
+                            }
+
+                            const data = await initiateCall(associatedLead?.id || associatedApp?.lead_id, studentMobile, counselorMobile)
                             if (data?.success) {
                               showToast(`Call initiated via EasyGoIVR ✓`, 'success')
                             }
