@@ -699,10 +699,20 @@ app.get('/api/leads/:id(\\d+)', async (req, res) => {
   }
 })
 
-app.post('/api/leads', async (req, res) => {
-  const { name, email, mobile, state, city, course, source, owner, regDate, score, stage, stageColor } = req.body
+app.post('/api/leads', authenticateToken, async (req, res) => {
+  const { name, email, mobile, state, city, course, source, owner: requestOwner, regDate, score, stage, stageColor } = req.body
   const finalRegDate = regDate || new Date().toLocaleString('en-IN', { hour12: true })
   try {
+    // Social media leads always unassigned
+    const socialMediaSources = ['facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
+    const isFromSocialMedia = source && socialMediaSources.some(sm => source.toLowerCase().includes(sm))
+
+    let owner = requestOwner || 'Unassigned'
+    if (isFromSocialMedia) {
+      owner = 'Unassigned'
+      console.log(`[Lead Create] Social media source (${source}) → keeping unassigned`)
+    }
+
     const insertRes = await pool.query(`
       INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -711,11 +721,14 @@ app.post('/api/leads', async (req, res) => {
 
     const newLead = insertRes.rows[0]
 
-    // Alert assigned counselor
-    await alertCounselor(owner, name, course, source || 'Manual', newLead.id)
+    // Alert assigned counselor if not unassigned
+    if (owner !== 'Unassigned') {
+      await alertCounselor(owner, name, course, source || 'Manual', newLead.id)
+    }
 
     res.status(201).json(newLead)
   } catch (err) {
+    console.error('[Lead Create] Error:', err.message)
     res.status(500).json({ error: 'Failed to register lead.' })
   }
 })
@@ -2565,39 +2578,42 @@ app.post('/api/upload/document', uploadDoc.single('document'), async (req, res) 
 })
 
 // --- BULK UPLOAD LEADS (100,000+ ROWS HIGH PERFORMANCE) ---
-app.post('/api/leads/bulk-upload', uploadDoc.single('file'), async (req, res) => {
+app.post('/api/leads/bulk-upload', authenticateToken, uploadDoc.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
-  
+
   const filePath = req.file.path
-  
+
   try {
     // 1. Read Workbook using SheetJS
     const workbook = XLSX.readFile(filePath)
     const sheetName = workbook.SheetNames[0]
     const worksheet = workbook.Sheets[sheetName]
-    
+
     // Convert to JSON array of objects
     const rawData = XLSX.utils.sheet_to_json(worksheet)
     if (!rawData || rawData.length === 0) {
       return res.status(400).json({ error: 'Spreadsheet is empty or invalid.' })
     }
-    
+
     console.log(`[Bulk Upload] Parsed ${rawData.length} rows. Initiating database batch insert...`)
-    
+
+    // Social media sources that should stay unassigned
+    const socialMediaSources = ['facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
+
     // 2. Perform batched SQL multi-row insert transactions (2000 rows/query to stay safe under PostgreSQL 65,535 parameters limit)
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
-      
+
       const batchSize = 2000
       let rowIdx = 0
-      
+
       while (rowIdx < rawData.length) {
         const batchRows = rawData.slice(rowIdx, rowIdx + batchSize)
         const valuePlaceholders = []
         const queryParams = []
         let paramIdx = 1
-        
+
         for (const row of batchRows) {
           const name = String(row.Name || row.name || row['Student Name'] || 'Unnamed Lead').substring(0, 100)
           const email = String(row.Email || row.email || `lead_${Date.now()}_${Math.floor(Math.random()*100000)}@cutm.ac.in`).substring(0, 100)
@@ -2606,7 +2622,12 @@ app.post('/api/leads/bulk-upload', uploadDoc.single('file'), async (req, res) =>
           const city = String(row.City || row.city || 'Bhubaneswar').substring(0, 100)
           const course = String(row.Course || row.course || 'B.Tech CSE').substring(0, 100)
           const source = String(row.Source || row.source || 'Website').substring(0, 100)
-          const owner = String(row.Owner || row.owner || 'Vikram Kumar').substring(0, 100)
+
+          // Check if from social media → keep unassigned
+          const isFromSocialMedia = socialMediaSources.some(sm => source.toLowerCase().includes(sm))
+          let owner = isFromSocialMedia ? 'Unassigned' : 'Unassigned'
+          owner = String(owner).substring(0, 100)
+
           const regDate = String(row.regDate || row.reg_date || row['Registration Date'] || new Date().toLocaleString('en-IN', { hour12: true })).substring(0, 100)
           
           let score = Number(row.Score || row.score || 0)
