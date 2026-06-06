@@ -2888,6 +2888,81 @@ app.post('/api/document-upload/:token', uploadDoc.single('file'), async (req, re
   }
 })
 
+// === EXTERNAL WEBSITE INQUIRY FORM WEBHOOK ===
+app.post('/api/webhooks/inquiry-form', async (req, res) => {
+  try {
+    const { name, email, phone, enquiry_about, website_code } = req.body
+
+    // Validate required fields
+    if (!name || !email || !phone || !enquiry_about || !website_code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: name, email, phone, enquiry_about, website_code'
+      })
+    }
+
+    // Validate phone number format
+    const cleanPhone = phone.replace(/[^\d]/g, '')
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid phone number. Must be at least 10 digits.'
+      })
+    }
+
+    // Check for duplicate
+    const dupCheck = await pool.query(
+      'SELECT id FROM leads WHERE LOWER(email) = LOWER($1) OR mobile = $2 LIMIT 1;',
+      [email, cleanPhone]
+    )
+
+    if (dupCheck.rows.length > 0) {
+      return res.status(200).json({
+        success: false,
+        message: 'Lead already exists in CRM',
+        leadId: dupCheck.rows[0].id
+      })
+    }
+
+    // Create new lead
+    const leadRes = await pool.query(
+      `INSERT INTO leads (name, email, mobile, course, source, owner, stage, stage_color, reg_date, lead_source, score)
+       VALUES ($1, $2, $3, $4, $5, 'Unassigned', 'Untouched', 'red', NOW(), $6, 0)
+       RETURNING id, name, email, mobile;`,
+      [name, email, cleanPhone, enquiry_about, `Website (${website_code})`, `website_${website_code}`]
+    )
+
+    const lead = leadRes.rows[0]
+
+    // Create notification for admins
+    await pool.query(
+      `INSERT INTO notifications (text, time, type, lead_id)
+       VALUES ($1, NOW(), $2, $3);`,
+      [`New inquiry from ${website_code} website: ${name} — ${enquiry_about}`, 'lead_website_inquiry', lead.id]
+    )
+
+    console.log(`[Website Webhook] New lead created: ${lead.name} (${lead.email}) from ${website_code}`)
+
+    res.status(201).json({
+      success: true,
+      message: 'Inquiry received successfully',
+      leadId: lead.id,
+      lead: {
+        id: lead.id,
+        name: lead.name,
+        email: lead.email,
+        phone: lead.mobile
+      }
+    })
+  } catch (err) {
+    console.error('[Website Webhook Error]', err.message)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process inquiry. Please try again later.'
+    })
+  }
+})
+
 // === EASYGO IVR: CLICK-TO-CALL ENDPOINTS ===
 
 // POST /api/calls/initiate — Click-to-call from lead detail
