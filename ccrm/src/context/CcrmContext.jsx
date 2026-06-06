@@ -979,6 +979,28 @@ export function CcrmProvider({ children }) {
     return { sent: 0, total: leadIds.length }
   }
 
+  // Send an approved RCS template to a single lead
+  const sendRcsToLead = async (leadId, { templateId, rcsType, variables } = {}) => {
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch(`/api/leads/${leadId}/send-rcs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ templateId, rcsType, variables })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        showToast('RCS message sent.', 'success')
+        return data
+      }
+      showToast(data.error || 'Failed to send RCS message.', 'error')
+      return null
+    } catch {
+      showToast('RCS network error.', 'error')
+      return null
+    }
+  }
+
   // Approved RCS templates — fetched from local DB (populated via webhook or manual add)
   const [rcsTemplates, setRcsTemplates] = useState([])
   const fetchRcsTemplates = async () => {
@@ -1212,7 +1234,7 @@ export function CcrmProvider({ children }) {
       notifications, setNotifications, addNotification, markNotificationRead, markAllNotificationsRead, fetchNotifications,
       // New features
       checkDuplicate, getNextAssignee,
-      sendBulkWhatsApp, sendBulkSMS, sendBulkRCS,
+      sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, sendRcsToLead,
       rcsTemplates, fetchRcsTemplates,
       dripSequences, setDripSequences, enrollDrip,
       generatePaymentLink,

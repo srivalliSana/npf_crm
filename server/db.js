@@ -403,6 +403,25 @@ export async function initDb() {
       );
     `).catch(() => {})
 
+    // Per-lead RCS message log (single sends + DLR delivery status)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS rcs_messages (
+        id SERIAL PRIMARY KEY,
+        lead_id      INTEGER,
+        lead_name    VARCHAR(255) DEFAULT '',
+        mobile       VARCHAR(20)  DEFAULT '',
+        template_id  VARCHAR(100) DEFAULT '',
+        rcs_type     VARCHAR(50)  DEFAULT 'BASIC',
+        variables    JSONB        DEFAULT '{}'::jsonb,
+        status       VARCHAR(50)  DEFAULT 'sent',
+        msgid        VARCHAR(255) DEFAULT '',
+        error_code   VARCHAR(255) DEFAULT '',
+        sent_by      VARCHAR(255) DEFAULT '',
+        created_at   TIMESTAMP    DEFAULT NOW(),
+        delivered_at TIMESTAMP
+      );
+    `).catch(() => {})
+
     // Application number sequences
     await client.query(`CREATE SEQUENCE IF NOT EXISTS cueeap_seq START 1;`).catch(() => {})  // Excel/offline apps
     await client.query(`CREATE SEQUENCE IF NOT EXISTS cueesm_seq START 1;`).catch(() => {})  // Social media apps

@@ -126,10 +126,11 @@ const INTEGRATIONS = [
     category: 'Messaging',
     docsUrl: 'https://web.rcssms.in/',
     fields: [
-      { key: 'rcs_provider',    label: 'Provider',           placeholder: 'rcssms | gupshup | karix | sinch | google-rbm', secret: false },
-      { key: 'rcs_username',    label: 'Username',           placeholder: 'rcssms.in account username (leave blank for other providers)', secret: false },
-      { key: 'rcs_password',    label: 'Password',           placeholder: 'rcssms.in account password (or leave blank if using Bearer)', secret: true },
-      { key: 'rcs_api_key',     label: 'API Key / Bearer Token', placeholder: 'For gupshup/karix/google-rbm OR rcssms bearer token', secret: true },
+      { key: 'rcs_provider',     label: 'Provider',           placeholder: 'rcssms | gupshup | karix | sinch | google-rbm', secret: false },
+      { key: 'rcs_username',     label: 'Username',           placeholder: 'rcssms.in account username (leave blank for other providers)', secret: false },
+      { key: 'rcs_password',     label: 'Password',           placeholder: 'rcssms.in account password (or leave blank if using Bearer/Secret)', secret: true },
+      { key: 'rcs_client_secret',label: 'Client Secret',      placeholder: 'rcssms client secret → auto-generates 24h bearer token (recommended)', secret: true },
+      { key: 'rcs_api_key',      label: 'API Key / Bearer Token', placeholder: 'For gupshup/karix/google-rbm OR a static rcssms bearer token', secret: true },
       { key: 'rcs_rcsid',       label: 'RCS Bot ID (rcsid)', placeholder: 'rcssms: assigned bot ID. For Sinch: project ID', secret: false },
       { key: 'rcs_template_id', label: 'Default Template ID',placeholder: 'Approved template ID to use (rcssms)', secret: false },
       { key: 'rcs_type',        label: 'Template Type',      placeholder: 'BASIC | RICH | RICHCASOUREL (default: BASIC)', secret: false },
@@ -384,7 +385,10 @@ function RcsTemplatesManager() {
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
             Auto-populated when rcssms.in posts approval via webhook ·
-            Webhook URL: <code className="bg-white px-1.5 py-0.5 rounded font-mono text-pink-700">https://crm.cutmap.ac.in/api/webhooks/rcssms-template</code>
+            Approval URL: <code className="bg-white px-1.5 py-0.5 rounded font-mono text-pink-700">https://crm.cutmap.ac.in/api/webhooks/rcssms-template</code>
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Delivery reports (DLR) URL: <code className="bg-white px-1.5 py-0.5 rounded font-mono text-pink-700">https://crm.cutmap.ac.in/api/webhooks/rcssms-dlr</code>
           </p>
         </div>
         <div className="flex items-center gap-2">

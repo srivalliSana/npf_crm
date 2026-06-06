@@ -3755,47 +3755,110 @@ app.post('/api/leads/bulk-sms', async (req, res) => {
   }
 })
 
+// ── RCS (rcssms.in) — bearer token generation + error-code mapping ──────────
+// Per "JSON RCS API" doc: POST Basic base64(username:client_secret) to
+// /api/rcs/accesstoken → returns a token valid 24h. We cache it and refresh
+// 5 min before expiry (mirrors the EasyGoIVRProvider pattern).
+let _rcsTokenCache = { token: null, expiry: 0 }
+
+async function getRcsToken(username, clientSecret) {
+  if (!username || !clientSecret) return null
+  // Reuse cached token if still valid (5-min buffer)
+  if (_rcsTokenCache.token && Date.now() < _rcsTokenCache.expiry - 5 * 60 * 1000) {
+    return _rcsTokenCache.token
+  }
+  const basic = Buffer.from(`${username}:${clientSecret}`).toString('base64')
+  const r = await fetch('https://web.rcssms.in/api/rcs/accesstoken', {
+    method: 'POST',
+    headers: { 'Authorization': `Basic ${basic}`, 'Content-Type': 'application/json' }
+  })
+  const text = await r.text()
+  let data = {}
+  try { data = JSON.parse(text) } catch {}
+  const token = data.token || data.access_token || data.accesstoken || data.API_TOKEN
+  if (!token) {
+    console.error('[RCS] Token generation failed:', data || text)
+    throw new Error('rcssms: token generation failed — check username/client secret')
+  }
+  _rcsTokenCache = { token, expiry: Date.now() + 24 * 60 * 60 * 1000 }
+  console.log('[RCS] Access token generated successfully')
+  return token
+}
+
+// Map rcssms.in numeric error codes (from the JSON RCS API doc) to readable text
+function mapRcsError(code) {
+  const map = {
+    10: 'Missing username, password, type or msisdn field',
+    13: 'Invalid JSON packet',
+    15: 'Account validity expired',
+    18: 'Template ID not found',
+    21: 'Username does not exist or is invalid',
+    22: 'Incorrect username/password or token',
+    23: 'Insufficient credit',
+    24: 'Incorrect number list',
+    30: 'Token validity expired',
+  }
+  return map[parseInt(code)] || `RCS error code ${code}`
+}
+
 // ── RCS Business Messaging — Gupshup / Karix / Sinch / Google RBM ───────────
-async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile, message,
-                                   username, password, rcsid, templateId, rcsType }) {
+// Returns { ok: boolean, msgid?: string, error?: string } for every provider.
+async function sendRcsViaProvider({ provider, apiKey, clientSecret, agentId, senderId, mobile, message,
+                                   variables, username, password, rcsid, templateId, rcsType }) {
   switch ((provider || 'gupshup').toLowerCase()) {
     case 'rcssms': {
-      // web.rcssms.in — METHOD 2 (variables as single array)
-      // POST https://web.rcssms.in/rcsapi/jsonapi.jsp?apitype=2
-      // If apiKey provided → use bearer auth (password not needed)
-      // Otherwise → password sent in body
+      // web.rcssms.in — METHOD 1 (preferred): variables as array of one object {var1, var2, ...}
+      // POST https://web.rcssms.in/rcsapi/jsonapi.jsp?apitype=1
+      // Auth order: client secret → generated 24h bearer; else static bearer (apiKey); else password in body.
       if (!rcsid)      throw new Error('rcssms: rcsid (Bot ID) required — set rcs_rcsid')
       if (!templateId) throw new Error('rcssms: templateid required — set rcs_template_id')
       if (!username)   throw new Error('rcssms: username required — set rcs_username')
-      if (!apiKey && !password) throw new Error('rcssms: either password or bearer API key required')
 
-      const url = 'https://web.rcssms.in/rcsapi/jsonapi.jsp?apitype=2'
+      // Build the variables object. Accept either a ready object {var1,...} or a plain string.
+      let varsObj
+      if (variables && typeof variables === 'object' && !Array.isArray(variables)) {
+        varsObj = variables
+      } else if (Array.isArray(variables)) {
+        varsObj = {}; variables.forEach((v, i) => { varsObj[`var${i + 1}`] = v })
+      } else {
+        varsObj = { var1: message ?? '' }
+      }
+
+      // Resolve bearer token
+      let bearer = null
+      if (clientSecret) bearer = await getRcsToken(username, clientSecret)
+      else if (apiKey)  bearer = apiKey
+      if (!bearer && !password) throw new Error('rcssms: provide client secret, bearer token, or password')
+
+      const url = 'https://web.rcssms.in/rcsapi/jsonapi.jsp?apitype=1'
       const body = {
         username,
         rcstype: (rcsType || 'BASIC').toUpperCase(),
         rcsid,
-        msisdn: mobile,                        // 91XXXXXXXXXX
-        variables: [message],                  // single-variable template — message text as var1
+        msisdn: mobile,                        // 91XXXXXXXXXX (comma-separated for bulk)
+        variables: [varsObj],
         templateid: templateId,
       }
-      if (!apiKey) body.password = password    // password mode
+      if (!bearer) body.password = password    // password mode
 
       const headers = { 'Content-Type': 'application/json' }
-      if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+      if (bearer) headers.Authorization = `Bearer ${bearer}`
 
       const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })
       const text = await r.text()
       let data = {}
       try { data = JSON.parse(text) } catch {}
-      // rcssms returns { data: [{ msgid, msisdn }] } on success; error code on failure
-      if (!r.ok || data.errorcode || data.error) {
-        console.error('[RCS:rcssms]', data || text)
-        return false
+      // Success → { data: [{ msgid, msisdn }] }; failure → numeric error code
+      const code = data.errorcode ?? data.error ?? data.code
+      const succeeded = r.ok && Array.isArray(data.data) && data.data.length > 0
+      if (!succeeded) {
+        const errText = code != null ? mapRcsError(code) : (text || 'unknown error')
+        console.error('[RCS:rcssms]', errText, data || text)
+        return { ok: false, error: errText }
       }
-      return Array.isArray(data.data) && data.data.length > 0
+      return { ok: true, msgid: data.data[0]?.msgid }
     }
     case 'gupshup': {
-      // POST https://api.gupshup.io/sm/api/v1/msg
       const url = 'https://api.gupshup.io/sm/api/v1/msg'
       const r = await fetch(url, {
         method: 'POST',
@@ -3805,7 +3868,7 @@ async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile,
           'src.name': senderId, message: JSON.stringify({ type: 'text', text: message })
         })
       })
-      return r.ok
+      return { ok: r.ok }
     }
     case 'karix': {
       const url = 'https://api.karix.io/message/'
@@ -3814,7 +3877,7 @@ async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile,
         headers: { Authorization: `Basic ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ source: agentId, destination: [mobile], channel: 'rcs', content: { text: message } })
       })
-      return r.ok
+      return { ok: r.ok }
     }
     case 'sinch': {
       const url = `https://us.rcs.api.sinch.com/v1/projects/${agentId}/messages:send`
@@ -3823,7 +3886,7 @@ async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile,
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ contact_message: { agent_message: { text_message: { text: message } } }, recipient: { contact: { phone_number: `+${mobile}` } } })
       })
-      return r.ok
+      return { ok: r.ok }
     }
     case 'google-rbm':
     case 'rbm': {
@@ -3833,7 +3896,7 @@ async function sendRcsViaProvider({ provider, apiKey, agentId, senderId, mobile,
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ contentMessage: { text: message } })
       })
-      return r.ok
+      return { ok: r.ok }
     }
     default: throw new Error(`Unknown RCS provider: ${provider}`)
   }
@@ -3904,66 +3967,98 @@ app.post('/api/webhooks/rcssms-template', async (req, res) => {
   }
 })
 
-// ── RCS TEMPLATES — list, add, delete, webhook for rcssms approval ──────────
-app.get('/api/rcs/templates', async (req, res) => {
+// POST /api/leads/:id/send-rcs — send an approved RCS template to a single lead
+app.post('/api/leads/:id/send-rcs', authenticateToken, async (req, res) => {
+  const leadId = req.params.id
+  const { templateId: reqTemplateId, rcsType: reqRcsType, variables } = req.body || {}
   try {
-    const r = await pool.query(`
-      SELECT id, template_id AS "templateId", name, rcs_type AS "rcsType",
-             status, provider, variables, preview,
-             created_at AS "createdAt", approved_at AS "approvedAt"
-      FROM rcs_templates ORDER BY created_at DESC;
-    `)
+    const leadRes = await pool.query('SELECT id, name, mobile FROM leads WHERE id = $1;', [leadId])
+    if (leadRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
+    const lead = leadRes.rows[0]
+    const mobile = `91${(lead.mobile || '').replace(/\D/g, '').slice(-10)}`
+    if (mobile.length !== 12) return res.status(400).json({ error: 'Lead has no valid mobile number.' })
+
+    const provider     = await getIntegrationSetting('rcs_provider')
+    const apiKey       = await getIntegrationSetting('rcs_api_key')
+    const clientSecret = await getIntegrationSetting('rcs_client_secret')
+    const agentId      = await getIntegrationSetting('rcs_agent_id')
+    const senderId     = await getIntegrationSetting('rcs_sender_id')
+    const username     = await getIntegrationSetting('rcs_username')
+    const password     = await getIntegrationSetting('rcs_password')
+    const rcsid        = await getIntegrationSetting('rcs_rcsid')
+    const templateId   = reqTemplateId || await getIntegrationSetting('rcs_template_id')
+    const rcsType      = reqRcsType    || await getIntegrationSetting('rcs_type')
+
+    if (!templateId) return res.status(400).json({ error: 'No template selected (and no default configured).' })
+
+    const result = await sendRcsViaProvider({
+      provider, apiKey, clientSecret, agentId, senderId,
+      mobile, message: '', variables: variables || {},
+      username, password, rcsid, templateId, rcsType
+    })
+
+    // Resolve a display name for sent_by; JWT only carries id/email/role.
+    let sentBy = req.user.email || 'Unknown'
+    try {
+      const u = await pool.query('SELECT name FROM users WHERE id = $1;', [req.user.id])
+      if (u.rows[0]?.name) sentBy = u.rows[0].name
+    } catch {}
+
+    // Log to rcs_messages — never let a logging failure fail a sent message.
+    try {
+      await pool.query(
+        `INSERT INTO rcs_messages (lead_id, lead_name, mobile, template_id, rcs_type, variables, status, msgid, error_code, sent_by)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10);`,
+        [lead.id, lead.name, mobile, templateId, (rcsType || 'BASIC').toUpperCase(),
+         JSON.stringify(variables || {}), result.ok ? 'sent' : 'failed',
+         result.msgid || '', result.ok ? '' : (result.error || ''), sentBy]
+      )
+    } catch (logErr) {
+      console.error('[RCS single] sent but DB logging failed:', logErr.message)
+    }
+
+    if (!result.ok) return res.status(502).json({ error: result.error || 'RCS send failed.' })
+    res.json({ success: true, msgid: result.msgid, status: 'sent' })
+  } catch (err) {
+    console.error('[RCS single]', err)
+    res.status(500).json({ error: err.message || 'Failed to send RCS.' })
+  }
+})
+
+// GET /api/leads/:id/rcs-history — recent RCS messages for a lead
+app.get('/api/leads/:id/rcs-history', authenticateToken, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, mobile, template_id AS "templateId", rcs_type AS "rcsType", variables,
+              status, msgid, error_code AS "errorCode", sent_by AS "sentBy",
+              created_at AS "createdAt", delivered_at AS "deliveredAt"
+       FROM rcs_messages WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 50;`,
+      [req.params.id]
+    )
     res.json(r.rows)
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('[RCS history]', err)
+    res.status(500).json({ error: 'Failed to fetch RCS history.' })
+  }
 })
 
-app.post('/api/rcs/templates', async (req, res) => {
-  const { templateId, name, rcsType, status, provider, preview, variables } = req.body
-  if (!templateId) return res.status(400).json({ error: 'templateId required' })
+// POST /api/webhooks/rcssms-dlr — delivery reports pushed by rcssms.in
+// Share this URL with rcssms support: https://crm.cutmap.ac.in/api/webhooks/rcssms-dlr
+app.post('/api/webhooks/rcssms-dlr', async (req, res) => {
+  const { msgid, status } = req.body || {}
+  console.log('[Webhook rcssms-dlr]', req.body)
+  if (!msgid) return res.status(400).json({ error: 'msgid required' })
   try {
-    const r = await pool.query(`
-      INSERT INTO rcs_templates (template_id, name, rcs_type, status, provider, preview, variables)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (template_id) DO UPDATE SET
-        name = EXCLUDED.name,
-        rcs_type = EXCLUDED.rcs_type,
-        status = EXCLUDED.status,
-        preview = EXCLUDED.preview,
-        variables = EXCLUDED.variables
-      RETURNING id, template_id AS "templateId", name, rcs_type AS "rcsType", status, provider, preview, variables;
-    `, [templateId, name || templateId, (rcsType || 'BASIC').toUpperCase(),
-        status || 'PENDING', provider || 'rcssms', preview || '',
-        JSON.stringify(variables || [])])
-    res.json(r.rows[0])
-  } catch (err) { res.status(500).json({ error: err.message }) }
-})
-
-app.delete('/api/rcs/templates/:id', async (req, res) => {
-  try {
-    await pool.query('DELETE FROM rcs_templates WHERE id = $1;', [req.params.id])
-    res.json({ ok: true })
-  } catch (err) { res.status(500).json({ error: err.message }) }
-})
-
-// Webhook — rcssms.in POSTs here when template approval status changes
-// Configure on rcssms dashboard: https://crm.cutmap.ac.in/api/webhooks/rcssms-template
-app.post('/api/webhooks/rcssms-template', async (req, res) => {
-  const { templateid, status } = req.body || {}
-  console.log('[Webhook rcssms-template]', req.body)
-  if (!templateid) return res.status(400).json({ error: 'templateid required' })
-  try {
-    await pool.query(`
-      INSERT INTO rcs_templates (template_id, status, provider, approved_at)
-      VALUES ($1, $2, 'rcssms', CASE WHEN $2 = 'APPROVED' THEN NOW() ELSE NULL END)
-      ON CONFLICT (template_id) DO UPDATE SET
-        status = EXCLUDED.status,
-        approved_at = CASE WHEN EXCLUDED.status = 'APPROVED' THEN NOW() ELSE rcs_templates.approved_at END;
-    `, [templateid, (status || 'PENDING').toUpperCase()])
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`RCS template ${templateid} is now ${status}`, 'Just now'])
+    await pool.query(
+      `UPDATE rcs_messages
+         SET status = $2,
+             delivered_at = CASE WHEN UPPER($2) IN ('DELIVERED','READ') THEN NOW() ELSE delivered_at END
+       WHERE msgid = $1;`,
+      [msgid, (status || 'DELIVERED').toLowerCase()]
+    )
     res.json({ ok: true })
   } catch (err) {
-    console.error('[Webhook rcssms-template]', err)
+    console.error('[Webhook rcssms-dlr]', err)
     res.status(500).json({ error: err.message })
   }
 })
@@ -3973,13 +4068,14 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
   try {
-    const provider   = await getIntegrationSetting('rcs_provider')
-    const apiKey     = await getIntegrationSetting('rcs_api_key')
-    const agentId    = await getIntegrationSetting('rcs_agent_id')
-    const senderId   = await getIntegrationSetting('rcs_sender_id')
-    const username   = await getIntegrationSetting('rcs_username')
-    const password   = await getIntegrationSetting('rcs_password')
-    const rcsid      = await getIntegrationSetting('rcs_rcsid')
+    const provider     = await getIntegrationSetting('rcs_provider')
+    const apiKey       = await getIntegrationSetting('rcs_api_key')
+    const clientSecret = await getIntegrationSetting('rcs_client_secret')
+    const agentId      = await getIntegrationSetting('rcs_agent_id')
+    const senderId     = await getIntegrationSetting('rcs_sender_id')
+    const username     = await getIntegrationSetting('rcs_username')
+    const password     = await getIntegrationSetting('rcs_password')
+    const rcsid        = await getIntegrationSetting('rcs_rcsid')
     // Per-call template override > saved default
     const templateId = requestedTemplateId || await getIntegrationSetting('rcs_template_id')
     const rcsType    = requestedRcsType    || await getIntegrationSetting('rcs_type')
@@ -3990,7 +4086,7 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
 
     // For rcssms, batch send up to 500 numbers in one call (msisdn supports comma-separated)
     const isRcssms = (provider || '').toLowerCase() === 'rcssms'
-    const hasAuth  = apiKey || password
+    const hasAuth  = apiKey || password || clientSecret
 
     if (!hasAuth) {
       // Simulation mode (no credentials)
@@ -4004,13 +4100,13 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
       // BASIC template — same message for all → send in one batch (comma-separated msisdn)
       const allMobiles = leads.map(l => `91${l.mobile.replace(/\D/g, '').slice(-10)}`).join(',')
       try {
-        const ok = await sendRcsViaProvider({
-          provider, apiKey, agentId, senderId,
+        const result = await sendRcsViaProvider({
+          provider, apiKey, clientSecret, agentId, senderId,
           mobile: allMobiles, message,
           username, password, rcsid, templateId, rcsType
         })
-        if (ok) sentCount = leads.length
-        else    failed = leads.length
+        if (result.ok) sentCount = leads.length
+        else           failed = leads.length
       } catch (e) {
         console.error(`[RCS:rcssms] Batch failed:`, e.message)
         failed = leads.length
@@ -4021,11 +4117,11 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
         const mobile = `91${lead.mobile.replace(/\D/g, '').slice(-10)}`
         const personalizedMsg = message.replace(/\{name\}/g, lead.name)
         try {
-          const ok = await sendRcsViaProvider({
-            provider, apiKey, agentId, senderId, mobile, message: personalizedMsg,
+          const result = await sendRcsViaProvider({
+            provider, apiKey, clientSecret, agentId, senderId, mobile, message: personalizedMsg,
             username, password, rcsid, templateId, rcsType
           })
-          ok ? sentCount++ : failed++
+          result.ok ? sentCount++ : failed++
         } catch (e) {
           console.error(`[RCS:${provider}] Failed:`, e.message); failed++
         }
