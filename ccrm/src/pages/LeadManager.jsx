@@ -260,7 +260,9 @@ export default function LeadManager() {
   const loadPage = async () => {
     setLeadsLoading(true)
     try {
-      const data = await fetchLeadsPage(buildQuery())
+      const query = buildQuery()
+      console.log('[LeadManager] Loading with query:', query)
+      const data = await fetchLeadsPage(query)
       setRows(data.rows || [])
       setTotal(data.total || 0)
       if (!data.rows?.length && data.total === 0) {
