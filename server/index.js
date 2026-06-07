@@ -677,38 +677,25 @@ app.get('/api/leads', async (req, res) => {
     // Website filter: match against lead_source field (e.g., "Website (ftl)", "Website (esse)")
     if (website_code) add('LOWER(lead_source) LIKE LOWER($$)', `%${website_code}%`)
 
-    // Domain filter: join with users table and filter by email domain
-    const needsUserJoin = domain === 'cutm' || domain === 'cutmap'
-    if (needsUserJoin) {
-      if (domain === 'cutm') {
-        where.push(`users.email ILIKE '%@cutm.ac.in'`)
-      } else if (domain === 'cutmap') {
-        where.push(`users.email ILIKE '%@cutmap.ac.in'`)
-      }
+    // Domain filter: leads owned by a counselor whose email is on that domain.
+    // Use a subquery (not a JOIN) so column names stay unambiguous with `users`.
+    if (domain === 'cutm') {
+      add('LOWER(owner) IN (SELECT LOWER(name) FROM users WHERE email ILIKE $$)', '%@cutm.ac.in')
+    } else if (domain === 'cutmap') {
+      add('LOWER(owner) IN (SELECT LOWER(name) FROM users WHERE email ILIKE $$)', '%@cutmap.ac.in')
     }
-
-    const fromClause = needsUserJoin
-      ? `FROM leads LEFT JOIN users ON LOWER(leads.owner) = LOWER(users.name)`
-      : `FROM leads`
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
-    const countRes = await pool.query(`SELECT COUNT(*)::int AS total ${fromClause} ${whereSql};`, params)
+    const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM leads ${whereSql};`, params)
     const total = countRes.rows[0].total
 
-    // Use table prefix for columns when joining with users table to avoid ambiguity
-    const selectCols = needsUserJoin
-      ? `SELECT leads.id, leads.name, leads.email, leads.mobile, leads.state, leads.city, leads.course, leads.source, leads.source_type AS "sourceType",
-              leads.owner, leads.reg_date AS "regDate", leads.score, leads.stage, leads.stage_color AS "stageColor",
-              leads.not_interested_reason AS "notInterestedReason"`
-      : `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
-              owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor",
-              not_interested_reason AS "notInterestedReason"`
-
     const rowsRes = await pool.query(
-      `${selectCols}
-       ${fromClause} ${whereSql}
-       ORDER BY ${needsUserJoin ? 'leads.id' : 'id'} DESC
+      `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
+              owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor",
+              not_interested_reason AS "notInterestedReason"
+       FROM leads ${whereSql}
+       ORDER BY id DESC
        LIMIT ${limit} OFFSET ${offset};`,
       params
     )
