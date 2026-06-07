@@ -4451,7 +4451,6 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
     // uploads (matches the lead-visibility scoping in GET /api/leads). This is
     // robust to role-name variants like 'Counsellor'/'Telecaller'/case diffs.
     const isCounselor  = !['Admin', 'Manager'].includes(uploaderRole) && !!uploaderName
-    console.log(`[Bulk Upload] HANDLER=bulk-upload-mapped rows=${rawData.length} dupHandling=${dupHandling} uploaderRole="${uploaderRole}" uploaderName="${uploaderName}" isCounselor=${isCounselor} columnMap=${JSON.stringify(columnMap)}`)
 
     // Admin's choice: 'round_robin' (default) or 'specific'
     const assignMode    = (req.body.assignMode || 'round_robin').toLowerCase()
@@ -4470,7 +4469,6 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
       // Otherwise (admin round-robin/default) → stay Unassigned (no auto-assign).
       return 'Unassigned'
     }
-    console.log(`[Bulk Upload] assignMode=${assignMode} assignedTo="${assignedTo}" explicitAssignee="${explicitAssignee}"`)
     // Keep the original anonymous fn signature for backward compat below
     const SM_SOURCES = ['facebook', 'google ads', 'linkedin', 'instagram', 'whatsapp', 'sm', 'social']
 
@@ -4523,7 +4521,6 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
             // ALL rows in this file to that person — so reassign the matched lead's
             // owner even under Skip (owner only; don't touch other fields).
             if (explicitAssignee) {
-              if (updated < 2) console.log(`[Bulk Upload] SKIP+REASSIGN lead#${dup.rows[0].id} "${dup.rows[0].name}" → owner="${explicitAssignee}"`)
               await client.query('UPDATE leads SET owner=$1 WHERE id=$2;', [explicitAssignee, dup.rows[0].id])
               updated++
               continue
@@ -4539,12 +4536,10 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
           if (dupHandling === 'update') {
             if (explicitAssignee) {
               // Counselor self-claim, or admin's chosen counselor → reassign the matched lead
-              if (updated < 2) console.log(`[Bulk Upload] UPDATE+ASSIGN lead#${dup.rows[0].id} "${dup.rows[0].name}" → owner="${explicitAssignee}"`)
               await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5, owner=$6 WHERE id=$7;',
                 [name, course, source, score, sourceType, explicitAssignee, dup.rows[0].id])
             } else {
               // Admin round-robin/default → update fields but keep existing owner (don't unassign)
-              if (updated < 2) console.log(`[Bulk Upload] UPDATE (keep owner, no explicit assignee) lead#${dup.rows[0].id}`)
               await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5 WHERE id=$6;',
                 [name, course, source, score, sourceType, dup.rows[0].id])
             }
