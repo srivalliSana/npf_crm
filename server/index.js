@@ -4390,9 +4390,9 @@ app.post('/api/leads/preview-upload', (req, res, next) => {
     const fieldPatterns = {
       name:   /name|student|full.?name/i,
       email:  /email|mail/i,
-      mobile: /mobile|phone|contact|number/i,
+      mobile: /mobile|phone|contact|number|mob|msisdn|cell|whatsapp/i,
       state:  /state|province/i,
-      city:   /city|district|town/i,
+      city:   /city|district|town|location/i,
       course: /course|program|stream/i,
       source: /source|channel|medium/i,
     }
@@ -4403,7 +4403,7 @@ app.post('/api/leads/preview-upload', (req, res, next) => {
     }
 
     // Duplicate detection (sample first 20 rows)
-    const mobileCol = autoMap.mobile || headers.find(h => /mobile|phone/i.test(h))
+    const mobileCol = autoMap.mobile || headers.find(h => /mobile|phone|mob|msisdn|cell|contact|whatsapp/i.test(h))
     const sampleMobiles = rawData.slice(0, 20)
       .map(r => String(r[mobileCol] || '').replace(/\D/g, ''))
       .filter(m => m.length >= 10)
