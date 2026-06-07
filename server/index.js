@@ -4519,8 +4519,15 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
             continue
           }
           if (dupHandling === 'update') {
-            await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5 WHERE id=$6;',
-              [name, course, source, score, sourceType, dup.rows[0].id])
+            if (isCounselor) {
+              // Counselor uploading → claim the matched lead (assign it to them)
+              await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5, owner=$6 WHERE id=$7;',
+                [name, course, source, score, sourceType, uploaderName, dup.rows[0].id])
+            } else {
+              // Admin/Manager re-upload → update fields but keep existing owner (don't unassign)
+              await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5 WHERE id=$6;',
+                [name, course, source, score, sourceType, dup.rows[0].id])
+            }
             updated++; continue
           }
         }
