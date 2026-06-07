@@ -4519,6 +4519,15 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
         const dup = await client.query('SELECT id, name, mobile, email FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
         if (dup.rows.length > 0) {
           if (dupHandling === 'skip') {
+            // "Specific Counsellor" (or a counselor self-upload) promises to assign
+            // ALL rows in this file to that person — so reassign the matched lead's
+            // owner even under Skip (owner only; don't touch other fields).
+            if (explicitAssignee) {
+              if (updated < 2) console.log(`[Bulk Upload] SKIP+REASSIGN lead#${dup.rows[0].id} "${dup.rows[0].name}" → owner="${explicitAssignee}"`)
+              await client.query('UPDATE leads SET owner=$1 WHERE id=$2;', [explicitAssignee, dup.rows[0].id])
+              updated++
+              continue
+            }
             skipped++
             // Capture reason for first 5 skipped rows so user knows what happened
             if (skipReasons.length < 5) {
