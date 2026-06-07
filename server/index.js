@@ -4447,7 +4447,10 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
     // Who is uploading?
     const uploaderRole = req.body.uploaderRole || 'Admin'
     const uploaderName = req.body.uploaderName || ''
-    const isCounselor  = uploaderRole === 'Counselor'
+    // Anyone who isn't Admin/Manager is a restricted user who claims their own
+    // uploads (matches the lead-visibility scoping in GET /api/leads). This is
+    // robust to role-name variants like 'Counsellor'/'Telecaller'/case diffs.
+    const isCounselor  = !['Admin', 'Manager'].includes(uploaderRole) && !!uploaderName
 
     // Admin's choice: 'round_robin' (default) or 'specific'
     const assignMode    = (req.body.assignMode || 'round_robin').toLowerCase()
