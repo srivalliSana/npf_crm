@@ -4451,6 +4451,7 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
     // uploads (matches the lead-visibility scoping in GET /api/leads). This is
     // robust to role-name variants like 'Counsellor'/'Telecaller'/case diffs.
     const isCounselor  = !['Admin', 'Manager'].includes(uploaderRole) && !!uploaderName
+    console.log(`[Bulk Upload] HANDLER=bulk-upload-mapped rows=${rawData.length} dupHandling=${dupHandling} uploaderRole="${uploaderRole}" uploaderName="${uploaderName}" isCounselor=${isCounselor} columnMap=${JSON.stringify(columnMap)}`)
 
     // Admin's choice: 'round_robin' (default) or 'specific'
     const assignMode    = (req.body.assignMode || 'round_robin').toLowerCase()
@@ -4524,9 +4525,11 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
           if (dupHandling === 'update') {
             if (isCounselor) {
               // Counselor uploading → claim the matched lead (assign it to them)
+              if (updated < 2) console.log(`[Bulk Upload] UPDATE+ASSIGN lead#${dup.rows[0].id} "${dup.rows[0].name}" → owner="${uploaderName}"`)
               await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5, owner=$6 WHERE id=$7;',
                 [name, course, source, score, sourceType, uploaderName, dup.rows[0].id])
             } else {
+              if (updated < 2) console.log(`[Bulk Upload] UPDATE (no reassign, not counselor) lead#${dup.rows[0].id}`)
               // Admin/Manager re-upload → update fields but keep existing owner (don't unassign)
               await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5 WHERE id=$6;',
                 [name, course, source, score, sourceType, dup.rows[0].id])
