@@ -437,6 +437,24 @@ export async function initDb() {
     await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS utr_number VARCHAR(100) DEFAULT '';`).catch(() => {})
     await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS pay_mode VARCHAR(20) DEFAULT 'online';`).catch(() => {})  // 'online' | 'offline'
 
+    // Bulk-upload audit log — who uploaded, when, and the outcome
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS upload_logs (
+        id SERIAL PRIMARY KEY,
+        uploader_name VARCHAR(255) DEFAULT '',
+        uploader_role VARCHAR(50)  DEFAULT '',
+        file_name     VARCHAR(255) DEFAULT '',
+        total_rows    INTEGER      DEFAULT 0,
+        imported      INTEGER      DEFAULT 0,
+        skipped       INTEGER      DEFAULT 0,
+        updated       INTEGER      DEFAULT 0,
+        dup_handling  VARCHAR(50)  DEFAULT '',
+        assign_mode   VARCHAR(50)  DEFAULT '',
+        assigned_to   VARCHAR(255) DEFAULT '',
+        created_at    TIMESTAMP    DEFAULT NOW()
+      );
+    `).catch(() => {})
+
     // Email delivery logs (per-recipient tracking for campaigns)
     await client.query(`
       CREATE TABLE IF NOT EXISTS email_logs (

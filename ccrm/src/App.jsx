@@ -37,6 +37,7 @@ import GTIBLeads from './pages/GTIBLeads'
 import GTTECHLeads from './pages/GTTECHLeads'
 import ESSELeads from './pages/ESSELeads'
 import WebsitesDashboard from './pages/WebsitesDashboard'
+import UploadLogs from './pages/UploadLogs'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -94,6 +95,7 @@ export default function App() {
             <Route path="productivity"     element={<ProductivityReport />} />
             <Route element={<RoleGuard roles={['Admin','Manager']} />}>
               <Route path="analytics"      element={<Analytics />} />
+              <Route path="logs"           element={<UploadLogs />} />
             </Route>
             <Route element={<RoleGuard roles={['Admin']} />}>
               <Route path="integration-health" element={<IntegrationHealth />} />
