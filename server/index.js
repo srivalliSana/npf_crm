@@ -679,9 +679,10 @@ app.get('/api/leads', async (req, res) => {
 
     // Domain filter: leads owned by a counselor whose email is on that domain.
     // Use a subquery (not a JOIN) so column names stay unambiguous with `users`.
-    // Normalize whitespace + case on both sides so minor formatting differences
-    // (trailing/double spaces) in owner vs users.name still match.
-    const nameNorm = (col) => `LOWER(regexp_replace(BTRIM(${col}), '\\s+', ' ', 'g'))`
+    // Match owner→user by stripping ALL non-alphanumerics + lowercasing, so
+    // punctuation/spacing/title differences ("Dr.Mohanababu Chappa" vs
+    // "Dr. Mohanababu Chappa") still match.
+    const nameNorm = (col) => `LOWER(regexp_replace(${col}, '[^a-zA-Z0-9]', '', 'g'))`
     if (domain === 'cutm') {
       add(`${nameNorm('owner')} IN (SELECT ${nameNorm('name')} FROM users WHERE email ILIKE $$)`, '%@cutm.ac.in')
     } else if (domain === 'cutmap') {
