@@ -4560,9 +4560,23 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
       // Leads stay Unassigned until manually assigned by admin/manager
 
       // Notify admins about the import
-      const summary = `${imported} unassigned leads`
+      const assignNote = explicitAssignee
+        ? `assigned to ${explicitAssignee}`
+        : 'remain Unassigned (manual assignment required)'
       await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
-        [`Bulk upload: ${summary} imported · ${skipped} skipped · ${updated} updated · All leads remain Unassigned (manual assignment required)`, 'Just now'])
+        [`Bulk upload by ${uploaderName || 'Unknown'}: ${imported} imported · ${skipped} skipped · ${updated} updated · leads ${assignNote}`, 'Just now'])
+
+      // Audit log — who uploaded, when, and the outcome (no PII beyond names already in CRM)
+      try {
+        await pool.query(
+          `INSERT INTO upload_logs (uploader_name, uploader_role, file_name, total_rows, imported, skipped, updated, dup_handling, assign_mode, assigned_to)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10);`,
+          [uploaderName || 'Unknown', uploaderRole || '', req.file?.originalname || '', rawData.length,
+           imported, skipped, updated, dupHandling, assignMode, explicitAssignee || '']
+        )
+      } catch (logErr) {
+        console.error('[Upload Log] failed to record audit row:', logErr.message)
+      }
       // Generate a helpful hint if everything was skipped
       let hint = null
       if (skipped === rawData.length && imported === 0) {
@@ -4585,6 +4599,26 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
     res.status(500).json({ error: err.message || 'Bulk upload failed.' })
   } finally {
     try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath) } catch {}
+  }
+})
+
+// GET /api/upload-logs — bulk-upload audit trail (Admin/Manager only)
+app.get('/api/upload-logs', authenticateToken, async (req, res) => {
+  try {
+    if (!['Admin', 'Manager'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Admin/Manager only.' })
+    }
+    const r = await pool.query(`
+      SELECT id, uploader_name AS "uploaderName", uploader_role AS "uploaderRole",
+             file_name AS "fileName", total_rows AS "totalRows", imported, skipped, updated,
+             dup_handling AS "dupHandling", assign_mode AS "assignMode",
+             assigned_to AS "assignedTo", created_at AS "createdAt"
+      FROM upload_logs ORDER BY created_at DESC LIMIT 200;
+    `)
+    res.json(r.rows)
+  } catch (err) {
+    console.error('[Upload Logs]', err.message)
+    res.status(500).json({ error: 'Failed to fetch upload logs.' })
   }
 })
 
