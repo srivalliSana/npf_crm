@@ -59,19 +59,25 @@ export default function Navbar({ onToggleSidebar, onLogout, user }) {
           </div>
         </div>
 
-        {/* Center – Ask CU AI */}
-        <div className="flex-1 flex justify-center">
-          <button
-            onClick={() => setShowMioAI(true)}
-            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-4 py-1.5 rounded-full transition-colors shadow-sm"
-          >
-            <Sparkles size={15} />
-            Ask CU AI
-          </button>
+        {/* Center – University name */}
+        <div className="flex-1 flex justify-center px-2 min-w-0">
+          <span className="hidden md:block text-sm font-semibold text-gray-700 tracking-tight truncate text-center">
+            Centurion University of Technology and Management
+          </span>
         </div>
 
         {/* Right icons */}
         <div className="flex items-center gap-1">
+          {/* Ask CU AI — compact (≈50% smaller) */}
+          <button
+            onClick={() => setShowMioAI(true)}
+            title="Ask CU AI"
+            className="flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-medium px-2 py-1 rounded-full transition-colors shadow-sm"
+          >
+            <Sparkles size={12} />
+            Ask CU AI
+          </button>
+
           {/* Notifications */}
           <div className="relative">
             <button
