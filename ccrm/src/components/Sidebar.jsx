@@ -5,12 +5,13 @@ import {
   BarChart2, Settings, LogOut, CreditCard,
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
   Trophy, Mail, Globe, ExternalLink, Zap, Radio,
-  PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText
+  PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',          to: '/dashboard',              roles: null },
   { icon: Users,           label: 'Leads',              to: '/leads',                  roles: null },
+  { icon: PhoneCall,       label: 'Call Outcomes',      to: '/call-outcomes',          roles: null },
   { icon: Users,           label: 'Website Leads',      to: '/websites-dashboard',     roles: null },
   {
     icon: Users,

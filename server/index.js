@@ -4624,6 +4624,120 @@ app.get('/api/upload-logs', authenticateToken, async (req, res) => {
   }
 })
 
+// POST /api/leads/call-outcomes-upload — counselor end-of-day call results.
+// Excel/CSV with Name, Mobile, Status columns. Matches by mobile → updates the
+// lead's stage if it exists, else creates a new lead with that stage.
+app.post('/api/leads/call-outcomes-upload', (req, res, next) => {
+  uploadBulk.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'File upload failed.' })
+    next()
+  })
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
+  const filePath = req.file.path
+  try {
+    let workbook
+    try { workbook = XLSX.readFile(filePath, { cellDates: true, raw: false }) }
+    catch (e) { return res.status(400).json({ error: `Could not read file: ${e.message}` }) }
+    const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' })
+    if (!rawData.length) return res.status(400).json({ error: 'File is empty.' })
+
+    const uploaderRole = req.body.uploaderRole || 'Admin'
+    const uploaderName = req.body.uploaderName || ''
+    const isCounselor  = !['Admin', 'Manager'].includes(uploaderRole) && !!uploaderName
+
+    // Normalize a free-text status to a canonical stage (order matters:
+    // "not interested" must be checked before "interested").
+    const mapStatus = (s) => {
+      const x = String(s || '').toLowerCase().replace(/[^a-z]/g, '')
+      if (!x) return null
+      if (x.includes('contacted'))                                   return 'Contacted'
+      if (x.includes('noresponse') || x.includes('noanswer') ||
+          x.includes('notreachable') || x.includes('notconnected') ||
+          x.includes('busy') || x.includes('switchedoff'))          return 'No Response'
+      if (x.includes('notinterested'))                              return 'Not Interested'
+      if (x.includes('followup') || x.includes('callback'))         return 'Follow Up'
+      if (x.includes('interested'))                                 return 'Interested'
+      return null
+    }
+    const stageColor = { 'Contacted':'blue','No Response':'gray','Not Interested':'red','Follow Up':'yellow','Interested':'green' }
+
+    // Auto-detect columns
+    const headers = Object.keys(rawData[0])
+    const find = (re) => headers.find(h => re.test(h))
+    const nameCol   = find(/name/i)
+    const mobileCol = find(/mobile|phone|mob|contact|number/i)
+    const statusCol = find(/status|outcome|disposition|result|remark/i)
+    if (!mobileCol || !statusCol) {
+      return res.status(400).json({ error: 'File must include a Mobile column and a Status column.' })
+    }
+
+    const client = await pool.connect()
+    let updated = 0, created = 0, skipped = 0
+    const skipReasons = []
+    try {
+      await client.query('BEGIN')
+      for (let i = 0; i < rawData.length; i++) {
+        const row = rawData[i]
+        const name   = String(row[nameCol] || '').trim().substring(0, 100)
+        const mobile = String(row[mobileCol] || '').replace(/\D/g, '').slice(-10)
+        const stage  = mapStatus(row[statusCol])
+        if (mobile.length !== 10) {
+          skipped++; if (skipReasons.length < 8) skipReasons.push(`Row ${i + 2}: invalid/missing mobile`); continue
+        }
+        if (!stage) {
+          skipped++; if (skipReasons.length < 8) skipReasons.push(`Row ${i + 2}: unrecognized status "${row[statusCol]}"`); continue
+        }
+        const color = stageColor[stage]
+        const dup = await client.query('SELECT id, owner FROM leads WHERE mobile = $1 OR mobile = $2 LIMIT 1;', [mobile, `91${mobile}`])
+        if (dup.rows.length > 0) {
+          const cur = dup.rows[0]
+          if (isCounselor && (!cur.owner || cur.owner === '' || cur.owner === 'Unassigned')) {
+            await client.query('UPDATE leads SET stage=$1, stage_color=$2, owner=$3 WHERE id=$4;', [stage, color, uploaderName, cur.id])
+          } else {
+            await client.query('UPDATE leads SET stage=$1, stage_color=$2 WHERE id=$3;', [stage, color, cur.id])
+          }
+          updated++
+        } else {
+          const owner = isCounselor ? uploaderName : 'Unassigned'
+          await client.query(
+            `INSERT INTO leads (name, email, mobile, source, source_type, owner, reg_date, score, stage, stage_color, lead_source)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11);`,
+            [name || 'Unknown', `lead_${Date.now()}_${i}@noemail.com`, mobile, 'Call Upload', 'ai',
+             owner, new Date().toLocaleString('en-IN', { hour12: true }), 10, stage, color,
+             isCounselor ? 'counselor_upload' : 'call_upload']
+          )
+          created++
+        }
+      }
+      await client.query('COMMIT')
+    } catch (dbErr) {
+      await client.query('ROLLBACK'); throw dbErr
+    } finally {
+      client.release()
+    }
+
+    // Audit + notify
+    try {
+      await pool.query(
+        `INSERT INTO upload_logs (uploader_name, uploader_role, file_name, total_rows, imported, skipped, updated, dup_handling, assign_mode, assigned_to)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10);`,
+        [uploaderName || 'Unknown', uploaderRole || '', req.file?.originalname || '', rawData.length,
+         created, skipped, updated, 'call-outcomes', isCounselor ? 'self' : '', isCounselor ? uploaderName : '']
+      )
+    } catch (e) { console.error('[Call Outcomes] audit log failed:', e.message) }
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
+      [`Call outcomes upload by ${uploaderName || 'Unknown'}: ${updated} updated · ${created} created · ${skipped} skipped`, 'Just now'])
+
+    res.json({ success: true, updated, created, skipped, total: rawData.length, skipReasons })
+  } catch (err) {
+    console.error('[Call Outcomes]', err)
+    res.status(500).json({ error: err.message || 'Call outcomes upload failed.' })
+  } finally {
+    try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath) } catch {}
+  }
+})
+
 // --- FEATURE 14: GOOGLE SHEETS AUTO-SYNC ---
 app.post('/api/integrations/sheets-sync', async (req, res) => {
   const { sheetId, apiKey } = req.body
