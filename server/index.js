@@ -495,7 +495,7 @@ app.post('/api/auth/login', async (req, res) => {
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
     await pool.query('UPDATE users SET last_login = $1 WHERE id = $2;', [lastLoginStr, user.id])
     
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '24h' })
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
     
     res.json({
       token,
@@ -557,7 +557,7 @@ app.post('/api/auth/google', async (req, res) => {
         [`New user registered via Google: ${user.name} (${user.email}) — role: Counselor`, 'Just now'])
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '24h' })
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
     res.json({
       token,
       user: {
