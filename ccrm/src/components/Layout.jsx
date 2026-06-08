@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
+import { X, Phone } from 'lucide-react'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import IdleLogout from './IdleLogout'
 
 export default function Layout({ onLogout, user }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [voiceOpen, setVoiceOpen] = useState(true)   // CUTM voice (OmniDimension) widget visible?
 
   // OmniDimension calling widget — load once for the whole logged-in app
   useEffect(() => {
@@ -20,6 +22,12 @@ export default function Layout({ onLogout, user }) {
     }
   }, [])
 
+  // Show/hide the voice widget via a body class (see index.css)
+  useEffect(() => {
+    document.body.classList.toggle('cutm-voice-hidden', !voiceOpen)
+    return () => document.body.classList.remove('cutm-voice-hidden')
+  }, [voiceOpen])
+
   return (
     <div className="min-h-screen bg-canvas">
       <Sidebar onLogout={onLogout} user={user} />
@@ -28,6 +36,30 @@ export default function Layout({ onLogout, user }) {
         <Outlet />
       </main>
       <IdleLogout />
+
+      {/* CUTM voice assistant toggle (bottom-left, so it never overlaps the widget) */}
+      {voiceOpen ? (
+        <button
+          onClick={() => setVoiceOpen(false)}
+          title="Hide CUTM voice assistant"
+          className="fixed bottom-3 left-3 z-[60] flex items-center gap-1.5 rounded-full bg-gray-900/85 hover:bg-gray-900 text-white text-xs font-medium pl-3 pr-2 py-1.5 shadow-lg backdrop-blur transition-colors"
+        >
+          <Phone size={13} />
+          <span>Voice</span>
+          <span className="ml-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20">
+            <X size={11} />
+          </span>
+        </button>
+      ) : (
+        <button
+          onClick={() => setVoiceOpen(true)}
+          title="Show CUTM voice assistant"
+          className="fixed bottom-3 left-3 z-[60] flex items-center gap-1.5 rounded-full bg-primary-600 hover:bg-primary-700 text-white text-xs font-medium px-3 py-1.5 shadow-lg transition-colors"
+        >
+          <Phone size={13} />
+          <span>Voice Assistant</span>
+        </button>
+      )}
     </div>
   )
 }
