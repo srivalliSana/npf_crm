@@ -119,11 +119,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stage summary sheet — filterable by stage (admin/manager) */}
-      {!isCounselor && stats?.byDomain && (
+      {/* Stage Summary — counsellor (rows) × stage (columns) matrix (admin/manager) */}
+      {!isCounselor && Array.isArray(stats?.byCounsellorStages) && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800 text-sm">Stage Summary</h2>
+            <h2 className="font-semibold text-gray-800 text-sm">Stage Summary — by Counsellor</h2>
             <div className="flex items-center gap-2">
               <Filter size={14} className="text-gray-400" />
               <select value={summaryStage} onChange={e => setSummaryStage(e.target.value)}
@@ -137,36 +137,38 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
-                  <th className="px-5 py-2.5 text-left">Stage</th>
-                  <th className="px-4 py-2.5 text-right">CUTM</th>
-                  <th className="px-4 py-2.5 text-right">CUTMAP</th>
-                  <th className="px-4 py-2.5 text-right font-bold">Total</th>
+                  <th className="px-4 py-2.5 text-left sticky left-0 bg-gray-50">Counsellor</th>
+                  {visibleStages.map(s => <th key={s} className="px-3 py-2.5 text-center whitespace-nowrap">{s}</th>)}
+                  <th className="px-4 py-2.5 text-center font-bold">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {visibleStages.map(s => {
-                  const a = st(cutm, s), b = st(cutmap, s)
+                {stats.byCounsellorStages.length === 0 ? (
+                  <tr><td colSpan={visibleStages.length + 2} className="text-center py-8 text-gray-400">No assigned leads yet.</td></tr>
+                ) : stats.byCounsellorStages.map(r => {
+                  const rowTotal = visibleStages.reduce((n, s) => n + st(r, s), 0)
                   return (
-                    <tr key={s} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="px-5 py-2.5 font-medium text-gray-800">{s}</td>
-                      <td className="px-4 py-2.5 text-right text-blue-700">{a.toLocaleString()}</td>
-                      <td className="px-4 py-2.5 text-right text-violet-700">{b.toLocaleString()}</td>
-                      <td className="px-4 py-2.5 text-right font-bold text-gray-900">{(a + b).toLocaleString()}</td>
+                    <tr key={r.counsellor} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-gray-800 sticky left-0 bg-white">{r.counsellor}</td>
+                      {visibleStages.map(s => {
+                        const v = st(r, s)
+                        return <td key={s} className="px-3 py-2.5 text-center">{v ? v.toLocaleString() : <span className="text-gray-300">0</span>}</td>
+                      })}
+                      <td className="px-4 py-2.5 text-center font-bold text-gray-900">{rowTotal.toLocaleString()}</td>
                     </tr>
                   )
                 })}
               </tbody>
               <tfoot className="bg-gray-50 border-t font-semibold">
                 <tr>
-                  <td className="px-5 py-2.5">{summaryStage === 'All' ? 'Total' : `${summaryStage} total`}</td>
-                  <td className="px-4 py-2.5 text-right text-blue-700">
-                    {visibleStages.reduce((n, s) => n + st(cutm, s), 0).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-violet-700">
-                    {visibleStages.reduce((n, s) => n + st(cutmap, s), 0).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-gray-900">
-                    {visibleStages.reduce((n, s) => n + st(cutm, s) + st(cutmap, s), 0).toLocaleString()}
+                  <td className="px-4 py-2.5 sticky left-0 bg-gray-50">All counsellors</td>
+                  {visibleStages.map(s => (
+                    <td key={s} className="px-3 py-2.5 text-center text-gray-700">
+                      {stats.byCounsellorStages.reduce((n, r) => n + st(r, s), 0).toLocaleString()}
+                    </td>
+                  ))}
+                  <td className="px-4 py-2.5 text-center text-gray-900">
+                    {stats.byCounsellorStages.reduce((n, r) => n + visibleStages.reduce((m, s) => m + st(r, s), 0), 0).toLocaleString()}
                   </td>
                 </tr>
               </tfoot>

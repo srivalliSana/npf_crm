@@ -614,6 +614,14 @@ export default function LeadManager() {
           <button onClick={() => setShowBulkModal(true)} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
             <Upload size={14} /> Bulk Upload
           </button>
+          <button onClick={() => navigate('/call-outcomes')} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+            <Phone size={14} /> Call Outcomes
+          </button>
+          {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
+            <button onClick={() => navigate('/workbook-import')} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+              <FileSpreadsheet size={14} /> Workbook Import
+            </button>
+          )}
           <button onClick={() => setShowAddModal(true)} className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5">
             <Plus size={14} /> Add Lead
           </button>
