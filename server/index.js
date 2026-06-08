@@ -4691,21 +4691,27 @@ app.get('/api/upload-logs', authenticateToken, async (req, res) => {
 function mapCallStatus(s) {
   const x = String(s || '').toLowerCase().replace(/[^a-z]/g, '')
   if (!x) return null
-  if (x.includes('campus') || x.includes('visit'))                 return 'Campus Visit'    // distinct stage
+  if (x.includes('admission') || x.includes('confirmed') || x.includes('enrol')) return 'Admission Confirmed'
+  if ((x.includes('campus') || x.includes('visit')) && x.includes('complet'))    return 'Campus Visit Completed'
+  if (x.includes('campus') || x.includes('visit'))                 return 'Campus Visit Scheduled'
   if (x.includes('notcalled'))                                     return 'Untouched'       // Not Called
   if (x.includes('wrongnumber') || x.includes('invalidnumber'))    return 'Invalid Number'  // Wrong Number
   if (x.includes('notinter'))                                      return 'Not Interested'  // Not Interested / Not Internsted
-  if (x.includes('followup') || x.includes('callback'))            return 'Follow Up'       // Follow up Required
+  if (x.includes('furthertalk') || x.includes('followup') || x.includes('callback')) return 'Further Talk'
   if (x.includes('notreachable') || x.includes('noanswer') || x.includes('noresponse') ||
       x.includes('notconnected') || x.includes('notlifting') ||
       x.includes('busy') || x.includes('switchedoff'))             return 'No Response'     // Not Reachable / not lifting
+  if (x.includes('paymentsuccess'))                                return 'Payment Success'
+  if (x.includes('processforpayment') || x.includes('payment'))    return 'Process for Payment'
   if (x.includes('contacted'))                                     return 'Contacted'
   if (x.includes('inter'))                                         return 'Interested'      // Interested / Intersted (after notinter)
   return null
 }
 const CALL_STAGE_COLOR = {
-  'Contacted':'blue','No Response':'gray','Not Interested':'red','Follow Up':'yellow',
-  'Interested':'green','Campus Visit':'cyan','Invalid Number':'red','Untouched':'red'
+  'Contacted':'blue','No Response':'gray','Not Interested':'red','Further Talk':'purple',
+  'Interested':'green','Campus Visit Scheduled':'cyan','Campus Visit Completed':'cyan',
+  'Process for Payment':'orange','Payment Success':'emerald','Admission Confirmed':'emerald',
+  'Invalid Number':'red','Untouched':'red'
 }
 
 // Strict mobile validation/normalisation. Returns a clean 10-digit number or

@@ -434,6 +434,9 @@ export async function initDb() {
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS not_interested_reason TEXT DEFAULT '';`).catch(() => {})    // reason when Not Interested
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS follow_up_date VARCHAR(50) DEFAULT '';`).catch(() => {})    // set when stage = Follow Up (from call-outcomes upload)
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS program VARCHAR(120) DEFAULT '';`).catch(() => {})        // school/program (sheet name in the admission workbook)
+    // Stage taxonomy migration to the admission flowchart (idempotent)
+    await client.query(`UPDATE leads SET stage='Further Talk' WHERE stage='Follow Up';`).catch(() => {})
+    await client.query(`UPDATE leads SET stage='Campus Visit Scheduled' WHERE stage='Campus Visit';`).catch(() => {})
 
     // Payment extra fields
     await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS utr_number VARCHAR(100) DEFAULT '';`).catch(() => {})
