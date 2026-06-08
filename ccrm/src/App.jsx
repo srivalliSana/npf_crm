@@ -39,6 +39,7 @@ import ESSELeads from './pages/ESSELeads'
 import WebsitesDashboard from './pages/WebsitesDashboard'
 import UploadLogs from './pages/UploadLogs'
 import CallOutcomes from './pages/CallOutcomes'
+import CallActivityReport from './pages/CallActivityReport'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -98,6 +99,7 @@ export default function App() {
             <Route element={<RoleGuard roles={['Admin','Manager']} />}>
               <Route path="analytics"      element={<Analytics />} />
               <Route path="logs"           element={<UploadLogs />} />
+              <Route path="call-activity"  element={<CallActivityReport />} />
             </Route>
             <Route element={<RoleGuard roles={['Admin']} />}>
               <Route path="integration-health" element={<IntegrationHealth />} />
