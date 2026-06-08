@@ -327,6 +327,11 @@ export default function LeadManager() {
   const handleCreateLead = async (e, forceSave = false) => {
     e?.preventDefault()
     if (!newLead.name || !newLead.mobile) return showToast('Name and Mobile are required.', 'error')
+    // Mobile must be a valid 10-digit Indian number (ignoring spaces / +91 prefix)
+    const mobileDigits = (newLead.mobile || '').replace(/\D/g, '').slice(-10)
+    if (!/^[6-9]\d{9}$/.test(mobileDigits)) {
+      return showToast('Enter a valid 10-digit mobile number.', 'error')
+    }
     // Reference college is optional — counsellor can pick later from the dropdown
     if (dupWarning && !forceSave) return // show warning first
 
@@ -338,6 +343,7 @@ export default function LeadManager() {
 
     const leadData = {
       ...newLead,
+      mobile: mobileDigits,
       owner,
       stage: 'Untouched',
       stageColor: 'red',
