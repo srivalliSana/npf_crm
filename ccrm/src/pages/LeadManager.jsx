@@ -24,7 +24,7 @@ const STAGE_COLORS = {
 const getStageColorName = (stage) => ({
   'Untouched': 'red', 'Unverified': 'red', 'Contacted': 'blue',
   'No Response': 'gray', 'Unqualified Leads': 'orange', 'Follow Up': 'yellow',
-  'Interested': 'green', 'Not Interested': 'red',
+  'Interested': 'green', 'Not Interested': 'red', 'Invalid Number': 'red',
   'Process for Payment': 'orange', 'Payment Success': 'emerald',
   // legacy
   'Qualified Leads': 'orange', 'Converted': 'emerald',
@@ -554,7 +554,7 @@ export default function LeadManager() {
   const ownerOptions  = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
     ? (counselors || []).map(c => c.name)
     : []
-  const stageOptions  = ['Untouched','Contacted','No Response','Follow Up','Interested','Process for Payment','Payment Success','Not Interested']
+  const stageOptions  = ['Untouched','Contacted','No Response','Follow Up','Interested','Process for Payment','Payment Success','Not Interested','Invalid Number']
 
   return (
     <div className="p-6">
