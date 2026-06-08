@@ -60,20 +60,21 @@ export default function MioAI({ onClose }) {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 flex flex-col" style={{ height: '520px' }}>
+    <div className="fixed bottom-4 right-4 w-72 max-w-[88vw] bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 flex flex-col" style={{ height: '420px' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-700 rounded-t-2xl">
+      <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-purple-600 to-purple-700 rounded-t-2xl">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-            <Sparkles size={16} className="text-white" />
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+            <Sparkles size={14} className="text-white" />
           </div>
           <div>
-            <p className="text-white font-semibold text-sm">CU AI</p>
-            <p className="text-purple-200 text-xs">CCRM Intelligence Assistant</p>
+            <p className="text-white font-semibold text-sm leading-tight">CU AI</p>
+            <p className="text-purple-200 text-[10px] leading-tight">CCRM Assistant</p>
           </div>
         </div>
-        <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
-          <X size={18} />
+        <button onClick={onClose} title="Close"
+          className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors">
+          <X size={16} />
         </button>
       </div>
 
