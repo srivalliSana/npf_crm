@@ -5,12 +5,13 @@ import { useCcrm } from '../context/CcrmContext'
 // Status values accepted in the sheet (left) and the CRM stage they map to (right)
 const STATUS_MAP = [
   ['Interested',                'Interested'],
-  ['Campus Visit',             'Campus Visit'],
-  ['Follow up Required',        'Follow Up (enter a follow-up date)'],
+  ['Campus Visit',             'Campus Visit Scheduled'],
+  ['Follow up Required',        'Further Talk (enter a date)'],
   ['Not Interested',            'Not Interested'],
   ['Not Reachable / Busy',      'No Response'],
   ['Wrong Number',              'Invalid Number'],
   ['Not Called',                'Untouched'],
+  ['Admission Confirmed',       'Admission Confirmed'],
 ]
 
 export default function CallOutcomes() {

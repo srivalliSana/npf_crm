@@ -4,13 +4,14 @@ import { BarChart2, RefreshCw, X, AlertCircle, Phone } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
 // Stage columns shown in the report (call funnel order)
-const STAGES = ['Untouched', 'Contacted', 'No Response', 'Follow Up', 'Interested', 'Campus Visit', 'Process for Payment', 'Payment Success', 'Not Interested', 'Invalid Number']
+const STAGES = ['Untouched', 'Contacted', 'No Response', 'Further Talk', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success', 'Admission Confirmed', 'Invalid Number']
 
 const STAGE_TEXT = {
   'Untouched': 'text-red-600', 'Contacted': 'text-blue-600', 'No Response': 'text-gray-500',
-  'Follow Up': 'text-yellow-600', 'Interested': 'text-green-600', 'Campus Visit': 'text-cyan-600',
-  'Process for Payment': 'text-orange-600',
-  'Payment Success': 'text-emerald-600', 'Not Interested': 'text-red-600', 'Invalid Number': 'text-red-600',
+  'Further Talk': 'text-purple-600', 'Interested': 'text-green-600',
+  'Campus Visit Scheduled': 'text-cyan-600', 'Campus Visit Completed': 'text-cyan-600',
+  'Process for Payment': 'text-orange-600', 'Payment Success': 'text-emerald-600',
+  'Admission Confirmed': 'text-emerald-600', 'Invalid Number': 'text-red-600',
 }
 
 export default function CallActivityReport() {

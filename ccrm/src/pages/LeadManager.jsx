@@ -20,12 +20,14 @@ const STAGE_COLORS = {
   emerald: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-400' },
   gray:    { bg: 'bg-gray-100',    text: 'text-gray-600',    border: 'border-gray-400' },
   cyan:    { bg: 'bg-cyan-100',    text: 'text-cyan-700',    border: 'border-cyan-400' },
+  purple:  { bg: 'bg-purple-100',  text: 'text-purple-700',  border: 'border-purple-400' },
 }
 
 const getStageColorName = (stage) => ({
   'Untouched': 'red', 'Unverified': 'red', 'Contacted': 'blue',
-  'No Response': 'gray', 'Unqualified Leads': 'orange', 'Follow Up': 'yellow',
-  'Interested': 'green', 'Campus Visit': 'cyan', 'Not Interested': 'red', 'Invalid Number': 'red',
+  'No Response': 'gray', 'Unqualified Leads': 'orange', 'Follow Up': 'purple', 'Further Talk': 'purple',
+  'Interested': 'green', 'Campus Visit': 'cyan', 'Campus Visit Scheduled': 'cyan', 'Campus Visit Completed': 'cyan',
+  'Admission Confirmed': 'emerald', 'Not Interested': 'red', 'Invalid Number': 'red',
   'Process for Payment': 'orange', 'Payment Success': 'emerald',
   // legacy
   'Qualified Leads': 'orange', 'Converted': 'emerald',
@@ -590,7 +592,7 @@ export default function LeadManager() {
   const ownerOptions  = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
     ? (counselors || []).map(c => c.name)
     : []
-  const stageOptions  = ['Untouched','Contacted','No Response','Follow Up','Interested','Campus Visit','Process for Payment','Payment Success','Not Interested','Invalid Number']
+  const stageOptions  = ['Untouched','Contacted','No Response','Further Talk','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success','Admission Confirmed','Invalid Number']
 
   return (
     <div className="p-6">

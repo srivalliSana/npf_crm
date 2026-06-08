@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
+import LeadJourney from '../components/LeadJourney'
 
 async function initiateAmeyoCall(mobile) {
   // Always call our backend — avoids CORS and handles Exotel/Ameyo detection server-side
@@ -34,12 +35,13 @@ const LEAD_STAGES = [
   'Untouched',
   'Contacted',
   'No Response',
-  'Follow Up',
+  'Further Talk',
   'Interested',
-  'Campus Visit',
+  'Campus Visit Scheduled',
+  'Campus Visit Completed',
   'Process for Payment',
   'Payment Success',
-  'Not Interested',
+  'Admission Confirmed',
   'Invalid Number',
 ]
 
@@ -376,10 +378,12 @@ export default function ApplicationDetails() {
       'Contacted':           'bg-blue-100 text-blue-700 border border-blue-200',
       'No Response':         'bg-gray-100 text-gray-600 border border-gray-200',
       'Interested':          'bg-green-100 text-green-700 border border-green-200',
-      'Campus Visit':        'bg-cyan-100 text-cyan-700 border border-cyan-200',
-      'Follow Up':           'bg-yellow-100 text-yellow-700 border border-yellow-200',
+      'Further Talk':        'bg-purple-100 text-purple-700 border border-purple-200',
+      'Campus Visit Scheduled':'bg-cyan-100 text-cyan-700 border border-cyan-200',
+      'Campus Visit Completed':'bg-cyan-100 text-cyan-700 border border-cyan-200',
       'Process for Payment': 'bg-amber-100 text-amber-700 border border-amber-200',
       'Payment Success':     'bg-emerald-100 text-emerald-700 border border-emerald-200',
+      'Admission Confirmed': 'bg-emerald-100 text-emerald-700 border border-emerald-200',
       'Not Interested':      'bg-red-100 text-red-700 border border-red-200',
       'Invalid Number':      'bg-red-100 text-red-700 border border-red-200',
       // legacy fallbacks
@@ -457,16 +461,18 @@ export default function ApplicationDetails() {
     if (!isApp) {
       // ---- Lead stage update ----
       const stageColorMap = {
-        'Untouched':           'red',
-        'Contacted':           'blue',
-        'No Response':         'gray',
-        'Follow Up':           'yellow',
-        'Interested':          'green',
-        'Campus Visit':        'cyan',
-        'Process for Payment': 'orange',
-        'Payment Success':     'emerald',
-        'Not Interested':      'red',
-        'Invalid Number':      'red',
+        'Untouched':              'red',
+        'Contacted':              'blue',
+        'No Response':            'gray',
+        'Further Talk':           'purple',
+        'Interested':             'green',
+        'Campus Visit Scheduled': 'cyan',
+        'Campus Visit Completed': 'cyan',
+        'Process for Payment':    'orange',
+        'Payment Success':        'emerald',
+        'Admission Confirmed':    'emerald',
+        'Not Interested':         'red',
+        'Invalid Number':         'red',
       }
       updateLead(associatedLead.id, {
         stage: stageName,
@@ -912,20 +918,20 @@ export default function ApplicationDetails() {
             {/* Quick stage actions — only for leads */}
             {!isApp && leadStage !== 'Payment Success' && (
               <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
-                {/* Unable to Connect → Follow Up — hides once connected */}
-                {!['Contacted','Follow Up','Interested','Not Interested','Process for Payment'].includes(leadStage) && (
+                {/* Unable to Connect → Further Talk — hides once connected */}
+                {!['Contacted','Further Talk','Interested','Not Interested','Process for Payment'].includes(leadStage) && (
                   <button
                     onClick={async () => {
                       await updateLead(associatedLead.id, {
-                        stage: 'Follow Up',
-                        stageColor: 'yellow',
+                        stage: 'Further Talk',
+                        stageColor: 'purple',
                         not_interested_reason: 'Unable to Connect — needs follow-up'
                       })
-                      showToast('Marked as Unable to Connect → Follow Up', 'info')
+                      showToast('Marked as Unable to Connect → Further Talk', 'info')
                     }}
-                    className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-yellow-200 text-yellow-700 hover:bg-yellow-50 hover:border-yellow-300 transition-colors flex items-center justify-center gap-1.5"
+                    className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    📞 Unable to Connect → Follow Up
+                    📞 Unable to Connect → Further Talk
                   </button>
                 )}
                 {/* Mark Not Interested — hides once Interested */}
@@ -1031,13 +1037,22 @@ export default function ApplicationDetails() {
 
         {/* Right panel */}
         <div className="flex-1 min-w-0 space-y-4">
-          {/* Progress stages */}
+          {/* Progress — leads use the admission journey flowchart; applications keep the linear stepper */}
+          {!isApp ? (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700">Lead Journey</h3>
+                <span className="text-xs text-gray-400 font-semibold">Current: <span className="text-primary-600">{activeCurrentStage}</span></span>
+              </div>
+              <LeadJourney stage={activeCurrentStage} onSelect={(s) => handleStageClick(s)} />
+            </div>
+          ) : (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold text-gray-700">Application Progress</h3>
-              <span className="text-xs text-gray-400 font-semibold">{isApp ? 'Application' : 'Lead'} Stage {stageIdx + 1} of {activeStages.length}</span>
+              <span className="text-xs text-gray-400 font-semibold">Application Stage {stageIdx + 1} of {activeStages.length}</span>
             </div>
-            
+
             {/* Interactive stage bubbles */}
             <div className="flex items-center mt-3 overflow-x-auto pb-2">
               {activeStages.map((stage, idx) => {
@@ -1075,6 +1090,7 @@ export default function ApplicationDetails() {
               })}
             </div>
           </div>
+          )}
 
           {/* Tabs */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
