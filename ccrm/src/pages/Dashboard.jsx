@@ -68,19 +68,19 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* Summary cards — compact */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
         {SUMMARY_CARDS.map(card => {
           const Icon = card.icon
           return (
-            <div key={card.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className={`w-10 h-10 rounded-xl ${card.light} flex items-center justify-center`}>
-                  <Icon size={20} className={card.text} />
-                </div>
+            <div key={card.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg ${card.light} flex items-center justify-center flex-shrink-0`}>
+                <Icon size={18} className={card.text} />
               </div>
-              <div className="text-2xl font-extrabold text-gray-900">{card.value}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{card.label}</div>
+              <div className="min-w-0">
+                <div className="text-xl font-extrabold text-gray-900 leading-tight">{card.value}</div>
+                <div className="text-[11px] text-gray-500 truncate">{card.label}</div>
+              </div>
             </div>
           )
         })}
