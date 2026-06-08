@@ -1999,9 +1999,9 @@ app.get('/api/dashboard/stats', async (req, res) => {
         COUNT(*)::int AS "totalLeads",
         SUM(CASE WHEN owner IS NULL OR owner = '' OR owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
         SUM(CASE WHEN stage='Untouched'           THEN 1 ELSE 0 END)::int AS untouched,
-        SUM(CASE WHEN stage='Follow Up'           THEN 1 ELSE 0 END)::int AS "followUp",
+        SUM(CASE WHEN stage='Further Talk'        THEN 1 ELSE 0 END)::int AS "followUp",
         SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,
-        SUM(CASE WHEN not_interested_reason IS NOT NULL AND TRIM(not_interested_reason) <> '' THEN 1 ELSE 0 END)::int AS "notInterested"
+        SUM(CASE WHEN stage='Not Interested'      THEN 1 ELSE 0 END)::int AS "notInterested"
       FROM leads l ${ownerWhere};
     `, params)
 
@@ -2031,9 +2031,9 @@ app.get('/api/dashboard/stats', async (req, res) => {
         SUM(CASE WHEN l.owner IS NULL OR l.owner = '' OR l.owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
         SUM(CASE WHEN l.stage='Untouched' THEN 1 ELSE 0 END)::int AS untouched,
         SUM(CASE WHEN l.stage='Contacted' THEN 1 ELSE 0 END)::int AS contacted,
-        SUM(CASE WHEN l.stage='Follow Up' THEN 1 ELSE 0 END)::int AS "followUp",
+        SUM(CASE WHEN l.stage='Further Talk' THEN 1 ELSE 0 END)::int AS "followUp",
         SUM(CASE WHEN l.stage='Interested' THEN 1 ELSE 0 END)::int AS interested,
-        SUM(CASE WHEN l.not_interested_reason IS NOT NULL AND TRIM(l.not_interested_reason) <> '' THEN 1 ELSE 0 END)::int AS "notInterested",
+        SUM(CASE WHEN l.stage='Not Interested' THEN 1 ELSE 0 END)::int AS "notInterested",
         SUM(CASE WHEN l.stage='Qualified Leads' THEN 1 ELSE 0 END)::int AS qualified,
         SUM(CASE WHEN l.stage='Converted' THEN 1 ELSE 0 END)::int AS converted
       FROM users u
@@ -5212,7 +5212,7 @@ app.post('/api/email-campaigns/:id/send', async (req, res) => {
     // Build segment-aware query
     let segWhere = "email NOT LIKE '%noemail%' AND email != '' AND email IS NOT NULL"
     if (segment === 'Untouched Leads')      segWhere += " AND stage = 'Untouched'"
-    else if (segment === 'Follow Up')       segWhere += " AND stage = 'Follow Up'"
+    else if (segment === 'Follow Up' || segment === 'Further Talk') segWhere += " AND stage = 'Further Talk'"
     else if (segment === 'Interested')      segWhere += " AND stage = 'Interested'"
     else if (segment === 'Not Interested')  segWhere += " AND stage = 'Not Interested'"
     // 'Process for Payment' segment matches both new and legacy 'Qualified Leads' rows
@@ -5404,7 +5404,7 @@ async function sendProductivityEmailReport() {
         COUNT(*)::int AS "totalLeads",
         SUM(CASE WHEN stage='Untouched'           THEN 1 ELSE 0 END)::int AS untouched,
         SUM(CASE WHEN stage='Contacted'           THEN 1 ELSE 0 END)::int AS contacted,
-        SUM(CASE WHEN stage='Follow Up'           THEN 1 ELSE 0 END)::int AS "followUp",
+        SUM(CASE WHEN stage='Further Talk'        THEN 1 ELSE 0 END)::int AS "followUp",
         SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,
         SUM(CASE WHEN stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
         SUM(CASE WHEN stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess"
