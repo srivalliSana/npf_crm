@@ -710,7 +710,6 @@ export default function LeadManager() {
                 <th className="table-th">Name</th>
                 <th className="table-th">Date Added</th>
                 <th className="table-th">Mobile</th>
-                <th className="table-th">Ref. College</th>
                 <th className="table-th">Source</th>
                 <th className="table-th">Stage</th>
                 <th className="table-th">
@@ -795,11 +794,6 @@ export default function LeadManager() {
                           <Phone size={13} />
                         </button>
                       </div>
-                    </td>
-                    <td className="table-td text-xs">
-                      {lead.course
-                        ? <span className="text-gray-600">{lead.course}</span>
-                        : <span className="text-blue-400 italic hover:text-blue-600 hover:underline" title="Click row to open lead and pick reference college">+ Pick college</span>}
                     </td>
                     <td className="table-td text-gray-500 text-xs">{lead.source || '—'}</td>
                     <td className="table-td">

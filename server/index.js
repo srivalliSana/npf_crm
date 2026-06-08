@@ -4727,6 +4727,14 @@ app.post('/api/leads/call-outcomes-upload', (req, res, next) => {
           )
           created++
         }
+
+        // Follow Up with a date → create a task/reminder for the counselor
+        if (stage === 'Follow Up' && fuRaw) {
+          await client.query(
+            `INSERT INTO tasks (title, type, priority, due, status, assignee, lead) VALUES ($1,$2,$3,$4,$5,$6,$7);`,
+            [`Follow up with ${name || mobile}`, 'Call', 'Medium', fuRaw, 'Pending', targetOwner || uploaderName || 'Unassigned', name || mobile]
+          )
+        }
       }
       await client.query('COMMIT')
     } catch (dbErr) {
