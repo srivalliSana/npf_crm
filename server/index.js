@@ -961,6 +961,27 @@ app.put('/api/leads/:id', async (req, res) => {
   }
 })
 
+// POST /api/leads/bulk-assign — assign many leads to one counselor at once (Admin/Manager)
+app.post('/api/leads/bulk-assign', authenticateToken, async (req, res) => {
+  try {
+    if (!['Admin', 'Manager'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Admin/Manager only.' })
+    }
+    const { leadIds, owner } = req.body
+    if (!Array.isArray(leadIds) || leadIds.length === 0 || !owner) {
+      return res.status(400).json({ error: 'leadIds (array) and owner are required.' })
+    }
+    const placeholders = leadIds.map((_, i) => `$${i + 2}`).join(',')
+    const r = await pool.query(`UPDATE leads SET owner = $1 WHERE id IN (${placeholders});`, [owner, ...leadIds])
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+      [`${r.rowCount} lead(s) assigned to ${owner}`, 'Just now'])
+    res.json({ success: true, assigned: r.rowCount })
+  } catch (err) {
+    console.error('[Bulk Assign]', err.message)
+    res.status(500).json({ error: 'Bulk assign failed.' })
+  }
+})
+
 app.delete('/api/leads/:id', async (req, res) => {
   const { id } = req.params
   // requesterRole + requesterName sent by the client so we can enforce rules server-side
