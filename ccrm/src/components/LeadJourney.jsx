@@ -75,7 +75,7 @@ export default function LeadJourney({ stage, onSelect }) {
             <Sub s="No Response" label="Schedule again" icon={CalendarClock} />
           </div>
           <div className="space-y-1">
-            <Node s="Follow Up" label="Follow Up" icon={MessageSquare} block />
+            <Node s="Follow Up" label="Further Talk/Follow Up" icon={MessageSquare} block />
             <Sub s="Follow Up" label="Reminder" icon={Bell} />
           </div>
           <div className="space-y-1">

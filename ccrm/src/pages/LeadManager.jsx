@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
+import { stageLabel } from '../stageLabel'
 
 const STAGE_COLORS = {
   red:     { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-400' },
@@ -662,7 +663,7 @@ export default function LeadManager() {
               <select value={filters[f.key]} onChange={e => { setFilters(p => ({ ...p, [f.key]: e.target.value })); setCurrentPage(1) }}
                 className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-300 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer">
                 <option value="">{f.label}</option>
-                {f.opts.map(o => <option key={o}>{o}</option>)}
+                {f.opts.map(o => <option key={o} value={o}>{f.key === 'stage' ? stageLabel(o) : o}</option>)}
               </select>
               <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
@@ -857,7 +858,7 @@ export default function LeadManager() {
                     <td className="table-td text-gray-500 text-xs">{lead.source || '—'}</td>
                     <td className="table-td">
                       <div className="flex flex-col gap-0.5">
-                        <span className={`badge ${colors.bg} ${colors.text}`}>{lead.stage}</span>
+                        <span className={`badge ${colors.bg} ${colors.text}`}>{stageLabel(lead.stage)}</span>
                         {lead.notInterestedReason && (
                           <span className="text-[9px] text-red-500 italic truncate max-w-24" title={lead.notInterestedReason}>
                             {lead.notInterestedReason}
