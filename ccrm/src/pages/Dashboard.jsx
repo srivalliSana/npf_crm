@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [statsLoading, setStatsLoading] = useState(true)
   const [summaryStage, setSummaryStage] = useState('All')
+  const [summaryDomain, setSummaryDomain] = useState('All')   // All | cutm | cutmap
 
   useEffect(() => {
     // Server-side aggregated dashboard stats — scales to millions of rows.
@@ -49,6 +50,7 @@ export default function Dashboard() {
   const cutmap = stats?.byDomain?.cutmap || { total: 0, stages: {} }
   const st = (data, stage) => data?.stages?.[stage] || 0
   const visibleStages = summaryStage === 'All' ? ALL_STAGES : ALL_STAGES.filter(s => s === summaryStage)
+  const matrixRows = (stats?.byCounsellorStages || []).filter(r => summaryDomain === 'All' || r.domain === summaryDomain)
 
   return (
     <div className="p-6">
@@ -122,9 +124,18 @@ export default function Dashboard() {
       {/* Stage Summary — counsellor (rows) × stage (columns) matrix (admin/manager) */}
       {!isCounselor && Array.isArray(stats?.byCounsellorStages) && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
             <h2 className="font-semibold text-gray-800 text-sm">Stage Summary — by Counsellor</h2>
             <div className="flex items-center gap-2">
+              {/* Domain filter: All / CUTM / CUTMAP */}
+              <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+                {[{ v: 'All', l: 'All' }, { v: 'cutm', l: 'CUTM' }, { v: 'cutmap', l: 'CUTMAP' }].map(d => (
+                  <button key={d.v} onClick={() => setSummaryDomain(d.v)}
+                    className={`px-3 py-1.5 ${summaryDomain === d.v ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                    {d.l}
+                  </button>
+                ))}
+              </div>
               <Filter size={14} className="text-gray-400" />
               <select value={summaryStage} onChange={e => setSummaryStage(e.target.value)}
                 className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary-400">
@@ -143,9 +154,9 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {stats.byCounsellorStages.length === 0 ? (
-                  <tr><td colSpan={visibleStages.length + 2} className="text-center py-8 text-gray-400">No assigned leads yet.</td></tr>
-                ) : stats.byCounsellorStages.map(r => {
+                {matrixRows.length === 0 ? (
+                  <tr><td colSpan={visibleStages.length + 2} className="text-center py-8 text-gray-400">No leads for this filter.</td></tr>
+                ) : matrixRows.map(r => {
                   const rowTotal = visibleStages.reduce((n, s) => n + st(r, s), 0)
                   return (
                     <tr key={r.counsellor} className="border-b border-gray-50 hover:bg-gray-50">
@@ -164,11 +175,11 @@ export default function Dashboard() {
                   <td className="px-4 py-2.5 sticky left-0 bg-gray-50">All counsellors</td>
                   {visibleStages.map(s => (
                     <td key={s} className="px-3 py-2.5 text-center text-gray-700">
-                      {stats.byCounsellorStages.reduce((n, r) => n + st(r, s), 0).toLocaleString()}
+                      {matrixRows.reduce((n, r) => n + st(r, s), 0).toLocaleString()}
                     </td>
                   ))}
                   <td className="px-4 py-2.5 text-center text-gray-900">
-                    {stats.byCounsellorStages.reduce((n, r) => n + visibleStages.reduce((m, s) => m + st(r, s), 0), 0).toLocaleString()}
+                    {matrixRows.reduce((n, r) => n + visibleStages.reduce((m, s) => m + st(r, s), 0), 0).toLocaleString()}
                   </td>
                 </tr>
               </tfoot>
