@@ -36,7 +36,7 @@ const LEAD_STAGES = [
   'Contacted',
   'Invalid Number',
   'No Response',
-  'Further Talk',
+  'Follow Up',
   'Interested',
   'Campus Visit Scheduled',
   'Campus Visit Completed',
@@ -377,7 +377,7 @@ export default function ApplicationDetails() {
       'Contacted':           'bg-blue-100 text-blue-700 border border-blue-200',
       'No Response':         'bg-gray-100 text-gray-600 border border-gray-200',
       'Interested':          'bg-green-100 text-green-700 border border-green-200',
-      'Further Talk':        'bg-purple-100 text-purple-700 border border-purple-200',
+      'Follow Up':        'bg-purple-100 text-purple-700 border border-purple-200',
       'Campus Visit Scheduled':'bg-cyan-100 text-cyan-700 border border-cyan-200',
       'Campus Visit Completed':'bg-cyan-100 text-cyan-700 border border-cyan-200',
       'Process for Payment': 'bg-amber-100 text-amber-700 border border-amber-200',
@@ -463,7 +463,7 @@ export default function ApplicationDetails() {
         'Untouched':              'red',
         'Contacted':              'blue',
         'No Response':            'gray',
-        'Further Talk':           'purple',
+        'Follow Up':           'purple',
         'Interested':             'green',
         'Campus Visit Scheduled': 'cyan',
         'Campus Visit Completed': 'cyan',
@@ -917,20 +917,20 @@ export default function ApplicationDetails() {
             {/* Quick stage actions — only for leads */}
             {!isApp && leadStage !== 'Payment Success' && (
               <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
-                {/* Unable to Connect → Further Talk — hides once connected */}
-                {!['Contacted','Further Talk','Interested','Not Interested','Process for Payment'].includes(leadStage) && (
+                {/* Unable to Connect → Follow Up — hides once connected */}
+                {!['Contacted','Follow Up','Interested','Not Interested','Process for Payment'].includes(leadStage) && (
                   <button
                     onClick={async () => {
                       await updateLead(associatedLead.id, {
-                        stage: 'Further Talk',
+                        stage: 'Follow Up',
                         stageColor: 'purple',
                         not_interested_reason: 'Unable to Connect — needs follow-up'
                       })
-                      showToast('Marked as Unable to Connect → Further Talk', 'info')
+                      showToast('Marked as Unable to Connect → Follow Up', 'info')
                     }}
                     className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    📞 Unable to Connect → Further Talk
+                    📞 Unable to Connect → Follow Up
                   </button>
                 )}
                 {/* Mark Not Interested — hides once Interested */}

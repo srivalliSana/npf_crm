@@ -6,7 +6,7 @@ import { useCcrm } from '../context/CcrmContext'
 const STATUS_MAP = [
   ['Interested',                'Interested'],
   ['Campus Visit',             'Campus Visit Scheduled'],
-  ['Follow up Required',        'Further Talk (enter a date)'],
+  ['Follow up Required',        'Follow Up (enter a date)'],
   ['Not Interested',            'Not Interested'],
   ['Not Reachable / Busy',      'No Response'],
   ['Wrong Number',              'Invalid Number'],
