@@ -3,7 +3,7 @@ import { useCcrm } from '../context/CcrmContext'
 import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter } from 'lucide-react'
 
 // Lead stages shown in the summary table (funnel order)
-const ALL_STAGES = ['Untouched', 'Contacted', 'Invalid Number', 'No Response', 'Further Talk', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success']
+const ALL_STAGES = ['Untouched', 'Contacted', 'Invalid Number', 'No Response', 'Follow Up', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success', 'Not Interested']
 
 export default function Dashboard() {
   const { currentUser } = useCcrm()
@@ -34,14 +34,14 @@ export default function Dashboard() {
     { label: 'Total Leads',     value: ((byCounsellor?.leads ?? 0)).toLocaleString(),        icon: Users,       light: 'bg-blue-50',   text: 'text-blue-600' },
     { label: 'Untouched',       value: ((byCounsellor?.untouched ?? 0)).toLocaleString(),    icon: Users,       light: 'bg-orange-50', text: 'text-orange-600' },
     { label: 'Interested',      value: ((byCounsellor?.interested ?? 0)).toLocaleString(),   icon: FileText,    light: 'bg-green-50',  text: 'text-green-600' },
-    { label: 'Further Talk',       value: ((byCounsellor?.followUp ?? 0)).toLocaleString(),     icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
+    { label: 'Follow Up',       value: ((byCounsellor?.followUp ?? 0)).toLocaleString(),     icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
     { label: 'Not Interested',  value: ((byCounsellor?.notInterested ?? 0)).toLocaleString(), icon: CheckCircle, light: 'bg-red-50',    text: 'text-red-600' },
   ] : [
     { label: 'Total Leads',     value: ((kpi?.totalLeads || 0)).toLocaleString(),           icon: Users,       light: 'bg-blue-50',   text: 'text-blue-600' },
     { label: 'Unassigned',      value: ((kpi?.unassigned ?? 0)).toLocaleString(),           icon: Users,       light: 'bg-purple-50', text: 'text-purple-600' },
     { label: 'Untouched',       value: ((kpi?.untouched ?? 0)).toLocaleString(),            icon: Users,       light: 'bg-orange-50', text: 'text-orange-600' },
     { label: 'Interested',      value: ((kpi?.interested ?? 0)).toLocaleString(),           icon: FileText,    light: 'bg-green-50',  text: 'text-green-600' },
-    { label: 'Further Talk',       value: ((kpi?.followUp ?? 0)).toLocaleString(),             icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
+    { label: 'Follow Up',       value: ((kpi?.followUp ?? 0)).toLocaleString(),             icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
     { label: 'Not Interested',  value: ((kpi?.notInterested ?? 0)).toLocaleString(),        icon: CheckCircle, light: 'bg-red-50',    text: 'text-red-600' },
     ...(isAdmin ? [{ label: 'Revenue Collected', value: `₹${(((stats?.revenue ?? 0))/100000).toFixed(1)}L`, icon: CheckCircle, light: 'bg-emerald-50', text: 'text-emerald-600' }] : []),
   ]
@@ -96,7 +96,7 @@ export default function Dashboard() {
             const cells = [
               { l: 'Total',          v: d.data.total },
               { l: 'Untouched',      v: st(d.data, 'Untouched') },
-              { l: 'Further Talk',   v: st(d.data, 'Further Talk') },
+              { l: 'Follow Up',   v: st(d.data, 'Follow Up') },
               { l: 'Interested',     v: st(d.data, 'Interested') },
               { l: 'Not Interested', v: st(d.data, 'Not Interested') },
               { l: 'Invalid Number', v: st(d.data, 'Invalid Number') },
@@ -158,7 +158,9 @@ export default function Dashboard() {
                 {matrixRows.length === 0 ? (
                   <tr><td colSpan={visibleStages.length + 3} className="text-center py-8 text-gray-400">No leads for this filter.</td></tr>
                 ) : matrixRows.map(r => {
-                  const rowTotal = visibleStages.reduce((n, s) => n + st(r, s), 0)
+                  // In 'All' view, Total = the counsellor's true assigned count (matches Assigned).
+                  // When filtered to one stage, Total = that stage's count.
+                  const rowTotal = summaryStage === 'All' ? (r.total || 0) : visibleStages.reduce((n, s) => n + st(r, s), 0)
                   return (
                     <tr key={r.counsellor} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-2.5 font-medium text-gray-800 sticky left-0 bg-white">{r.counsellor}</td>
@@ -184,7 +186,10 @@ export default function Dashboard() {
                     </td>
                   ))}
                   <td className="px-4 py-2.5 text-center text-gray-900">
-                    {matrixRows.reduce((n, r) => n + visibleStages.reduce((m, s) => m + st(r, s), 0), 0).toLocaleString()}
+                    {(summaryStage === 'All'
+                      ? matrixRows.reduce((n, r) => n + (r.total || 0), 0)
+                      : matrixRows.reduce((n, r) => n + visibleStages.reduce((m, s) => m + st(r, s), 0), 0)
+                    ).toLocaleString()}
                   </td>
                 </tr>
               </tfoot>

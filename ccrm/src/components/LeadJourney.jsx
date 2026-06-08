@@ -13,7 +13,7 @@ const TONE = {
 }
 
 const PATH = ['Untouched', 'Contacted', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success']
-const OFFRAMP = ['Invalid Number', 'No Response', 'Further Talk']
+const OFFRAMP = ['Invalid Number', 'No Response', 'Follow Up']
 
 function stageState(s, cur) {
   if (s === cur) return 'orange'
@@ -75,8 +75,8 @@ export default function LeadJourney({ stage, onSelect }) {
             <Sub s="No Response" label="Schedule again" icon={CalendarClock} />
           </div>
           <div className="space-y-1">
-            <Node s="Further Talk" label="Further Talk" icon={MessageSquare} block />
-            <Sub s="Further Talk" label="Reminder" icon={Bell} />
+            <Node s="Follow Up" label="Follow Up" icon={MessageSquare} block />
+            <Sub s="Follow Up" label="Reminder" icon={Bell} />
           </div>
           <div className="space-y-1">
             <Node s="Interested" label="Interested" icon={Star} block />
