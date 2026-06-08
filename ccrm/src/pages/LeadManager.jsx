@@ -592,7 +592,7 @@ export default function LeadManager() {
   const ownerOptions  = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
     ? (counselors || []).map(c => c.name)
     : []
-  const stageOptions  = ['Untouched','Contacted','No Response','Further Talk','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success','Admission Confirmed','Invalid Number']
+  const stageOptions  = ['Untouched','Contacted','Invalid Number','No Response','Further Talk','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success','Admission Confirmed']
 
   return (
     <div className="p-6">
