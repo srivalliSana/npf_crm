@@ -38,6 +38,7 @@ const LEAD_STAGES = [
   'Interested',
   'Process for Payment',
   'Payment Success',
+  'Invalid Number',
 ]
 
 // Alias used generically (kept for backward compat)
@@ -377,6 +378,7 @@ export default function ApplicationDetails() {
       'Process for Payment': 'bg-amber-100 text-amber-700 border border-amber-200',
       'Payment Success':     'bg-emerald-100 text-emerald-700 border border-emerald-200',
       'Not Interested':      'bg-red-100 text-red-700 border border-red-200',
+      'Invalid Number':      'bg-red-100 text-red-700 border border-red-200',
       // legacy fallbacks
       'Qualified Leads':     'bg-amber-100 text-amber-700 border border-amber-200',
       'Converted':           'bg-emerald-100 text-emerald-700 border border-emerald-200',
@@ -460,6 +462,7 @@ export default function ApplicationDetails() {
         'Process for Payment': 'orange',
         'Payment Success':     'emerald',
         'Not Interested':      'red',
+        'Invalid Number':      'red',
       }
       updateLead(associatedLead.id, {
         stage: stageName,

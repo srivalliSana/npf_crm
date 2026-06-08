@@ -4646,66 +4646,84 @@ app.post('/api/leads/call-outcomes-upload', (req, res, next) => {
     const uploaderName = req.body.uploaderName || ''
     const isCounselor  = !['Admin', 'Manager'].includes(uploaderRole) && !!uploaderName
 
-    // Normalize a free-text status to a canonical stage (order matters:
-    // "not interested" must be checked before "interested").
+    // Normalize a free-text status (handles the sheet's typos) → canonical stage.
+    // Order matters — more specific phrases first.
     const mapStatus = (s) => {
       const x = String(s || '').toLowerCase().replace(/[^a-z]/g, '')
       if (!x) return null
-      if (x.includes('contacted'))                                   return 'Contacted'
-      if (x.includes('noresponse') || x.includes('noanswer') ||
-          x.includes('notreachable') || x.includes('notconnected') ||
-          x.includes('busy') || x.includes('switchedoff'))          return 'No Response'
-      if (x.includes('notinterested'))                              return 'Not Interested'
-      if (x.includes('followup') || x.includes('callback'))         return 'Follow Up'
-      if (x.includes('interested'))                                 return 'Interested'
+      if (x.includes('campus') || x.includes('visit'))                 return 'Interested'      // Campus Visit = hot
+      if (x.includes('notcalled'))                                     return 'Untouched'       // Not Called
+      if (x.includes('wrongnumber') || x.includes('invalidnumber'))    return 'Invalid Number'  // Wrong Number
+      if (x.includes('notinter'))                                      return 'Not Interested'  // Not Interested / Not Internsted
+      if (x.includes('followup') || x.includes('callback'))            return 'Follow Up'       // Follow up Required
+      if (x.includes('notreachable') || x.includes('noanswer') || x.includes('noresponse') ||
+          x.includes('notconnected') || x.includes('notlifting') ||
+          x.includes('busy') || x.includes('switchedoff'))             return 'No Response'     // Not Reachable / not lifting
+      if (x.includes('contacted'))                                     return 'Contacted'
+      if (x.includes('inter'))                                         return 'Interested'      // Interested / Intersted (after notinter)
       return null
     }
-    const stageColor = { 'Contacted':'blue','No Response':'gray','Not Interested':'red','Follow Up':'yellow','Interested':'green' }
+    const stageColor = {
+      'Contacted':'blue','No Response':'gray','Not Interested':'red','Follow Up':'yellow',
+      'Interested':'green','Invalid Number':'red','Untouched':'red'
+    }
 
-    // Auto-detect columns
+    // Auto-detect columns (statusCol must not grab the REMARKS column)
     const headers = Object.keys(rawData[0])
     const find = (re) => headers.find(h => re.test(h))
-    const nameCol   = find(/name/i)
-    const mobileCol = find(/mobile|phone|mob|contact|number/i)
-    const statusCol = find(/status|outcome|disposition|result|remark/i)
+    const nameCol      = find(/name/i)
+    const mobileCol    = find(/mobile|phone|mob|contact|number/i)
+    const statusCol    = find(/status|outcome|disposition|result/i)
+    const facultyCol   = find(/faculty|staff|called|caller/i)   // "FACULTY/STAFF NAME WHO CALLED" → owner
+    const followDateCol= find(/follow.*date|next.*date|reminder|callback.*date/i)
     if (!mobileCol || !statusCol) {
       return res.status(400).json({ error: 'File must include a Mobile column and a Status column.' })
     }
 
     const client = await pool.connect()
     let updated = 0, created = 0, skipped = 0
-    const skipReasons = []
+    const skipReasons = [], warnings = []
     try {
       await client.query('BEGIN')
       for (let i = 0; i < rawData.length; i++) {
         const row = rawData[i]
-        const name   = String(row[nameCol] || '').trim().substring(0, 100)
-        const mobile = String(row[mobileCol] || '').replace(/\D/g, '').slice(-10)
-        const stage  = mapStatus(row[statusCol])
+        const name    = String(row[nameCol] || '').trim().substring(0, 100)
+        const mobile  = String(row[mobileCol] || '').replace(/\D/g, '').slice(-10)
+        const stage   = mapStatus(row[statusCol])
+        // Faculty who called → becomes the owner (drives CUTM/CUTMAP via their email domain)
+        const faculty = facultyCol ? String(row[facultyCol] || '').trim().substring(0, 100) : ''
+        // Follow-up date only relevant when stage is Follow Up
+        const fuRaw   = followDateCol ? String(row[followDateCol] || '').trim() : ''
+        const fuDate  = stage === 'Follow Up' ? fuRaw : ''
+
         if (mobile.length !== 10) {
           skipped++; if (skipReasons.length < 8) skipReasons.push(`Row ${i + 2}: invalid/missing mobile`); continue
         }
         if (!stage) {
           skipped++; if (skipReasons.length < 8) skipReasons.push(`Row ${i + 2}: unrecognized status "${row[statusCol]}"`); continue
         }
-        const color = stageColor[stage]
+        if (stage === 'Follow Up' && !fuRaw && warnings.length < 8) {
+          warnings.push(`Row ${i + 2}: Follow Up has no follow-up date`)
+        }
+        const color = stageColor[stage] || 'blue'
+        // Resolve the owner this row should land on (faculty wins; else counselor self)
+        const targetOwner = faculty || (isCounselor ? uploaderName : '')
+
         const dup = await client.query('SELECT id, owner FROM leads WHERE mobile = $1 OR mobile = $2 LIMIT 1;', [mobile, `91${mobile}`])
         if (dup.rows.length > 0) {
-          const cur = dup.rows[0]
-          if (isCounselor && (!cur.owner || cur.owner === '' || cur.owner === 'Unassigned')) {
-            await client.query('UPDATE leads SET stage=$1, stage_color=$2, owner=$3 WHERE id=$4;', [stage, color, uploaderName, cur.id])
-          } else {
-            await client.query('UPDATE leads SET stage=$1, stage_color=$2 WHERE id=$3;', [stage, color, cur.id])
-          }
+          // Reassign owner only when we have one; otherwise keep the existing owner.
+          await client.query(
+            'UPDATE leads SET stage=$1, stage_color=$2, owner=COALESCE($3, owner), follow_up_date=$4 WHERE id=$5;',
+            [stage, color, targetOwner || null, fuDate, dup.rows[0].id]
+          )
           updated++
         } else {
-          const owner = isCounselor ? uploaderName : 'Unassigned'
           await client.query(
-            `INSERT INTO leads (name, email, mobile, source, source_type, owner, reg_date, score, stage, stage_color, lead_source)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11);`,
+            `INSERT INTO leads (name, email, mobile, source, source_type, owner, reg_date, score, stage, stage_color, lead_source, follow_up_date)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12);`,
             [name || 'Unknown', `lead_${Date.now()}_${i}@noemail.com`, mobile, 'Call Upload', 'ai',
-             owner, new Date().toLocaleString('en-IN', { hour12: true }), 10, stage, color,
-             isCounselor ? 'counselor_upload' : 'call_upload']
+             targetOwner || 'Unassigned', new Date().toLocaleString('en-IN', { hour12: true }), 10, stage, color,
+             isCounselor ? 'counselor_upload' : 'call_upload', fuDate]
           )
           created++
         }
@@ -4723,13 +4741,14 @@ app.post('/api/leads/call-outcomes-upload', (req, res, next) => {
         `INSERT INTO upload_logs (uploader_name, uploader_role, file_name, total_rows, imported, skipped, updated, dup_handling, assign_mode, assigned_to)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10);`,
         [uploaderName || 'Unknown', uploaderRole || '', req.file?.originalname || '', rawData.length,
-         created, skipped, updated, 'call-outcomes', isCounselor ? 'self' : '', isCounselor ? uploaderName : '']
+         created, skipped, updated, 'call-outcomes', facultyCol ? 'by-faculty' : (isCounselor ? 'self' : ''), '']
       )
     } catch (e) { console.error('[Call Outcomes] audit log failed:', e.message) }
     await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
       [`Call outcomes upload by ${uploaderName || 'Unknown'}: ${updated} updated · ${created} created · ${skipped} skipped`, 'Just now'])
 
-    res.json({ success: true, updated, created, skipped, total: rawData.length, skipReasons })
+    res.json({ success: true, updated, created, skipped, total: rawData.length, skipReasons, warnings,
+               ownerFromFaculty: !!facultyCol, followDateDetected: !!followDateCol })
   } catch (err) {
     console.error('[Call Outcomes]', err)
     res.status(500).json({ error: err.message || 'Call outcomes upload failed.' })

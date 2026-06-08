@@ -2,7 +2,15 @@ import React, { useState, useRef } from 'react'
 import { PhoneCall, Upload, Download, CheckCircle2, RefreshCw, AlertCircle, FileSpreadsheet } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
-const STATUS_VALUES = ['Contacted', 'No Response', 'Not Interested', 'Follow Up', 'Interested']
+// Status values accepted in the sheet (left) and the CRM stage they map to (right)
+const STATUS_MAP = [
+  ['Interested / Campus Visit', 'Interested'],
+  ['Follow up Required',        'Follow Up (enter a follow-up date)'],
+  ['Not Interested',            'Not Interested'],
+  ['Not Reachable / Busy',      'No Response'],
+  ['Wrong Number',              'Invalid Number'],
+  ['Not Called',                'Untouched'],
+]
 
 export default function CallOutcomes() {
   const { currentUser, showToast, refreshCounselors } = useCcrm()
@@ -13,12 +21,12 @@ export default function CallOutcomes() {
 
   const downloadTemplate = () => {
     const rows = [
-      ['Name', 'Mobile', 'Status'],
-      ['Ravi Kumar', '9876543210', 'Contacted'],
-      ['Priya Sharma', '9876543211', 'Interested'],
-      ['Anil Reddy', '9876543212', 'No Response'],
-      ['Sita Devi', '9876543213', 'Follow Up'],
-      ['Mohan Rao', '9876543214', 'Not Interested'],
+      ['Full_name', 'Phone_number', 'FACULTY/STAFF NAME WHO CALLED', 'STATUS', 'Follow up Date'],
+      ['Ravi Kumar',   '9876543210', 'Dr.Mohanababu Chappa', 'Interested',          ''],
+      ['Priya Sharma', '9876543211', 'Dr.Mohanababu Chappa', 'Follow up Required',  '15/06/2026'],
+      ['Anil Reddy',   '9876543212', 'Dr.Mohanababu Chappa', 'Not Reachable',       ''],
+      ['Sita Devi',    '9876543213', 'Dr.Mohanababu Chappa', 'Not Interested',      ''],
+      ['Mohan Rao',    '9876543214', 'Dr.Mohanababu Chappa', 'Wrong Number',        ''],
     ]
     const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -74,12 +82,20 @@ export default function CallOutcomes() {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
         <div className="flex items-start gap-3">
           <AlertCircle size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-800">
-            <p className="font-semibold mb-1">Your file needs 3 columns: <span className="font-mono">Name</span>, <span className="font-mono">Mobile</span>, <span className="font-mono">Status</span></p>
-            <p>Allowed <strong>Status</strong> values:</p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {STATUS_VALUES.map(s => (
-                <span key={s} className="px-2 py-0.5 bg-white border border-blue-200 rounded text-xs font-medium text-blue-700">{s}</span>
+          <div className="text-sm text-blue-800 w-full">
+            <p className="font-semibold mb-1">Required columns: <span className="font-mono">Name</span>, <span className="font-mono">Mobile/Phone</span>, <span className="font-mono">Status</span></p>
+            <p className="mb-2">
+              Optional: <span className="font-mono">Faculty/Staff who called</span> → becomes the lead's owner (this is how CUTM vs CUTMAP is decided automatically),
+              and <span className="font-mono">Follow up Date</span> (used when Status = Follow up Required).
+            </p>
+            <p className="font-semibold mt-2 mb-1">Status → CRM stage:</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-1">
+              {STATUS_MAP.map(([from, to]) => (
+                <div key={from} className="flex items-center gap-2 bg-white border border-blue-200 rounded px-2 py-1 text-xs">
+                  <span className="font-medium text-gray-700">{from}</span>
+                  <span className="text-blue-400">→</span>
+                  <span className="text-blue-700 font-medium">{to}</span>
+                </div>
               ))}
             </div>
           </div>
@@ -145,11 +161,22 @@ export default function CallOutcomes() {
               <p className="text-xs text-amber-600 mt-1">Skipped</p>
             </div>
           </div>
+          {result.ownerFromFaculty && (
+            <p className="text-xs text-green-700 mt-3">✓ Leads assigned to the faculty in the "who called" column — CUTM/CUTMAP resolved automatically.</p>
+          )}
           {result.skipReasons?.length > 0 && (
             <div className="mt-4">
               <p className="text-xs font-bold text-gray-600 uppercase mb-2">Why rows were skipped</p>
               <ul className="text-sm text-gray-600 space-y-1">
                 {result.skipReasons.map((r, i) => <li key={i}>• {r}</li>)}
+              </ul>
+            </div>
+          )}
+          {result.warnings?.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs font-bold text-amber-600 uppercase mb-2">Warnings</p>
+              <ul className="text-sm text-amber-700 space-y-1">
+                {result.warnings.map((r, i) => <li key={i}>• {r}</li>)}
               </ul>
             </div>
           )}

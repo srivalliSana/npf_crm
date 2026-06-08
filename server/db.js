@@ -432,6 +432,7 @@ export async function initDb() {
     // Lead extra fields
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS source_type VARCHAR(10) DEFAULT 'ai';`).catch(() => {})      // 'ai' | 'sm'
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS not_interested_reason TEXT DEFAULT '';`).catch(() => {})    // reason when Not Interested
+    await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS follow_up_date VARCHAR(50) DEFAULT '';`).catch(() => {})    // set when stage = Follow Up (from call-outcomes upload)
 
     // Payment extra fields
     await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS utr_number VARCHAR(100) DEFAULT '';`).catch(() => {})
