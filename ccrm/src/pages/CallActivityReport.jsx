@@ -17,7 +17,8 @@ export default function CallActivityReport() {
   const { currentUser, showToast } = useCcrm()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
-  const [drill, setDrill] = useState(null)        // { owner, stage }
+  const [groupBy, setGroupBy] = useState('counselor')   // 'counselor' | 'program'
+  const [drill, setDrill] = useState(null)              // { key, stage }
   const [drillLeads, setDrillLeads] = useState([])
   const [drillLoading, setDrillLoading] = useState(false)
 
@@ -25,22 +26,22 @@ export default function CallActivityReport() {
     setLoading(true)
     try {
       const token = localStorage.getItem('ccrm_token')
-      const res = await fetch('/api/reports/call-activity', { headers: { 'Authorization': `Bearer ${token}` } })
+      const res = await fetch(`/api/reports/call-activity?groupBy=${groupBy}`, { headers: { 'Authorization': `Bearer ${token}` } })
       if (res.ok) setRows(await res.json())
       else showToast((await res.json().catch(() => ({}))).error || 'Failed to load report', 'error')
     } catch { showToast('Failed to load report', 'error') }
     finally { setLoading(false) }
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [groupBy])
 
-  const openDrill = async (owner, stage, count) => {
+  const openDrill = async (key, stage, count) => {
     if (!count) return
-    setDrill({ owner, stage })
+    setDrill({ key, stage })
     setDrillLoading(true)
     setDrillLeads([])
     try {
       const token = localStorage.getItem('ccrm_token')
-      const qs = new URLSearchParams({ owner, stage })
+      const qs = new URLSearchParams({ key, stage, groupBy })
       const res = await fetch(`/api/reports/call-activity/leads?${qs}`, { headers: { 'Authorization': `Bearer ${token}` } })
       if (res.ok) setDrillLeads(await res.json())
     } catch { showToast('Failed to load details', 'error') }
@@ -65,11 +66,21 @@ export default function CallActivityReport() {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <BarChart2 size={22} className="text-primary-500" /> Call Activity Report
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Per-counselor breakdown by stage. Click any number to see the leads behind it.</p>
+          <p className="text-gray-500 text-sm mt-1">Breakdown by stage. Click any number to see the leads behind it.</p>
         </div>
-        <button onClick={load} className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+            {['counselor', 'program'].map(g => (
+              <button key={g} onClick={() => setGroupBy(g)}
+                className={`px-3 py-1.5 capitalize ${groupBy === g ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                By {g}
+              </button>
+            ))}
+          </div>
+          <button onClick={load} className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -77,7 +88,7 @@ export default function CallActivityReport() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b text-xs uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-3 text-left sticky left-0 bg-gray-50">Counselor</th>
+                <th className="px-4 py-3 text-left sticky left-0 bg-gray-50">{groupBy === 'program' ? 'Program' : 'Counselor'}</th>
                 {STAGES.map(s => <th key={s} className="px-3 py-3 text-center whitespace-nowrap">{s}</th>)}
                 <th className="px-4 py-3 text-center font-bold">Total</th>
               </tr>
@@ -91,14 +102,14 @@ export default function CallActivityReport() {
                 <tr><td colSpan={STAGES.length + 2} className="text-center py-10 text-gray-400">No assigned leads yet.</td></tr>
               ) : (
                 rows.map(r => (
-                  <tr key={r.owner} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white">{r.owner}</td>
+                  <tr key={r.key} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white">{r.key}</td>
                     {STAGES.map(s => {
                       const c = r.stages[s] || 0
                       return (
                         <td key={s} className="px-3 py-3 text-center">
                           {c > 0 ? (
-                            <button onClick={() => openDrill(r.owner, s, c)}
+                            <button onClick={() => openDrill(r.key, s, c)}
                               className={`font-semibold hover:underline ${STAGE_TEXT[s] || 'text-gray-700'}`}>
                               {c}
                             </button>
@@ -114,7 +125,7 @@ export default function CallActivityReport() {
             {!loading && rows.length > 0 && (
               <tfoot className="bg-gray-50 border-t font-semibold">
                 <tr>
-                  <td className="px-4 py-3 sticky left-0 bg-gray-50">All counselors</td>
+                  <td className="px-4 py-3 sticky left-0 bg-gray-50">{groupBy === 'program' ? 'All programs' : 'All counselors'}</td>
                   {STAGES.map(s => <td key={s} className="px-3 py-3 text-center text-gray-700">{grand[s] || 0}</td>)}
                   <td className="px-4 py-3 text-center text-gray-900">{grandTotal}</td>
                 </tr>
@@ -130,7 +141,7 @@ export default function CallActivityReport() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-gray-900">
-                {drill.owner} · <span className={STAGE_TEXT[drill.stage]}>{drill.stage}</span>
+                {drill.key} · <span className={STAGE_TEXT[drill.stage]}>{drill.stage}</span>
                 <span className="text-gray-400 font-normal"> ({drillLeads.length})</span>
               </h2>
               <button onClick={() => setDrill(null)}><X size={18} className="text-gray-400" /></button>

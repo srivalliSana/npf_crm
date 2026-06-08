@@ -5,13 +5,17 @@ import {
   BarChart2, Settings, LogOut, CreditCard,
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
   Trophy, Mail, Globe, ExternalLink, Zap, Radio,
-  PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall
+  PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall, Layers
 } from 'lucide-react'
+
+// Injected by Vite at build time (see vite.config.js → define.__APP_VERSION__)
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',          to: '/dashboard',              roles: null },
   { icon: Users,           label: 'Leads',              to: '/leads',                  roles: null },
   { icon: PhoneCall,       label: 'Call Outcomes',      to: '/call-outcomes',          roles: null },
+  { icon: Layers,          label: 'Workbook Import',    to: '/workbook-import',        roles: ['Admin', 'Manager'] },
   { icon: Users,           label: 'Website Leads',      to: '/websites-dashboard',     roles: null },
   {
     icon: Users,
@@ -167,6 +171,11 @@ export default function Sidebar({ onLogout, user }) {
           Logout
         </span>
       </button>
+
+      {/* App version — auto-bumps on every push/build (git-derived) */}
+      <div className="text-center text-[10px] text-primary-300 pb-2 select-none">
+        {APP_VERSION}
+      </div>
     </aside>
   )
 }
