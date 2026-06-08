@@ -48,6 +48,7 @@ export default function Dashboard() {
 
   const cutm   = stats?.byDomain?.cutm   || { total: 0, stages: {} }
   const cutmap = stats?.byDomain?.cutmap || { total: 0, stages: {} }
+  const gt     = stats?.byDomain?.gt     || { total: 0, stages: {} }
   const st = (data, stage) => data?.stages?.[stage] || 0
   const visibleStages = summaryStage === 'All' ? ALL_STAGES : ALL_STAGES.filter(s => s === summaryStage)
   const matrixRows = (stats?.byCounsellorStages || []).filter(r => summaryDomain === 'All' || r.domain === summaryDomain)
@@ -88,10 +89,11 @@ export default function Dashboard() {
 
       {/* CUTM vs CUTMAP split (admin/manager) */}
       {!isCounselor && stats?.byDomain && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {[
-            { key: 'cutm',   label: 'CUTM',   data: cutm,   accent: 'from-blue-500 to-blue-600' },
-            { key: 'cutmap', label: 'CUTMAP', data: cutmap, accent: 'from-violet-500 to-violet-600' },
+            { key: 'cutm',   label: 'CUTM',        data: cutm,   accent: 'from-blue-500 to-blue-600' },
+            { key: 'cutmap', label: 'CUTMAP',      data: cutmap, accent: 'from-violet-500 to-violet-600' },
+            { key: 'gt',     label: 'GT Entities', data: gt,     accent: 'from-teal-500 to-teal-600' },
           ].map(d => {
             const cells = [
               { l: 'Total',          v: d.data.total },
@@ -129,7 +131,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               {/* Domain filter: All / CUTM / CUTMAP */}
               <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-xs">
-                {[{ v: 'All', l: 'All' }, { v: 'cutm', l: 'CUTM' }, { v: 'cutmap', l: 'CUTMAP' }].map(d => (
+                {[{ v: 'All', l: 'All' }, { v: 'cutm', l: 'CUTM' }, { v: 'cutmap', l: 'CUTMAP' }, { v: 'other', l: 'GT Entities' }].map(d => (
                   <button key={d.v} onClick={() => setSummaryDomain(d.v)}
                     className={`px-3 py-1.5 ${summaryDomain === d.v ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
                     {d.l}

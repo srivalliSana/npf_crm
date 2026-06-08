@@ -2066,12 +2066,13 @@ app.get('/api/dashboard/stats', async (req, res) => {
       ${ownerWhere}
       GROUP BY domain, l.stage;
     `, params)
-    const byDomain = { cutm: { total: 0, stages: {} }, cutmap: { total: 0, stages: {} } }
+    // cutm / cutmap, plus 'gt' = everyone else (GT Entities — FTL/GTIB/GTTECH/ESSE etc.)
+    const byDomain = { cutm: { total: 0, stages: {} }, cutmap: { total: 0, stages: {} }, gt: { total: 0, stages: {} } }
     for (const row of domainRes.rows) {
-      if (row.domain === 'cutm' || row.domain === 'cutmap') {
-        byDomain[row.domain].stages[row.stage || 'Unknown'] = row.count
-        byDomain[row.domain].total += row.count
-      }
+      const key = row.domain === 'cutm' ? 'cutm' : row.domain === 'cutmap' ? 'cutmap' : 'gt'
+      const stg = row.stage || 'Unknown'
+      byDomain[key].stages[stg] = (byDomain[key].stages[stg] || 0) + row.count
+      byDomain[key].total += row.count
     }
 
     // Counsellor × stage matrix (role-scoped via userScope) for the Stage Summary.
