@@ -4786,6 +4786,49 @@ app.post('/api/leads/call-outcomes-upload', (req, res, next) => {
   }
 })
 
+// GET /api/reports/call-activity — per-counselor lead counts by stage (Admin/Manager).
+// Clickable in the UI → drills into the leads behind each count.
+app.get('/api/reports/call-activity', authenticateToken, async (req, res) => {
+  if (!['Admin', 'Manager'].includes(req.user.role)) return res.status(403).json({ error: 'Admin/Manager only.' })
+  try {
+    const r = await pool.query(`
+      SELECT owner, stage, COUNT(*)::int AS count
+      FROM leads
+      WHERE owner IS NOT NULL AND owner <> '' AND owner <> 'Unassigned'
+      GROUP BY owner, stage
+      ORDER BY owner;
+    `)
+    const map = {}
+    for (const row of r.rows) {
+      if (!map[row.owner]) map[row.owner] = { owner: row.owner, stages: {}, total: 0 }
+      map[row.owner].stages[row.stage] = row.count
+      map[row.owner].total += row.count
+    }
+    res.json(Object.values(map).sort((a, b) => b.total - a.total))
+  } catch (err) {
+    console.error('[Call Activity]', err.message)
+    res.status(500).json({ error: 'Failed to build call activity report.' })
+  }
+})
+
+// GET /api/reports/call-activity/leads?owner=&stage= — drill-down list for one cell
+app.get('/api/reports/call-activity/leads', authenticateToken, async (req, res) => {
+  if (!['Admin', 'Manager'].includes(req.user.role)) return res.status(403).json({ error: 'Admin/Manager only.' })
+  const { owner, stage } = req.query
+  if (!owner || !stage) return res.status(400).json({ error: 'owner and stage are required.' })
+  try {
+    const r = await pool.query(`
+      SELECT id, name, mobile, stage, follow_up_date AS "followUpDate", reg_date AS "regDate"
+      FROM leads WHERE owner = $1 AND stage = $2
+      ORDER BY id DESC LIMIT 500;
+    `, [owner, stage])
+    res.json(r.rows)
+  } catch (err) {
+    console.error('[Call Activity drill]', err.message)
+    res.status(500).json({ error: 'Failed to fetch leads.' })
+  }
+})
+
 // --- FEATURE 14: GOOGLE SHEETS AUTO-SYNC ---
 app.post('/api/integrations/sheets-sync', async (req, res) => {
   const { sheetId, apiKey } = req.body

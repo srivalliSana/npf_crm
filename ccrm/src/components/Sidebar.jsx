@@ -33,6 +33,7 @@ const NAV_ITEMS = [
   { icon: HelpCircle,      label: 'Queries',       to: '/queries',          roles: null },
   { icon: PieChart,        label: 'Analytics',     to: '/analytics',        roles: ['Admin', 'Manager'] },
   { icon: Activity,        label: 'Productivity',  to: '/productivity',     roles: ['Admin', 'Manager'] },
+  { icon: BarChart2,       label: 'Call Report',   to: '/call-activity',    roles: ['Admin', 'Manager'] },
   { icon: BarChart2,       label: 'Reports',       to: '/reports',          roles: ['Admin', 'Manager'] },
   { icon: ScrollText,      label: 'Upload Logs',   to: '/logs',             roles: ['Admin', 'Manager'] },
   { icon: Radio,           label: 'Comms',         to: '/comms-report',     roles: ['Admin'] },
