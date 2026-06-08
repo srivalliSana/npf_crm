@@ -4674,6 +4674,28 @@ app.get('/api/upload-logs', authenticateToken, async (req, res) => {
   }
 })
 
+// Shared: map a free-text call status (with the sheet's typos) → canonical stage.
+// Order matters — more specific phrases first.
+function mapCallStatus(s) {
+  const x = String(s || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (!x) return null
+  if (x.includes('campus') || x.includes('visit'))                 return 'Interested'      // Campus Visit = hot
+  if (x.includes('notcalled'))                                     return 'Untouched'       // Not Called
+  if (x.includes('wrongnumber') || x.includes('invalidnumber'))    return 'Invalid Number'  // Wrong Number
+  if (x.includes('notinter'))                                      return 'Not Interested'  // Not Interested / Not Internsted
+  if (x.includes('followup') || x.includes('callback'))            return 'Follow Up'       // Follow up Required
+  if (x.includes('notreachable') || x.includes('noanswer') || x.includes('noresponse') ||
+      x.includes('notconnected') || x.includes('notlifting') ||
+      x.includes('busy') || x.includes('switchedoff'))             return 'No Response'     // Not Reachable / not lifting
+  if (x.includes('contacted'))                                     return 'Contacted'
+  if (x.includes('inter'))                                         return 'Interested'      // Interested / Intersted (after notinter)
+  return null
+}
+const CALL_STAGE_COLOR = {
+  'Contacted':'blue','No Response':'gray','Not Interested':'red','Follow Up':'yellow',
+  'Interested':'green','Invalid Number':'red','Untouched':'red'
+}
+
 // POST /api/leads/call-outcomes-upload — counselor end-of-day call results.
 // Excel/CSV with Name, Mobile, Status columns. Matches by mobile → updates the
 // lead's stage if it exists, else creates a new lead with that stage.
@@ -4696,27 +4718,8 @@ app.post('/api/leads/call-outcomes-upload', (req, res, next) => {
     const uploaderName = req.body.uploaderName || ''
     const isCounselor  = !['Admin', 'Manager'].includes(uploaderRole) && !!uploaderName
 
-    // Normalize a free-text status (handles the sheet's typos) → canonical stage.
-    // Order matters — more specific phrases first.
-    const mapStatus = (s) => {
-      const x = String(s || '').toLowerCase().replace(/[^a-z]/g, '')
-      if (!x) return null
-      if (x.includes('campus') || x.includes('visit'))                 return 'Interested'      // Campus Visit = hot
-      if (x.includes('notcalled'))                                     return 'Untouched'       // Not Called
-      if (x.includes('wrongnumber') || x.includes('invalidnumber'))    return 'Invalid Number'  // Wrong Number
-      if (x.includes('notinter'))                                      return 'Not Interested'  // Not Interested / Not Internsted
-      if (x.includes('followup') || x.includes('callback'))            return 'Follow Up'       // Follow up Required
-      if (x.includes('notreachable') || x.includes('noanswer') || x.includes('noresponse') ||
-          x.includes('notconnected') || x.includes('notlifting') ||
-          x.includes('busy') || x.includes('switchedoff'))             return 'No Response'     // Not Reachable / not lifting
-      if (x.includes('contacted'))                                     return 'Contacted'
-      if (x.includes('inter'))                                         return 'Interested'      // Interested / Intersted (after notinter)
-      return null
-    }
-    const stageColor = {
-      'Contacted':'blue','No Response':'gray','Not Interested':'red','Follow Up':'yellow',
-      'Interested':'green','Invalid Number':'red','Untouched':'red'
-    }
+    const mapStatus = mapCallStatus
+    const stageColor = CALL_STAGE_COLOR
 
     // Auto-detect columns (statusCol must not grab the REMARKS column)
     const headers = Object.keys(rawData[0])
@@ -4815,23 +4818,123 @@ app.post('/api/leads/call-outcomes-upload', (req, res, next) => {
   }
 })
 
+// POST /api/leads/workbook-import — ingest the whole Admission Dashboard workbook.
+// Each SHEET = a program (course). Per row: owner = faculty who called, stage =
+// mapped STATUS, source = Lead Source. Match by mobile → update, else create.
+app.post('/api/leads/workbook-import', authenticateToken, (req, res, next) => {
+  uploadBulk.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'File upload failed.' })
+    next()
+  })
+}, async (req, res) => {
+  if (!['Admin', 'Manager'].includes(req.user.role)) return res.status(403).json({ error: 'Admin/Manager only.' })
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
+  const filePath = req.file.path
+  try {
+    let workbook
+    try { workbook = XLSX.readFile(filePath, { cellDates: true, raw: false }) }
+    catch (e) { return res.status(400).json({ error: `Could not read file: ${e.message}` }) }
+
+    const client = await pool.connect()
+    let totalUpdated = 0, totalCreated = 0, totalSkipped = 0
+    const perSheet = []
+    try {
+      await client.query('BEGIN')
+      for (const sheetName of workbook.SheetNames) {
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' })
+        if (!rows.length) { perSheet.push({ program: sheetName, updated: 0, created: 0, skipped: 0, empty: true }); continue }
+        const headers = Object.keys(rows[0])
+        const find = (re) => headers.find(h => re.test(h))
+        const nameCol   = find(/full.?name|name/i)
+        const mobileCol = find(/mobile|phone|mob|contact|number/i)
+        const statusCol = find(/^status$|status|outcome|disposition/i)
+        const facultyCol= find(/faculty.*name|staff.*name|who.*called|caller/i)
+        const sourceCol = find(/lead.?source|source/i)
+        let u = 0, c = 0, s = 0
+        if (!mobileCol || !statusCol) { perSheet.push({ program: sheetName, updated: 0, created: 0, skipped: rows.length, error: 'no mobile/status column' }); totalSkipped += rows.length; continue }
+
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i]
+          const name    = String(row[nameCol] || '').trim().substring(0, 100)
+          const mobile  = String(row[mobileCol] || '').replace(/\D/g, '').slice(-10)
+          const stage   = mapCallStatus(row[statusCol])
+          const faculty = facultyCol ? String(row[facultyCol] || '').trim().substring(0, 100) : ''
+          const source  = sourceCol ? String(row[sourceCol] || '').trim().substring(0, 100) : 'Admission Workbook'
+          if (mobile.length !== 10 || !stage) { s++; continue }
+          const color = CALL_STAGE_COLOR[stage] || 'blue'
+          // Skip faculty values that are clearly not names (e.g. date serials from a misaligned sheet)
+          const owner = (faculty && !/^\d+(\.\d+)?$/.test(faculty)) ? faculty : null
+
+          const dup = await client.query('SELECT id FROM leads WHERE mobile = $1 OR mobile = $2 LIMIT 1;', [mobile, `91${mobile}`])
+          if (dup.rows.length > 0) {
+            await client.query(
+              'UPDATE leads SET stage=$1, stage_color=$2, owner=COALESCE($3, owner), program=$4, source=COALESCE($5, source) WHERE id=$6;',
+              [stage, color, owner, sheetName, source || null, dup.rows[0].id]
+            )
+            u++
+          } else {
+            await client.query(
+              `INSERT INTO leads (name, email, mobile, source, source_type, owner, reg_date, score, stage, stage_color, lead_source, program)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12);`,
+              [name || 'Unknown', `lead_${Date.now()}_${i}@noemail.com`, mobile, source || 'Admission Workbook', 'ai',
+               owner || 'Unassigned', new Date().toLocaleString('en-IN', { hour12: true }), 10, stage, color, 'workbook_import', sheetName]
+            )
+            c++
+          }
+        }
+        perSheet.push({ program: sheetName, updated: u, created: c, skipped: s })
+        totalUpdated += u; totalCreated += c; totalSkipped += s
+      }
+      await client.query('COMMIT')
+    } catch (dbErr) {
+      await client.query('ROLLBACK'); throw dbErr
+    } finally {
+      client.release()
+    }
+
+    try {
+      await pool.query(
+        `INSERT INTO upload_logs (uploader_name, uploader_role, file_name, total_rows, imported, skipped, updated, dup_handling, assign_mode, assigned_to)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10);`,
+        [req.user.email || 'Unknown', req.user.role || '', req.file?.originalname || '', totalUpdated + totalCreated + totalSkipped,
+         totalCreated, totalSkipped, totalUpdated, 'workbook', 'by-faculty', '']
+      )
+    } catch (e) { console.error('[Workbook] audit failed:', e.message) }
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
+      [`Admission workbook imported: ${totalUpdated} updated · ${totalCreated} created · ${totalSkipped} skipped across ${perSheet.length} programs`, 'Just now'])
+
+    res.json({ success: true, updated: totalUpdated, created: totalCreated, skipped: totalSkipped, perSheet })
+  } catch (err) {
+    console.error('[Workbook Import]', err)
+    res.status(500).json({ error: err.message || 'Workbook import failed.' })
+  } finally {
+    try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath) } catch {}
+  }
+})
+
 // GET /api/reports/call-activity — per-counselor lead counts by stage (Admin/Manager).
 // Clickable in the UI → drills into the leads behind each count.
 app.get('/api/reports/call-activity', authenticateToken, async (req, res) => {
   if (!['Admin', 'Manager'].includes(req.user.role)) return res.status(403).json({ error: 'Admin/Manager only.' })
+  const byProgram = (req.query.groupBy === 'program')
   try {
-    const r = await pool.query(`
-      SELECT owner, stage, COUNT(*)::int AS count
-      FROM leads
-      WHERE owner IS NOT NULL AND owner <> '' AND owner <> 'Unassigned'
-      GROUP BY owner, stage
-      ORDER BY owner;
-    `)
+    // Group either by counselor (owner) or by program (sheet/school).
+    const r = byProgram
+      ? await pool.query(`
+          SELECT program AS key, stage, COUNT(*)::int AS count
+          FROM leads
+          WHERE program IS NOT NULL AND program <> ''
+          GROUP BY program, stage ORDER BY program;`)
+      : await pool.query(`
+          SELECT owner AS key, stage, COUNT(*)::int AS count
+          FROM leads
+          WHERE owner IS NOT NULL AND owner <> '' AND owner <> 'Unassigned'
+          GROUP BY owner, stage ORDER BY owner;`)
     const map = {}
     for (const row of r.rows) {
-      if (!map[row.owner]) map[row.owner] = { owner: row.owner, stages: {}, total: 0 }
-      map[row.owner].stages[row.stage] = row.count
-      map[row.owner].total += row.count
+      if (!map[row.key]) map[row.key] = { key: row.key, stages: {}, total: 0 }
+      map[row.key].stages[row.stage] = row.count
+      map[row.key].total += row.count
     }
     res.json(Object.values(map).sort((a, b) => b.total - a.total))
   } catch (err) {
@@ -4840,17 +4943,20 @@ app.get('/api/reports/call-activity', authenticateToken, async (req, res) => {
   }
 })
 
-// GET /api/reports/call-activity/leads?owner=&stage= — drill-down list for one cell
+// GET /api/reports/call-activity/leads?key=&stage=&groupBy= — drill-down for one cell
 app.get('/api/reports/call-activity/leads', authenticateToken, async (req, res) => {
   if (!['Admin', 'Manager'].includes(req.user.role)) return res.status(403).json({ error: 'Admin/Manager only.' })
-  const { owner, stage } = req.query
-  if (!owner || !stage) return res.status(400).json({ error: 'owner and stage are required.' })
+  const { key, owner, stage } = req.query
+  const val = key || owner   // backward-compatible with old ?owner=
+  const byProgram = (req.query.groupBy === 'program')
+  if (!val || !stage) return res.status(400).json({ error: 'key and stage are required.' })
   try {
+    const col = byProgram ? 'program' : 'owner'
     const r = await pool.query(`
-      SELECT id, name, mobile, stage, follow_up_date AS "followUpDate", reg_date AS "regDate"
-      FROM leads WHERE owner = $1 AND stage = $2
+      SELECT id, name, mobile, owner, program, stage, follow_up_date AS "followUpDate", reg_date AS "regDate"
+      FROM leads WHERE ${col} = $1 AND stage = $2
       ORDER BY id DESC LIMIT 500;
-    `, [owner, stage])
+    `, [val, stage])
     res.json(r.rows)
   } catch (err) {
     console.error('[Call Activity drill]', err.message)
