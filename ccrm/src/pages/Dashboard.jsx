@@ -149,18 +149,20 @@ export default function Dashboard() {
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
                   <th className="px-4 py-2.5 text-left sticky left-0 bg-gray-50">Counsellor</th>
+                  <th className="px-4 py-2.5 text-center font-bold text-primary-600">Assigned</th>
                   {visibleStages.map(s => <th key={s} className="px-3 py-2.5 text-center whitespace-nowrap">{s}</th>)}
                   <th className="px-4 py-2.5 text-center font-bold">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {matrixRows.length === 0 ? (
-                  <tr><td colSpan={visibleStages.length + 2} className="text-center py-8 text-gray-400">No leads for this filter.</td></tr>
+                  <tr><td colSpan={visibleStages.length + 3} className="text-center py-8 text-gray-400">No leads for this filter.</td></tr>
                 ) : matrixRows.map(r => {
                   const rowTotal = visibleStages.reduce((n, s) => n + st(r, s), 0)
                   return (
                     <tr key={r.counsellor} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-2.5 font-medium text-gray-800 sticky left-0 bg-white">{r.counsellor}</td>
+                      <td className="px-4 py-2.5 text-center font-bold text-primary-600">{(r.total || 0).toLocaleString()}</td>
                       {visibleStages.map(s => {
                         const v = st(r, s)
                         return <td key={s} className="px-3 py-2.5 text-center">{v ? v.toLocaleString() : <span className="text-gray-300">0</span>}</td>
@@ -173,6 +175,9 @@ export default function Dashboard() {
               <tfoot className="bg-gray-50 border-t font-semibold">
                 <tr>
                   <td className="px-4 py-2.5 sticky left-0 bg-gray-50">All counsellors</td>
+                  <td className="px-4 py-2.5 text-center text-primary-600">
+                    {matrixRows.reduce((n, r) => n + (r.total || 0), 0).toLocaleString()}
+                  </td>
                   {visibleStages.map(s => (
                     <td key={s} className="px-3 py-2.5 text-center text-gray-700">
                       {matrixRows.reduce((n, r) => n + st(r, s), 0).toLocaleString()}
