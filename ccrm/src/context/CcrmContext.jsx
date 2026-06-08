@@ -14,6 +14,34 @@ import {
 
 const CcrmContext = createContext()
 
+// ── Global session-expiry handler ───────────────────────────────────────────
+// The app uses raw fetch everywhere, so we patch window.fetch ONCE to detect an
+// expired/invalid CRM login token and bounce the user to /login. We only act on
+// the auth-middleware messages ("Invalid or expired token." / "Access token
+// missing.") — NOT on legitimate permission-denied 403s (e.g. "Admin only."),
+// so a counselor hitting an admin endpoint is never logged out.
+if (typeof window !== 'undefined' && !window.__ccrmFetchPatched) {
+  window.__ccrmFetchPatched = true
+  const _origFetch = window.fetch.bind(window)
+  window.fetch = async (...args) => {
+    const res = await _origFetch(...args)
+    if (res.status === 401 || res.status === 403) {
+      try {
+        const data = await res.clone().json().catch(() => ({}))
+        const msg = (data?.error || '').toLowerCase()
+        if (msg.includes('invalid or expired token') || msg.includes('access token missing')) {
+          localStorage.removeItem('ccrm_token')
+          localStorage.removeItem('ccrm_current_user')
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login'
+          }
+        }
+      } catch { /* non-JSON body — ignore */ }
+    }
+    return res
+  }
+}
+
 export function useCcrm() {
   const context = useContext(CcrmContext)
   if (!context) {
