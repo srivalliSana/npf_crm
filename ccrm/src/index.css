@@ -87,19 +87,24 @@
 }
 
 /* ── OmniDimension (CUTM voice assistant) widget ───────────────────────────
-   Scale down ~60% (to 40%) anchored to the bottom-right corner, and allow
-   hiding it via a body class toggled by our close button. */
-#omnidim-widget-container,
-iframe[src*="omnidim"],
-[id*="omnidimension"]:not(#omnidimension-web-widget),
-[class*="omnidim"] {
-  transform: scale(0.4);
-  transform-origin: bottom right;
+   The script injects:  #omni-widget-component → #chat-iframe-container → <iframe>
+   The panel content (the "CUTM Voice Assistant" title, the call button, etc.)
+   lives INSIDE a cross-origin iframe, so its internal font sizes can only be
+   changed in the OmniDimension dashboard — not from here. What we CAN do from
+   the parent page is resize the iframe panel and hide the whole widget. */
+
+/* Make the panel ~60% bigger, capped to the viewport so it never overflows. */
+#chat-iframe-container,
+#chat-iframe-container > iframe {
+  width: 600px !important;
+  max-width: 92vw !important;
+  height: 760px !important;
+  max-height: 88vh !important;
 }
-body.cutm-voice-hidden #omnidim-widget-container,
-body.cutm-voice-hidden iframe[src*="omnidim"],
-body.cutm-voice-hidden [id*="omnidimension"]:not(#omnidimension-web-widget),
-body.cutm-voice-hidden [class*="omnidim"] {
+
+/* Hide the entire widget (panel + minimize pill) via a body class
+   toggled by our bottom-left "Voice Assistant" close/reopen button. */
+body.cutm-voice-hidden #omni-widget-component {
   display: none !important;
 }
 

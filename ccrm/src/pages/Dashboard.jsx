@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
-import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, X } from 'lucide-react'
+import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, X, Download } from 'lucide-react'
 import { stageLabel } from '../stageLabel'
 
 // Lead stages shown in the summary table (funnel order)
@@ -74,6 +74,48 @@ export default function Dashboard() {
   const st = (data, stage) => data?.stages?.[stage] || 0
   const visibleStages = summaryStage === 'All' ? ALL_STAGES : ALL_STAGES.filter(s => s === summaryStage)
   const matrixRows = (stats?.byCounsellorStages || []).filter(r => summaryDomain === 'All' || r.domain === summaryDomain)
+
+  // Export the Stage Summary matrix (respecting the active Domain + Stage filters) to CSV.
+  const exportStageSummary = () => {
+    const esc = (v) => {
+      const s = String(v ?? '')
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const header = ['Counsellor', 'Domain', 'Assigned', ...visibleStages.map(stageLabel), 'Total']
+    const lines = [header.map(esc).join(',')]
+    matrixRows.forEach(r => {
+      const rowTotal = summaryStage === 'All' ? (r.total || 0) : visibleStages.reduce((n, s) => n + st(r, s), 0)
+      lines.push([
+        r.counsellor,
+        (r.domain || '').toUpperCase(),
+        r.total || 0,
+        ...visibleStages.map(s => st(r, s)),
+        rowTotal,
+      ].map(esc).join(','))
+    })
+    // Totals row
+    const grandTotal = summaryStage === 'All'
+      ? matrixRows.reduce((n, r) => n + (r.total || 0), 0)
+      : matrixRows.reduce((n, r) => n + visibleStages.reduce((m, s) => m + st(r, s), 0), 0)
+    lines.push([
+      'All counsellors',
+      summaryDomain === 'All' ? 'ALL' : summaryDomain.toUpperCase(),
+      matrixRows.reduce((n, r) => n + (r.total || 0), 0),
+      ...visibleStages.map(s => matrixRows.reduce((n, r) => n + st(r, s), 0)),
+      grandTotal,
+    ].map(esc).join(','))
+
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const stamp = new Date().toISOString().slice(0, 10)
+    a.href = url
+    a.download = `stage-summary-${summaryDomain}-${summaryStage === 'All' ? 'all-stages' : summaryStage}-${stamp}.csv`.replace(/\s+/g, '-')
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="p-6">
@@ -165,6 +207,11 @@ export default function Dashboard() {
                 <option value="All">All stages</option>
                 {ALL_STAGES.map(s => <option key={s} value={s}>{stageLabel(s)}</option>)}
               </select>
+              <button onClick={exportStageSummary} disabled={matrixRows.length === 0}
+                title="Export the current view to CSV (Excel)"
+                className="inline-flex items-center gap-1.5 text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                <Download size={14} /> Export
+              </button>
             </div>
           </div>
           <div className="overflow-x-auto">
