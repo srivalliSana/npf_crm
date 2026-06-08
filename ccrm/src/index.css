@@ -102,9 +102,3 @@
   max-height: 88vh !important;
 }
 
-/* Hide the entire widget (panel + minimize pill) via a body class
-   toggled by our bottom-left "Voice Assistant" close/reopen button. */
-body.cutm-voice-hidden #omni-widget-component {
-  display: none !important;
-}
-
