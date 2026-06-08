@@ -7,9 +7,7 @@ import {
   Trophy, Mail, Globe, ExternalLink, Zap, Radio,
   PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall, Layers
 } from 'lucide-react'
-
-// Injected by Vite at build time (see vite.config.js → define.__APP_VERSION__)
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'
+import { APP_VERSION } from '../version'
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',          to: '/dashboard',              roles: null },
@@ -172,9 +170,9 @@ export default function Sidebar({ onLogout, user }) {
         </span>
       </button>
 
-      {/* App version — auto-bumps on every push/build (git-derived) */}
+      {/* App version — single source: src/version.js */}
       <div className="text-center text-[10px] text-primary-300 pb-2 select-none">
-        {APP_VERSION}
+        v{APP_VERSION}
       </div>
     </aside>
   )

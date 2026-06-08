@@ -4,7 +4,8 @@ import { useCcrm } from '../context/CcrmContext'
 
 // Status values accepted in the sheet (left) and the CRM stage they map to (right)
 const STATUS_MAP = [
-  ['Interested / Campus Visit', 'Interested'],
+  ['Interested',                'Interested'],
+  ['Campus Visit',             'Campus Visit'],
   ['Follow up Required',        'Follow Up (enter a follow-up date)'],
   ['Not Interested',            'Not Interested'],
   ['Not Reachable / Busy',      'No Response'],

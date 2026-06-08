@@ -19,12 +19,13 @@ const STAGE_COLORS = {
   yellow:  { bg: 'bg-yellow-100',  text: 'text-yellow-700',  border: 'border-yellow-400' },
   emerald: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-400' },
   gray:    { bg: 'bg-gray-100',    text: 'text-gray-600',    border: 'border-gray-400' },
+  cyan:    { bg: 'bg-cyan-100',    text: 'text-cyan-700',    border: 'border-cyan-400' },
 }
 
 const getStageColorName = (stage) => ({
   'Untouched': 'red', 'Unverified': 'red', 'Contacted': 'blue',
   'No Response': 'gray', 'Unqualified Leads': 'orange', 'Follow Up': 'yellow',
-  'Interested': 'green', 'Not Interested': 'red', 'Invalid Number': 'red',
+  'Interested': 'green', 'Campus Visit': 'cyan', 'Not Interested': 'red', 'Invalid Number': 'red',
   'Process for Payment': 'orange', 'Payment Success': 'emerald',
   // legacy
   'Qualified Leads': 'orange', 'Converted': 'emerald',
@@ -329,7 +330,7 @@ export default function LeadManager() {
     if (!newLead.name || !newLead.mobile) return showToast('Name and Mobile are required.', 'error')
     // Mobile must be a valid 10-digit Indian number (ignoring spaces / +91 prefix)
     const mobileDigits = (newLead.mobile || '').replace(/\D/g, '').slice(-10)
-    if (!/^[6-9]\d{9}$/.test(mobileDigits)) {
+    if (!/^[6-9]\d{9}$/.test(mobileDigits) || /(\d)\1{5,}/.test(mobileDigits)) {
       return showToast('Enter a valid 10-digit mobile number.', 'error')
     }
     // Reference college is optional — counsellor can pick later from the dropdown
@@ -589,7 +590,7 @@ export default function LeadManager() {
   const ownerOptions  = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
     ? (counselors || []).map(c => c.name)
     : []
-  const stageOptions  = ['Untouched','Contacted','No Response','Follow Up','Interested','Process for Payment','Payment Success','Not Interested','Invalid Number']
+  const stageOptions  = ['Untouched','Contacted','No Response','Follow Up','Interested','Campus Visit','Process for Payment','Payment Success','Not Interested','Invalid Number']
 
   return (
     <div className="p-6">
