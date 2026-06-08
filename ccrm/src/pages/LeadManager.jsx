@@ -26,7 +26,7 @@ const STAGE_COLORS = {
 
 const getStageColorName = (stage) => ({
   'Untouched': 'red', 'Unverified': 'red', 'Contacted': 'blue',
-  'No Response': 'gray', 'Unqualified Leads': 'orange', 'Follow Up': 'purple', 'Follow Up': 'purple',
+  'No Response': 'gray', 'Unqualified Leads': 'orange', 'Follow Up': 'purple',
   'Interested': 'green', 'Campus Visit': 'cyan', 'Campus Visit Scheduled': 'cyan', 'Campus Visit Completed': 'cyan',
   'Admission Confirmed': 'emerald', 'Not Interested': 'red', 'Invalid Number': 'red',
   'Process for Payment': 'orange', 'Payment Success': 'emerald',

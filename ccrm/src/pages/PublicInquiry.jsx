@@ -147,8 +147,8 @@ export default function PublicInquiry() {
           </div>
           <div className="space-y-2">
             <p className="text-xs text-gray-400">For urgent queries:</p>
-            <a href="tel:+916742559441" className="flex items-center justify-center gap-2 text-primary-600 font-semibold hover:underline">
-              <Phone size={15} /> +91 674 2559441
+            <a href="tel:+917065569969" className="flex items-center justify-center gap-2 text-primary-600 font-semibold hover:underline">
+              <Phone size={15} /> +91 70655 69969
             </a>
           </div>
           <button
@@ -516,7 +516,7 @@ export default function PublicInquiry() {
               className="inline-flex items-center justify-center gap-2 bg-white text-primary-700 font-bold px-8 py-4 rounded-xl hover:bg-blue-50 transition shadow-xl text-base">
               Apply Now — It's Free <ArrowRight size={18}/>
             </a>
-            <a href="tel:+916742559441"
+            <a href="tel:+917065569969"
               className="inline-flex items-center justify-center gap-2 border-2 border-white/40 hover:border-white text-white font-semibold px-8 py-4 rounded-xl transition text-base">
               <Phone size={18}/> Call Admissions Helpline
             </a>
@@ -567,20 +567,35 @@ export default function PublicInquiry() {
               <h4 className="text-white text-sm font-semibold mb-4">Contact</h4>
               <ul className="space-y-3 text-xs">
                 <li>
-                  <a href="tel:+916742559441" className="flex items-center gap-2 hover:text-white transition">
-                    <Phone size={13}/> +91 674 2559441
+                  <a href="tel:+917065569969" className="flex items-center gap-2 hover:text-white transition">
+                    <Phone size={13}/> +91 70655 69969
                   </a>
                 </li>
                 <li>
-                  <a href="mailto:admissions@cutm.ac.in" className="flex items-center gap-2 hover:text-white transition">
-                    <Mail size={13}/> admissions@cutm.ac.in
+                  <a href="mailto:admissions@cutmap.ac.in" className="flex items-center gap-2 hover:text-white transition">
+                    <Mail size={13}/> admissions@cutmap.ac.in
                   </a>
                 </li>
                 <li>
                   <span className="flex items-start gap-2">
                     <MapPin size={13} className="mt-0.5 flex-shrink-0"/>
-                    Bhubaneswar, Odisha — 752 050
+                    <span className="leading-relaxed">
+                      Tekkali Village, Nelimarla Mandal, Vizianagaram — Pin: 535003, Andhra Pradesh, India
+                    </span>
                   </span>
+                </li>
+                <li>
+                  <span className="flex items-start gap-2">
+                    <MapPin size={13} className="mt-0.5 flex-shrink-0"/>
+                    <span className="leading-relaxed">
+                      Flat No: 501, Akruthi Vijayalakshmi Apartments, Gurudwara, Visakhapatnam — Pin: 530013, Andhra Pradesh, India
+                    </span>
+                  </span>
+                </li>
+                <li>
+                  <a href="https://www.cutmap.ac.in" target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-white transition">
+                    <Globe size={13}/> www.cutmap.ac.in
+                  </a>
                 </li>
                 <li className="pt-2">
                   <a href="/login" className="text-primary-400 hover:text-primary-300 font-medium transition">
