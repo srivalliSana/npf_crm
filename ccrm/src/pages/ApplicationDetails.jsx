@@ -42,7 +42,6 @@ const LEAD_STAGES = [
   'Campus Visit Completed',
   'Process for Payment',
   'Payment Success',
-  'Admission Confirmed',
 ]
 
 // Alias used generically (kept for backward compat)

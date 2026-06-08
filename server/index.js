@@ -4696,7 +4696,7 @@ app.get('/api/upload-logs', authenticateToken, async (req, res) => {
 function mapCallStatus(s) {
   const x = String(s || '').toLowerCase().replace(/[^a-z]/g, '')
   if (!x) return null
-  if (x.includes('admission') || x.includes('confirmed') || x.includes('enrol')) return 'Admission Confirmed'
+  if (x.includes('admission') || x.includes('confirmed') || x.includes('enrol') || x.includes('paymentsuccess')) return 'Payment Success'
   if ((x.includes('campus') || x.includes('visit')) && x.includes('complet'))    return 'Campus Visit Completed'
   if (x.includes('campus') || x.includes('visit'))                 return 'Campus Visit Scheduled'
   if (x.includes('notcalled'))                                     return 'Untouched'       // Not Called
