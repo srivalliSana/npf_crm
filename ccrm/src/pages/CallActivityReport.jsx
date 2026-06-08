@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart2, RefreshCw, X, AlertCircle, Phone } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
+import { stageLabel } from '../stageLabel'
 
 // Stage columns shown in the report (call funnel order)
 const STAGES = ['Untouched', 'Contacted', 'Invalid Number', 'No Response', 'Follow Up', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success']
@@ -91,7 +92,7 @@ export default function CallActivityReport() {
             <thead className="bg-gray-50 border-b text-xs uppercase text-gray-500">
               <tr>
                 <th className="px-4 py-3 text-left sticky left-0 bg-gray-50">{groupBy === 'program' ? 'Program' : 'Counselor'}</th>
-                {STAGES.map(s => <th key={s} className="px-3 py-3 text-center whitespace-nowrap">{s}</th>)}
+                {STAGES.map(s => <th key={s} className="px-3 py-3 text-center whitespace-nowrap">{stageLabel(s)}</th>)}
                 <th className="px-4 py-3 text-center font-bold">Total</th>
               </tr>
             </thead>
@@ -143,7 +144,7 @@ export default function CallActivityReport() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-gray-900">
-                {drill.key} · <span className={STAGE_TEXT[drill.stage]}>{drill.stage}</span>
+                {drill.key} · <span className={STAGE_TEXT[drill.stage]}>{stageLabel(drill.stage)}</span>
                 <span className="text-gray-400 font-normal"> ({drillLeads.length})</span>
               </h2>
               <button onClick={() => setDrill(null)}><X size={18} className="text-gray-400" /></button>

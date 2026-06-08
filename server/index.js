@@ -982,6 +982,23 @@ app.post('/api/leads/bulk-assign', authenticateToken, async (req, res) => {
   }
 })
 
+// POST /api/leads/delete-by-owner — delete ALL leads owned by a counsellor (Admin only)
+app.post('/api/leads/delete-by-owner', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+    const { owner } = req.body
+    if (!owner) return res.status(400).json({ error: 'owner required.' })
+    const r = await pool.query('DELETE FROM leads WHERE owner = $1;', [owner])
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+      [`${r.rowCount} lead(s) deleted (owner: ${owner}) by ${req.user.email}`, 'Just now'])
+    console.log(`[Delete by owner] ${r.rowCount} leads deleted for owner="${owner}" by ${req.user.email}`)
+    res.json({ success: true, deleted: r.rowCount })
+  } catch (err) {
+    console.error('[Delete by owner]', err.message)
+    res.status(500).json({ error: 'Failed to delete leads.' })
+  }
+})
+
 app.delete('/api/leads/:id', async (req, res) => {
   const { id } = req.params
   // requesterRole + requesterName sent by the client so we can enforce rules server-side

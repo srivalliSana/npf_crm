@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
-import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter } from 'lucide-react'
+import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, X } from 'lucide-react'
+import { stageLabel } from '../stageLabel'
 
 // Lead stages shown in the summary table (funnel order)
 const ALL_STAGES = ['Untouched', 'Contacted', 'Invalid Number', 'No Response', 'Follow Up', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success', 'Not Interested']
@@ -11,8 +12,10 @@ export default function Dashboard() {
   const [statsLoading, setStatsLoading] = useState(true)
   const [summaryStage, setSummaryStage] = useState('All')
   const [summaryDomain, setSummaryDomain] = useState('All')   // All | cutm | cutmap
+  const [deleteTarget, setDeleteTarget] = useState(null)      // counsellor row pending lead deletion
+  const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
+  const loadStats = () => {
     // Server-side aggregated dashboard stats — scales to millions of rows.
     // Role-scoped: counsellor sees own, manager sees their team, admin sees all.
     setStatsLoading(true)
@@ -23,7 +26,27 @@ export default function Dashboard() {
       .then(r => r.ok ? r.json() : null)
       .then(data => { setStats(data); setStatsLoading(false) })
       .catch(() => setStatsLoading(false))
-  }, [currentUser])
+  }
+  useEffect(() => { loadStats() }, [currentUser])
+
+  const handleDeleteCounsellorLeads = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/leads/delete-by-owner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ owner: deleteTarget.counsellor })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setDeleteTarget(null)
+        loadStats()
+      }
+    } catch { /* ignore */ }
+    finally { setDeleting(false) }
+  }
 
   const kpi = stats?.kpi || {}
   const byCounsellor = stats?.byCounsellor?.[0] || {}
@@ -34,14 +57,14 @@ export default function Dashboard() {
     { label: 'Total Leads',     value: ((byCounsellor?.leads ?? 0)).toLocaleString(),        icon: Users,       light: 'bg-blue-50',   text: 'text-blue-600' },
     { label: 'Untouched',       value: ((byCounsellor?.untouched ?? 0)).toLocaleString(),    icon: Users,       light: 'bg-orange-50', text: 'text-orange-600' },
     { label: 'Interested',      value: ((byCounsellor?.interested ?? 0)).toLocaleString(),   icon: FileText,    light: 'bg-green-50',  text: 'text-green-600' },
-    { label: 'Follow Up',       value: ((byCounsellor?.followUp ?? 0)).toLocaleString(),     icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
+    { label: 'Further Talk/Follow Up',       value: ((byCounsellor?.followUp ?? 0)).toLocaleString(),     icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
     { label: 'Not Interested',  value: ((byCounsellor?.notInterested ?? 0)).toLocaleString(), icon: CheckCircle, light: 'bg-red-50',    text: 'text-red-600' },
   ] : [
     { label: 'Total Leads',     value: ((kpi?.totalLeads || 0)).toLocaleString(),           icon: Users,       light: 'bg-blue-50',   text: 'text-blue-600' },
     { label: 'Unassigned',      value: ((kpi?.unassigned ?? 0)).toLocaleString(),           icon: Users,       light: 'bg-purple-50', text: 'text-purple-600' },
     { label: 'Untouched',       value: ((kpi?.untouched ?? 0)).toLocaleString(),            icon: Users,       light: 'bg-orange-50', text: 'text-orange-600' },
     { label: 'Interested',      value: ((kpi?.interested ?? 0)).toLocaleString(),           icon: FileText,    light: 'bg-green-50',  text: 'text-green-600' },
-    { label: 'Follow Up',       value: ((kpi?.followUp ?? 0)).toLocaleString(),             icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
+    { label: 'Further Talk/Follow Up',       value: ((kpi?.followUp ?? 0)).toLocaleString(),             icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
     { label: 'Not Interested',  value: ((kpi?.notInterested ?? 0)).toLocaleString(),        icon: CheckCircle, light: 'bg-red-50',    text: 'text-red-600' },
     ...(isAdmin ? [{ label: 'Revenue Collected', value: `₹${(((stats?.revenue ?? 0))/100000).toFixed(1)}L`, icon: CheckCircle, light: 'bg-emerald-50', text: 'text-emerald-600' }] : []),
   ]
@@ -140,7 +163,7 @@ export default function Dashboard() {
               <select value={summaryStage} onChange={e => setSummaryStage(e.target.value)}
                 className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary-400">
                 <option value="All">All stages</option>
-                {ALL_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                {ALL_STAGES.map(s => <option key={s} value={s}>{stageLabel(s)}</option>)}
               </select>
             </div>
           </div>
@@ -150,7 +173,7 @@ export default function Dashboard() {
                 <tr>
                   <th className="px-4 py-2.5 text-left sticky left-0 bg-gray-50">Counsellor</th>
                   <th className="px-4 py-2.5 text-center font-bold text-primary-600">Assigned</th>
-                  {visibleStages.map(s => <th key={s} className="px-3 py-2.5 text-center whitespace-nowrap">{s}</th>)}
+                  {visibleStages.map(s => <th key={s} className="px-3 py-2.5 text-center whitespace-nowrap">{stageLabel(s)}</th>)}
                   <th className="px-4 py-2.5 text-center font-bold">Total</th>
                 </tr>
               </thead>
@@ -162,8 +185,18 @@ export default function Dashboard() {
                   // When filtered to one stage, Total = that stage's count.
                   const rowTotal = summaryStage === 'All' ? (r.total || 0) : visibleStages.reduce((n, s) => n + st(r, s), 0)
                   return (
-                    <tr key={r.counsellor} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="px-4 py-2.5 font-medium text-gray-800 sticky left-0 bg-white">{r.counsellor}</td>
+                    <tr key={r.counsellor} className="border-b border-gray-50 hover:bg-gray-50 group">
+                      <td className="px-4 py-2.5 font-medium text-gray-800 sticky left-0 bg-white">
+                        <span className="inline-flex items-center gap-2">
+                          {r.counsellor}
+                          {isAdmin && (
+                            <button onClick={() => setDeleteTarget(r)} title={`Delete all ${r.counsellor}'s leads`}
+                              className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition">
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-4 py-2.5 text-center font-bold text-primary-600">{(r.total || 0).toLocaleString()}</td>
                       {visibleStages.map(s => {
                         const v = st(r, s)
@@ -194,6 +227,31 @@ export default function Dashboard() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Delete all leads of a counsellor — confirm (Admin) */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <Trash2 size={18} className="text-red-500" /> Delete counsellor's leads
+              </h2>
+              <button onClick={() => setDeleteTarget(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <p className="text-sm text-gray-600">
+              This will permanently delete <strong className="text-red-600">{(deleteTarget.total || 0).toLocaleString()} lead(s)</strong> owned by
+              <strong className="text-gray-900"> {deleteTarget.counsellor}</strong>. This cannot be undone.
+            </p>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 btn-secondary text-sm py-2">Cancel</button>
+              <button onClick={handleDeleteCounsellorLeads} disabled={deleting}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold py-2 rounded-lg flex items-center justify-center gap-2">
+                <Trash2 size={15} /> {deleting ? 'Deleting...' : `Delete ${(deleteTarget.total || 0).toLocaleString()} leads`}
+              </button>
+            </div>
           </div>
         </div>
       )}
