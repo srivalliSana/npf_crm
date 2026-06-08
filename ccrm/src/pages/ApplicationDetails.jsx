@@ -34,6 +34,7 @@ const APP_STAGES = [
 const LEAD_STAGES = [
   'Untouched',
   'Contacted',
+  'Invalid Number',
   'No Response',
   'Further Talk',
   'Interested',
@@ -42,7 +43,6 @@ const LEAD_STAGES = [
   'Process for Payment',
   'Payment Success',
   'Admission Confirmed',
-  'Invalid Number',
 ]
 
 // Alias used generically (kept for backward compat)
