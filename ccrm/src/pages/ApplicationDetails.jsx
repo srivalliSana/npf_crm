@@ -33,6 +33,7 @@ const APP_STAGES = [
 const LEAD_STAGES = [
   'Untouched',
   'Contacted',
+  'No Response',
   'Follow Up',
   'Interested',
   'Process for Payment',
@@ -195,7 +196,7 @@ export default function ApplicationDetails() {
   }, [showAdmissionForm, associatedApp, studentName, studentEmail, studentMobile, course])
 
   const handleSaveAdmissionDetails = async () => {
-    if (!associatedApp?.id) return showToast('Application must exist first. Mark lead as Interested.', 'warning')
+    if (!associatedApp?.id) return showToast('Application must exist first. Move the lead to "Process for Payment" to create one.', 'warning')
     if (!adForm.studentName || !adForm.studentMobile) return showToast('Student name and mobile are required.', 'error')
     setAdSaving(true)
     try {
@@ -370,6 +371,7 @@ export default function ApplicationDetails() {
     const map = {
       'Untouched':           'bg-red-100 text-red-700 border border-red-200',
       'Contacted':           'bg-blue-100 text-blue-700 border border-blue-200',
+      'No Response':         'bg-gray-100 text-gray-600 border border-gray-200',
       'Interested':          'bg-green-100 text-green-700 border border-green-200',
       'Follow Up':           'bg-yellow-100 text-yellow-700 border border-yellow-200',
       'Process for Payment': 'bg-amber-100 text-amber-700 border border-amber-200',
@@ -452,6 +454,7 @@ export default function ApplicationDetails() {
       const stageColorMap = {
         'Untouched':           'red',
         'Contacted':           'blue',
+        'No Response':         'gray',
         'Follow Up':           'yellow',
         'Interested':          'green',
         'Process for Payment': 'orange',
@@ -465,8 +468,11 @@ export default function ApplicationDetails() {
       })
       showToast(`Lead stage updated to "${stageName}"`, 'success')
 
-      // ── Auto-create Application when lead is marked "Interested" ──────────
-      if (['Interested','Process for Payment'].includes(stageName) && !associatedApp) {
+      // ── Auto-create Application only when moving toward payment ───────────
+      // 'Interested' is now a lightweight status change — it must NOT force an
+      // application or require any details. The application is created later,
+      // when the lead reaches 'Process for Payment'.
+      if (stageName === 'Process for Payment' && !associatedApp) {
         try {
           const isSM = ['Facebook Ads','Google Ads','LinkedIn','Instagram','Social Media','sm'].some(
             s => (record.source || '').toLowerCase().includes(s.toLowerCase())

@@ -38,6 +38,7 @@ import GTTECHLeads from './pages/GTTECHLeads'
 import ESSELeads from './pages/ESSELeads'
 import WebsitesDashboard from './pages/WebsitesDashboard'
 import UploadLogs from './pages/UploadLogs'
+import CallOutcomes from './pages/CallOutcomes'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -82,6 +83,7 @@ export default function App() {
           {/* ── Protected app routes — AuthGuard checks auth, renders Layout ── */}
           <Route element={<AuthGuard />}>
             <Route path="leads"            element={<LeadManager />} />
+            <Route path="call-outcomes"    element={<CallOutcomes />} />
             <Route path="leads/:id"        element={<ApplicationDetails />} />
             <Route path="websites-dashboard" element={<WebsitesDashboard />} />
             <Route path="ftl-leads"        element={<FTLLeads />} />
