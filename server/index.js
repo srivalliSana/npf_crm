@@ -111,91 +111,91 @@ async function adminOnly(req, res, next) {
 }
 
 // === EASYGO IVR PROVIDER CLASS ===
+// Module-level token cache so it persists across the per-request provider
+// instances created in /api/calls/initiate. EasyGoIVR tokens last ~1 hour,
+// so we cache for 55 min and regenerate (with retry) when one is rejected.
+let _easygoToken = { token: null, expiry: 0, key: null }
+
 class EasyGoIVRProvider {
   constructor(email, passwordHash) {
     this.email = email
     this.passwordHash = passwordHash
-    this.token = null
-    this.tokenExpiry = null
-    this.tokenRefreshBuffer = 5 * 60 * 1000 // Refresh 5 min before expiry
   }
 
-  async getToken() {
-    // Check if token is still valid (with 5 min buffer)
-    if (this.token && this.tokenExpiry && Date.now() < this.tokenExpiry - this.tokenRefreshBuffer) {
-      console.log('[EasyGoIVR] Using cached token')
-      return this.token
-    }
+  // Does a response/error body indicate the token was rejected?
+  static isTokenError(data) {
+    if (!data) return false
+    const s = (typeof data === 'string' ? data : JSON.stringify(data)).toLowerCase()
+    return s.includes('invalid token') || s.includes('token expired') ||
+           s.includes('token invalid') || s.includes('expired token') ||
+           s.includes('unauthorized')
+  }
 
-    // If passwordHash looks like a JWT token (starts with eyJ), use it directly
-    if (this.passwordHash && this.passwordHash.startsWith('eyJ')) {
-      console.log('[EasyGoIVR] Using passwordHash as token (JWT detected)')
-      this.token = this.passwordHash
-      // JWT tokens have exp field, estimate 24 hours for safety
-      this.tokenExpiry = Date.now() + 24 * 60 * 60 * 1000
-      return this.token
+  async getToken({ forceRefresh = false } = {}) {
+    const key = this.email
+    if (!forceRefresh && _easygoToken.token && _easygoToken.key === key && Date.now() < _easygoToken.expiry) {
+      return _easygoToken.token
     }
-
     try {
-      console.log('[EasyGoIVR] Generating new token...')
-      console.log('[EasyGoIVR] Email:', this.email)
       const response = await axios.post(
         'https://client.easygoivr.com/masterapiJwt/gentoken',
         {},
-        {
-          auth: {
-            username: this.email,
-            password: this.passwordHash
-          }
-        }
+        { auth: { username: this.email, password: this.passwordHash } }
       )
-
-      console.log('[EasyGoIVR] Token response status:', response.status)
-      console.log('[EasyGoIVR] Token response data:', response.data)
-
-      // Extract API_TOKEN from response (uppercase field name)
-      this.token = response.data.API_TOKEN || response.data.token || response.data
-      console.log('[EasyGoIVR] Extracted token:', this.token ? `${this.token.substring(0, 20)}...` : 'EMPTY')
-
-      // Assume token valid for 24 hours
-      this.tokenExpiry = Date.now() + 24 * 60 * 60 * 1000
-      console.log('[EasyGoIVR] Token generated successfully')
-      return this.token
+      const token = response.data.API_TOKEN || response.data.token
+      if (!token) throw new Error('gentoken returned no token')
+      // Tokens are valid ~1h; cache for 55 min to refresh before expiry.
+      _easygoToken = { token, expiry: Date.now() + 55 * 60 * 1000, key }
+      console.log('[EasyGoIVR] New token generated (valid ~1h)')
+      return token
     } catch (err) {
-      console.error('[EasyGoIVR] Token generation failed!')
-      console.error('[EasyGoIVR] Error:', err.response?.data || err.message)
-      console.error('[EasyGoIVR] Status:', err.response?.status)
+      // If the stored credential is itself a JWT, fall back to using it directly.
+      // (Best practice: store the account PASSWORD so tokens can auto-refresh.)
+      if (this.passwordHash && this.passwordHash.startsWith('eyJ')) {
+        console.warn('[EasyGoIVR] gentoken failed; using stored JWT directly. Store the account PASSWORD (not a token) so it can auto-refresh hourly.')
+        return this.passwordHash
+      }
+      console.error('[EasyGoIVR] Token generation failed:', err.response?.data || err.message)
       throw new Error(`EasyGoIVR token generation failed: ${err.response?.data?.msg || err.message}`)
     }
   }
 
   async initiateCall(extension, phoneNumber, did) {
-    const token = await this.getToken()
-    console.log('[EasyGoIVR] Token retrieved:', token ? 'OK' : 'MISSING')
     console.log('[EasyGoIVR] Call params:', { exten: extension, number: phoneNumber, did })
+    const dial = (token) => axios.post(
+      'https://client.easygoivr.com/easygoapiJwt/request/dial',
+      { exten: extension, number: phoneNumber, did },
+      { headers: { 'Content-Type': 'application/json', 'API_TOKEN': token } }
+    )
 
+    let token = await this.getToken()
+    let response
     try {
-      const response = await axios.post(
-        'https://client.easygoivr.com/easygoapiJwt/request/dial',
-        { exten: extension, number: phoneNumber, did: did },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'API_TOKEN': token
-          }
-        }
-      )
-
-      console.log('[EasyGoIVR] Call response:', response.data)
-      return {
-        success: true,
-        callId: response.data.call_id || response.data.id || `${Date.now()}`,
-        timestamp: new Date(),
-        data: response.data
+      response = await dial(token)
+      // Some endpoints return HTTP 200 with an error body for a bad token.
+      if (EasyGoIVRProvider.isTokenError(response.data)) {
+        console.warn('[EasyGoIVR] Token rejected in body — regenerating and retrying')
+        token = await this.getToken({ forceRefresh: true })
+        response = await dial(token)
       }
     } catch (err) {
-      console.error('[EasyGoIVR] Call initiation failed:', err.response?.data || err.message)
-      throw new Error(`Failed to initiate call: ${err.response?.data?.msg || err.message}`)
+      const status = err.response?.status
+      if (EasyGoIVRProvider.isTokenError(err.response?.data) || status === 401 || status === 403) {
+        console.warn('[EasyGoIVR] Token rejected — regenerating and retrying once')
+        token = await this.getToken({ forceRefresh: true })
+        response = await dial(token)
+      } else {
+        console.error('[EasyGoIVR] Call failed:', err.response?.data || err.message)
+        throw new Error(`Failed to initiate call: ${err.response?.data?.msg || err.message}`)
+      }
+    }
+
+    console.log('[EasyGoIVR] Call response:', response.data)
+    return {
+      success: true,
+      callId: response.data.call_id || response.data.id || `${Date.now()}`,
+      timestamp: new Date(),
+      data: response.data
     }
   }
 }
