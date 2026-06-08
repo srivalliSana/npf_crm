@@ -33,7 +33,7 @@ function getBotResponse(msg) {
 
 export default function MioAI({ onClose }) {
   const [messages, setMessages] = useState([
-    { id: 1, role: 'bot', text: 'Hi! I\'m **Mio AI**, your intelligent CCRM assistant. I can help you with lead insights, application tracking, payment status, and much more. What would you like to know?' }
+    { id: 1, role: 'bot', text: 'Hi! I\'m **AU AI**, your intelligent CCRM assistant. I can help you with lead insights, application tracking, payment status, and much more. What would you like to know?' }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -68,7 +68,7 @@ export default function MioAI({ onClose }) {
             <Sparkles size={16} className="text-white" />
           </div>
           <div>
-            <p className="text-white font-semibold text-sm">Mio AI</p>
+            <p className="text-white font-semibold text-sm">AU AI</p>
             <p className="text-purple-200 text-xs">CCRM Intelligence Assistant</p>
           </div>
         </div>
@@ -124,7 +124,7 @@ export default function MioAI({ onClose }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && sendMessage()}
-            placeholder="Ask Mio AI anything..."
+            placeholder="Ask AU AI anything..."
             className="flex-1 text-sm border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
           />
           <button onClick={() => sendMessage()}

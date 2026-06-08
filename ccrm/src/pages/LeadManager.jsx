@@ -6,7 +6,7 @@ import {
   Plus, X, Save, Upload, AlertCircle,
   CheckCircle2, FileSpreadsheet, HelpCircle, Trash2,
   MessageSquare, Zap, Target, BarChart2, ArrowRight,
-  Mail, Calendar, ArrowRightLeft, Edit3, Sparkles
+  Mail, Calendar, ArrowRightLeft, Edit3, Sparkles, UserCheck
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
@@ -73,6 +73,8 @@ export default function LeadManager() {
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({ stage: '', owner: '', campaign: '', state: '' })
   const [activeFilter, setActiveFilter] = useState('all') // ftl, esse, gttech, gtib, cutm, cutmap, all
+  const [bulkAssignTo, setBulkAssignTo] = useState('')    // counselor for bulk-assign
+  const [bulkAssigning, setBulkAssigning] = useState(false)
 
   // Add Lead modal
   const [showAddModal, setShowAddModal] = useState(false)
@@ -412,6 +414,33 @@ export default function LeadManager() {
     showToast(`${selectedRows.length} leads enrolled in drip sequence.`, 'success')
   }
 
+  // ----------- BULK ASSIGN -----------
+  const handleBulkAssign = async () => {
+    if (!selectedRows.length) return showToast('Select leads to assign.', 'warning')
+    if (!bulkAssignTo) return showToast('Choose a counselor first.', 'error')
+    setBulkAssigning(true)
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/leads/bulk-assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ leadIds: selectedRows, owner: bulkAssignTo })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        showToast(`${data.assigned} lead(s) assigned to ${bulkAssignTo}`, 'success')
+        setSelectedRows([]); setSelectAllPages(false); setBulkAssignTo('')
+        loadPage()
+      } else {
+        showToast(data.error || 'Bulk assign failed.', 'error')
+      }
+    } catch (e) {
+      showToast('Bulk assign failed.', 'error')
+    } finally {
+      setBulkAssigning(false)
+    }
+  }
+
   // ----------- CALL LOG -----------
   const handleLogCall = async () => {
     if (!callLead) return
@@ -691,6 +720,19 @@ export default function LeadManager() {
                 className="flex items-center gap-1 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-2.5 py-1 disabled:opacity-50">
                 <Zap size={13} /> {dripLoading ? 'Enrolling...' : 'Drip Enroll'}
               </button>
+              {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
+                <div className="flex items-center gap-1">
+                  <select value={bulkAssignTo} onChange={e => setBulkAssignTo(e.target.value)}
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                    <option value="">Assign to…</option>
+                    {counselors?.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                  <button onClick={handleBulkAssign} disabled={bulkAssigning || !bulkAssignTo}
+                    className="flex items-center gap-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-2.5 py-1 disabled:opacity-50 transition-colors">
+                    <UserCheck size={13} /> {bulkAssigning ? 'Assigning...' : `Assign (${selectedRows.length})`}
+                  </button>
+                </div>
+              )}
               {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
                 <button onClick={() => setDeleteConfirm('bulk')}
                   className="flex items-center gap-1 text-xs text-red-500 border border-red-200 rounded-lg px-2.5 py-1 hover:bg-red-50 transition-colors">

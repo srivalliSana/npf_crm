@@ -38,6 +38,7 @@ const LEAD_STAGES = [
   'Interested',
   'Process for Payment',
   'Payment Success',
+  'Not Interested',
   'Invalid Number',
 ]
 
