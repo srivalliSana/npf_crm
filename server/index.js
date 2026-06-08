@@ -2051,31 +2051,26 @@ app.get('/api/dashboard/stats', async (req, res) => {
             : (r.email || '').includes('@cutm.ac.in') ? 'cutm' : 'other'
     }))
 
-    // CUTM vs CUTMAP split — by the owning counselor's email domain (same rule
-    // as the Lead Manager domain tabs). Lets the dashboard show separate counts.
+    // CUTM vs CUTMAP split — per-stage counts, by the owning counselor's email
+    // domain (same rule as the Lead Manager domain tabs). Returns a stages map
+    // per domain so the dashboard can show any stage (incl. Invalid Number) and
+    // a filterable summary table.
     const domainRes = await pool.query(`
       SELECT
         CASE WHEN u.email ILIKE '%@cutmap.ac.in' THEN 'cutmap'
              WHEN u.email ILIKE '%@cutm.ac.in'   THEN 'cutm'
              ELSE 'other' END AS domain,
-        COUNT(l.id)::int AS total,
-        SUM(CASE WHEN l.stage='Untouched'  THEN 1 ELSE 0 END)::int AS untouched,
-        SUM(CASE WHEN l.stage='Follow Up'  THEN 1 ELSE 0 END)::int AS "followUp",
-        SUM(CASE WHEN l.stage='Interested' THEN 1 ELSE 0 END)::int AS interested,
-        SUM(CASE WHEN l.not_interested_reason IS NOT NULL AND TRIM(l.not_interested_reason) <> '' THEN 1 ELSE 0 END)::int AS "notInterested"
+        l.stage AS stage, COUNT(*)::int AS count
       FROM leads l
       JOIN users u ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g'))
       ${ownerWhere}
-      GROUP BY domain;
+      GROUP BY domain, l.stage;
     `, params)
-    const emptyDom = { total: 0, untouched: 0, followUp: 0, interested: 0, notInterested: 0 }
-    const byDomain = { cutm: { ...emptyDom }, cutmap: { ...emptyDom } }
+    const byDomain = { cutm: { total: 0, stages: {} }, cutmap: { total: 0, stages: {} } }
     for (const row of domainRes.rows) {
       if (row.domain === 'cutm' || row.domain === 'cutmap') {
-        byDomain[row.domain] = {
-          total: row.total, untouched: row.untouched, followUp: row.followUp,
-          interested: row.interested, notInterested: row.notInterested
-        }
+        byDomain[row.domain].stages[row.stage || 'Unknown'] = row.count
+        byDomain[row.domain].total += row.count
       }
     }
 
