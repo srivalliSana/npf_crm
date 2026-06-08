@@ -34,14 +34,14 @@ export default function Dashboard() {
     { label: 'Total Leads',     value: ((byCounsellor?.leads ?? 0)).toLocaleString(),        icon: Users,       light: 'bg-blue-50',   text: 'text-blue-600' },
     { label: 'Untouched',       value: ((byCounsellor?.untouched ?? 0)).toLocaleString(),    icon: Users,       light: 'bg-orange-50', text: 'text-orange-600' },
     { label: 'Interested',      value: ((byCounsellor?.interested ?? 0)).toLocaleString(),   icon: FileText,    light: 'bg-green-50',  text: 'text-green-600' },
-    { label: 'Follow Up',       value: ((byCounsellor?.followUp ?? 0)).toLocaleString(),     icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
+    { label: 'Further Talk',       value: ((byCounsellor?.followUp ?? 0)).toLocaleString(),     icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
     { label: 'Not Interested',  value: ((byCounsellor?.notInterested ?? 0)).toLocaleString(), icon: CheckCircle, light: 'bg-red-50',    text: 'text-red-600' },
   ] : [
     { label: 'Total Leads',     value: ((kpi?.totalLeads || 0)).toLocaleString(),           icon: Users,       light: 'bg-blue-50',   text: 'text-blue-600' },
     { label: 'Unassigned',      value: ((kpi?.unassigned ?? 0)).toLocaleString(),           icon: Users,       light: 'bg-purple-50', text: 'text-purple-600' },
     { label: 'Untouched',       value: ((kpi?.untouched ?? 0)).toLocaleString(),            icon: Users,       light: 'bg-orange-50', text: 'text-orange-600' },
     { label: 'Interested',      value: ((kpi?.interested ?? 0)).toLocaleString(),           icon: FileText,    light: 'bg-green-50',  text: 'text-green-600' },
-    { label: 'Follow Up',       value: ((kpi?.followUp ?? 0)).toLocaleString(),             icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
+    { label: 'Further Talk',       value: ((kpi?.followUp ?? 0)).toLocaleString(),             icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
     { label: 'Not Interested',  value: ((kpi?.notInterested ?? 0)).toLocaleString(),        icon: CheckCircle, light: 'bg-red-50',    text: 'text-red-600' },
     ...(isAdmin ? [{ label: 'Revenue Collected', value: `₹${(((stats?.revenue ?? 0))/100000).toFixed(1)}L`, icon: CheckCircle, light: 'bg-emerald-50', text: 'text-emerald-600' }] : []),
   ]
@@ -96,7 +96,7 @@ export default function Dashboard() {
             const cells = [
               { l: 'Total',          v: d.data.total },
               { l: 'Untouched',      v: st(d.data, 'Untouched') },
-              { l: 'Follow Up',      v: st(d.data, 'Follow Up') },
+              { l: 'Further Talk',   v: st(d.data, 'Further Talk') },
               { l: 'Interested',     v: st(d.data, 'Interested') },
               { l: 'Not Interested', v: st(d.data, 'Not Interested') },
               { l: 'Invalid Number', v: st(d.data, 'Invalid Number') },
