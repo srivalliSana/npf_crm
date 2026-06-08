@@ -123,12 +123,14 @@ class EasyGoIVRProvider {
   }
 
   // Does a response/error body indicate the token was rejected?
+  // Covers EasyGoIVR wordings like "invalid token access" and "Access token missing".
   static isTokenError(data) {
     if (!data) return false
     const s = (typeof data === 'string' ? data : JSON.stringify(data)).toLowerCase()
     return s.includes('invalid token') || s.includes('token expired') ||
            s.includes('token invalid') || s.includes('expired token') ||
-           s.includes('unauthorized')
+           s.includes('access token') || s.includes('token missing') ||
+           s.includes('invalid or expired') || s.includes('unauthorized')
   }
 
   async getToken({ forceRefresh = false } = {}) {
