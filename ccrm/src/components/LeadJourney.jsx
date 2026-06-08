@@ -1,7 +1,7 @@
 import React from 'react'
 import {
   Users, User, Phone, Ban, PhoneMissed, MessageSquare, Star,
-  CalendarDays, MapPin, CreditCard, BadgeCheck, GraduationCap,
+  CalendarDays, MapPin, CreditCard, BadgeCheck,
   CalendarClock, Bell, ChevronRight, CornerDownRight
 } from 'lucide-react'
 
@@ -12,7 +12,7 @@ const TONE = {
   red:    { box: 'bg-red-50 border-red-300 text-red-700',          on: 'bg-red-600 border-red-600 text-white ring-red-300' },
 }
 
-const PATH = ['Untouched', 'Contacted', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success', 'Admission Confirmed']
+const PATH = ['Untouched', 'Contacted', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success']
 const OFFRAMP = ['Invalid Number', 'No Response', 'Further Talk']
 
 function stageState(s, cur) {
@@ -98,8 +98,6 @@ export default function LeadJourney({ stage, onSelect }) {
               <Node s="Process for Payment" label="Process for Payment" icon={CreditCard} />
               <Arrow />
               <Node s="Payment Success" label="Payment Success" icon={BadgeCheck} />
-              <Arrow />
-              <Node s="Admission Confirmed" label="Admission Confirmed" icon={GraduationCap} />
             </div>
           </div>
           <div className="rounded-lg bg-gray-50 border border-gray-100 p-2">
@@ -108,8 +106,6 @@ export default function LeadJourney({ stage, onSelect }) {
               <Node s="Process for Payment" label="Process for Payment" icon={CreditCard} />
               <Arrow />
               <Node s="Payment Success" label="Payment Success" icon={BadgeCheck} />
-              <Arrow />
-              <Node s="Admission Confirmed" label="Admission Confirmed" icon={GraduationCap} />
             </div>
           </div>
         </div>

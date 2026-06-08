@@ -437,6 +437,7 @@ export async function initDb() {
     // Stage taxonomy migration to the admission flowchart (idempotent)
     await client.query(`UPDATE leads SET stage='Further Talk' WHERE stage='Follow Up';`).catch(() => {})
     await client.query(`UPDATE leads SET stage='Campus Visit Scheduled' WHERE stage='Campus Visit';`).catch(() => {})
+    await client.query(`UPDATE leads SET stage='Payment Success' WHERE stage='Admission Confirmed';`).catch(() => {})
 
     // Payment extra fields
     await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS utr_number VARCHAR(100) DEFAULT '';`).catch(() => {})

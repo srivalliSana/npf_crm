@@ -11,7 +11,6 @@ const STATUS_MAP = [
   ['Not Reachable / Busy',      'No Response'],
   ['Wrong Number',              'Invalid Number'],
   ['Not Called',                'Untouched'],
-  ['Admission Confirmed',       'Admission Confirmed'],
 ]
 
 export default function CallOutcomes() {

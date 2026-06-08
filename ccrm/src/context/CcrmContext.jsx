@@ -25,11 +25,14 @@ if (typeof window !== 'undefined' && !window.__ccrmFetchPatched) {
   const _origFetch = window.fetch.bind(window)
   window.fetch = async (...args) => {
     const res = await _origFetch(...args)
-    if (res.status === 401 || res.status === 403) {
+    // Only bounce to login on a GENUINELY expired/invalid token (a token was
+    // sent but rejected). 'Access token missing' usually means a fetch forgot
+    // the auth header (a code bug) — don't log the user out for that.
+    if (res.status === 403) {
       try {
         const data = await res.clone().json().catch(() => ({}))
         const msg = (data?.error || '').toLowerCase()
-        if (msg.includes('invalid or expired token') || msg.includes('access token missing')) {
+        if (msg.includes('invalid or expired token')) {
           localStorage.removeItem('ccrm_token')
           localStorage.removeItem('ccrm_current_user')
           if (!window.location.pathname.startsWith('/login')) {
@@ -438,9 +441,10 @@ export function CcrmProvider({ children }) {
   // Lead Actions
   const addLead = async (leadData) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
       const res = await fetch('/api/leads', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(leadData)
       })
       if (res.ok) {

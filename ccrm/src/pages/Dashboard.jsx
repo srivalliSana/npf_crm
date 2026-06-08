@@ -3,7 +3,7 @@ import { useCcrm } from '../context/CcrmContext'
 import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter } from 'lucide-react'
 
 // Lead stages shown in the summary table (funnel order)
-const ALL_STAGES = ['Untouched', 'Contacted', 'Invalid Number', 'No Response', 'Further Talk', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success', 'Admission Confirmed']
+const ALL_STAGES = ['Untouched', 'Contacted', 'Invalid Number', 'No Response', 'Further Talk', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success']
 
 export default function Dashboard() {
   const { currentUser } = useCcrm()
