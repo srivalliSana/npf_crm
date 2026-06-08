@@ -59,14 +59,14 @@ export default function Navbar({ onToggleSidebar, onLogout, user }) {
           </div>
         </div>
 
-        {/* Center – Ask AU AI */}
+        {/* Center – Ask CU AI */}
         <div className="flex-1 flex justify-center">
           <button
             onClick={() => setShowMioAI(true)}
             className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-4 py-1.5 rounded-full transition-colors shadow-sm"
           >
             <Sparkles size={15} />
-            Ask AU AI
+            Ask CU AI
           </button>
         </div>
 

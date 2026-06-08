@@ -4679,7 +4679,7 @@ app.get('/api/upload-logs', authenticateToken, async (req, res) => {
 function mapCallStatus(s) {
   const x = String(s || '').toLowerCase().replace(/[^a-z]/g, '')
   if (!x) return null
-  if (x.includes('campus') || x.includes('visit'))                 return 'Interested'      // Campus Visit = hot
+  if (x.includes('campus') || x.includes('visit'))                 return 'Campus Visit'    // distinct stage
   if (x.includes('notcalled'))                                     return 'Untouched'       // Not Called
   if (x.includes('wrongnumber') || x.includes('invalidnumber'))    return 'Invalid Number'  // Wrong Number
   if (x.includes('notinter'))                                      return 'Not Interested'  // Not Interested / Not Internsted
@@ -4693,7 +4693,22 @@ function mapCallStatus(s) {
 }
 const CALL_STAGE_COLOR = {
   'Contacted':'blue','No Response':'gray','Not Interested':'red','Follow Up':'yellow',
-  'Interested':'green','Invalid Number':'red','Untouched':'red'
+  'Interested':'green','Campus Visit':'cyan','Invalid Number':'red','Untouched':'red'
+}
+
+// Strict mobile validation/normalisation. Returns a clean 10-digit number or
+// null. Rejects malformed/placeholder numbers (wrong length, not starting 6-9,
+// or 6+ repeated digits like 9304000000 / 9999999999).
+function normalizeMobile(raw) {
+  const d = String(raw || '').replace(/\D/g, '')
+  let ten
+  if (d.length === 10) ten = d
+  else if (d.length === 11 && d.startsWith('0')) ten = d.slice(1)
+  else if (d.length === 12 && d.startsWith('91')) ten = d.slice(2)
+  else return null                       // wrong length
+  if (!/^[6-9]\d{9}$/.test(ten)) return null   // must start 6-9, be 10 digits
+  if (/(\d)\1{5,}/.test(ten)) return null      // 6+ repeated digits → fake/placeholder
+  return ten
 }
 
 // POST /api/leads/call-outcomes-upload — counselor end-of-day call results.
@@ -4741,7 +4756,7 @@ app.post('/api/leads/call-outcomes-upload', (req, res, next) => {
       for (let i = 0; i < rawData.length; i++) {
         const row = rawData[i]
         const name    = String(row[nameCol] || '').trim().substring(0, 100)
-        const mobile  = String(row[mobileCol] || '').replace(/\D/g, '').slice(-10)
+        const mobile  = normalizeMobile(row[mobileCol])
         const stage   = mapStatus(row[statusCol])
         // Faculty who called → becomes the owner (drives CUTM/CUTMAP via their email domain)
         const faculty = facultyCol ? String(row[facultyCol] || '').trim().substring(0, 100) : ''
@@ -4749,8 +4764,8 @@ app.post('/api/leads/call-outcomes-upload', (req, res, next) => {
         const fuRaw   = followDateCol ? String(row[followDateCol] || '').trim() : ''
         const fuDate  = stage === 'Follow Up' ? fuRaw : ''
 
-        if (mobile.length !== 10) {
-          skipped++; if (skipReasons.length < 8) skipReasons.push(`Row ${i + 2}: invalid/missing mobile`); continue
+        if (!mobile) {
+          skipped++; if (skipReasons.length < 8) skipReasons.push(`Row ${i + 2}: invalid mobile "${row[mobileCol]}"`); continue
         }
         if (!stage) {
           skipped++; if (skipReasons.length < 8) skipReasons.push(`Row ${i + 2}: unrecognized status "${row[statusCol]}"`); continue
@@ -4856,11 +4871,11 @@ app.post('/api/leads/workbook-import', authenticateToken, (req, res, next) => {
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i]
           const name    = String(row[nameCol] || '').trim().substring(0, 100)
-          const mobile  = String(row[mobileCol] || '').replace(/\D/g, '').slice(-10)
+          const mobile  = normalizeMobile(row[mobileCol])
           const stage   = mapCallStatus(row[statusCol])
           const faculty = facultyCol ? String(row[facultyCol] || '').trim().substring(0, 100) : ''
           const source  = sourceCol ? String(row[sourceCol] || '').trim().substring(0, 100) : 'Admission Workbook'
-          if (mobile.length !== 10 || !stage) { s++; continue }
+          if (!mobile || !stage) { s++; continue }
           const color = CALL_STAGE_COLOR[stage] || 'blue'
           // Skip faculty values that are clearly not names (e.g. date serials from a misaligned sheet)
           const owner = (faculty && !/^\d+(\.\d+)?$/.test(faculty)) ? faculty : null
