@@ -2074,6 +2074,22 @@ app.get('/api/dashboard/stats', async (req, res) => {
       }
     }
 
+    // Counsellor × stage matrix (role-scoped via userScope) for the Stage Summary
+    const matrixRes = await pool.query(`
+      SELECT u.name AS counsellor, l.stage AS stage, COUNT(l.id)::int AS count
+      FROM users u
+      JOIN leads l ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g'))
+      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
+      GROUP BY u.name, l.stage;
+    `, userParams)
+    const matrixMap = {}
+    for (const row of matrixRes.rows) {
+      if (!matrixMap[row.counsellor]) matrixMap[row.counsellor] = { counsellor: row.counsellor, stages: {}, total: 0 }
+      matrixMap[row.counsellor].stages[row.stage || 'Unknown'] = row.count
+      matrixMap[row.counsellor].total += row.count
+    }
+    const byCounsellorStages = Object.values(matrixMap).sort((a, b) => b.total - a.total)
+
     res.json({
       kpi: kpi.rows[0],
       applications: appTotal.rows[0].c,
@@ -2081,6 +2097,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
       revenue:      Number(revTotal.rows[0].s),
       byCounsellor,
       byDomain,
+      byCounsellorStages,
     })
   } catch (err) {
     console.error('[dashboard/stats]', err)
