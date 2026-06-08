@@ -118,6 +118,41 @@ export default function Dashboard() {
         })}
       </div>
 
+      {/* CUTM vs CUTMAP split (admin/manager) */}
+      {!isCounselor && stats?.byDomain && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {[
+            { key: 'cutm',   label: 'CUTM',   accent: 'from-blue-500 to-blue-600' },
+            { key: 'cutmap', label: 'CUTMAP', accent: 'from-violet-500 to-violet-600' },
+          ].map(d => {
+            const data = stats.byDomain[d.key] || {}
+            const cells = [
+              { l: 'Total',          v: data.total },
+              { l: 'Untouched',      v: data.untouched },
+              { l: 'Follow Up',      v: data.followUp },
+              { l: 'Interested',     v: data.interested },
+              { l: 'Not Interested', v: data.notInterested },
+            ]
+            return (
+              <div key={d.key} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className={`bg-gradient-to-r ${d.accent} px-4 py-2.5 flex items-center justify-between`}>
+                  <span className="text-white font-bold text-sm">{d.label}</span>
+                  <span className="text-white/90 text-xs">{(data.total || 0).toLocaleString()} leads</span>
+                </div>
+                <div className="grid grid-cols-5 divide-x divide-gray-100">
+                  {cells.map(c => (
+                    <div key={c.l} className="px-2 py-3 text-center">
+                      <div className="text-lg font-extrabold text-gray-900">{(c.v || 0).toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">{c.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {/* Campus Filter Bar */}
       <div className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 p-3 shadow-sm mb-4">
         <MapPin size={14} className="text-primary-500 flex-shrink-0" />
