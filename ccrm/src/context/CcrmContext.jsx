@@ -157,13 +157,18 @@ export function CcrmProvider({ children }) {
       const tasksRes = await fetch('/api/tasks', { headers })
       if (tasksRes.ok) setTasks(await tasksRes.json())
 
-      const payRes = await fetch('/api/payments', { headers })
+      // Counsellors are scoped server-side to their own leads' payments/documents.
+      const scopeQs = currentUser?.role && currentUser?.name
+        ? `?requesterRole=${encodeURIComponent(currentUser.role)}&requesterName=${encodeURIComponent(currentUser.name)}`
+        : ''
+
+      const payRes = await fetch(`/api/payments${scopeQs}`, { headers })
       if (payRes.ok) setPayments(await payRes.json())
 
       const qRes = await fetch('/api/queries', { headers })
       if (qRes.ok) setQueries(await qRes.json())
 
-      const docRes = await fetch('/api/documents', { headers })
+      const docRes = await fetch(`/api/documents${scopeQs}`, { headers })
       if (docRes.ok) setDocuments(await docRes.json())
 
       const evRes = await fetch('/api/events', { headers })
