@@ -140,6 +140,8 @@ export default function LeadManager() {
   const [rcsType, setRcsType]             = useState('BASIC')
   const [rcsCustomMsg, setRcsCustomMsg]   = useState('')
   const [rcsSending, setRcsSending]       = useState(false)
+  const [rcsRecipientMode, setRcsRecipientMode] = useState('selected') // 'selected' | 'filtered'
+  const RCS_CAMPAIGN_CAP = 2000
 
   // Fetch templates from context whenever RCS modal opens
   useEffect(() => {
@@ -157,16 +159,37 @@ export default function LeadManager() {
     }
   }, [showRCSModal, rcsTemplates, rcsTemplateId])
 
+  // Collect all lead IDs matching the current filter (across pages, capped).
+  const fetchFilteredLeadIds = async (cap = RCS_CAMPAIGN_CAP) => {
+    const ids = []
+    let page = 1
+    while (ids.length < Math.min(total, cap)) {
+      const data = await fetchLeadsPage({ ...buildQuery(), page, limit: 200 })
+      if (!data.rows?.length) break
+      ids.push(...data.rows.map(r => r.id))
+      if (data.rows.length < 200) break
+      page++
+    }
+    return ids.slice(0, cap)
+  }
+
   const handleSendRCS = async () => {
-    if (!selectedRows.length) return showToast('Select at least one lead.', 'warning')
-    if (!rcsTemplateId)         return showToast('Please pick an approved template.', 'error')
-    if (!rcsCustomMsg.trim())   return showToast('Please enter the message text.', 'error')
+    if (!rcsTemplateId)       return showToast('Please pick an approved template.', 'error')
+    if (!rcsCustomMsg.trim()) return showToast('Please enter the message text.', 'error')
     setRcsSending(true)
-    await sendBulkRCS(selectedRows, rcsCustomMsg, { templateId: rcsTemplateId, rcsType })
-    setRcsSending(false)
-    setShowRCSModal(false)
-    setSelectedRows([])
-    setSelectAllPages(false)
+    try {
+      let recipients = selectedRows
+      if (rcsRecipientMode === 'filtered') {
+        recipients = await fetchFilteredLeadIds()
+      }
+      if (!recipients.length) { showToast('No recipients to send to.', 'warning'); return }
+      await sendBulkRCS(recipients, rcsCustomMsg, { templateId: rcsTemplateId, rcsType })
+      setShowRCSModal(false)
+      setSelectedRows([])
+      setSelectAllPages(false)
+    } finally {
+      setRcsSending(false)
+    }
   }
   const [waTemplate, setWaTemplate]     = useState(0)
   const [waCustomMsg, setWaCustomMsg]   = useState('')
@@ -606,6 +629,12 @@ export default function LeadManager() {
             <Phone size={14} /> Call Outcomes
           </button>
           {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
+            <button onClick={() => { setShowRCSModal(true); setRcsCustomMsg(''); setRcsRecipientMode('filtered') }}
+              className="flex items-center gap-1.5 text-sm text-pink-600 border border-pink-200 rounded-lg px-3 py-1.5 hover:bg-pink-50">
+              <Sparkles size={14} /> RCS Campaign
+            </button>
+          )}
+          {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
             <button onClick={() => navigate('/workbook-import')} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
               <FileSpreadsheet size={14} /> Workbook Import
             </button>
@@ -715,7 +744,7 @@ export default function LeadManager() {
                 className="flex items-center gap-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded-lg px-2.5 py-1 transition-colors">
                 <MessageSquare size={13} /> WhatsApp ({selectedRows.length})
               </button>
-              <button onClick={() => { setShowRCSModal(true); setRcsCustomMsg('') }}
+              <button onClick={() => { setShowRCSModal(true); setRcsCustomMsg(''); setRcsRecipientMode('selected') }}
                 className="flex items-center gap-1 text-xs bg-pink-500 hover:bg-pink-600 text-white rounded-lg px-2.5 py-1 transition-colors">
                 ✨ RCS ({selectedRows.length})
               </button>
@@ -1084,9 +1113,23 @@ export default function LeadManager() {
               </h2>
               <button onClick={() => setShowRCSModal(false)}><X size={20} className="text-gray-400" /></button>
             </div>
-            <p className="text-sm text-gray-500 mb-4">
-              Sending to <strong className="text-gray-800">{selectedRows.length} leads</strong> via rcssms.in
-            </p>
+            {/* Recipients selector */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Recipients</label>
+              <div className="flex flex-col gap-1.5">
+                <label className={`flex items-center gap-2 text-sm rounded-lg border px-3 py-2 cursor-pointer ${rcsRecipientMode === 'selected' ? 'border-pink-300 bg-pink-50' : 'border-gray-200'} ${!selectedRows.length ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <input type="radio" name="rcsmode" disabled={!selectedRows.length}
+                    checked={rcsRecipientMode === 'selected'} onChange={() => setRcsRecipientMode('selected')} />
+                  Selected leads <strong>({selectedRows.length})</strong>
+                </label>
+                <label className={`flex items-center gap-2 text-sm rounded-lg border px-3 py-2 cursor-pointer ${rcsRecipientMode === 'filtered' ? 'border-pink-300 bg-pink-50' : 'border-gray-200'}`}>
+                  <input type="radio" name="rcsmode"
+                    checked={rcsRecipientMode === 'filtered'} onChange={() => setRcsRecipientMode('filtered')} />
+                  All leads in current filter <strong>({Math.min(total, RCS_CAMPAIGN_CAP).toLocaleString()}{total > RCS_CAMPAIGN_CAP ? `, capped from ${total.toLocaleString()}` : ''})</strong>
+                </label>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">Tip: set the Stage/Owner/Source filters first, then choose "All leads in current filter".</p>
+            </div>
 
             {/* Template picker */}
             <div className="mb-4">
@@ -1136,7 +1179,9 @@ export default function LeadManager() {
               <button onClick={handleSendRCS} disabled={rcsSending || !rcsTemplateId}
                 className="flex-1 bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
                 {rcsSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <span>✨</span>}
-                {rcsSending ? 'Sending...' : `Send RCS to ${selectedRows.length}`}
+                {rcsSending
+                  ? 'Sending...'
+                  : `Send RCS to ${rcsRecipientMode === 'selected' ? selectedRows.length : Math.min(total, RCS_CAMPAIGN_CAP).toLocaleString()}`}
               </button>
             </div>
           </div>

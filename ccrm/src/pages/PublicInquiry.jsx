@@ -168,6 +168,107 @@ export default function PublicInquiry() {
       err ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'
     }`
 
+  // Embed mode (?embed=1) — render ONLY the form card, for the cutm16 landing iframe.
+  const embed = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('embed') === '1'
+
+  // The enquiry form card — shared by the full page and the embed view (form logic unchanged).
+  const formCard = (
+    <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+      {/* Form header */}
+      <div className="bg-gradient-to-r from-blue-600 to-sky-600 px-7 py-5">
+        <h3 className="text-white font-bold text-lg">Apply for CUEE 2026</h3>
+        <p className="text-primary-100 text-xs mt-1">Free counseling · No application fee · Quick process</p>
+      </div>
+
+      <div className="p-7">
+        {errors.submit && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-red-700 text-sm">
+            <AlertCircle size={15}/> {errors.submit}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Full Name <span className="text-red-500">*</span></label>
+            <input type="text" value={form.name} onChange={e => set('name', e.target.value)}
+              placeholder="Enter your full name" className={fld(errors.name)} />
+            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Mobile <span className="text-red-500">*</span></label>
+              <input type="tel" value={form.mobile} onChange={e => set('mobile', e.target.value)}
+                placeholder="10-digit number" maxLength={10} className={fld(errors.mobile)} />
+              {errors.mobile && <p className="text-red-500 text-xs mt-1">{errors.mobile}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Email</label>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
+                placeholder="your@email.com" className={fld(errors.email)} />
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Course Interested In <span className="text-red-500">*</span></label>
+            <select value={form.course} onChange={e => set('course', e.target.value)} className={fld(errors.course)}>
+              <option value="">-- Select Program --</option>
+              {COURSES.map(c => <option key={c}>{c}</option>)}
+            </select>
+            {errors.course && <p className="text-red-500 text-xs mt-1">{errors.course}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">State</label>
+              <select value={form.state} onChange={e => set('state', e.target.value)} className={fld(false)}>
+                <option value="">-- State --</option>
+                {STATES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">City</label>
+              <input type="text" value={form.city} onChange={e => set('city', e.target.value)}
+                placeholder="Your city" className={fld(false)} />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">How did you hear about us?</label>
+            <select value={form.source} onChange={e => set('source', e.target.value)} className={fld(false)}>
+              <option value="">-- Select Source --</option>
+              {SOURCES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+
+          <button type="submit" disabled={loading}
+            className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-primary-600/20 text-sm">
+            {loading ? (
+              <><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg> Submitting...</>
+            ) : <><Send size={16}/> Submit Inquiry</>}
+          </button>
+        </form>
+
+        <p className="text-center text-[11px] text-gray-400 mt-4">
+          🔒 Your information is confidential and secure. No spam.
+        </p>
+      </div>
+    </div>
+  )
+
+  // Embed view: just the form on a light background (sits inside the cutm16 iframe).
+  if (embed) {
+    return (
+      <div className="bg-gray-50 p-3 font-sans">
+        {formCard}
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-white font-sans">
 
@@ -301,91 +402,7 @@ export default function PublicInquiry() {
 
             {/* Right — Apply form */}
             <div id="apply">
-              <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-                {/* Form header */}
-                <div className="bg-gradient-to-r from-blue-600 to-sky-600 px-7 py-5">
-                  <h3 className="text-white font-bold text-lg">Apply for CUEE 2026</h3>
-                  <p className="text-primary-100 text-xs mt-1">Free counseling · No application fee · Quick process</p>
-                </div>
-
-                <div className="p-7">
-                  {errors.submit && (
-                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-red-700 text-sm">
-                      <AlertCircle size={15}/> {errors.submit}
-                    </div>
-                  )}
-
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Full Name <span className="text-red-500">*</span></label>
-                      <input type="text" value={form.name} onChange={e => set('name', e.target.value)}
-                        placeholder="Enter your full name" className={fld(errors.name)} />
-                      {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Mobile <span className="text-red-500">*</span></label>
-                        <input type="tel" value={form.mobile} onChange={e => set('mobile', e.target.value)}
-                          placeholder="10-digit number" maxLength={10} className={fld(errors.mobile)} />
-                        {errors.mobile && <p className="text-red-500 text-xs mt-1">{errors.mobile}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Email</label>
-                        <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-                          placeholder="your@email.com" className={fld(errors.email)} />
-                        {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Course Interested In <span className="text-red-500">*</span></label>
-                      <select value={form.course} onChange={e => set('course', e.target.value)} className={fld(errors.course)}>
-                        <option value="">-- Select Program --</option>
-                        {COURSES.map(c => <option key={c}>{c}</option>)}
-                      </select>
-                      {errors.course && <p className="text-red-500 text-xs mt-1">{errors.course}</p>}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">State</label>
-                        <select value={form.state} onChange={e => set('state', e.target.value)} className={fld(false)}>
-                          <option value="">-- State --</option>
-                          {STATES.map(s => <option key={s}>{s}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">City</label>
-                        <input type="text" value={form.city} onChange={e => set('city', e.target.value)}
-                          placeholder="Your city" className={fld(false)} />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">How did you hear about us?</label>
-                      <select value={form.source} onChange={e => set('source', e.target.value)} className={fld(false)}>
-                        <option value="">-- Select Source --</option>
-                        {SOURCES.map(s => <option key={s}>{s}</option>)}
-                      </select>
-                    </div>
-
-                    <button type="submit" disabled={loading}
-                      className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-primary-600/20 text-sm">
-                      {loading ? (
-                        <><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                        </svg> Submitting...</>
-                      ) : <><Send size={16}/> Submit Inquiry</>}
-                    </button>
-                  </form>
-
-                  <p className="text-center text-[11px] text-gray-400 mt-4">
-                    🔒 Your information is confidential and secure. No spam.
-                  </p>
-                </div>
-              </div>
+              {formCard}
 
               {/* Student portal link */}
               <div className="mt-4 text-center">
