@@ -1,5 +1,5 @@
 // GTTECH Inquiry Form Webhook
-module.exports = async (req, res, pool) => {
+export default async (req, res, pool) => {
   try {
     const { full_name, organization_name, designation, industry_sector, interested_in, email, phone } = req.body
 
