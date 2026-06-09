@@ -12,9 +12,6 @@ import {
 const SECTIONS = [
   { id: 'profile',       label: 'Profile Settings',      icon: User       },
   { id: 'organization',  label: 'Organization',           icon: Building   },
-  { id: 'notifications', label: 'Notifications',          icon: Bell       },
-  { id: 'security',      label: 'Security & Access',      icon: Shield     },
-  { id: 'integrations',  label: 'Integrations',           icon: Link       },
   { id: 'backup',        label: 'Backup & Restore',       icon: Database,   adminOnly: true },
   { id: 'production',    label: 'Production Reset',       icon: AlertTriangle, adminOnly: true },
 ]
@@ -115,8 +112,45 @@ export default function Settings() {
     confirmPass: ''
   })
 
-  const handleSave = () => {
+  // Organization settings — persisted in the integration-settings key-value store
+  const [orgForm, setOrgForm] = useState({
+    org_name: 'Centurion University of Technology and Management',
+    org_short_name: 'CUTM',
+    org_website: 'https://www.cutmap.ac.in',
+    org_email: 'admissions@cutmap.ac.in',
+    org_phone: '',
+    org_address: '',
+    org_timezone: 'Asia/Kolkata (IST)',
+    org_academic_year: '2026-27',
+  })
+  useEffect(() => {
+    if (currentUser?.role !== 'Admin') return  // settings store holds secrets — Admins only
+    fetch('/api/integration-settings')
+      .then(r => r.json())
+      .then(data => setOrgForm(prev => {
+        const next = { ...prev }
+        Object.keys(prev).forEach(k => { if (data?.[k] != null && data[k] !== '') next[k] = data[k] })
+        return next
+      }))
+      .catch(() => {})
+  }, [currentUser])
+
+  const handleSave = async () => {
     if (!currentUser) { showToast('Not logged in.', 'error'); return }
+    if (activeSection === 'organization') {
+      try {
+        const res = await fetch('/api/integration-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orgForm)
+        })
+        showToast(res.ok ? 'Organization settings saved.' : 'Failed to save organization settings.', res.ok ? 'success' : 'error')
+      } catch {
+        showToast('Network error saving organization settings.', 'error')
+      }
+      setSaved(true); setTimeout(() => setSaved(false), 2000)
+      return
+    }
     if (activeSection === 'profile') {
       const mergedName = `${profileForm.firstName} ${profileForm.lastName}`.trim()
       updateUser(currentUser.id, {
@@ -295,18 +329,21 @@ export default function Settings() {
               <h2 className="font-semibold text-gray-800 mb-4">Organization Settings</h2>
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { label: 'Organization Name', value: 'Centurion University of Technology and Management' },
-                  { label: 'Short Name', value: 'CUTM' },
-                  { label: 'Website', value: 'https://cutm.ac.in' },
-                  { label: 'Primary Email', value: 'admissions@cutm.ac.in' },
-                  { label: 'Phone', value: '+91 6742-290-000' },
-                  { label: 'Address', value: 'Paralakhemundi, Odisha 761211' },
-                  { label: 'Timezone', value: 'Asia/Kolkata (IST)' },
-                  { label: 'Academic Year', value: '2026-27' },
+                  { key: 'org_name', label: 'Organization Name', wide: true },
+                  { key: 'org_short_name', label: 'Short Name' },
+                  { key: 'org_website', label: 'Website' },
+                  { key: 'org_email', label: 'Primary Email' },
+                  { key: 'org_phone', label: 'Phone' },
+                  { key: 'org_address', label: 'Address', wide: true },
+                  { key: 'org_timezone', label: 'Timezone' },
+                  { key: 'org_academic_year', label: 'Academic Year' },
                 ].map(f => (
-                  <div key={f.label} className={f.label === 'Organization Name' || f.label === 'Address' ? 'col-span-2' : ''}>
+                  <div key={f.key} className={f.wide ? 'col-span-2' : ''}>
                     <label className="block text-xs font-medium text-gray-700 mb-1">{f.label}</label>
-                    <input type="text" defaultValue={f.value} className="input-field text-sm" />
+                    <input type="text"
+                      value={orgForm[f.key] || ''}
+                      onChange={e => setOrgForm(p => ({ ...p, [f.key]: e.target.value }))}
+                      className="input-field text-sm" />
                   </div>
                 ))}
               </div>

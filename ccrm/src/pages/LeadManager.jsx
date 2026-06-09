@@ -356,8 +356,12 @@ export default function LeadManager() {
     if (dupWarning && !forceSave) return // show warning first
 
     setAddLoading(true)
+    // Counsellor-added leads belong to that counsellor; admin/manager auto-assign (or use picked owner).
+    const isCounsellor = currentUser?.role && !['Admin', 'Manager'].includes(currentUser.role)
     let owner = newLead.owner
-    if (autoAssign || !owner) {
+    if (isCounsellor) {
+      owner = currentUser.name
+    } else if (autoAssign || !owner) {
       owner = await getNextAssignee()
     }
 

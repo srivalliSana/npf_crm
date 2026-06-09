@@ -6,7 +6,9 @@ import {
   Share2, Zap, Copy, CheckCheck, Bell, Linkedin, Search, PhoneCall, Instagram,
   Wallet, Cloud
 } from 'lucide-react'
+import { Plug } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
+import IntegrationStatusWidget from '../components/IntegrationStatusWidget'
 
 const INTEGRATIONS = [
   // ── Social Media & Ads ──────────────────────────────────────────────────────
@@ -716,6 +718,16 @@ export default function Integrations() {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Integration Health — live status cards (moved here from its own page) */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <Plug size={18} className="text-primary-500" />
+          <h2 className="font-semibold text-gray-800">Integration Health</h2>
+          <span className="text-xs text-gray-400">— live status of email, SMS, WhatsApp, RCS &amp; telephony</span>
+        </div>
+        <IntegrationStatusWidget />
       </div>
 
       {/* How It Works banner */}

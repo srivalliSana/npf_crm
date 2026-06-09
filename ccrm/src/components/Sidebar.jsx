@@ -42,7 +42,6 @@ const NAV_ITEMS = [
   { icon: Shield,          label: 'Users',         to: '/users',            roles: ['Admin'] },
   { icon: ExternalLink,    label: 'Transfers',     to: '/transfer-approvals', roles: ['Admin', 'Manager'] },
   { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin'] },
-  { icon: Plug,            label: 'Integration Health', to: '/integration-health', roles: ['Admin'] },
   { icon: Server,          label: 'Server Health', to: '/server-health',    roles: ['Admin'] },
   { icon: ShieldCheck,     label: 'Security & Access', to: '/security',      roles: ['Admin'] },
   { icon: Settings,        label: 'Settings',      to: '/settings',         roles: null },

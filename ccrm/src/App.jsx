@@ -26,7 +26,6 @@ import TransferApprovals from './pages/TransferApprovals'
 import PublicInquiry from './pages/PublicInquiry'
 import StudentPortal from './pages/StudentPortal'
 import Analytics from './pages/Analytics'
-import IntegrationHealth from './pages/IntegrationHealth'
 import ServerHealth from './pages/ServerHealth'
 import SecurityAccess from './pages/SecurityAccess'
 import UserProfile from './pages/UserProfile'
@@ -106,7 +105,6 @@ export default function App() {
               <Route path="workbook-import" element={<WorkbookImport />} />
             </Route>
             <Route element={<RoleGuard roles={['Admin']} />}>
-              <Route path="integration-health" element={<IntegrationHealth />} />
               <Route path="server-health"      element={<ServerHealth />} />
               <Route path="security"           element={<SecurityAccess />} />
             </Route>
