@@ -882,14 +882,14 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
   const { name, email, mobile, state, city, course, source, owner: requestOwner, regDate, score, stage, stageColor } = req.body
   const finalRegDate = regDate || new Date().toLocaleString('en-IN', { hour12: true })
   try {
-    // Social media leads always unassigned
+    // Social media leads are auto-assigned (round-robin) unless an owner was given
     const socialMediaSources = ['facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
     const isFromSocialMedia = source && socialMediaSources.some(sm => source.toLowerCase().includes(sm))
 
     let owner = requestOwner || 'Unassigned'
-    if (isFromSocialMedia) {
-      owner = 'Unassigned'
-      console.log(`[Lead Create] Social media source (${source}) → keeping unassigned`)
+    if (isFromSocialMedia && !requestOwner) {
+      owner = await getNextAssignee()
+      console.log(`[Lead Create] Social media source (${source}) → auto-assigned to ${owner}`)
     }
 
     const insertRes = await pool.query(`
@@ -2967,14 +2967,16 @@ app.post('/api/leads/check-duplicate', async (req, res) => {
   }
 })
 
-// --- FEATURE 2: LEAD AUTO-ASSIGNMENT (round-robin) ---
-app.get('/api/leads/next-assignee', async (req, res) => {
+// --- FEATURE 2: LEAD AUTO-ASSIGNMENT (round-robin / load-based) ---
+// Shared picker: returns the active counsellor/manager with the fewest leads and
+// bumps their counter. Returns 'Unassigned' if there are no eligible users.
+// (function declaration → hoisted, so inbound routes above can call it.)
+async function getNextAssignee() {
   try {
-    // Get active counselors
     const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role IN ('Counselor', 'Manager') ORDER BY name;")
-    if (usersRes.rows.length === 0) return res.json({ assignee: 'Unassigned' })
+    if (usersRes.rows.length === 0) return 'Unassigned'
 
-    // Get or init counters
+    // Ensure every active user has a counter row
     for (const u of usersRes.rows) {
       await pool.query(
         'INSERT INTO lead_assignment_counter (counselor_name, counselor_email) VALUES ($1, $2) ON CONFLICT (counselor_name) DO NOTHING;',
@@ -2982,27 +2984,31 @@ app.get('/api/leads/next-assignee', async (req, res) => {
       )
     }
 
-    // Pick counselor with least assignments (load-based)
+    // Pick the counsellor with the least assignments (load-based)
     const counterRes = await pool.query(`
-      SELECT lac.counselor_name, lac.assignment_count
+      SELECT lac.counselor_name
       FROM lead_assignment_counter lac
       JOIN users u ON u.name = lac.counselor_name
       WHERE u.status = 'Active' AND u.role IN ('Counselor', 'Manager')
       ORDER BY lac.assignment_count ASC, lac.last_assigned ASC
       LIMIT 1;
     `)
-    if (counterRes.rows.length === 0) return res.json({ assignee: usersRes.rows[0].name })
-
-    const assignee = counterRes.rows[0].counselor_name
+    const assignee = counterRes.rows[0]?.counselor_name || usersRes.rows[0].name
     await pool.query(
       'UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;',
       [assignee]
     )
-    res.json({ assignee })
+    return assignee
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Auto-assignment failed.', assignee: 'Unassigned' })
+    console.error('[getNextAssignee]', err.message)
+    return 'Unassigned'
   }
+}
+
+app.get('/api/leads/next-assignee', async (req, res) => {
+  const assignee = await getNextAssignee()
+  if (assignee === 'Unassigned') return res.status(500).json({ error: 'Auto-assignment failed.', assignee })
+  res.json({ assignee })
 })
 
 // === FEATURE B: UNASSIGNED LEADS WITH SOURCE TRACKING ===
@@ -3501,18 +3507,23 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
             // Dedup check
             const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
             if (dupCheck.rows.length === 0) {
-              // Inbound leads land UNASSIGNED — admin/manager distributes manually
+              // Social media (Facebook/Instagram) → auto-assign round-robin
               const score = calculateLeadScore({ source: 'Facebook Ads', stage: 'Untouched', mobile, email, course })
+              const assignee = await getNextAssignee()
               const newLead = await pool.query(`
                 INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
-                VALUES ($1, $2, $3, $4, $5, $6, 'Facebook Ads', 'Unassigned', $7, $8, 'Untouched', 'red')
+                VALUES ($1, $2, $3, $4, $5, $6, 'Facebook Ads', $9, $7, $8, 'Untouched', 'red')
                 RETURNING id;
-              `, [name, email, mobile, state, city, course, new Date().toLocaleString('en-IN', { hour12: true }), score])
+              `, [name, email, mobile, state, city, course, new Date().toLocaleString('en-IN', { hour12: true }), score, assignee])
 
-              // Notify admins a new unassigned lead arrived
-              await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-                [`New Facebook Ads lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
-              console.log(`[Meta Webhook] New lead imported UNASSIGNED: ${name}`)
+              if (assignee && assignee !== 'Unassigned') {
+                await alertCounselor(assignee, name, course, 'Facebook Ads', newLead.rows[0].id)
+                console.log(`[Meta Webhook] New lead auto-assigned to ${assignee}: ${name}`)
+              } else {
+                await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
+                  [`New Facebook Ads lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+                console.log(`[Meta Webhook] New lead imported UNASSIGNED (no eligible counsellor): ${name}`)
+              }
             } else {
               console.log(`[Meta Webhook] Duplicate lead skipped: ${mobile} / ${email}`)
             }
@@ -3578,15 +3589,20 @@ app.post('/api/webhooks/whatsapp-bot', async (req, res) => {
         const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 LIMIT 1;', [from])
         if (dupCheck.rows.length === 0) {
           const score = calculateLeadScore({ source: 'WhatsApp', stage: 'Untouched', mobile: from, email: `wa_${from}@noemail.com`, course })
-          // Inbound leads land UNASSIGNED — admin/manager distributes manually
+          // Social media (WhatsApp) → auto-assign round-robin
           const waLeadName = `WhatsApp Lead (${from.slice(-4)})`
-          await pool.query(`
+          const assignee = await getNextAssignee()
+          const waLead = await pool.query(`
             INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
-            VALUES ($1, $2, $3, $4, 'WhatsApp', 'Unassigned', $5, $6, 'Untouched', 'red')
+            VALUES ($1, $2, $3, $4, 'WhatsApp', $7, $5, $6, 'Untouched', 'red')
             RETURNING id;
-          `, [waLeadName, `wa_${from}@noemail.com`, from, course, new Date().toLocaleString('en-IN', { hour12: true }), score])
-          await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-            [`New WhatsApp lead (unassigned): ${waLeadName} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+          `, [waLeadName, `wa_${from}@noemail.com`, from, course, new Date().toLocaleString('en-IN', { hour12: true }), score, assignee])
+          if (assignee && assignee !== 'Unassigned') {
+            await alertCounselor(assignee, waLeadName, course, 'WhatsApp', waLead.rows[0].id)
+          } else {
+            await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
+              [`New WhatsApp lead (unassigned): ${waLeadName} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+          }
         }
       }
     }
@@ -4177,7 +4193,10 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
 
     let sentCount = 0, failed = 0
 
-    if (isRcssms && (rcsType || 'BASIC').toUpperCase() === 'BASIC') {
+    // If the message uses {name}, send per-recipient so each lead's name is filled in.
+    const personalize = /\{name\}/.test(message || '')
+
+    if (isRcssms && (rcsType || 'BASIC').toUpperCase() === 'BASIC' && !personalize) {
       // BASIC template — same message for all → send in one batch (comma-separated msisdn)
       const allMobiles = leads.map(l => `91${l.mobile.replace(/\D/g, '').slice(-10)}`).join(',')
       try {
@@ -4363,19 +4382,26 @@ app.post('/api/public/inquiry', async (req, res) => {
       return res.status(200).json({ message: 'Your inquiry was already received. Our team will contact you shortly.', duplicate: true })
     }
 
-    // Inbound landing-page leads land UNASSIGNED — admin/manager distributes manually
+    // Landing-page leads: social-media sources auto-assign (round-robin); others stay unassigned
     const score = calculateLeadScore({ source: source || 'Website', stage: 'Untouched', mobile, email, course })
+    const socialMediaSources = ['facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
+    const isFromSocialMedia = source && socialMediaSources.some(sm => source.toLowerCase().includes(sm))
     const leadSource = source?.toLowerCase().includes('facebook') ? 'facebook' : 'form'
+    const owner = isFromSocialMedia ? await getNextAssignee() : 'Unassigned'
     const insertRes = await pool.query(`
       INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'Unassigned', $8, $9, 'Untouched', 'red', $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $11, $8, $9, 'Untouched', 'red', $10)
       RETURNING id, name, course;
-    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource])
+    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, owner])
 
     const pubLead = insertRes.rows[0]
-    // Notify admins a new unassigned lead arrived from the landing page
-    await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-      [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+    if (owner && owner !== 'Unassigned') {
+      await alertCounselor(owner, name, course || 'B.Tech CSE', source || 'Website', pubLead.id)
+    } else {
+      // Notify admins a new unassigned lead arrived from the landing page
+      await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
+        [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+    }
 
     res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: pubLead })
   } catch (err) {
@@ -5390,7 +5416,17 @@ const distPath = path.join(__dirname, '..', 'ccrm', 'dist')
 if (fs.existsSync(distPath)) {
   // Serve hashed static assets (JS/CSS) with long-term cache — safe because filenames change on rebuild
   app.use(express.static(distPath, { etag: true, maxAge: '1y', index: false }))
-  // Catch-all: always serve index.html fresh — NO etag/cache so browser never gets a stale 304
+
+  // Root → cutm16 marketing landing page (dist/landing/index.html) if present.
+  // Falls back to the React app so nothing breaks if the landing build is missing.
+  const landingIndex = path.join(distPath, 'landing', 'index.html')
+  app.get('/', (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    if (fs.existsSync(landingIndex)) return res.sendFile(landingIndex, { etag: false, lastModified: false })
+    res.sendFile(path.join(distPath, 'index.html'), { etag: false, lastModified: false })
+  })
+
+  // Catch-all: always serve the React index.html fresh — NO etag/cache so browser never gets a stale 304
   app.get('*', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
     res.set('Pragma', 'no-cache')
