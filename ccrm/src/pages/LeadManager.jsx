@@ -253,7 +253,8 @@ export default function LeadManager() {
     const q = { page: currentPage, limit: rowsPerPage, search: debouncedSearch }
     if (filters.stage)    q.stage  = filters.stage
     if (filters.state)    q.state  = filters.state
-    if (filters.owner)    q.owner  = filters.owner
+    if (filters.owner === 'Unassigned') q.unassigned = true
+    else if (filters.owner)             q.owner = filters.owner
     if (filters.campaign) q.source = filters.campaign
     if (quickView === 'My Leads')        q.owner = currentUser?.name || ''
     if (quickView === 'Unassigned')      q.unassigned = true
@@ -591,7 +592,7 @@ export default function LeadManager() {
   const stateOptions  = STATES
   const sourceOptions = SOURCES
   const ownerOptions  = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
-    ? (counselors || []).map(c => c.name)
+    ? ['Unassigned', ...(counselors || []).map(c => c.name)]
     : []
   const stageOptions  = ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success']
 
