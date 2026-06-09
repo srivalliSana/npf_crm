@@ -78,7 +78,8 @@ export default function Navbar({ onToggleSidebar, onLogout, user }) {
             Ask CU AI
           </button>
 
-          {/* Notifications */}
+          {/* Notifications — Admin only */}
+          {displayRole === 'Admin' && (
           <div className="relative">
             <button
               onClick={() => { setShowNotifications(!showNotifications); setShowProfile(false) }}
@@ -131,6 +132,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user }) {
               </div>
             )}
           </div>
+          )}
 
           <button className="p-2 rounded hover:bg-gray-100 text-gray-500 transition-colors">
             <Phone size={18} />
@@ -194,7 +196,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user }) {
                 </div>
                 <div className="py-1">
                   <button
-                    onClick={() => { navigate('/settings'); setShowProfile(false); }}
+                    onClick={() => { navigate('/profile'); setShowProfile(false); }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
                     My Profile

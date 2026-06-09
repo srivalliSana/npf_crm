@@ -882,14 +882,28 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
   const { name, email, mobile, state, city, course, source, owner: requestOwner, regDate, score, stage, stageColor } = req.body
   const finalRegDate = regDate || new Date().toLocaleString('en-IN', { hour12: true })
   try {
-    // Social media leads are auto-assigned (round-robin) unless an owner was given
-    const socialMediaSources = ['facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
-    const isFromSocialMedia = source && socialMediaSources.some(sm => source.toLowerCase().includes(sm))
+    // Resolve who is creating the lead (role from token; name from users table)
+    const requesterRole = req.user?.role || ''
+    let requesterName = ''
+    try {
+      const ur = await pool.query('SELECT name FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+      requesterName = ur.rows[0]?.name || ''
+    } catch { /* ignore */ }
 
-    let owner = requestOwner || 'Unassigned'
-    if (isFromSocialMedia && !requestOwner) {
+    // Assignment rules:
+    //  • Counsellor adds  → the lead is theirs.
+    //  • Admin/Manager adds → use the owner they picked, else auto-assign (round-robin).
+    //  • Social-media inbound leads come through the webhook routes (already auto-assigned).
+    const isCounsellor = requesterRole && !['Admin', 'Manager'].includes(requesterRole)
+    let owner
+    if (isCounsellor && requesterName) {
+      owner = requesterName
+      console.log(`[Lead Create] Counsellor ${requesterName} → assigned to self`)
+    } else if (requestOwner && requestOwner !== 'Unassigned') {
+      owner = requestOwner
+    } else {
       owner = await getNextAssignee()
-      console.log(`[Lead Create] Social media source (${source}) → auto-assigned to ${owner}`)
+      console.log(`[Lead Create] Admin/Manager add → auto-assigned to ${owner}`)
     }
 
     const insertRes = await pool.query(`
