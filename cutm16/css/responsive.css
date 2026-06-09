@@ -1,0 +1,75 @@
+.dekstop { display:block; }
+.mobile { display:none; }
+.logo_naac { width:20%; }
+.logo_nirf { width:28%; margin:0 10px; }
+.logo_the { width:40%; }
+
+@media only screen and (max-width: 600px) {
+	.dekstop { display:none; }
+	.mobile { display:block; }
+	.logo_naac { width:18%; }
+	.logo_nirf { width:27%; margin:0 10px; }
+	.logo_the { width:37%; }
+  #hero { height:30vh;  }
+  #featured-services { margin-top:0; }
+  .logo { left:0; }
+  .top-section { font-size:13px; background: #a80d34; padding:5px; text-align:center; }
+  .top-section a { color:#fff; }
+  #call-to-action #heading a { line-height:45px; }
+  #call-to-action #heading-list .card-body img { width:50%; right: -35px; }
+  #faq { margin-top: -20px; }
+  .form-sec { position:relative; width:100%; }
+  ul.program-list li { width:100%; margin:1% 0; }
+  ul.program-list { display:block !important; }
+  ul.program-list li img { border-radius:20px; }
+  #testimonials { padding:20px 0; }
+  #testimonials h3 { font-size:31px; }
+  .research-box { margin:10px 0; }
+  .research-box img.img-fluid { width:100%; }
+  #team h3 { font-size:27px; }
+  .apply-now a { font-size:21px; background: #fff; width: auto; margin: 50px 0 0 90px; padding:0 10px; }
+  .footer-newsletter form { margin-top:20px; }
+  a.splite_sideEnquiry1 { top:70%; }
+  #footer .copyright { text-align:center; } 
+  #footer .copyright p { font-size:15px; } 
+  #footer .copyright p a { font-size:15px; }
+  .author { text-align:center !important; width: 100%; } 
+  .fixed-enquiry-btn a { z-index:999999999; }
+  #header .logo img { top:0; padding:5px; height: 100px; }
+  .naac {  top:5px; }
+  .col-lg-25 { width: 50%; }
+  #reserch-first { display:none; }
+  .glance { padding: 60px 0 150px 0; }
+  .glance h3 { font-size:31px; }
+  .overview h3 { font-size:31px; }
+  .overview h3 span { font-size:31px; }
+  img.img-ribbon { display:none; }
+  .admission-process h3 { font-size:31px; }
+  .admission-process h3 span { font-size:31px; }
+  .admission-process-bottom { top:-50px; }
+  .pedagogy h3 { font-size:31px; }
+  .pedagogy h3 span { font-size:31px; }
+  .integration h3 { font-size:31px; }
+  .integration h3 span { font-size:31px; }
+  .integration h4 { font-size:31px; }
+  .integration h4 span { font-size:31px; }
+  img.img-achivements {  position: relative; left:0; width:100%; bottom:0; }
+  .achivements .col-lg-6 { padding:25px; padding-top: 0 !important; }
+  .achivements h3 { font-size:31px; margin-top: 20px; }
+  .achivements h3 span { font-size:31px; }
+  .collaboration h3 { font-size:31px; margin-top: 20px; }
+  .collaboration h3 span { font-size:31px; }
+  h4.professor { color:#000; }
+  h4.professor span { color:#000; }
+  h4.professor1 { color:#000; }
+  h4.professor1 span { color:#000; }
+  a.btn-join-us { font-size:15px; padding: 10px; }
+  a.btn-join { font-size:15px; padding: 10px; }
+  .faq-holder { padding:20px; }
+  .faq-holder h2 { font-size:27px; }
+  .award-section h2 { font-size:27px; }
+  .placement-holder h2 { font-size:27px; }
+  .course-list li { width:96%; margin:2%; }
+  .course-pills .nav-link { width:100%; }
+  
+}
