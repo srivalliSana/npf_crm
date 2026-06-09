@@ -1,5 +1,5 @@
 // FTL Inquiry Form Webhook
-module.exports = async (req, res, pool) => {
+export default async (req, res, pool) => {
   try {
     const { name, email_id, phone, looking_for } = req.body
 
