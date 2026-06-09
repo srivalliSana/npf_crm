@@ -12,11 +12,11 @@ import { APP_VERSION } from '../version'
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',          to: '/dashboard',              roles: null },
   { icon: Users,           label: 'Leads',              to: '/leads',                  roles: null },
-  { icon: Users,           label: 'Website Leads',      to: '/websites-dashboard',     roles: null },
+  { icon: Users,           label: 'Website Leads',      to: '/websites-dashboard',     roles: ['Admin'] },
   {
     icon: Users,
     label: 'GT Entities',
-    roles: null,
+    roles: ['Admin'],
     submenu: [
       { label: 'FTL',    to: '/ftl-leads' },
       { label: 'GTIB',   to: '/gtib-leads' },
@@ -30,7 +30,6 @@ const NAV_ITEMS = [
   { icon: CreditCard,      label: 'Payments',      to: '/payments',         roles: null },
   { icon: Calendar,        label: 'Calendar',      to: '/calendar',         roles: null },
   { icon: FileCheck,       label: 'Documents',     to: '/documents',        roles: null },
-  { icon: HelpCircle,      label: 'Queries',       to: '/queries',          roles: null },
   { icon: PieChart,        label: 'Analytics',     to: '/analytics',        roles: ['Admin', 'Manager'] },
   { icon: Activity,        label: 'Productivity',  to: '/productivity',     roles: ['Admin', 'Manager'] },
   { icon: BarChart2,       label: 'Call Report',   to: '/call-activity',    roles: ['Admin', 'Manager'] },

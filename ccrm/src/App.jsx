@@ -11,7 +11,6 @@ import ProductivityReport from './pages/ProductivityReport'
 import Campaigns from './pages/Campaigns'
 import Tasks from './pages/Tasks'
 import Payments from './pages/Payments'
-import QueryManagement from './pages/QueryManagement'
 import Documents from './pages/Documents'
 import CalendarPro from './pages/CalendarPro'
 import UserManagement from './pages/UserManagement'
@@ -87,11 +86,14 @@ export default function App() {
             <Route path="leads"            element={<LeadManager />} />
             <Route path="call-outcomes"    element={<CallOutcomes />} />
             <Route path="leads/:id"        element={<ApplicationDetails />} />
-            <Route path="websites-dashboard" element={<WebsitesDashboard />} />
-            <Route path="ftl-leads"        element={<FTLLeads />} />
-            <Route path="gtib-leads"       element={<GTIBLeads />} />
-            <Route path="gttech-leads"     element={<GTTECHLeads />} />
-            <Route path="esse-leads"       element={<ESSELeads />} />
+            {/* Website + GT Entity leads — Admin only (separate business) */}
+            <Route element={<RoleGuard roles={['Admin']} />}>
+              <Route path="websites-dashboard" element={<WebsitesDashboard />} />
+              <Route path="ftl-leads"        element={<FTLLeads />} />
+              <Route path="gtib-leads"       element={<GTIBLeads />} />
+              <Route path="gttech-leads"     element={<GTTECHLeads />} />
+              <Route path="esse-leads"       element={<ESSELeads />} />
+            </Route>
             <Route path="applications"     element={<ApplicationManager />} />
             <Route path="applications/:id" element={<ApplicationDetails />} />
             <Route path="dashboard"        element={<Dashboard />} />
@@ -111,12 +113,12 @@ export default function App() {
             <Route path="campaigns"        element={<Campaigns />} />
             <Route path="tasks"            element={<Tasks />} />
             <Route path="payments"         element={<Payments />} />
-            <Route path="queries"          element={<QueryManagement />} />
             <Route path="documents"        element={<Documents />} />
             <Route path="calendar"         element={<CalendarPro />} />
             <Route path="settings"         element={<Settings />} />
-            <Route path="integrations"     element={<Integrations />} />
+            {/* Integrations — Admin only */}
             <Route element={<RoleGuard roles={['Admin']} />}>
+              <Route path="integrations"     element={<Integrations />} />
               <Route path="integration-settings" element={<IntegrationSettings />} />
             </Route>
             <Route path="leaderboard"      element={<Leaderboard />} />

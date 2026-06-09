@@ -1526,7 +1526,17 @@ app.put('/api/tasks/:id', async (req, res) => {
 // --- PAYMENTS ROUTERS ---
 app.get('/api/payments', async (req, res) => {
   try {
-    const payRes = await pool.query('SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode" FROM payments ORDER BY id DESC;')
+    const { requesterRole, requesterName } = req.query
+    // Admin/Manager/Finance see all; counsellors only their assigned leads' payments (matched by name)
+    const isCounsellor = requesterRole && !['Admin', 'Manager', 'Finance'].includes(requesterRole) && requesterName
+    let sql = 'SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode" FROM payments'
+    const params = []
+    if (isCounsellor) {
+      params.push(requesterName)
+      sql += ' WHERE LOWER(name) IN (SELECT LOWER(name) FROM leads WHERE LOWER(owner) = LOWER($1))'
+    }
+    sql += ' ORDER BY id DESC;'
+    const payRes = await pool.query(sql, params)
     res.json(payRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch payments ledger.' })
@@ -1755,7 +1765,17 @@ app.put('/api/queries/:id', async (req, res) => {
 // --- DOCUMENTS ROUTERS ---
 app.get('/api/documents', async (req, res) => {
   try {
-    const docsRes = await pool.query('SELECT id, student, type, status, upload_date AS "uploadDate", file_url AS "fileUrl" FROM documents ORDER BY id DESC;')
+    const { requesterRole, requesterName } = req.query
+    // Admin/Manager/Finance see all; counsellors only their assigned leads' documents (matched by student name)
+    const isCounsellor = requesterRole && !['Admin', 'Manager', 'Finance'].includes(requesterRole) && requesterName
+    let sql = 'SELECT id, student, type, status, upload_date AS "uploadDate", file_url AS "fileUrl" FROM documents'
+    const params = []
+    if (isCounsellor) {
+      params.push(requesterName)
+      sql += ' WHERE LOWER(student) IN (SELECT LOWER(name) FROM leads WHERE LOWER(owner) = LOWER($1))'
+    }
+    sql += ' ORDER BY id DESC;'
+    const docsRes = await pool.query(sql, params)
     res.json(docsRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch documents.' })
