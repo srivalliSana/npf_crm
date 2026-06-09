@@ -34,7 +34,6 @@ const getStageColorName = (stage) => ({
   'Qualified Leads': 'orange', 'Converted': 'emerald',
 }[stage] || 'blue')
 
-const QUICK_VIEWS = ['All Leads', 'My Leads', 'Unassigned', 'Untouched', 'Follow Up Today', 'Hot Leads']
 
 // Reference Colleges (formerly 'Course Preference') — dropdown only
 const REFERENCE_COLLEGES = [
@@ -72,7 +71,6 @@ export default function LeadManager() {
 
   const [selectedRows, setSelectedRows] = useState([])
   const [selectAllPages, setSelectAllPages] = useState(false)
-  const [quickView, setQuickView] = useState('All Leads')
   const [currentPage, setCurrentPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({ stage: '', owner: '', campaign: '', state: '' })
@@ -256,15 +254,10 @@ export default function LeadManager() {
     if (filters.owner === 'Unassigned') q.unassigned = true
     else if (filters.owner)             q.owner = filters.owner
     if (filters.campaign) q.source = filters.campaign
-    if (quickView === 'My Leads')        q.owner = currentUser?.name || ''
-    if (quickView === 'Unassigned')      q.unassigned = true
-    if (quickView === 'Untouched')       q.stage = 'Untouched'
-    if (quickView === 'Follow Up Today') q.stage = 'Follow Up'
     // Domain-based filtering: cutm/cutmap
     if (activeFilter === 'cutm' || activeFilter === 'cutmap') {
       q.domain = activeFilter
     }
-    console.log(`[buildQuery] activeFilter=${activeFilter}, quickView=${quickView}, page=${currentPage}, result:`, q)
     return q
   }
 
@@ -288,11 +281,10 @@ export default function LeadManager() {
     }
   }
 
-  // Reload whenever paging / search / filters / quick-view / user change
+  // Reload whenever paging / search / filters / domain / user change
   useEffect(() => {
-    console.log(`[useEffect] Triggered! activeFilter=${activeFilter}, quickView=${quickView}, currentPage=${currentPage}`)
     loadPage()
-  }, [currentPage, debouncedSearch, filters, quickView, activeFilter, currentUser])
+  }, [currentPage, debouncedSearch, filters, activeFilter, currentUser])
 
   const refreshLeads = () => loadPage()
 
@@ -602,14 +594,6 @@ export default function LeadManager() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-bold text-gray-900">Lead Manager</h1>
-          <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-lg p-1">
-            {QUICK_VIEWS.map(v => (
-              <button key={v} onClick={() => { setQuickView(v); setCurrentPage(1) }}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${quickView === v ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                {v}
-              </button>
-            ))}
-          </div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={handleExport} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
