@@ -382,7 +382,7 @@ export default function UserManagement({ currentUser }) {
                       onChange={selectAll}
                       className="w-4 h-4 rounded border-gray-300 text-primary-500" />
                   </th>
-                  {['Name','Email','Role','Team','Reports To','Status','Last Login','Actions'].map(h => (
+                  {['Name','Email','Mobile','Role','Team','Reports To','Status','Last Login','Actions'].map(h => (
                     <th key={h} className="table-th">{h}</th>
                   ))}
                 </tr>
@@ -412,6 +412,7 @@ export default function UserManagement({ currentUser }) {
                         </div>
                       </td>
                       <td className="table-td text-gray-600 text-xs">{u.email}</td>
+                      <td className="table-td text-gray-600 text-xs">{u.mobile || <span className="text-gray-300">—</span>}</td>
                       <td className="table-td">
                         <span className={`badge ${rc.bg} ${rc.text}`}>{u.role}</span>
                       </td>
@@ -460,7 +461,7 @@ export default function UserManagement({ currentUser }) {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-gray-400 text-sm">No users found.</td>
+                    <td colSpan={10} className="text-center py-8 text-gray-400 text-sm">No users found.</td>
                   </tr>
                 )}
               </tbody>

@@ -102,3 +102,8 @@
   max-height: 88vh !important;
 }
 
+/* Closed state — our × button hides the whole widget (panel + launcher pill). */
+body.cutm-voice-hidden #omni-widget-component {
+  display: none !important;
+}
+
