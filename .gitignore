@@ -11,3 +11,4 @@ ccrm/.env.local
 ccrm/.env.development
 ccrm/.env.production
 *.zip
+.DS_Store
