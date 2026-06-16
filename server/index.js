@@ -2126,6 +2126,9 @@ app.get('/api/dashboard/stats', async (req, res) => {
         byDomain[row.domain].total += row.count
       }
     }
+    // Reconcile to the grand total: everything not owned by a CUTM/CUTMAP counsellor
+    // (unassigned, GT-owned, or owner not matching a user) so cutm+cutmap+other = total.
+    byDomain.other = { total: Math.max(0, (kpi.rows[0]?.totalLeads || 0) - byDomain.cutm.total - byDomain.cutmap.total), stages: {} }
 
     // Counsellor × stage matrix (role-scoped via userScope) for the Stage Summary.
     // Includes each counsellor's domain (cutm/cutmap) so the UI can filter.
@@ -2897,7 +2900,7 @@ app.post('/api/leads/bulk-upload', authenticateToken, uploadDoc.single('file'), 
     console.log(`[Bulk Upload] Parsed ${rawData.length} rows. Initiating database batch insert...`)
 
     // Social media sources that should stay unassigned
-    const socialMediaSources = ['facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
+    const socialMediaSources = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
 
     // 2. Perform batched SQL multi-row insert transactions (2000 rows/query to stay safe under PostgreSQL 65,535 parameters limit)
     const client = await pool.connect()
@@ -3541,21 +3544,21 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
             // Dedup check
             const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
             if (dupCheck.rows.length === 0) {
-              // Social media (Facebook/Instagram) → auto-assign round-robin
-              const score = calculateLeadScore({ source: 'Facebook Ads', stage: 'Untouched', mobile, email, course })
+              // Meta (Facebook/Instagram lead ads) → auto-assign round-robin
+              const score = calculateLeadScore({ source: 'Meta', stage: 'Untouched', mobile, email, course })
               const assignee = await getNextAssignee()
               const newLead = await pool.query(`
                 INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
-                VALUES ($1, $2, $3, $4, $5, $6, 'Facebook Ads', $9, $7, $8, 'Untouched', 'red')
+                VALUES ($1, $2, $3, $4, $5, $6, 'Meta', $9, $7, $8, 'Untouched', 'red')
                 RETURNING id;
               `, [name, email, mobile, state, city, course, new Date().toLocaleString('en-IN', { hour12: true }), score, assignee])
 
               if (assignee && assignee !== 'Unassigned') {
-                await alertCounselor(assignee, name, course, 'Facebook Ads', newLead.rows[0].id)
+                await alertCounselor(assignee, name, course, 'Meta', newLead.rows[0].id)
                 console.log(`[Meta Webhook] New lead auto-assigned to ${assignee}: ${name}`)
               } else {
                 await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-                  [`New Facebook Ads lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+                  [`New Meta lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
                 console.log(`[Meta Webhook] New lead imported UNASSIGNED (no eligible counsellor): ${name}`)
               }
             } else {
@@ -3666,7 +3669,7 @@ function detectCourseInterest(text) {
 function calculateLeadScore({ source, stage, mobile, email, course, state }) {
   let score = 0
   // Source quality
-  const sourceScores = { 'Referral': 30, 'Walk-in': 28, 'Education Fair': 25, 'Google Ads': 20, 'Facebook Ads': 18, 'LinkedIn': 22, 'Website': 15, 'WhatsApp': 12, 'SMS Campaign': 10 }
+  const sourceScores = { 'Referral': 30, 'Walk-in': 28, 'Education Fair': 25, 'Google Ads': 20, 'Meta': 18, 'Facebook Ads': 18, 'LinkedIn': 22, 'Website': 15, 'WhatsApp': 12, 'SMS Campaign': 10 }
   score += sourceScores[source] || 10
   // Email completeness (not noemail.com)
   if (email && !email.includes('noemail')) score += 15
@@ -4418,7 +4421,7 @@ app.post('/api/public/inquiry', async (req, res) => {
 
     // Landing-page leads: social-media sources auto-assign (round-robin); others stay unassigned
     const score = calculateLeadScore({ source: source || 'Website', stage: 'Untouched', mobile, email, course })
-    const socialMediaSources = ['facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
+    const socialMediaSources = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
     const isFromSocialMedia = source && socialMediaSources.some(sm => source.toLowerCase().includes(sm))
     const leadSource = source?.toLowerCase().includes('facebook') ? 'facebook' : 'form'
     const owner = isFromSocialMedia ? await getNextAssignee() : 'Unassigned'

@@ -438,6 +438,8 @@ export async function initDb() {
     await client.query(`UPDATE leads SET stage='Follow Up' WHERE stage='Further Talk';`).catch(() => {})
     await client.query(`UPDATE leads SET stage='Campus Visit Scheduled' WHERE stage='Campus Visit';`).catch(() => {})
     await client.query(`UPDATE leads SET stage='Payment Success' WHERE stage='Admission Confirmed';`).catch(() => {})
+    // Source label: Meta lead-ads were previously stored as 'Facebook Ads' (idempotent)
+    await client.query(`UPDATE leads SET source='Meta' WHERE source='Facebook Ads';`).catch(() => {})
 
     // Payment extra fields
     await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS utr_number VARCHAR(100) DEFAULT '';`).catch(() => {})

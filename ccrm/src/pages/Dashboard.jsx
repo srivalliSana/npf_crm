@@ -186,6 +186,23 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Reconciliation — CUTM + CUTMAP + Unassigned/Other = Total Leads */}
+      {!isCounselor && stats?.byDomain && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 mb-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm">
+          <span className="font-bold text-gray-900">{(kpi?.totalLeads || 0).toLocaleString()}</span>
+          <span className="text-gray-400 text-xs">Total</span>
+          <span className="text-gray-300">=</span>
+          <span className="font-semibold text-blue-600">{(cutm.total || 0).toLocaleString()}</span>
+          <span className="text-gray-400 text-xs">CUTM</span>
+          <span className="text-gray-300">+</span>
+          <span className="font-semibold text-violet-600">{(cutmap.total || 0).toLocaleString()}</span>
+          <span className="text-gray-400 text-xs">CUTMAP</span>
+          <span className="text-gray-300">+</span>
+          <span className="font-semibold text-gray-600">{((stats?.byDomain?.other?.total) || 0).toLocaleString()}</span>
+          <span className="text-gray-400 text-xs">Unassigned / Other</span>
+        </div>
+      )}
+
       {/* Stage Summary — counsellor (rows) × stage (columns) matrix (admin/manager) */}
       {!isCounselor && Array.isArray(stats?.byCounsellorStages) && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
