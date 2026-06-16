@@ -54,7 +54,7 @@ const STATES = ['Andhra Pradesh', 'Odisha']
 
 // CUTM campuses
 const CAMPUSES = ['Bhubaneswar', 'Paralakhemundi', 'Balasore', 'Vizianagaram']
-const SOURCES = ['Google Ads', 'Facebook Ads', 'LinkedIn', 'Walk-in', 'Referral', 'Website', 'WhatsApp', 'Education Fair', 'SMS Campaign', 'Instagram']
+const SOURCES = ['Google Ads', 'Meta', 'LinkedIn', 'Walk-in', 'Referral', 'Website', 'WhatsApp', 'Education Fair', 'SMS Campaign', 'Instagram']
 const CRM_FIELDS = ['name', 'email', 'mobile', 'state', 'city', 'course', 'source', 'owner']
 const WA_TEMPLATES = [
   { label: 'Course Enquiry', msg: 'Hi {name}! 👋 Thanks for showing interest in CUTM. We have excellent programs in {course}. Call us: +91-674-2559441' },
@@ -383,7 +383,7 @@ export default function LeadManager() {
 
   function calcScore(source, course, lead = {}) {
     // Source quality (0-30)
-    const srcScore = { 'Referral':30,'Walk-in':28,'Education Fair':25,'LinkedIn':22,'Google Ads':20,'Facebook Ads':18,'Instagram':14,'Website':13,'WhatsApp':12,'SMS Campaign':10 }[source] || 10
+    const srcScore = { 'Referral':30,'Walk-in':28,'Education Fair':25,'LinkedIn':22,'Google Ads':20,'Meta':18,'Facebook Ads':18,'Instagram':14,'Website':13,'WhatsApp':12,'SMS Campaign':10 }[source] || 10
 
     // Course demand/fee tier (0-25)
     const highCourses = ['MBA','MBA (Finance)','MBA (Marketing)','MBA (HR)','M.Tech','MCA']
