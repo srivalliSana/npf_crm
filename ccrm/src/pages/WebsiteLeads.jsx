@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Search, Download, RefreshCw, ChevronLeft, ChevronRight, UserCheck, Users } from 'lucide-react'
+import { Search, Download, Upload, RefreshCw, ChevronLeft, ChevronRight, UserCheck, Users } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
 export default function WebsiteLeads({ website }) {
@@ -13,6 +13,7 @@ export default function WebsiteLeads({ website }) {
   const [assignFilter, setAssignFilter] = useState('all') // all, assigned, unassigned
   const [assignToUser, setAssignToUser] = useState('')
   const [assigning, setAssigning] = useState(false)
+  const [importing, setImporting] = useState(false)
   const limit = 25
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
@@ -134,13 +135,49 @@ export default function WebsiteLeads({ website }) {
     a.click()
   }
 
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''  // allow re-importing the same file
+    if (!file) return
+    setImporting(true)
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('website', website)
+      const res = await fetch('/api/website-leads/import', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: fd
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        showToast(`Imported ${data.inserted} ${websiteLabel} lead(s)${data.skipped ? `, ${data.skipped} skipped (invalid phone)` : ''}.`, 'success')
+        setPage(1); loadLeads()
+      } else {
+        showToast(data.error || 'Import failed.', 'error')
+      }
+    } catch {
+      showToast('Import network error.', 'error')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">{websiteLabel} Leads</h1>
-        <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-          <Download size={16} /> Export
-        </button>
+        <div className="flex items-center gap-2">
+          <label title="Import from Excel/CSV"
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg ${importing ? 'bg-gray-200 text-gray-500 cursor-wait' : 'bg-green-500 text-white hover:bg-green-600 cursor-pointer'}`}>
+            <Upload size={16} /> {importing ? 'Importing…' : 'Import'}
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} disabled={importing} className="hidden" />
+          </label>
+          <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+            <Download size={16} /> Export
+          </button>
+        </div>
       </div>
 
       {/* Search & Filters */}
