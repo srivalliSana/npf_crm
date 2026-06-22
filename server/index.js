@@ -878,6 +878,78 @@ app.get('/api/esse-leads', async (req, res) => {
   }
 })
 
+// --- BULK IMPORT for GT website leads (FTL / GTIB / GTTECH / ESSE) ---
+app.post('/api/website-leads/import', authenticateToken, uploadDoc.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })
+  const website = String(req.body.website || '').toLowerCase()
+  if (!['ftl', 'gtib', 'gttech', 'esse'].includes(website)) {
+    return res.status(400).json({ error: 'Invalid website. Use ftl, gtib, gttech, or esse.' })
+  }
+  const filePath = req.file.path
+  // Pick a value from a row by trying several normalised header aliases
+  const pick = (row, aliases) => {
+    for (const k of Object.keys(row)) {
+      if (aliases.includes(k.toLowerCase().replace(/[^a-z0-9]/g, ''))) return String(row[k] ?? '').trim()
+    }
+    return ''
+  }
+  try {
+    const workbook = XLSX.readFile(filePath)
+    const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]])
+    if (!rawData || rawData.length === 0) return res.status(400).json({ error: 'Spreadsheet is empty or invalid.' })
+
+    let inserted = 0, skipped = 0
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      for (const row of rawData) {
+        const phone = pick(row, ['phone', 'mobile', 'mobileno', 'mobilenumber', 'phonenumber', 'contact']).replace(/\D/g, '')
+        if (phone.length < 10) { skipped++; continue }
+        if (website === 'gttech') {
+          await client.query(
+            `INSERT INTO gttech_leads (full_name, organization_name, designation, industry_sector, interested_in, email, phone, website_code)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,'gttech');`,
+            [
+              pick(row, ['fullname', 'name']) || 'Unnamed',
+              pick(row, ['organizationname', 'organization', 'company', 'companyname']),
+              pick(row, ['designation', 'title', 'role']),
+              pick(row, ['industrysector', 'industry', 'sector']),
+              pick(row, ['interestedin', 'interest', 'lookingfor', 'course']),
+              pick(row, ['email', 'emailid', 'emailaddress']),
+              phone,
+            ]
+          )
+        } else {
+          // ftl / gtib / esse share the same shape (table name is whitelisted above)
+          await client.query(
+            `INSERT INTO ${website}_leads (name, email_id, phone, looking_for, website_code)
+             VALUES ($1,$2,$3,$4,$5);`,
+            [
+              pick(row, ['name', 'fullname', 'studentname']) || 'Unnamed',
+              pick(row, ['emailid', 'email', 'emailaddress']),
+              phone,
+              pick(row, ['lookingfor', 'interest', 'interestedin', 'course', 'program']),
+              website,
+            ]
+          )
+        }
+        inserted++
+      }
+      await client.query('COMMIT')
+    } catch (e) {
+      await client.query('ROLLBACK'); throw e
+    } finally {
+      client.release()
+    }
+    fs.unlink(filePath, () => {})
+    console.log(`[Website Leads Import] ${website}: ${inserted} inserted, ${skipped} skipped`)
+    res.json({ success: true, inserted, skipped, total: rawData.length, website })
+  } catch (err) {
+    console.error('[Website Leads Import]', err.message)
+    res.status(500).json({ error: 'Import failed: ' + err.message })
+  }
+})
+
 app.post('/api/leads', authenticateToken, async (req, res) => {
   const { name, email, mobile, state, city, course, source, owner: requestOwner, regDate, score, stage, stageColor } = req.body
   const finalRegDate = regDate || new Date().toLocaleString('en-IN', { hour12: true })
