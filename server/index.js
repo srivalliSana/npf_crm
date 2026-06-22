@@ -3610,7 +3610,18 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
                 } catch (gErr) {
                   console.error('[Meta Graph API Error]', gErr.message)
                 }
+              } else {
+                console.warn(`[Meta Webhook] leadgen ${leadgenId} received but no meta_page_access_token configured — cannot fetch lead data. Set it in Integrations → Facebook Lead Ads.`)
               }
+            }
+
+            // Guard: if we couldn't resolve a real phone, the Page Access Token is
+            // missing/expired or lacks leads_retrieval — don't create a junk lead.
+            if (String(mobile).replace(/\D/g, '').length < 10) {
+              console.warn(`[Meta Webhook] No usable phone for leadgen ${leadgenId} — check meta_page_access_token / leads_retrieval permission. Skipping.`)
+              await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
+                [`Meta lead received but could not be fetched (leadgen ${leadgenId}). Check Facebook Lead Ads token in Integrations.`, 'Just now', 'lead_unassigned']).catch(() => {})
+              continue
             }
 
             // Dedup check
