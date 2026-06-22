@@ -4729,10 +4729,15 @@ app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
           }
           continue
         }
-        // Source must be 'AI' (admin/internal import) or 'SM' (social media)
-        const rawSrc = String(row[columnMap.source] || row.Source || row.source || 'AI').trim().toUpperCase()
-        const source = rawSrc === 'SM' ? 'Social Media' : 'Admin Import'
-        const sourceType = rawSrc === 'SM' ? 'sm' : 'ai'
+        // Source: 'SM' → Social Media, 'AI'/blank → Admin Import, anything else is
+        // kept as-is so real labels (Meta, Google Ads, Website…) survive the import.
+        const rawSrc = String(row[columnMap.source] || row.Source || row.source || 'AI').trim()
+        const upperSrc = rawSrc.toUpperCase()
+        const source = upperSrc === 'SM' ? 'Social Media'
+                     : (upperSrc === 'AI' || rawSrc === '') ? 'Admin Import'
+                     : rawSrc
+        const socialList = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram', 'social media']
+        const sourceType = (upperSrc === 'SM' || socialList.includes(source.toLowerCase())) ? 'sm' : 'ai'
         const score  = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
         const owner  = getNextOwner()
         assignmentCounts[owner] = (assignmentCounts[owner] || 0) + 1
