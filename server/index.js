@@ -1012,6 +1012,27 @@ app.post('/api/website-leads/assign', authenticateToken, async (req, res) => {
   }
 })
 
+// --- UPDATE status on GT website leads (Admin/Manager) ---
+app.post('/api/website-leads/status', authenticateToken, async (req, res) => {
+  if (!['Admin', 'Manager'].includes(req.user?.role)) return res.status(403).json({ error: 'Admin/Manager only.' })
+  const website = String(req.body.website || '').toLowerCase()
+  const { ids, status } = req.body
+  if (!['ftl', 'gtib', 'gttech', 'esse'].includes(website)) return res.status(400).json({ error: 'Invalid website.' })
+  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No leads selected.' })
+  if (!status || !String(status).trim()) return res.status(400).json({ error: 'Status required.' })
+  try {
+    const r = await pool.query(
+      `UPDATE ${website}_leads SET status = $1 WHERE id = ANY($2::int[]);`,
+      [String(status).trim().substring(0, 50), ids.map(Number).filter(Boolean)]
+    )
+    console.log(`[Website Leads Status] ${website}: ${r.rowCount} → ${status} by ${req.user.email}`)
+    res.json({ success: true, updated: r.rowCount, status })
+  } catch (err) {
+    console.error('[Website Leads Status]', err.message)
+    res.status(500).json({ error: 'Status update failed: ' + err.message })
+  }
+})
+
 app.post('/api/leads', authenticateToken, async (req, res) => {
   const { name, email, mobile, state, city, course, source, owner: requestOwner, regDate, score, stage, stageColor } = req.body
   const finalRegDate = regDate || new Date().toLocaleString('en-IN', { hour12: true })

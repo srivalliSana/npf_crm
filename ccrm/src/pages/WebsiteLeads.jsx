@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { Search, Download, Upload, RefreshCw, ChevronLeft, ChevronRight, UserCheck, Users } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
+const STATUS_OPTIONS = ['New', 'Contacted', 'Interested', 'Follow Up', 'Not Interested', 'Converted', 'Closed']
+
 export default function WebsiteLeads({ website }) {
   const { showToast, counselors } = useCcrm()
   const [leads, setLeads] = useState([])
@@ -110,6 +112,26 @@ export default function WebsiteLeads({ website }) {
       }
     } catch {
       showToast('Assignment error', 'error')
+    }
+  }
+
+  const updateStatus = async (id, status) => {
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/website-leads/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ website, ids: [id], status })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        showToast(`Status updated to ${status}`, 'success')
+        await loadLeads()
+      } else {
+        showToast(data.error || 'Status update failed', 'error')
+      }
+    } catch {
+      showToast('Status update error', 'error')
     }
   }
 
@@ -361,11 +383,15 @@ export default function WebsiteLeads({ website }) {
                       </select>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        lead.status === 'new' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {lead.status || 'new'}
-                      </span>
+                      <select
+                        value={STATUS_OPTIONS.includes(lead.status) ? lead.status : 'New'}
+                        onChange={e => updateStatus(lead.id, e.target.value)}
+                        className="px-2 py-1 text-xs border rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {(STATUS_OPTIONS.includes(lead.status) ? STATUS_OPTIONS : [lead.status, ...STATUS_OPTIONS].filter(Boolean)).map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-4 py-3 text-gray-600 text-xs">
                       {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '—'}
