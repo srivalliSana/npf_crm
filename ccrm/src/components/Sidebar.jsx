@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, FileText, CheckSquare, Megaphone,
@@ -53,10 +53,25 @@ export default function Sidebar({ onLogout, user }) {
   const userRole = user?.role || 'Counselor'
   const expanded = true
   const [openSubmenu, setOpenSubmenu] = useState(null)
+  const [hasGtLeads, setHasGtLeads] = useState(false)
 
-  const visibleItems = NAV_ITEMS.filter(item =>
-    !item.roles || item.roles.includes(userRole)
-  )
+  // Non-admins see "GT Entities" only if they have GT leads assigned to them
+  useEffect(() => {
+    if (userRole === 'Admin' || !user?.name) return
+    const token = localStorage.getItem('ccrm_token')
+    fetch(`/api/website-leads/my-count?owner=${encodeURIComponent(user.name)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+      .then(r => r.ok ? r.json() : { total: 0 })
+      .then(d => setHasGtLeads((d?.total || 0) > 0))
+      .catch(() => {})
+  }, [userRole, user?.name])
+
+  const visibleItems = NAV_ITEMS.filter(item => {
+    // GT Entities: Admin always; other roles only if they have GT leads assigned
+    if (item.label === 'GT Entities' && userRole !== 'Admin') return hasGtLeads
+    return !item.roles || item.roles.includes(userRole)
+  })
 
   return (
     <aside
