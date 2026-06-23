@@ -5,7 +5,8 @@ import { useCcrm } from '../context/CcrmContext'
 const STATUS_OPTIONS = ['New', 'Contacted', 'Interested', 'Follow Up', 'Not Interested', 'Converted', 'Closed']
 
 export default function WebsiteLeads({ website }) {
-  const { showToast, counselors } = useCcrm()
+  const { showToast, counselors, currentUser } = useCcrm()
+  const isPrivileged = ['Admin', 'Manager'].includes(currentUser?.role)
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -46,6 +47,9 @@ export default function WebsiteLeads({ website }) {
       if (search) qs.set('search', search)
       if (assignFilter === 'assigned')        qs.set('owner', '!Unassigned')
       else if (assignFilter === 'unassigned') qs.set('owner', 'Unassigned')
+      // Counsellors are scoped server-side to GT leads assigned to them
+      if (currentUser?.role) qs.set('requesterRole', currentUser.role)
+      if (currentUser?.name) qs.set('requesterName', currentUser.name)
 
       const res = await fetch(`${apiEndpoint}?${qs.toString()}`)
       if (!res.ok) throw new Error('Failed to load leads')
@@ -258,8 +262,8 @@ export default function WebsiteLeads({ website }) {
           </select>
         </div>
 
-        {/* Bulk Assign */}
-        {selectedRows.length > 0 && (
+        {/* Bulk Assign — Admin/Manager only */}
+        {isPrivileged && selectedRows.length > 0 && (
           <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
             <span className="text-sm font-medium text-blue-900">
               {selectedRows.length} selected
@@ -371,16 +375,20 @@ export default function WebsiteLeads({ website }) {
                     )}
                     <td className="px-4 py-3 text-gray-900">{lead.phone || '—'}</td>
                     <td className="px-4 py-3">
-                      <select
-                        value={lead.owner || 'Unassigned'}
-                        onChange={e => assignOne(lead.id, e.target.value)}
-                        className="px-2 py-1 text-xs border rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="Unassigned">Unassigned</option>
-                        {counselors?.map(c => (
-                          <option key={c.id} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
+                      {isPrivileged ? (
+                        <select
+                          value={lead.owner || 'Unassigned'}
+                          onChange={e => assignOne(lead.id, e.target.value)}
+                          className="px-2 py-1 text-xs border rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="Unassigned">Unassigned</option>
+                          {counselors?.map(c => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-gray-700">{lead.owner || '—'}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <select

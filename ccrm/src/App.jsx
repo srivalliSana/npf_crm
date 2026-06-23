@@ -85,14 +85,16 @@ export default function App() {
             <Route path="leads"            element={<LeadManager />} />
             <Route path="call-outcomes"    element={<CallOutcomes />} />
             <Route path="leads/:id"        element={<ApplicationDetails />} />
-            {/* Website + GT Entity leads — Admin only (separate business) */}
+            {/* Website overview — Admin only */}
             <Route element={<RoleGuard roles={['Admin']} />}>
               <Route path="websites-dashboard" element={<WebsitesDashboard />} />
-              <Route path="ftl-leads"        element={<FTLLeads />} />
-              <Route path="gtib-leads"       element={<GTIBLeads />} />
-              <Route path="gttech-leads"     element={<GTTECHLeads />} />
-              <Route path="esse-leads"       element={<ESSELeads />} />
             </Route>
+            {/* GT Entity lead pages — any authed user; data is owner-scoped server-side
+                so an assigned faculty sees only their own GT leads */}
+            <Route path="ftl-leads"        element={<FTLLeads />} />
+            <Route path="gtib-leads"       element={<GTIBLeads />} />
+            <Route path="gttech-leads"     element={<GTTECHLeads />} />
+            <Route path="esse-leads"       element={<ESSELeads />} />
             <Route path="applications"     element={<ApplicationManager />} />
             <Route path="applications/:id" element={<ApplicationDetails />} />
             <Route path="dashboard"        element={<Dashboard />} />

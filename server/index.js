@@ -747,8 +747,13 @@ app.get('/api/gttech-leads', async (req, res) => {
       where.push(`(full_name ILIKE ${p} OR email ILIKE ${p} OR phone ILIKE ${p} OR organization_name ILIKE ${p})`)
     }
 
+    const reqRole = req.query.requesterRole || ''
+    const reqName = req.query.requesterName || ''
     const owner = req.query.owner || ''
-    if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
+    if (reqRole && !['Admin', 'Manager'].includes(reqRole)) {
+      // Counsellor: only the GT leads assigned to them
+      params.push(reqName || '___none___'); where.push(`owner = $${params.length}`)
+    } else if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
 
@@ -789,8 +794,13 @@ app.get('/api/ftl-leads', async (req, res) => {
       where.push(`(name ILIKE ${p} OR email_id ILIKE ${p} OR phone ILIKE ${p})`)
     }
 
+    const reqRole = req.query.requesterRole || ''
+    const reqName = req.query.requesterName || ''
     const owner = req.query.owner || ''
-    if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
+    if (reqRole && !['Admin', 'Manager'].includes(reqRole)) {
+      // Counsellor: only the GT leads assigned to them
+      params.push(reqName || '___none___'); where.push(`owner = $${params.length}`)
+    } else if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
 
@@ -831,8 +841,13 @@ app.get('/api/gtib-leads', async (req, res) => {
       where.push(`(name ILIKE ${p} OR email_id ILIKE ${p} OR phone ILIKE ${p})`)
     }
 
+    const reqRole = req.query.requesterRole || ''
+    const reqName = req.query.requesterName || ''
     const owner = req.query.owner || ''
-    if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
+    if (reqRole && !['Admin', 'Manager'].includes(reqRole)) {
+      // Counsellor: only the GT leads assigned to them
+      params.push(reqName || '___none___'); where.push(`owner = $${params.length}`)
+    } else if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
 
@@ -873,8 +888,13 @@ app.get('/api/esse-leads', async (req, res) => {
       where.push(`(name ILIKE ${p} OR email_id ILIKE ${p} OR phone ILIKE ${p})`)
     }
 
+    const reqRole = req.query.requesterRole || ''
+    const reqName = req.query.requesterName || ''
     const owner = req.query.owner || ''
-    if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
+    if (reqRole && !['Admin', 'Manager'].includes(reqRole)) {
+      // Counsellor: only the GT leads assigned to them
+      params.push(reqName || '___none___'); where.push(`owner = $${params.length}`)
+    } else if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
 
@@ -1012,24 +1032,47 @@ app.post('/api/website-leads/assign', authenticateToken, async (req, res) => {
   }
 })
 
-// --- UPDATE status on GT website leads (Admin/Manager) ---
+// --- UPDATE status on GT website leads (Admin/Manager: any; counsellor: own only) ---
 app.post('/api/website-leads/status', authenticateToken, async (req, res) => {
-  if (!['Admin', 'Manager'].includes(req.user?.role)) return res.status(403).json({ error: 'Admin/Manager only.' })
   const website = String(req.body.website || '').toLowerCase()
   const { ids, status } = req.body
   if (!['ftl', 'gtib', 'gttech', 'esse'].includes(website)) return res.status(400).json({ error: 'Invalid website.' })
   if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No leads selected.' })
   if (!status || !String(status).trim()) return res.status(400).json({ error: 'Status required.' })
   try {
+    const params = [String(status).trim().substring(0, 50), ids.map(Number).filter(Boolean)]
+    let ownerGuard = ''
+    // Counsellors may only update the status of GT leads assigned to them
+    if (!['Admin', 'Manager'].includes(req.user?.role)) {
+      const ur = await pool.query('SELECT name FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+      params.push(ur.rows[0]?.name || '___none___')
+      ownerGuard = ` AND owner = $${params.length}`
+    }
     const r = await pool.query(
-      `UPDATE ${website}_leads SET status = $1 WHERE id = ANY($2::int[]);`,
-      [String(status).trim().substring(0, 50), ids.map(Number).filter(Boolean)]
+      `UPDATE ${website}_leads SET status = $1 WHERE id = ANY($2::int[])${ownerGuard};`,
+      params
     )
     console.log(`[Website Leads Status] ${website}: ${r.rowCount} → ${status} by ${req.user.email}`)
     res.json({ success: true, updated: r.rowCount, status })
   } catch (err) {
     console.error('[Website Leads Status]', err.message)
     res.status(500).json({ error: 'Status update failed: ' + err.message })
+  }
+})
+
+// --- Does this user have any GT leads assigned? (drives sidebar visibility) ---
+app.get('/api/website-leads/my-count', authenticateToken, async (req, res) => {
+  const owner = String(req.query.owner || '').trim()
+  if (!owner) return res.json({ total: 0 })
+  try {
+    let total = 0
+    for (const t of ['ftl_leads', 'gtib_leads', 'gttech_leads', 'esse_leads']) {
+      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM ${t} WHERE owner = $1;`, [owner]).catch(() => ({ rows: [{ c: 0 }] }))
+      total += r.rows[0].c
+    }
+    res.json({ total })
+  } catch {
+    res.json({ total: 0 })
   }
 })
 
@@ -3165,7 +3208,10 @@ app.post('/api/leads/check-duplicate', async (req, res) => {
 // (function declaration → hoisted, so inbound routes above can call it.)
 async function getNextAssignee() {
   try {
-    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role IN ('Counselor', 'Manager') ORDER BY name;")
+    // Eligible = any active user who isn't an Admin/Finance role. This is tolerant of
+    // custom role names (Counsellor / Faculty / Telecaller / etc.), not just the exact
+    // 'Counselor'/'Manager' strings — otherwise auto-assign silently finds nobody.
+    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role NOT IN ('Admin', 'Finance') ORDER BY name;")
     if (usersRes.rows.length === 0) return 'Unassigned'
 
     // Ensure every active user has a counter row
@@ -3181,7 +3227,7 @@ async function getNextAssignee() {
       SELECT lac.counselor_name
       FROM lead_assignment_counter lac
       JOIN users u ON u.name = lac.counselor_name
-      WHERE u.status = 'Active' AND u.role IN ('Counselor', 'Manager')
+      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance')
       ORDER BY lac.assignment_count ASC, lac.last_assigned ASC
       LIMIT 1;
     `)
