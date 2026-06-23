@@ -1025,6 +1025,18 @@ app.post('/api/website-leads/assign', authenticateToken, async (req, res) => {
       [String(owner).trim().substring(0, 120), ids.map(Number).filter(Boolean)]
     )
     console.log(`[Website Leads Assign] ${website}: ${r.rowCount} → ${owner} by ${req.user.email}`)
+    // Auto-email the faculty (skip when clearing the owner)
+    if (owner && String(owner).trim()) {
+      try {
+        const u = await pool.query('SELECT email FROM users WHERE name = $1 LIMIT 1;', [String(owner).trim()])
+        const email = u.rows[0]?.email
+        if (email) {
+          await createNotification(email, `${r.rowCount} ${website.toUpperCase()} lead(s) assigned`, `${r.rowCount} ${website.toUpperCase()} lead(s) have been assigned to you.`, 'lead_assigned', null)
+          sendSystemMailAlert(email, `[CCRM] ${r.rowCount} ${website.toUpperCase()} Lead(s) Assigned`,
+            `Hello ${owner},\n\n${r.rowCount} ${website.toUpperCase()} lead(s) have been assigned to you in CCRM.\n\nLog in: https://crm.cutmap.ac.in/${website}-leads\n\nBest regards,\nCCRM`)
+        }
+      } catch (e) { console.error('[GT Assign Email]', e.message) }
+    }
     res.json({ success: true, assigned: r.rowCount, owner })
   } catch (err) {
     console.error('[Website Leads Assign]', err.message)
@@ -1187,6 +1199,16 @@ app.post('/api/leads/bulk-assign', authenticateToken, async (req, res) => {
     const r = await pool.query(`UPDATE leads SET owner = $1 WHERE id IN (${placeholders});`, [owner, ...leadIds])
     await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
       [`${r.rowCount} lead(s) assigned to ${owner}`, 'Just now'])
+    // Auto-email the counsellor a single summary (not one per lead)
+    try {
+      const u = await pool.query('SELECT email FROM users WHERE name = $1 LIMIT 1;', [owner])
+      const email = u.rows[0]?.email
+      if (email) {
+        await createNotification(email, `${r.rowCount} new lead(s) assigned`, `${r.rowCount} lead(s) have been assigned to you.`, 'lead_assigned', null)
+        sendSystemMailAlert(email, `[CCRM] ${r.rowCount} New Lead(s) Assigned`,
+          `Hello ${owner},\n\n${r.rowCount} lead(s) have been assigned to you in CCRM.\n\nLog in to follow up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`)
+      }
+    } catch (e) { console.error('[Bulk Assign Email]', e.message) }
     res.json({ success: true, assigned: r.rowCount })
   } catch (err) {
     console.error('[Bulk Assign]', err.message)
@@ -2580,7 +2602,7 @@ app.get('/api/admin/security-overview', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
   try {
-    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", last_login AS "lastLogin" FROM users ORDER BY id DESC;')
+    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", last_login AS "lastLogin" FROM users ORDER BY id DESC;')
     res.json(usersRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch user accounts.' })
@@ -2604,20 +2626,20 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   const { id } = req.params
-  const { name, email, role, team, status, picture, password, mobile, mobile_number, reportsTo } = req.body
+  const { name, email, role, team, status, picture, password, mobile, mobile_number, reportsTo, excludeFromAssignment } = req.body
   try {
-    let queryStr = 'UPDATE users SET name = COALESCE($1, name), role = COALESCE($2, role), team = COALESCE($3, team), status = COALESCE($4, status), picture = COALESCE($5, picture), mobile = COALESCE($6, mobile), reports_to = COALESCE($7, reports_to), mobile_number = COALESCE($8, mobile_number)'
-    const params = [name, role, team, status, picture, mobile ?? null, reportsTo ?? null, mobile_number ?? null]
+    let queryStr = 'UPDATE users SET name = COALESCE($1, name), role = COALESCE($2, role), team = COALESCE($3, team), status = COALESCE($4, status), picture = COALESCE($5, picture), mobile = COALESCE($6, mobile), reports_to = COALESCE($7, reports_to), mobile_number = COALESCE($8, mobile_number), exclude_from_assignment = COALESCE($9, exclude_from_assignment)'
+    const params = [name, role, team, status, picture, mobile ?? null, reportsTo ?? null, mobile_number ?? null, (typeof excludeFromAssignment === 'boolean' ? excludeFromAssignment : null)]
 
     if (password) {
-      queryStr += ', password = $9 WHERE id = $10'
+      queryStr += ', password = $10 WHERE id = $11'
       params.push(password, id)
     } else {
-      queryStr += ' WHERE id = $9'
+      queryStr += ' WHERE id = $10'
       params.push(id)
     }
 
-    queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, mobile_number, reports_to AS "reportsTo", last_login AS "lastLogin";'
+    queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, mobile_number, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", last_login AS "lastLogin";'
 
     const updateRes = await pool.query(queryStr, params)
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
@@ -3211,7 +3233,7 @@ async function getNextAssignee() {
     // Eligible = any active user who isn't an Admin/Finance role. This is tolerant of
     // custom role names (Counsellor / Faculty / Telecaller / etc.), not just the exact
     // 'Counselor'/'Manager' strings — otherwise auto-assign silently finds nobody.
-    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role NOT IN ('Admin', 'Finance') ORDER BY name;")
+    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role NOT IN ('Admin', 'Finance') AND COALESCE(exclude_from_assignment, FALSE) = FALSE ORDER BY name;")
     if (usersRes.rows.length === 0) return 'Unassigned'
 
     // Ensure every active user has a counter row
@@ -3227,7 +3249,7 @@ async function getNextAssignee() {
       SELECT lac.counselor_name
       FROM lead_assignment_counter lac
       JOIN users u ON u.name = lac.counselor_name
-      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance')
+      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE
       ORDER BY lac.assignment_count ASC, lac.last_assigned ASC
       LIMIT 1;
     `)
@@ -5949,6 +5971,33 @@ async function performS3Backup() {
   }
 }
 
+// --- MORNING REMINDER: email each counsellor their untouched leads ---
+async function sendMorningUntouchedEmails() {
+  try {
+    const r = await pool.query(`
+      SELECT u.name, u.email, COUNT(l.id)::int AS untouched
+      FROM users u
+      JOIN leads l ON LOWER(l.owner) = LOWER(u.name)
+      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance')
+        AND l.stage = 'Untouched' AND u.email IS NOT NULL AND u.email <> ''
+      GROUP BY u.name, u.email
+      HAVING COUNT(l.id) > 0;
+    `)
+    for (const row of r.rows) {
+      sendSystemMailAlert(
+        row.email,
+        `[CCRM] ${row.untouched} untouched lead(s) awaiting your follow-up`,
+        `Good morning ${row.name},\n\nYou have ${row.untouched} untouched lead(s) in CCRM that need your attention today.\n\nPlease log in and start following up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`
+      )
+    }
+    console.log(`[Morning Untouched] Reminders sent to ${r.rows.length} counsellor(s)`)
+    return r.rows.length
+  } catch (e) {
+    console.error('[Morning Untouched]', e.message)
+    return 0
+  }
+}
+
 // --- SERVER LAUNCH BOOTSTRAP ---
 let cronJobRunning = false  // Prevent duplicate execution
 
@@ -5975,6 +6024,19 @@ async function startServer() {
       cronJobRunning = false
     }
   }, { timezone: 'Asia/Kolkata' })
+
+  // Morning reminder: untouched-leads email to each counsellor at 9:00 AM IST
+  cron.schedule('0 9 * * *', async () => {
+    console.log('[Cron] Sending morning untouched-leads reminders...')
+    await sendMorningUntouchedEmails()
+  }, { timezone: 'Asia/Kolkata' })
+
+  // Test endpoint to manually trigger the morning untouched-leads email
+  app.post('/api/admin/test-morning-email', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only' })
+    const count = await sendMorningUntouchedEmails()
+    res.json({ success: true, counsellorsEmailed: count })
+  })
 
   // Test endpoint to manually trigger daily report
   app.post('/api/admin/test-daily-report', authenticateToken, async (req, res) => {
