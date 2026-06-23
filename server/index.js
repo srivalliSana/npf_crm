@@ -3668,6 +3668,9 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
                     state = fd.find(f => f.name === 'state')?.values?.[0] || state
                     city = fd.find(f => f.name === 'city')?.values?.[0] || city
                     console.log(`[Meta Graph API] Fetched lead ${leadgenId}: ${name}, ${email}, ${mobile}`)
+                  } else {
+                    const errBody = await graphRes.json().catch(() => ({}))
+                    console.error(`[Meta Graph API] Failed to fetch leadgen ${leadgenId} (HTTP ${graphRes.status}):`, JSON.stringify(errBody?.error || errBody))
                   }
                 } catch (gErr) {
                   console.error('[Meta Graph API Error]', gErr.message)
