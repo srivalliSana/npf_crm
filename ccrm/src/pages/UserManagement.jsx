@@ -4,6 +4,7 @@ import {
   Users, Plus, Search, Shield, Edit, Trash2,
   CheckCircle, XCircle, X, Save, AlertTriangle,
   Upload, Download, FileSpreadsheet, Key, Activity, Clock, Copy,
+  UserCheck, UserMinus,
 } from 'lucide-react'
 
 const ROLE_COLORS = {
@@ -437,6 +438,13 @@ export default function UserManagement({ currentUser }) {
                           <button onClick={() => handleResetPassword(u)}
                             className="p-1 rounded hover:bg-yellow-50 text-yellow-500" title="Reset password (email new temp)">
                             <Key size={14} />
+                          </button>
+                          <button
+                            onClick={() => updateUser(u.id, { excludeFromAssignment: !u.excludeFromAssignment })}
+                            title={u.excludeFromAssignment ? 'Excluded from auto-assign — click to include' : 'Receiving auto-assign — click to exclude'}
+                            className={`p-1 rounded ${u.excludeFromAssignment ? 'hover:bg-gray-100 text-gray-400' : 'hover:bg-green-50 text-green-500'}`}
+                          >
+                            {u.excludeFromAssignment ? <UserMinus size={14} /> : <UserCheck size={14} />}
                           </button>
                           <button
                             onClick={() => toggleStatus(u)}
