@@ -42,6 +42,8 @@ export default function WebsiteLeads({ website }) {
       qs.set('page', page)
       qs.set('limit', limit)
       if (search) qs.set('search', search)
+      if (assignFilter === 'assigned')        qs.set('owner', '!Unassigned')
+      else if (assignFilter === 'unassigned') qs.set('owner', 'Unassigned')
 
       const res = await fetch(`${apiEndpoint}?${qs.toString()}`)
       if (!res.ok) throw new Error('Failed to load leads')
@@ -69,16 +71,45 @@ export default function WebsiteLeads({ website }) {
 
     setAssigning(true)
     try {
-      // For now, we'll just show a toast
-      // TODO: Add actual assignment endpoint to backend
-      showToast(`Assigned ${selectedRows.length} leads to ${assignToUser}`, 'success')
-      setSelectedRows([])
-      setAssignToUser('')
-      await loadLeads()
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/website-leads/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ website, ids: selectedRows, owner: assignToUser })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        showToast(`Assigned ${data.assigned} lead(s) to ${assignToUser}`, 'success')
+        setSelectedRows([])
+        setAssignToUser('')
+        await loadLeads()
+      } else {
+        showToast(data.error || 'Assignment failed', 'error')
+      }
     } catch (err) {
       showToast(err.message, 'error')
     } finally {
       setAssigning(false)
+    }
+  }
+
+  const assignOne = async (id, owner) => {
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/website-leads/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ website, ids: [id], owner: owner === 'Unassigned' ? '' : owner })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        showToast(owner === 'Unassigned' ? 'Lead unassigned' : `Assigned to ${owner}`, 'success')
+        await loadLeads()
+      } else {
+        showToast(data.error || 'Assignment failed', 'error')
+      }
+    } catch {
+      showToast('Assignment error', 'error')
     }
   }
 
@@ -319,11 +350,8 @@ export default function WebsiteLeads({ website }) {
                     <td className="px-4 py-3 text-gray-900">{lead.phone || '—'}</td>
                     <td className="px-4 py-3">
                       <select
-                        defaultValue={lead.owner || 'Unassigned'}
-                        onChange={e => {
-                          // TODO: Implement individual assignment
-                          showToast('Individual assignment coming soon', 'info')
-                        }}
+                        value={lead.owner || 'Unassigned'}
+                        onChange={e => assignOne(lead.id, e.target.value)}
                         className="px-2 py-1 text-xs border rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="Unassigned">Unassigned</option>

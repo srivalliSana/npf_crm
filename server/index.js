@@ -747,13 +747,18 @@ app.get('/api/gttech-leads', async (req, res) => {
       where.push(`(full_name ILIKE ${p} OR email ILIKE ${p} OR phone ILIKE ${p} OR organization_name ILIKE ${p})`)
     }
 
+    const owner = req.query.owner || ''
+    if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
+    else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
+    else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
+
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM gttech_leads ${whereSql};`, params)
     const total = countRes.rows[0].total
 
     const rowsRes = await pool.query(
-      `SELECT id, full_name, organization_name, designation, industry_sector, interested_in, email, phone, created_at, status
+      `SELECT id, full_name, organization_name, designation, industry_sector, interested_in, email, phone, owner, created_at, status
        FROM gttech_leads ${whereSql}
        ORDER BY created_at DESC
        LIMIT ${limit} OFFSET ${offset};`,
@@ -784,13 +789,18 @@ app.get('/api/ftl-leads', async (req, res) => {
       where.push(`(name ILIKE ${p} OR email_id ILIKE ${p} OR phone ILIKE ${p})`)
     }
 
+    const owner = req.query.owner || ''
+    if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
+    else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
+    else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
+
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM ftl_leads ${whereSql};`, params)
     const total = countRes.rows[0].total
 
     const rowsRes = await pool.query(
-      `SELECT id, name, email_id, phone, looking_for, created_at, status
+      `SELECT id, name, email_id, phone, looking_for, owner, created_at, status
        FROM ftl_leads ${whereSql}
        ORDER BY created_at DESC
        LIMIT ${limit} OFFSET ${offset};`,
@@ -821,13 +831,18 @@ app.get('/api/gtib-leads', async (req, res) => {
       where.push(`(name ILIKE ${p} OR email_id ILIKE ${p} OR phone ILIKE ${p})`)
     }
 
+    const owner = req.query.owner || ''
+    if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
+    else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
+    else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
+
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM gtib_leads ${whereSql};`, params)
     const total = countRes.rows[0].total
 
     const rowsRes = await pool.query(
-      `SELECT id, name, email_id, phone, looking_for, created_at, status
+      `SELECT id, name, email_id, phone, looking_for, owner, created_at, status
        FROM gtib_leads ${whereSql}
        ORDER BY created_at DESC
        LIMIT ${limit} OFFSET ${offset};`,
@@ -858,13 +873,18 @@ app.get('/api/esse-leads', async (req, res) => {
       where.push(`(name ILIKE ${p} OR email_id ILIKE ${p} OR phone ILIKE ${p})`)
     }
 
+    const owner = req.query.owner || ''
+    if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
+    else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
+    else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
+
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM esse_leads ${whereSql};`, params)
     const total = countRes.rows[0].total
 
     const rowsRes = await pool.query(
-      `SELECT id, name, email_id, phone, looking_for, created_at, status
+      `SELECT id, name, email_id, phone, looking_for, owner, created_at, status
        FROM esse_leads ${whereSql}
        ORDER BY created_at DESC
        LIMIT ${limit} OFFSET ${offset};`,
@@ -968,6 +988,27 @@ app.post('/api/website-leads/import', authenticateToken, uploadDoc.single('file'
   } catch (err) {
     console.error('[Website Leads Import]', err.message)
     res.status(500).json({ error: 'Import failed: ' + err.message })
+  }
+})
+
+// --- ASSIGN GT website leads to a faculty/counsellor (Admin/Manager) ---
+app.post('/api/website-leads/assign', authenticateToken, async (req, res) => {
+  if (!['Admin', 'Manager'].includes(req.user?.role)) return res.status(403).json({ error: 'Admin/Manager only.' })
+  const website = String(req.body.website || '').toLowerCase()
+  const { ids, owner } = req.body
+  if (!['ftl', 'gtib', 'gttech', 'esse'].includes(website)) return res.status(400).json({ error: 'Invalid website.' })
+  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No leads selected.' })
+  if (owner === undefined || owner === null) return res.status(400).json({ error: 'Faculty/owner required.' })
+  try {
+    const r = await pool.query(
+      `UPDATE ${website}_leads SET owner = $1 WHERE id = ANY($2::int[]);`,
+      [String(owner).trim().substring(0, 120), ids.map(Number).filter(Boolean)]
+    )
+    console.log(`[Website Leads Assign] ${website}: ${r.rowCount} → ${owner} by ${req.user.email}`)
+    res.json({ success: true, assigned: r.rowCount, owner })
+  } catch (err) {
+    console.error('[Website Leads Assign]', err.message)
+    res.status(500).json({ error: 'Assign failed: ' + err.message })
   }
 })
 

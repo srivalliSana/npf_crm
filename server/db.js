@@ -440,6 +440,10 @@ export async function initDb() {
     await client.query(`UPDATE leads SET stage='Payment Success' WHERE stage='Admission Confirmed';`).catch(() => {})
     // Source label: Meta lead-ads were previously stored as 'Facebook Ads' (idempotent)
     await client.query(`UPDATE leads SET source='Meta' WHERE source='Facebook Ads';`).catch(() => {})
+    // GT website lead tables: add an owner column so admins can assign them to faculty
+    for (const t of ['ftl_leads', 'gtib_leads', 'gttech_leads', 'esse_leads']) {
+      await client.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS owner VARCHAR(120) DEFAULT '';`).catch(() => {})
+    }
 
     // Payment extra fields
     await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS utr_number VARCHAR(100) DEFAULT '';`).catch(() => {})
