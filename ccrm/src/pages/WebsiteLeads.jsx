@@ -2,7 +2,23 @@ import React, { useState, useEffect } from 'react'
 import { Search, Download, Upload, RefreshCw, ChevronLeft, ChevronRight, UserCheck, Users } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
-const STATUS_OPTIONS = ['New', 'Contacted', 'Interested', 'Follow Up', 'Not Interested', 'Converted', 'Closed']
+// GT entities sales funnel (in order) + off-ramps
+const STATUS_OPTIONS = [
+  'Not Contacted', 'Contacted', 'Interested', 'Further Discussion',
+  'Quote Requested', 'PO Raised', 'Payment Done',
+  'Invalid Number', 'Not Interested',
+]
+const STATUS_COLOR = {
+  'Not Contacted':      'bg-gray-100 text-gray-600',
+  'Contacted':          'bg-blue-50 text-blue-700',
+  'Interested':         'bg-emerald-50 text-emerald-700',
+  'Further Discussion': 'bg-amber-50 text-amber-700',
+  'Quote Requested':    'bg-indigo-50 text-indigo-700',
+  'PO Raised':          'bg-purple-50 text-purple-700',
+  'Payment Done':       'bg-green-100 text-green-800',
+  'Invalid Number':     'bg-red-50 text-red-600',
+  'Not Interested':     'bg-red-100 text-red-700',
+}
 
 export default function WebsiteLeads({ website }) {
   const { showToast, counselors, currentUser } = useCcrm()
@@ -392,9 +408,9 @@ export default function WebsiteLeads({ website }) {
                     </td>
                     <td className="px-4 py-3">
                       <select
-                        value={STATUS_OPTIONS.includes(lead.status) ? lead.status : 'New'}
+                        value={STATUS_OPTIONS.includes(lead.status) ? lead.status : 'Not Contacted'}
                         onChange={e => updateStatus(lead.id, e.target.value)}
-                        className="px-2 py-1 text-xs border rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`px-2 py-1 text-xs font-medium border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${STATUS_COLOR[lead.status] || 'bg-white text-gray-700'}`}
                       >
                         {(STATUS_OPTIONS.includes(lead.status) ? STATUS_OPTIONS : [lead.status, ...STATUS_OPTIONS].filter(Boolean)).map(s => (
                           <option key={s} value={s}>{s}</option>
