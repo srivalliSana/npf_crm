@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Search, Download, Upload, RefreshCw, ChevronLeft, ChevronRight, UserCheck, Users } from 'lucide-react'
+import { Search, Download, Upload, RefreshCw, ChevronLeft, ChevronRight, UserCheck, Users, GitBranch, X } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
+import GTJourney from '../components/GTJourney'
 
 // GT entities sales funnel (in order) + off-ramps
 const STATUS_OPTIONS = [
@@ -33,6 +34,7 @@ export default function WebsiteLeads({ website }) {
   const [assignToUser, setAssignToUser] = useState('')
   const [assigning, setAssigning] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [journeyLead, setJourneyLead] = useState(null)  // GT lead whose journey modal is open
   const limit = 25
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
@@ -407,15 +409,21 @@ export default function WebsiteLeads({ website }) {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <select
-                        value={STATUS_OPTIONS.includes(lead.status) ? lead.status : 'Not Contacted'}
-                        onChange={e => updateStatus(lead.id, e.target.value)}
-                        className={`px-2 py-1 text-xs font-medium border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${STATUS_COLOR[lead.status] || 'bg-white text-gray-700'}`}
-                      >
-                        {(STATUS_OPTIONS.includes(lead.status) ? STATUS_OPTIONS : [lead.status, ...STATUS_OPTIONS].filter(Boolean)).map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={STATUS_OPTIONS.includes(lead.status) ? lead.status : 'Not Contacted'}
+                          onChange={e => updateStatus(lead.id, e.target.value)}
+                          className={`px-2 py-1 text-xs font-medium border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${STATUS_COLOR[lead.status] || 'bg-white text-gray-700'}`}
+                        >
+                          {(STATUS_OPTIONS.includes(lead.status) ? STATUS_OPTIONS : [lead.status, ...STATUS_OPTIONS].filter(Boolean)).map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                        <button onClick={() => setJourneyLead(lead)} title="View journey"
+                          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-500">
+                          <GitBranch size={14} />
+                        </button>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600 text-xs">
                       {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '—'}
@@ -455,6 +463,29 @@ export default function WebsiteLeads({ website }) {
       </div>
 
       <p className="text-sm text-gray-500 mt-4">Total: {total} leads</p>
+
+      {/* GT lead journey modal */}
+      {journeyLead && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setJourneyLead(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="font-bold text-gray-900">{journeyLead.full_name || journeyLead.name} — Lead Journey</h2>
+                <p className="text-xs text-gray-500">{websiteLabel} · {journeyLead.phone || '—'}{journeyLead.owner ? ` · ${journeyLead.owner}` : ''}</p>
+              </div>
+              <button onClick={() => setJourneyLead(null)}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+            </div>
+            <GTJourney
+              status={journeyLead.status}
+              onSelect={async (s) => {
+                await updateStatus(journeyLead.id, s)
+                setJourneyLead(prev => prev ? { ...prev, status: s } : prev)
+              }}
+            />
+            <p className="text-[11px] text-gray-400 mt-4">Click any stage to update this lead's status.</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
