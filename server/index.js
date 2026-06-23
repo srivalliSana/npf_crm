@@ -898,6 +898,17 @@ app.post('/api/website-leads/import', authenticateToken, uploadDoc.single('file'
     const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]])
     if (!rawData || rawData.length === 0) return res.status(400).json({ error: 'Spreadsheet is empty or invalid.' })
 
+    const table = `${website}_leads`  // website is whitelisted above
+    // Introspect the live table so the insert adapts to whatever the schema is
+    const colRes = await pool.query(
+      `SELECT column_name, data_type, is_nullable, column_default
+       FROM information_schema.columns WHERE table_name = $1`, [table]
+    )
+    if (colRes.rows.length === 0) return res.status(400).json({ error: `Table ${table} not found.` })
+    const cols = {}
+    colRes.rows.forEach(r => { cols[r.column_name] = r })
+    const isJson = (c) => cols[c] && (cols[c].data_type === 'json' || cols[c].data_type === 'jsonb')
+
     let inserted = 0, skipped = 0
     const client = await pool.connect()
     try {
@@ -905,34 +916,38 @@ app.post('/api/website-leads/import', authenticateToken, uploadDoc.single('file'
       for (const row of rawData) {
         const phone = pick(row, ['phone', 'mobile', 'mobileno', 'mobilenumber', 'phonenumber', 'contact']).replace(/\D/g, '')
         if (phone.length < 10) { skipped++; continue }
-        if (website === 'gttech') {
-          await client.query(
-            `INSERT INTO gttech_leads (full_name, organization_name, designation, industry_sector, interested_in, email, phone, website_code)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,'gttech');`,
-            [
-              pick(row, ['fullname', 'name']) || 'Unnamed',
-              pick(row, ['organizationname', 'organization', 'company', 'companyname']),
-              pick(row, ['designation', 'title', 'role']),
-              pick(row, ['industrysector', 'industry', 'sector']),
-              pick(row, ['interestedin', 'interest', 'lookingfor', 'course']),
-              pick(row, ['email', 'emailid', 'emailaddress']),
-              phone,
-            ]
-          )
-        } else {
-          // ftl / gtib / esse share the same shape (table name is whitelisted above)
-          await client.query(
-            `INSERT INTO ${website}_leads (name, email_id, phone, looking_for, website_code)
-             VALUES ($1,$2,$3,$4,$5);`,
-            [
-              pick(row, ['name', 'fullname', 'studentname']) || 'Unnamed',
-              pick(row, ['emailid', 'email', 'emailaddress']),
-              phone,
-              pick(row, ['lookingfor', 'interest', 'interestedin', 'course', 'program']),
-              website,
-            ]
-          )
+
+        // Field → value map per entity (gttech has its own shape)
+        const fields = website === 'gttech' ? {
+          full_name: pick(row, ['fullname', 'name']) || 'Unnamed',
+          organization_name: pick(row, ['organizationname', 'organization', 'company', 'companyname']),
+          designation: pick(row, ['designation', 'title', 'role']),
+          industry_sector: pick(row, ['industrysector', 'industry', 'sector']),
+          interested_in: pick(row, ['interestedin', 'interest', 'lookingfor', 'course']),
+          email: pick(row, ['email', 'emailid', 'emailaddress']),
+          phone,
+          website_code: website,
+        } : {
+          name: pick(row, ['name', 'fullname', 'studentname']) || 'Unnamed',
+          email_id: pick(row, ['emailid', 'email', 'emailaddress']),
+          phone,
+          looking_for: pick(row, ['lookingfor', 'interest', 'interestedin', 'course', 'program']),
+          website_code: website,
         }
+
+        // Only insert columns that actually exist in the table
+        const useCols = Object.keys(fields).filter(c => cols[c])
+        // Satisfy any NOT NULL json/jsonb column (no default) we aren't already setting → '{}'
+        for (const [colName, meta] of Object.entries(cols)) {
+          if (!useCols.includes(colName) && (meta.data_type === 'json' || meta.data_type === 'jsonb')
+              && meta.is_nullable === 'NO' && !meta.column_default) {
+            fields[colName] = {}
+            useCols.push(colName)
+          }
+        }
+        const values = useCols.map(c => isJson(c) ? JSON.stringify(fields[c] ?? '') : fields[c])
+        const placeholders = useCols.map((_, i) => `$${i + 1}`).join(',')
+        await client.query(`INSERT INTO ${table} (${useCols.join(',')}) VALUES (${placeholders});`, values)
         inserted++
       }
       await client.query('COMMIT')
