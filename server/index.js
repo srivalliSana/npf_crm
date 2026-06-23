@@ -901,7 +901,7 @@ app.post('/api/website-leads/import', authenticateToken, uploadDoc.single('file'
     const table = `${website}_leads`  // website is whitelisted above
     // Introspect the live table so the insert adapts to whatever the schema is
     const colRes = await pool.query(
-      `SELECT column_name, data_type, is_nullable, column_default
+      `SELECT column_name, data_type, is_nullable, column_default, character_maximum_length
        FROM information_schema.columns WHERE table_name = $1`, [table]
     )
     if (colRes.rows.length === 0) return res.status(400).json({ error: `Table ${table} not found.` })
@@ -945,7 +945,13 @@ app.post('/api/website-leads/import', authenticateToken, uploadDoc.single('file'
             useCols.push(colName)
           }
         }
-        const values = useCols.map(c => isJson(c) ? JSON.stringify(fields[c] ?? '') : fields[c])
+        const values = useCols.map(c => {
+          if (isJson(c)) return JSON.stringify(fields[c] ?? '')
+          let v = fields[c]
+          const maxLen = cols[c].character_maximum_length
+          if (typeof v === 'string' && maxLen && v.length > maxLen) v = v.substring(0, maxLen)
+          return v
+        })
         const placeholders = useCols.map((_, i) => `$${i + 1}`).join(',')
         await client.query(`INSERT INTO ${table} (${useCols.join(',')}) VALUES (${placeholders});`, values)
         inserted++
