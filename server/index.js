@@ -661,7 +661,7 @@ app.get('/api/leads', async (req, res) => {
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
     const offset = (page - 1) * limit
 
-    const { search, stage, owner, state, source, unassigned, website_code, domain, requesterRole, requesterName } = req.query
+    const { search, stage, owner, state, source, unassigned, website_code, domain, requesterRole, requesterName, dateFrom, dateTo } = req.query
 
     const where = []
     const params = []
@@ -684,6 +684,9 @@ app.get('/api/leads', async (req, res) => {
     }
     if (state)  add('state  = $$', state)
     if (source) add('source = $$', source)
+    // Date range on created_at (dateTo is inclusive of the whole day)
+    if (dateFrom) add('created_at >= $$', dateFrom)
+    if (dateTo)   add("created_at < ($$::date + INTERVAL '1 day')", dateTo)
     // Website filter: match against lead_source field (e.g., "Website (ftl)", "Website (esse)")
     if (website_code) add('LOWER(lead_source) LIKE LOWER($$)', `%${website_code}%`)
 

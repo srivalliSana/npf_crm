@@ -73,7 +73,7 @@ export default function LeadManager() {
   const [selectAllPages, setSelectAllPages] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({ stage: '', owner: '', campaign: '', state: '' })
+  const [filters, setFilters] = useState({ stage: '', owner: '', campaign: '', state: '', dateFrom: '', dateTo: '' })
   const [activeFilter, setActiveFilter] = useState('all') // ftl, esse, gttech, gtib, cutm, cutmap, all
   const [bulkAssignTo, setBulkAssignTo] = useState('')    // counselor for bulk-assign
   const [bulkAssigning, setBulkAssigning] = useState(false)
@@ -306,6 +306,8 @@ export default function LeadManager() {
     if (filters.owner === 'Unassigned') q.unassigned = true
     else if (filters.owner)             q.owner = filters.owner
     if (filters.campaign) q.source = filters.campaign
+    if (filters.dateFrom) q.dateFrom = filters.dateFrom
+    if (filters.dateTo)   q.dateTo = filters.dateTo
     // Domain-based filtering: cutm/cutmap
     if (activeFilter === 'cutm' || activeFilter === 'cutmap') {
       q.domain = activeFilter
@@ -721,7 +723,15 @@ export default function LeadManager() {
               <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           ))}
-          <button onClick={() => { setFilters({ stage:'', owner:'', campaign:'', state:'' }); setSearch('') }} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 flex items-center gap-1">
+          <div className="flex items-center gap-1 text-xs text-gray-500">
+            <span className="ml-1">From</span>
+            <input type="date" value={filters.dateFrom} onChange={e => { setFilters(p => ({ ...p, dateFrom: e.target.value })); setCurrentPage(1) }}
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400" />
+            <span>To</span>
+            <input type="date" value={filters.dateTo} onChange={e => { setFilters(p => ({ ...p, dateTo: e.target.value })); setCurrentPage(1) }}
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400" />
+          </div>
+          <button onClick={() => { setFilters({ stage:'', owner:'', campaign:'', state:'', dateFrom:'', dateTo:'' }); setSearch('') }} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 flex items-center gap-1">
             <RefreshCw size={12} /> Reset
           </button>
         </div>
