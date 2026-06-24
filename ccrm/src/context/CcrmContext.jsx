@@ -1016,6 +1016,27 @@ export function CcrmProvider({ children }) {
     return { sent: 0, total: leadIds.length }
   }
 
+  // Send a bulk email to leads (per-lead {name} personalization, via configured SMTP)
+  const sendBulkEmail = async (leadIds, { subject, message } = {}) => {
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/leads/bulk-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ leadIds, subject, message })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        showToast(`Email: ${data.sent} sent${data.failed ? `, ${data.failed} failed` : ''}${data.skipped ? `, ${data.skipped} had no email` : ''}.`, 'success')
+        return data
+      }
+      showToast(data.error || 'Bulk email failed.', 'error')
+    } catch {
+      showToast('Email network error.', 'error')
+    }
+    return { sent: 0, total: leadIds.length }
+  }
+
   // Send an approved RCS template to a single lead
   const sendRcsToLead = async (leadId, { templateId, rcsType, variables } = {}) => {
     try {
@@ -1285,7 +1306,7 @@ export function CcrmProvider({ children }) {
       notifications, setNotifications, addNotification, markNotificationRead, markAllNotificationsRead, fetchNotifications,
       // New features
       checkDuplicate, getNextAssignee,
-      sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, sendRcsToLead, getRcsHistory,
+      sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, sendBulkEmail, sendRcsToLead, getRcsHistory,
       rcsTemplates, fetchRcsTemplates,
       dripSequences, setDripSequences, enrollDrip,
       generatePaymentLink,

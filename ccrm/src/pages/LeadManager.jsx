@@ -66,7 +66,7 @@ const WA_TEMPLATES = [
 export default function LeadManager() {
   const navigate = useNavigate()
   const { addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData, fetchLeadsPage,
-          checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, sendRcsToLead,
+          checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, sendBulkEmail, sendRcsToLead,
           rcsTemplates, fetchRcsTemplates, enrollDrip, logCall } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
@@ -191,6 +191,35 @@ export default function LeadManager() {
       setRcsSending(false)
     }
   }
+  // ── Email compose (per-lead / selected / filtered) ──────────────────────────
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [emailMode, setEmailMode] = useState('selected')   // 'single' | 'selected' | 'filtered'
+  const [emailLead, setEmailLead] = useState(null)         // for 'single'
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailBody, setEmailBody] = useState('')
+  const [emailSending, setEmailSending] = useState(false)
+
+  const openEmail = (mode, lead = null) => {
+    setEmailMode(mode); setEmailLead(lead); setShowEmailModal(true)
+  }
+  const handleSendEmail = async () => {
+    if (!emailSubject.trim()) return showToast('Subject is required.', 'error')
+    if (!emailBody.trim())    return showToast('Message is required.', 'error')
+    setEmailSending(true)
+    try {
+      let recipients = []
+      if (emailMode === 'single') recipients = emailLead ? [emailLead.id] : []
+      else if (emailMode === 'filtered') recipients = await fetchFilteredLeadIds()
+      else recipients = selectedRows
+      if (!recipients.length) { showToast('No recipients to send to.', 'warning'); return }
+      await sendBulkEmail(recipients, { subject: emailSubject, message: emailBody })
+      setShowEmailModal(false); setEmailSubject(''); setEmailBody(''); setEmailLead(null)
+      if (emailMode === 'selected') { setSelectedRows([]); setSelectAllPages(false) }
+    } finally {
+      setEmailSending(false)
+    }
+  }
+
   const [waTemplate, setWaTemplate]     = useState(0)
   const [waCustomMsg, setWaCustomMsg]   = useState('')
   const [waSending, setWaSending]       = useState(false)
@@ -639,6 +668,12 @@ export default function LeadManager() {
             </button>
           )}
           {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
+            <button onClick={() => openEmail('filtered')}
+              className="flex items-center gap-1.5 text-sm text-amber-600 border border-amber-200 rounded-lg px-3 py-1.5 hover:bg-amber-50">
+              <Mail size={14} /> Email Campaign
+            </button>
+          )}
+          {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
             <button onClick={() => navigate('/workbook-import')} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
               <FileSpreadsheet size={14} /> Workbook Import
             </button>
@@ -751,6 +786,10 @@ export default function LeadManager() {
               <button onClick={() => { setShowRCSModal(true); setRcsCustomMsg(''); setRcsRecipientMode('selected') }}
                 className="flex items-center gap-1 text-xs bg-pink-500 hover:bg-pink-600 text-white rounded-lg px-2.5 py-1 transition-colors">
                 ✨ RCS ({selectedRows.length})
+              </button>
+              <button onClick={() => openEmail('selected')}
+                className="flex items-center gap-1 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded-lg px-2.5 py-1 transition-colors">
+                <Mail size={13} /> Email ({selectedRows.length})
               </button>
               <button onClick={handleEnrollDrip} disabled={dripLoading}
                 className="flex items-center gap-1 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-2.5 py-1 disabled:opacity-50">
@@ -870,6 +909,10 @@ export default function LeadManager() {
                         <button onClick={() => { setCallLead(lead); setCallOutcome('Called'); setCallNotes('') }}
                           className="text-blue-400 hover:text-blue-600" title="Log Call">
                           <Phone size={13} />
+                        </button>
+                        <button onClick={() => openEmail('single', lead)}
+                          className="text-amber-500 hover:text-amber-700" title={lead.email ? `Email ${lead.email}` : 'No email on file'}>
+                          <Mail size={13} />
                         </button>
                       </div>
                     </td>
@@ -1186,6 +1229,50 @@ export default function LeadManager() {
                 {rcsSending
                   ? 'Sending...'
                   : `Send RCS to ${rcsRecipientMode === 'selected' ? selectedRows.length : Math.min(total, RCS_CAMPAIGN_CAP).toLocaleString()}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ EMAIL COMPOSE MODAL ============ */}
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowEmailModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
+                <Mail size={18} className="text-amber-500" /> Send Email
+              </h2>
+              <button onClick={() => setShowEmailModal(false)}><X size={20} className="text-gray-400" /></button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              {emailMode === 'single'
+                ? <>To <strong className="text-gray-800">{emailLead?.name}</strong> {emailLead?.email ? <span className="text-gray-500">&lt;{emailLead.email}&gt;</span> : <span className="text-red-500">(no email on file)</span>}</>
+                : emailMode === 'filtered'
+                  ? <>To <strong className="text-gray-800">all leads in current filter</strong> ({Math.min(total, RCS_CAMPAIGN_CAP).toLocaleString()})</>
+                  : <>To <strong className="text-gray-800">{selectedRows.length} selected lead(s)</strong></>}
+            </p>
+
+            <div className="mb-3">
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Subject *</label>
+              <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)}
+                placeholder="e.g. Your CUTM admission — next steps"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+            </div>
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Message *</label>
+              <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={7}
+                placeholder="Hi {name}, ..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none" />
+              <p className="text-xs text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> to personalise. Leads without an email are skipped.</p>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowEmailModal(false)} className="flex-1 btn-secondary text-sm py-2.5">Cancel</button>
+              <button onClick={handleSendEmail} disabled={emailSending}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
+                {emailSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <Mail size={15} />}
+                {emailSending ? 'Sending...' : 'Send Email'}
               </button>
             </div>
           </div>

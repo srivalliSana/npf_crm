@@ -4564,6 +4564,40 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
   }
 })
 
+// --- BULK EMAIL to leads (per-lead {name} personalization, via configured SMTP) ---
+app.post('/api/leads/bulk-email', authenticateToken, async (req, res) => {
+  const { leadIds, subject, message } = req.body
+  if (!Array.isArray(leadIds) || leadIds.length === 0) return res.status(400).json({ error: 'No leads selected.' })
+  if (!subject || !String(subject).trim()) return res.status(400).json({ error: 'Subject is required.' })
+  if (!message || !String(message).trim()) return res.status(400).json({ error: 'Message is required.' })
+  try {
+    const cfg = await createMailTransporter()
+    if (cfg.error) return res.status(400).json({ error: cfg.error })
+
+    const placeholders = leadIds.map((_, i) => `$${i + 1}`).join(',')
+    const leadsRes = await pool.query(`SELECT id, name, email FROM leads WHERE id IN (${placeholders});`, leadIds.map(Number).filter(Boolean))
+
+    let sent = 0, failed = 0, skipped = 0
+    for (const lead of leadsRes.rows) {
+      const email = (lead.email || '').trim()
+      if (!/^\S+@\S+\.\S+$/.test(email) || /noemail|no-email/i.test(email)) { skipped++; continue }
+      const name = lead.name || 'there'
+      const subj = String(subject).replace(/\{name\}/g, name)
+      const body = String(message).replace(/\{name\}/g, name)
+      try {
+        await cfg.transporter.sendMail({ from: cfg.from, to: email, subject: subj, text: body })
+        sent++
+      } catch (e) { failed++; console.error('[Bulk Email]', email, e.message) }
+    }
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
+      [`Bulk email by ${req.user?.email || 'user'}: ${sent} sent · ${failed} failed · ${skipped} no-email`, 'Just now']).catch(() => {})
+    res.json({ success: true, sent, failed, skipped, total: leadsRes.rows.length })
+  } catch (err) {
+    console.error('[Bulk Email]', err.message)
+    res.status(500).json({ error: 'Bulk email failed: ' + err.message })
+  }
+})
+
 // --- FEATURE 6: AUTOMATED DRIP SEQUENCES ---
 app.post('/api/drip/enroll', async (req, res) => {
   const { leadId, leadName, leadEmail, leadMobile, sequenceName } = req.body
