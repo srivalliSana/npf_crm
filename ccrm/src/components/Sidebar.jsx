@@ -51,7 +51,7 @@ const NAV_ITEMS = [
 export default function Sidebar({ onLogout, user }) {
   const navigate = useNavigate()
   const userRole = user?.role || 'Counselor'
-  const isAdmin = userRole === 'Admin'
+  const isSuper = !!user?.isSuperAdmin   // Super Admin bypasses entity gating, sees all
   const expanded = true
   const [openSubmenu, setOpenSubmenu] = useState(null)
 
@@ -62,13 +62,13 @@ export default function Sidebar({ onLogout, user }) {
   const hasMain = userEntities.includes('CUTM') || userEntities.includes('CUTMAP')
 
   const visibleItems = NAV_ITEMS.filter(item => {
-    if (isAdmin) return true                              // admin sees everything
+    if (isSuper) return true                              // Super Admin sees everything
     if (item.label === 'GT Entities') return hasGT        // only if granted a GT entity
     if (item.label === 'Leads')       return hasMain      // only if granted CUTM/CUTMAP
-    return !item.roles || item.roles.includes(userRole)
+    return !item.roles || item.roles.includes(userRole)   // admin still sees admin-only items
   }).map(item => {
-    // Show only the GT sub-entities this user is granted
-    if (item.label === 'GT Entities' && !isAdmin && item.submenu) {
+    // Show only the GT sub-entities this user is granted (admins included unless Super)
+    if (item.label === 'GT Entities' && !isSuper && item.submenu) {
       return { ...item, submenu: item.submenu.filter(s => userEntities.includes(s.label)) }
     }
     return item
