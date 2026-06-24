@@ -23,6 +23,9 @@ export async function initDb() {
     }
     // Per-user opt-out of round-robin auto-assignment
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS exclude_from_assignment BOOLEAN DEFAULT FALSE;`).catch(() => {})
+    // Per-user entity access (comma-separated: CUTM,CUTMAP,FTL,GTIB,GTTECH,ESSE) — default CUTM
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS entities TEXT DEFAULT 'CUTM';`).catch(() => {})
+    await client.query(`UPDATE users SET entities='CUTM' WHERE entities IS NULL OR entities='';`).catch(() => {})
     // GT lead status: seed the funnel default (old rows were 'new'/empty)
     for (const t of ['ftl_leads', 'gtib_leads', 'gttech_leads', 'esse_leads']) {
       await client.query(`UPDATE ${t} SET status='Not Contacted' WHERE status IS NULL OR status IN ('', 'new', 'New');`).catch(() => {})

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, FileText, CheckSquare, Megaphone,
@@ -51,26 +51,27 @@ const NAV_ITEMS = [
 export default function Sidebar({ onLogout, user }) {
   const navigate = useNavigate()
   const userRole = user?.role || 'Counselor'
+  const isAdmin = userRole === 'Admin'
   const expanded = true
   const [openSubmenu, setOpenSubmenu] = useState(null)
-  const [hasGtLeads, setHasGtLeads] = useState(false)
 
-  // Non-admins see "GT Entities" only if they have GT leads assigned to them
-  useEffect(() => {
-    if (userRole === 'Admin' || !user?.name) return
-    const token = localStorage.getItem('ccrm_token')
-    fetch(`/api/website-leads/my-count?owner=${encodeURIComponent(user.name)}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    })
-      .then(r => r.ok ? r.json() : { total: 0 })
-      .then(d => setHasGtLeads((d?.total || 0) > 0))
-      .catch(() => {})
-  }, [userRole, user?.name])
+  // Entity access (admin-granted): which lead sets this user can see
+  const GT_CODES = ['FTL', 'GTIB', 'GTTECH', 'ESSE']
+  const userEntities = String(user?.entities || 'CUTM').split(',').map(s => s.trim()).filter(Boolean)
+  const hasGT   = userEntities.some(e => GT_CODES.includes(e))
+  const hasMain = userEntities.includes('CUTM') || userEntities.includes('CUTMAP')
 
   const visibleItems = NAV_ITEMS.filter(item => {
-    // GT Entities: Admin always; other roles only if they have GT leads assigned
-    if (item.label === 'GT Entities' && userRole !== 'Admin') return hasGtLeads
+    if (isAdmin) return true                              // admin sees everything
+    if (item.label === 'GT Entities') return hasGT        // only if granted a GT entity
+    if (item.label === 'Leads')       return hasMain      // only if granted CUTM/CUTMAP
     return !item.roles || item.roles.includes(userRole)
+  }).map(item => {
+    // Show only the GT sub-entities this user is granted
+    if (item.label === 'GT Entities' && !isAdmin && item.submenu) {
+      return { ...item, submenu: item.submenu.filter(s => userEntities.includes(s.label)) }
+    }
+    return item
   })
 
   return (

@@ -508,6 +508,7 @@ app.post('/api/auth/login', async (req, res) => {
         picture: user.picture,
         status: user.status,
         mobile_number: user.mobile_number,
+        entities: user.entities || 'CUTM',
         lastLogin: lastLoginStr
       }
     })
@@ -568,6 +569,7 @@ app.post('/api/auth/google', async (req, res) => {
         team:      user.team,
         picture:   user.picture,
         status:    user.status,
+        entities:  user.entities || 'CUTM',
         lastLogin: lastLoginStr
       }
     })
@@ -635,7 +637,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const userRes = await pool.query('SELECT id, name, email, role, team, status, picture, last_login AS "lastLogin" FROM users WHERE id = $1;', [req.user.id])
+    const userRes = await pool.query('SELECT id, name, email, role, team, status, picture, entities, last_login AS "lastLogin" FROM users WHERE id = $1;', [req.user.id])
     if (userRes.rows.length === 0) return res.status(404).json({ error: 'User profile not found.' })
     res.json(userRes.rows[0])
   } catch (err) {
@@ -2371,6 +2373,22 @@ app.get('/api/dashboard/stats', async (req, res) => {
     }
     const byCounsellorStages = Object.values(matrixMap).sort((a, b) => b.total - a.total)
 
+    // For a counsellor: their own GT-entity leads across the entities they're granted
+    let gtEntities = []
+    if (owner) {
+      const uent = await pool.query('SELECT entities FROM users WHERE name = $1 LIMIT 1;', [owner])
+      const granted = String(uent.rows[0]?.entities || 'CUTM').split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+      for (const code of ['FTL', 'GTIB', 'GTTECH', 'ESSE']) {
+        if (!granted.includes(code)) continue
+        const t = `${code.toLowerCase()}_leads`
+        const g = await pool.query(
+          `SELECT COUNT(*)::int AS total, SUM(CASE WHEN status='Not Contacted' THEN 1 ELSE 0 END)::int AS untouched
+           FROM ${t} WHERE LOWER(TRIM(owner)) = LOWER(TRIM($1));`, [owner]
+        ).catch(() => ({ rows: [{ total: 0, untouched: 0 }] }))
+        gtEntities.push({ entity: code, total: g.rows[0].total || 0, untouched: g.rows[0].untouched || 0 })
+      }
+    }
+
     res.json({
       kpi: kpi.rows[0],
       applications: appTotal.rows[0].c,
@@ -2379,6 +2397,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
       byCounsellor,
       byDomain,
       byCounsellorStages,
+      gtEntities,
     })
   } catch (err) {
     console.error('[dashboard/stats]', err)
@@ -2602,7 +2621,7 @@ app.get('/api/admin/security-overview', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
   try {
-    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", last_login AS "lastLogin" FROM users ORDER BY id DESC;')
+    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, last_login AS "lastLogin" FROM users ORDER BY id DESC;')
     res.json(usersRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch user accounts.' })
@@ -2626,20 +2645,21 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   const { id } = req.params
-  const { name, email, role, team, status, picture, password, mobile, mobile_number, reportsTo, excludeFromAssignment } = req.body
+  const { name, email, role, team, status, picture, password, mobile, mobile_number, reportsTo, excludeFromAssignment, entities } = req.body
   try {
-    let queryStr = 'UPDATE users SET name = COALESCE($1, name), role = COALESCE($2, role), team = COALESCE($3, team), status = COALESCE($4, status), picture = COALESCE($5, picture), mobile = COALESCE($6, mobile), reports_to = COALESCE($7, reports_to), mobile_number = COALESCE($8, mobile_number), exclude_from_assignment = COALESCE($9, exclude_from_assignment)'
-    const params = [name, role, team, status, picture, mobile ?? null, reportsTo ?? null, mobile_number ?? null, (typeof excludeFromAssignment === 'boolean' ? excludeFromAssignment : null)]
+    const entStr = Array.isArray(entities) ? entities.join(',') : (typeof entities === 'string' ? entities : null)
+    let queryStr = 'UPDATE users SET name = COALESCE($1, name), role = COALESCE($2, role), team = COALESCE($3, team), status = COALESCE($4, status), picture = COALESCE($5, picture), mobile = COALESCE($6, mobile), reports_to = COALESCE($7, reports_to), mobile_number = COALESCE($8, mobile_number), exclude_from_assignment = COALESCE($9, exclude_from_assignment), entities = COALESCE($10, entities)'
+    const params = [name, role, team, status, picture, mobile ?? null, reportsTo ?? null, mobile_number ?? null, (typeof excludeFromAssignment === 'boolean' ? excludeFromAssignment : null), entStr]
 
     if (password) {
-      queryStr += ', password = $10 WHERE id = $11'
+      queryStr += ', password = $11 WHERE id = $12'
       params.push(password, id)
     } else {
-      queryStr += ' WHERE id = $10'
+      queryStr += ' WHERE id = $11'
       params.push(id)
     }
 
-    queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, mobile_number, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", last_login AS "lastLogin";'
+    queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, mobile_number, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, last_login AS "lastLogin";'
 
     const updateRes = await pool.query(queryStr, params)
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
@@ -2647,6 +2667,21 @@ app.put('/api/users/:id', async (req, res) => {
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to update user profile details.' })
+  }
+})
+
+// Bulk-set entity access for multiple users (Admin only)
+app.post('/api/users/bulk-entities', authenticateToken, async (req, res) => {
+  if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+  const { ids, entities } = req.body
+  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No users selected.' })
+  const ent = Array.isArray(entities) ? entities.join(',') : String(entities || '')
+  try {
+    const r = await pool.query('UPDATE users SET entities = $1 WHERE id = ANY($2::int[]);', [ent, ids.map(Number).filter(Boolean)])
+    res.json({ success: true, updated: r.rowCount, entities: ent })
+  } catch (err) {
+    console.error('[Bulk Entities]', err.message)
+    res.status(500).json({ error: 'Failed to set entities.' })
   }
 })
 

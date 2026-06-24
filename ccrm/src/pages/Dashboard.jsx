@@ -151,6 +151,22 @@ export default function Dashboard() {
         })}
       </div>
 
+      {/* Your GT entities (counsellor's own leads per granted GT entity) */}
+      {stats?.gtEntities?.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-2">Your GT Entities</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {stats.gtEntities.map(e => (
+              <div key={e.entity} className="bg-white rounded-xl border border-gray-200 shadow-sm p-3">
+                <div className="text-[11px] font-bold text-indigo-600">{e.entity}</div>
+                <div className="text-xl font-extrabold text-gray-900 leading-tight">{(e.total || 0).toLocaleString()}</div>
+                <div className="text-[11px] text-gray-500">leads · {(e.untouched || 0).toLocaleString()} not contacted</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* CUTM vs CUTMAP split (admin/manager) */}
       {!isCounselor && stats?.byDomain && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
