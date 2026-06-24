@@ -423,16 +423,23 @@ export function CcrmProvider({ children }) {
 
   const deleteUser = async (id) => {
     try {
-      const res = await fetch(`/api/users/${id}`, { method: 'DELETE' })
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
       if (res.ok) {
         setUsers(prev => prev.filter(u => u.id !== id))
         showToast('User deleted successfully.', 'success')
-        return
+        return true
       }
-    } catch {}
-
-    setUsers(prev => prev.filter(u => u.id !== id))
-    showToast('User deleted successfully.', 'success')
+      const err = await res.json().catch(() => ({}))
+      showToast(err.error || 'Failed to delete user.', 'error')   // e.g. "Only a Super Admin can delete an admin account."
+      return false
+    } catch {
+      showToast('Network error deleting user.', 'error')
+      return false
+    }
   }
 
   // Refresh counselor stats from API (called after lead/app changes)

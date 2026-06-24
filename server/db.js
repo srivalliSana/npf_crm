@@ -26,6 +26,18 @@ export async function initDb() {
     // Per-user entity access (comma-separated: CUTM,CUTMAP,FTL,GTIB,GTTECH,ESSE) — default CUTM
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS entities TEXT DEFAULT 'CUTM';`).catch(() => {})
     await client.query(`UPDATE users SET entities='CUTM' WHERE entities IS NULL OR entities='';`).catch(() => {})
+    // Super Admin flag — only a super admin can delete/demote other admins
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN DEFAULT FALSE;`).catch(() => {})
+    // One-time bootstrap (first run, before any super admin exists): promote the oldest
+    // admin to super admin, and give existing admins full entity access so they keep
+    // their current all-sections visibility once admins become entity-gated.
+    try {
+      const hasSuper = await client.query("SELECT 1 FROM users WHERE is_superadmin = TRUE LIMIT 1;")
+      if (hasSuper.rows.length === 0) {
+        await client.query("UPDATE users SET is_superadmin = TRUE WHERE id = (SELECT id FROM users WHERE role = 'Admin' ORDER BY id ASC LIMIT 1);")
+        await client.query("UPDATE users SET entities = 'CUTM,CUTMAP,FTL,GTIB,GTTECH,ESSE' WHERE role = 'Admin';")
+      }
+    } catch { /* users table not present yet on a brand-new DB */ }
     // GT lead status: seed the funnel default (old rows were 'new'/empty)
     for (const t of ['ftl_leads', 'gtib_leads', 'gttech_leads', 'esse_leads']) {
       await client.query(`UPDATE ${t} SET status='Not Contacted' WHERE status IS NULL OR status IN ('', 'new', 'New');`).catch(() => {})

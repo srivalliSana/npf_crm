@@ -515,6 +515,7 @@ app.post('/api/auth/login', async (req, res) => {
         status: user.status,
         mobile_number: user.mobile_number,
         entities: user.entities || 'CUTM',
+        isSuperAdmin: !!user.is_superadmin,
         lastLogin: lastLoginStr
       }
     })
@@ -576,6 +577,7 @@ app.post('/api/auth/google', async (req, res) => {
         picture:   user.picture,
         status:    user.status,
         entities:  user.entities || 'CUTM',
+        isSuperAdmin: !!user.is_superadmin,
         lastLogin: lastLoginStr
       }
     })
@@ -643,7 +645,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const userRes = await pool.query('SELECT id, name, email, role, team, status, picture, entities, last_login AS "lastLogin" FROM users WHERE id = $1;', [req.user.id])
+    const userRes = await pool.query('SELECT id, name, email, role, team, status, picture, entities, is_superadmin AS "isSuperAdmin", last_login AS "lastLogin" FROM users WHERE id = $1;', [req.user.id])
     if (userRes.rows.length === 0) return res.status(404).json({ error: 'User profile not found.' })
     res.json(userRes.rows[0])
   } catch (err) {
@@ -2630,7 +2632,7 @@ app.get('/api/admin/security-overview', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
   try {
-    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, last_login AS "lastLogin" FROM users ORDER BY id DESC;')
+    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, is_superadmin AS "isSuperAdmin", last_login AS "lastLogin" FROM users ORDER BY id DESC;')
     res.json(usersRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch user accounts.' })
@@ -3010,14 +3012,43 @@ app.post('/api/users/bulk-upload', (req, res, next) => {
   }
 })
 
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', authenticateToken, async (req, res) => {
   const { id } = req.params
   try {
+    // Resolve requester (super admin?) and target role
+    const meRes = await pool.query('SELECT is_superadmin FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+    const iAmSuper = !!meRes.rows[0]?.is_superadmin
+    const tgtRes = await pool.query('SELECT role, is_superadmin FROM users WHERE id = $1;', [id])
+    if (tgtRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
+    const target = tgtRes.rows[0]
+    // Only a super admin can delete an Admin or another super admin
+    if ((target.role === 'Admin' || target.is_superadmin) && !iAmSuper) {
+      return res.status(403).json({ error: 'Only a Super Admin can delete an admin account.' })
+    }
     const deleteRes = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id;', [id])
     if (deleteRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
     res.json({ message: 'User deleted successfully.', id })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete user account.' })
+  }
+})
+
+// Promote/demote a user as Super Admin — only a Super Admin may do this
+app.post('/api/users/:id/superadmin', authenticateToken, async (req, res) => {
+  const { id } = req.params
+  const { isSuperAdmin } = req.body
+  try {
+    const meRes = await pool.query('SELECT is_superadmin FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+    if (!meRes.rows[0]?.is_superadmin) return res.status(403).json({ error: 'Only a Super Admin can change Super Admin status.' })
+    const r = await pool.query(
+      'UPDATE users SET is_superadmin = $1 WHERE id = $2 RETURNING id, name, role, is_superadmin AS "isSuperAdmin";',
+      [!!isSuperAdmin, id]
+    )
+    if (r.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
+    res.json({ success: true, user: r.rows[0] })
+  } catch (err) {
+    console.error('[Set SuperAdmin]', err.message)
+    res.status(500).json({ error: 'Failed to update Super Admin status.' })
   }
 })
 

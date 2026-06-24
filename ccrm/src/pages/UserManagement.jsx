@@ -4,7 +4,7 @@ import {
   Users, Plus, Search, Shield, Edit, Trash2,
   CheckCircle, XCircle, X, Save, AlertTriangle,
   Upload, Download, FileSpreadsheet, Key, Activity, Clock, Copy,
-  UserCheck, UserMinus,
+  UserCheck, UserMinus, Crown,
 } from 'lucide-react'
 
 const ROLE_COLORS = {
@@ -286,6 +286,23 @@ export default function UserManagement({ currentUser }) {
     setDeleteConfirm(null)
   }
 
+  // ── Promote / revoke Super Admin (Super Admin only) ────────────────────────
+  const toggleSuperAdmin = async (u) => {
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch(`/api/users/${u.id}/superadmin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ isSuperAdmin: !u.isSuperAdmin })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        showToast(`${u.name} ${!u.isSuperAdmin ? 'is now a Super Admin' : 'is no longer a Super Admin'}.`, 'success')
+        fetchAllData()
+      } else { showToast(data.error || 'Failed to update Super Admin.', 'error') }
+    } catch { showToast('Network error.', 'error') }
+  }
+
   // ── Toggle active/inactive ─────────────────────────────────────────────────
   function toggleStatus(u) {
     if (u.email === currentUser?.email) return
@@ -437,6 +454,8 @@ export default function UserManagement({ currentUser }) {
                 {filtered.map(u => {
                   const rc   = ROLE_COLORS[u.role] || ROLE_COLORS.Counselor
                   const self = u.email === currentUser?.email
+                  const protectedTarget = u.role === 'Admin' || u.isSuperAdmin   // only a Super Admin may delete these
+                  const iAmSuper = !!currentUser?.isSuperAdmin
                   return (
                     <tr key={u.id} className={`hover:bg-gray-50 transition-colors ${self ? 'bg-primary-50/30' : ''}`}>
                       <td className="table-td">
@@ -461,6 +480,7 @@ export default function UserManagement({ currentUser }) {
                       <td className="table-td text-gray-600 text-xs">{u.mobile || <span className="text-gray-300">—</span>}</td>
                       <td className="table-td">
                         <span className={`badge ${rc.bg} ${rc.text}`}>{u.role}</span>
+                        {u.isSuperAdmin && <span className="ml-1 badge bg-amber-100 text-amber-800 text-[9px] font-bold" title="Super Admin">SUPER</span>}
                       </td>
                       <td className="table-td text-gray-600">{u.team}</td>
                       <td className="table-td">
@@ -506,11 +526,20 @@ export default function UserManagement({ currentUser }) {
                           >
                             {u.status === 'Active' ? <XCircle size={14} /> : <CheckCircle size={14} />}
                           </button>
+                          {iAmSuper && !self && (
+                            <button
+                              onClick={() => toggleSuperAdmin(u)}
+                              title={u.isSuperAdmin ? 'Revoke Super Admin' : 'Make Super Admin'}
+                              className={`p-1 rounded ${u.isSuperAdmin ? 'text-amber-600 hover:bg-amber-50' : 'text-gray-400 hover:bg-gray-100'}`}
+                            >
+                              <Crown size={14} />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDelete(u)}
-                            disabled={self}
-                            className={`p-1 rounded ${self ? 'opacity-30 cursor-not-allowed' : 'hover:bg-red-50 text-red-500'}`}
-                            title={self ? "Can't delete yourself" : 'Delete user'}
+                            disabled={self || (protectedTarget && !iAmSuper)}
+                            className={`p-1 rounded ${self || (protectedTarget && !iAmSuper) ? 'opacity-30 cursor-not-allowed' : 'hover:bg-red-50 text-red-500'}`}
+                            title={self ? "Can't delete yourself" : (protectedTarget && !iAmSuper ? 'Only a Super Admin can delete an admin' : 'Delete user')}
                           >
                             <Trash2 size={14} />
                           </button>
