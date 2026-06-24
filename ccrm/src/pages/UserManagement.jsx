@@ -23,8 +23,10 @@ const PERMISSIONS = {
 
 // Fallback values if API hasn't loaded yet
 const FALLBACK_ROLES = ['Admin','Manager','Counselor','Finance']
+const ENTITIES = ['CUTM', 'CUTMAP', 'FTL', 'GTIB', 'GTTECH', 'ESSE']
+const parseEntities = (s) => String(s || 'CUTM').split(',').map(x => x.trim()).filter(Boolean)
 const FALLBACK_TEAMS = ['Management','Admissions','Sales','Marketing','Finance']
-const EMPTY_FORM = { name: '', email: '', mobile: '', role: 'Counselor', team: 'Admissions', status: 'Active', password: '', reportsTo: '' }
+const EMPTY_FORM = { name: '', email: '', mobile: '', role: 'Counselor', team: 'Admissions', status: 'Active', password: '', reportsTo: '', entities: ['CUTM'] }
 
 function initials(name = '') {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -116,6 +118,24 @@ export default function UserManagement({ currentUser }) {
   }
   const selectAll = () => {
     setSelectedIds(selectedIds.length === filtered.length ? [] : filtered.map(u => u.id))
+  }
+
+  const [bulkEnt, setBulkEnt] = useState(['CUTM'])
+  const [showBulkEnt, setShowBulkEnt] = useState(false)
+  const applyBulkEntities = async () => {
+    if (selectedIds.length === 0) return
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/users/bulk-entities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ ids: selectedIds, entities: bulkEnt })
+      })
+      if (res.ok) {
+        showToast(`Entities set for ${selectedIds.length} user(s).`, 'success')
+        setShowBulkEnt(false); setSelectedIds([]); fetchAllData()
+      } else { showToast('Failed to set entities.', 'error') }
+    } catch { showToast('Network error.', 'error') }
   }
 
   const bulkActivate = async (status) => {
@@ -216,7 +236,7 @@ export default function UserManagement({ currentUser }) {
   // ── Open edit modal ────────────────────────────────────────────────────────
   function openEdit(u) {
     setEditingUser(u)
-    setForm({ name: u.name, email: u.email, mobile: u.mobile || '', role: u.role, team: u.team, status: u.status, password: '', reportsTo: u.reportsTo || '' })
+    setForm({ name: u.name, email: u.email, mobile: u.mobile || '', role: u.role, team: u.team, status: u.status, password: '', reportsTo: u.reportsTo || '', entities: parseEntities(u.entities) })
     setFormError('')
     setShowModal(true)
   }
@@ -236,7 +256,8 @@ export default function UserManagement({ currentUser }) {
         role: form.role,
         team: form.team,
         status: form.status,
-        reportsTo: form.reportsTo
+        reportsTo: form.reportsTo,
+        entities: form.entities
       })
     } else {
       addUser({
@@ -247,7 +268,8 @@ export default function UserManagement({ currentUser }) {
         team: form.team,
         status: form.status,
         password: form.password,
-        reportsTo: form.reportsTo
+        reportsTo: form.reportsTo,
+        entities: form.entities
       })
     }
     setShowModal(false)
@@ -367,6 +389,29 @@ export default function UserManagement({ currentUser }) {
                   className="text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg px-3 py-1 flex items-center gap-1">
                   <XCircle size={11} /> Deactivate
                 </button>
+                <div className="relative">
+                  <button onClick={() => setShowBulkEnt(v => !v)}
+                    className="text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg px-3 py-1">Set Entities</button>
+                  {showBulkEnt && (
+                    <div className="absolute right-0 top-8 z-30 bg-white border border-gray-200 rounded-lg shadow-xl p-3 w-60">
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-2">Grant entities to {selectedIds.length} user(s)</p>
+                      <div className="grid grid-cols-3 gap-1.5 mb-2">
+                        {ENTITIES.map(ent => {
+                          const on = bulkEnt.includes(ent)
+                          return (
+                            <button key={ent} type="button"
+                              onClick={() => setBulkEnt(p => on ? p.filter(e => e !== ent) : [...p, ent])}
+                              className={`text-xs font-medium px-1.5 py-1 rounded border ${on ? 'bg-primary-500 border-primary-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                              {ent}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <button onClick={applyBulkEntities}
+                        className="w-full text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-1.5 font-medium">Apply</button>
+                    </div>
+                  )}
+                </div>
                 <button onClick={() => setSelectedIds([])}
                   className="text-xs text-gray-600 border border-gray-300 rounded-lg px-3 py-1">Clear</button>
               </div>
@@ -383,7 +428,7 @@ export default function UserManagement({ currentUser }) {
                       onChange={selectAll}
                       className="w-4 h-4 rounded border-gray-300 text-primary-500" />
                   </th>
-                  {['Name','Email','Mobile','Role','Team','Reports To','Status','Last Login','Actions'].map(h => (
+                  {['Name','Email','Mobile','Role','Team','Entities','Reports To','Status','Last Login','Actions'].map(h => (
                     <th key={h} className="table-th">{h}</th>
                   ))}
                 </tr>
@@ -418,6 +463,13 @@ export default function UserManagement({ currentUser }) {
                         <span className={`badge ${rc.bg} ${rc.text}`}>{u.role}</span>
                       </td>
                       <td className="table-td text-gray-600">{u.team}</td>
+                      <td className="table-td">
+                        <div className="flex flex-wrap gap-1 max-w-[140px]">
+                          {parseEntities(u.entities).map(e => (
+                            <span key={e} className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">{e}</span>
+                          ))}
+                        </div>
+                      </td>
                       <td className="table-td text-gray-600 text-xs">{u.reportsTo || <span className="text-gray-300">—</span>}</td>
                       <td className="table-td">
                         <span className={`badge ${u.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -469,7 +521,7 @@ export default function UserManagement({ currentUser }) {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="text-center py-8 text-gray-400 text-sm">No users found.</td>
+                    <td colSpan={11} className="text-center py-8 text-gray-400 text-sm">No users found.</td>
                   </tr>
                 )}
               </tbody>
@@ -584,6 +636,26 @@ export default function UserManagement({ currentUser }) {
                 >
                   {TEAMS.map(t => <option key={t}>{t}</option>)}
                 </select>
+              </div>
+
+              {/* Entity Access — which lead sets this user can view */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Entity Access <span className="text-[10px] text-gray-400">(which lead sets this user can view)</span>
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {ENTITIES.map(ent => {
+                    const on = form.entities.includes(ent)
+                    return (
+                      <button key={ent} type="button"
+                        onClick={() => setForm(f => ({ ...f, entities: on ? f.entities.filter(e => e !== ent) : [...f.entities, ent] }))}
+                        className={`text-xs font-medium px-2 py-1.5 rounded-lg border transition ${on ? 'bg-primary-500 border-primary-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                        {ent}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">They see only their own assigned leads within these entities.</p>
               </div>
 
               {/* Reports To — Manager / Dean */}
