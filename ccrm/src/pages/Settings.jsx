@@ -141,7 +141,7 @@ export default function Settings() {
       try {
         const res = await fetch('/api/integration-settings', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ccrm_token') || ''}` },
           body: JSON.stringify(orgForm)
         })
         showToast(res.ok ? 'Organization settings saved.' : 'Failed to save organization settings.', res.ok ? 'success' : 'error')

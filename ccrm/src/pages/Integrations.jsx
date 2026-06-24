@@ -576,7 +576,7 @@ export default function Integrations() {
 
       const res = await fetch('/api/integration-settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ccrm_token') || ''}` },
         body: JSON.stringify(payload)
       })
       if (res.ok) {
@@ -606,7 +606,7 @@ export default function Integrations() {
     try {
       await fetch('/api/integration-settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ccrm_token') || ''}` },
         body: JSON.stringify(payload)
       })
     } catch {}
