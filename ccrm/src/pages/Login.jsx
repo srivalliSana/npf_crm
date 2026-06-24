@@ -359,90 +359,10 @@ export default function Login() {
             )}
           </div>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs text-gray-400 font-medium whitespace-nowrap">or sign in with email</span>
-            <div className="flex-1 h-px bg-gray-200" />
-          </div>
-
-          {/* Email + password form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Official Email Address</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => { setEmail(e.target.value); setError('') }}
-                  placeholder={`you@${ALLOWED_DOMAINS[0]}`}
-                  autoComplete="email"
-                  className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 transition bg-white ${
-                    typedDomain && !domainValid
-                      ? 'border-red-400 focus:ring-red-300'
-                      : 'border-gray-200 focus:ring-primary-400 focus:border-primary-400'
-                  }`}
-                />
-              </div>
-              {typedDomain && !domainValid && (
-                <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
-                  <AlertCircle size={11} /> Only <strong>{ALLOWED_DOMAINS.join(', ')}</strong> domains allowed
-                </p>
-              )}
-              {typedDomain && domainValid && (
-                <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
-                  <CheckCircle2 size={11}/> Valid domain
-                </p>
-              )}
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Password</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  className="w-full pl-10 pr-11 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 transition bg-white"
-                />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                  {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
-                </button>
-              </div>
-            </div>
-
-            {/* Remember + Forgot */}
-            <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-3.5 h-3.5 rounded border-gray-300 text-primary-500 focus:ring-primary-300" />
-                <span className="text-xs text-gray-600">Remember me</span>
-              </label>
-              <button type="button" onClick={() => setShowForgot(true)}
-                className="text-xs text-primary-600 hover:text-primary-700 font-semibold transition-colors">
-                Forgot password?
-              </button>
-            </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-primary-600/20 hover:shadow-primary-600/30 flex items-center justify-center gap-2 text-sm mt-2"
-            >
-              {loading ? (
-                <><Spinner size={4} /> Signing in...</>
-              ) : (
-                <>Sign In <ArrowRight size={16}/></>
-              )}
-            </button>
-          </form>
+          {/* Email/password login removed — sign-in is via Google only */}
+          <p className="text-center text-xs text-gray-400 mt-2">
+            Use your official <strong>{ALLOWED_DOMAINS.join(' / ')}</strong> Google account to sign in.
+          </p>
 
           {/* Footer links */}
           <div className="mt-10 pt-6 border-t border-gray-200 flex flex-col items-center gap-2">
