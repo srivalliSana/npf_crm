@@ -751,8 +751,8 @@ app.get('/api/gttech-leads', async (req, res) => {
     const reqName = req.query.requesterName || ''
     const owner = req.query.owner || ''
     if (reqRole && !['Admin', 'Manager'].includes(reqRole)) {
-      // Counsellor: only the GT leads assigned to them
-      params.push(reqName || '___none___'); where.push(`owner = $${params.length}`)
+      // Counsellor: only the GT leads assigned to them (tolerant of case/whitespace)
+      params.push(reqName || '___none___'); where.push(`LOWER(TRIM(owner)) = LOWER(TRIM($${params.length}))`)
     } else if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
@@ -798,8 +798,8 @@ app.get('/api/ftl-leads', async (req, res) => {
     const reqName = req.query.requesterName || ''
     const owner = req.query.owner || ''
     if (reqRole && !['Admin', 'Manager'].includes(reqRole)) {
-      // Counsellor: only the GT leads assigned to them
-      params.push(reqName || '___none___'); where.push(`owner = $${params.length}`)
+      // Counsellor: only the GT leads assigned to them (tolerant of case/whitespace)
+      params.push(reqName || '___none___'); where.push(`LOWER(TRIM(owner)) = LOWER(TRIM($${params.length}))`)
     } else if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
@@ -845,8 +845,8 @@ app.get('/api/gtib-leads', async (req, res) => {
     const reqName = req.query.requesterName || ''
     const owner = req.query.owner || ''
     if (reqRole && !['Admin', 'Manager'].includes(reqRole)) {
-      // Counsellor: only the GT leads assigned to them
-      params.push(reqName || '___none___'); where.push(`owner = $${params.length}`)
+      // Counsellor: only the GT leads assigned to them (tolerant of case/whitespace)
+      params.push(reqName || '___none___'); where.push(`LOWER(TRIM(owner)) = LOWER(TRIM($${params.length}))`)
     } else if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
@@ -892,8 +892,8 @@ app.get('/api/esse-leads', async (req, res) => {
     const reqName = req.query.requesterName || ''
     const owner = req.query.owner || ''
     if (reqRole && !['Admin', 'Manager'].includes(reqRole)) {
-      // Counsellor: only the GT leads assigned to them
-      params.push(reqName || '___none___'); where.push(`owner = $${params.length}`)
+      // Counsellor: only the GT leads assigned to them (tolerant of case/whitespace)
+      params.push(reqName || '___none___'); where.push(`LOWER(TRIM(owner)) = LOWER(TRIM($${params.length}))`)
     } else if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
@@ -1079,7 +1079,7 @@ app.get('/api/website-leads/my-count', authenticateToken, async (req, res) => {
   try {
     let total = 0
     for (const t of ['ftl_leads', 'gtib_leads', 'gttech_leads', 'esse_leads']) {
-      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM ${t} WHERE owner = $1;`, [owner]).catch(() => ({ rows: [{ c: 0 }] }))
+      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM ${t} WHERE LOWER(TRIM(owner)) = LOWER(TRIM($1));`, [owner]).catch(() => ({ rows: [{ c: 0 }] }))
       total += r.rows[0].c
     }
     res.json({ total })
