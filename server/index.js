@@ -31,7 +31,13 @@ const JWT_SECRET = process.env.JWT_SECRET || 'ccrm-jwt-secret-key-2026'
 // Disable Express ETags globally — hashed asset filenames handle cache-busting
 app.set('etag', false)
 
-app.use(cors())
+// Restrict browser cross-origin calls to our own origins (override via CORS_ORIGINS env).
+// Server-to-server callers (webhooks, curl) ignore CORS; this blocks malicious sites.
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'https://crm.cutmap.ac.in,https://pay.cutmap.ac.in').split(',').map(s => s.trim())
+app.use(cors({
+  origin(origin, cb) { cb(null, !origin || CORS_ORIGINS.includes(origin)) },
+  credentials: true,
+}))
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
@@ -3092,29 +3098,42 @@ app.put('/api/notifications', async (req, res) => {
 })
 
 // --- INTEGRATION SETTINGS ---
+// Secret-looking keys are never returned in plaintext — only a masked sentinel,
+// so the settings endpoint can't be used to exfiltrate credentials.
+const SETTINGS_MASK = '••••••'
+const isSecretKey = (k) => /(pass|secret|token|api_key|access_key|salt|hash)/i.test(k) || /_key$/i.test(k)
+
 app.get('/api/integration-settings', async (req, res) => {
   try {
     const r = await pool.query('SELECT key, value FROM integration_settings ORDER BY key;')
     const settings = {}
-    for (const row of r.rows) settings[row.key] = row.value
+    for (const row of r.rows) {
+      settings[row.key] = isSecretKey(row.key) ? (row.value ? SETTINGS_MASK : '') : row.value
+    }
     res.json(settings)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch integration settings.' })
   }
 })
 
-app.post('/api/integration-settings', async (req, res) => {
+app.post('/api/integration-settings', authenticateToken, async (req, res) => {
+  if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
   const settings = req.body
   if (!settings || typeof settings !== 'object') return res.status(400).json({ error: 'Invalid settings object.' })
   try {
+    let saved = 0
     for (const [key, value] of Object.entries(settings)) {
       if (!key || typeof key !== 'string') continue
+      const v = String(value ?? '')
+      if (v === SETTINGS_MASK) continue                  // unchanged masked secret — keep existing
+      if (isSecretKey(key) && v === '') continue         // never blank-out a secret
       await pool.query(
         'INSERT INTO integration_settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();',
-        [key.substring(0, 100), String(value || '')]
+        [key.substring(0, 100), v]
       )
+      saved++
     }
-    res.json({ message: 'Integration settings saved.', count: Object.keys(settings).length })
+    res.json({ message: 'Integration settings saved.', count: saved })
   } catch (err) {
     console.error('[Integration Settings]', err)
     res.status(500).json({ error: 'Failed to save integration settings.' })
