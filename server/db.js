@@ -65,6 +65,14 @@ export async function initDb() {
       );
     `)
 
+    // Real timestamp for date-range filtering (reg_date is a display string).
+    // Backfill historical dates from reg_date ("DD/MM/YYYY, ...") once; new rows default NOW().
+    await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS created_at TIMESTAMP;`).catch(() => {})
+    await client.query(`ALTER TABLE leads ALTER COLUMN created_at SET DEFAULT NOW();`).catch(() => {})
+    await client.query(`UPDATE leads SET created_at = to_timestamp(reg_date, 'DD/MM/YYYY')
+                        WHERE created_at IS NULL AND reg_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}';`).catch(() => {})
+    await client.query(`UPDATE leads SET created_at = NOW() WHERE created_at IS NULL;`).catch(() => {})
+
     // 3. Applications Table
     await client.query(`
       CREATE TABLE IF NOT EXISTS applications (
