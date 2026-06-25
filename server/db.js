@@ -818,6 +818,16 @@ export async function initTenancy() {
     await client.query(`ALTER TABLE integration_settings DROP CONSTRAINT IF EXISTS integration_settings_key_key;`).catch(() => {})
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_intset_tenant_key ON integration_settings (tenant_id, key);`).catch(() => {})
 
+    // Platform super-admin (above per-tenant admins) — can create/suspend tenants
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_platform_admin BOOLEAN DEFAULT FALSE;`).catch(() => {})
+    // Designate the product owner; if absent, fall back to the oldest tenant-1 admin
+    await client.query(`UPDATE users SET is_platform_admin = TRUE WHERE LOWER(email) = 'tokalyankv@gmail.com';`).catch(() => {})
+    await client.query(`
+      UPDATE users SET is_platform_admin = TRUE
+      WHERE id = (SELECT id FROM users WHERE tenant_id = 1 AND role = 'Admin' ORDER BY id ASC LIMIT 1)
+        AND NOT EXISTS (SELECT 1 FROM users WHERE is_platform_admin = TRUE);
+    `).catch(() => {})
+
     console.log('--- Multi-tenant foundation ready (tenants + tenant_id columns) ---')
   } catch (err) {
     console.error('initTenancy failed:', err.message)
