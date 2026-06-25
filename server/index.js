@@ -2332,27 +2332,6 @@ app.get('/api/dashboard/stats', async (req, res) => {
 
     ownerWhere = 'WHERE ' + whereConditions.join(' AND ')
 
-    // 1. Overall KPI counts (single scan)
-    const kpi = await pool.query(`
-      SELECT
-        COUNT(*)::int AS "totalLeads",
-        SUM(CASE WHEN owner IS NULL OR owner = '' OR owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
-        SUM(CASE WHEN stage='Untouched'           THEN 1 ELSE 0 END)::int AS untouched,
-        SUM(CASE WHEN stage='Follow Up'        THEN 1 ELSE 0 END)::int AS "followUp",
-        SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,
-        SUM(CASE WHEN stage='Not Interested'      THEN 1 ELSE 0 END)::int AS "notInterested"
-      FROM leads l ${ownerWhere};
-    `, params)
-
-    // 2. Application + payment totals
-    const appTotal  = await pool.query('SELECT COUNT(*)::int AS c FROM applications WHERE tenant_id = $1;', [req.tenantId])
-    const enrolTotal = await pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments') AND tenant_id = $1;", [req.tenantId])
-    // Revenue counts ONLY admin-verified payments that have a UTR/reference on
-    // record — i.e. UTR entered AND verified. 'Payment Done' (UTR submitted but
-    // not yet approved) and any row without a UTR are excluded.
-    const revTotal  = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '' AND tenant_id = $1;", [req.tenantId])
-
-    // 3. Per-counsellor stage breakdown — ONE GROUP BY, joined to users for domain
     // Scope the visible counsellors the same way as the KPI (own / team / all)
     let userScope = 'AND u.tenant_id = $1'
     const userParams = [req.tenantId]
@@ -2363,26 +2342,58 @@ app.get('/api/dashboard/stats', async (req, res) => {
       userParams.push(manager)
       userScope += ` AND (u.name = $${userParams.length} OR u.reports_to = $${userParams.length})`
     }
-    const perCounsellor = await pool.query(`
-      SELECT
-        u.name, u.email,
-        COUNT(l.id)::int AS leads,
-        SUM(CASE WHEN l.owner IS NULL OR l.owner = '' OR l.owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
-        SUM(CASE WHEN l.stage='Untouched' THEN 1 ELSE 0 END)::int AS untouched,
-        SUM(CASE WHEN l.stage='Contacted' THEN 1 ELSE 0 END)::int AS contacted,
-        SUM(CASE WHEN l.stage='Follow Up' THEN 1 ELSE 0 END)::int AS "followUp",
-        SUM(CASE WHEN l.stage='Interested' THEN 1 ELSE 0 END)::int AS interested,
-        SUM(CASE WHEN l.stage='Not Interested' THEN 1 ELSE 0 END)::int AS "notInterested",
-        SUM(CASE WHEN l.stage='Qualified Leads' THEN 1 ELSE 0 END)::int AS qualified,
-        SUM(CASE WHEN l.stage='Converted' THEN 1 ELSE 0 END)::int AS converted
-      FROM users u
-      LEFT JOIN leads l ON LOWER(l.owner) = LOWER(u.name) AND l.tenant_id = u.tenant_id
-      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
-      GROUP BY u.name, u.email
-      HAVING COUNT(l.id) > 0
-      ORDER BY leads DESC
-      LIMIT 50;
-    `, userParams)
+    const tp = [req.tenantId]
+
+    // All independent aggregates run concurrently (was ~4s sequential → ~slowest query)
+    const [kpi, appTotal, enrolTotal, revTotal, perCounsellor, domainRes, matrixRes] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*)::int AS "totalLeads",
+          SUM(CASE WHEN owner IS NULL OR owner = '' OR owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
+          SUM(CASE WHEN stage='Untouched'      THEN 1 ELSE 0 END)::int AS untouched,
+          SUM(CASE WHEN stage='Follow Up'      THEN 1 ELSE 0 END)::int AS "followUp",
+          SUM(CASE WHEN stage='Interested'     THEN 1 ELSE 0 END)::int AS interested,
+          SUM(CASE WHEN stage='Not Interested' THEN 1 ELSE 0 END)::int AS "notInterested"
+        FROM leads l ${ownerWhere};`, params),
+      pool.query('SELECT COUNT(*)::int AS c FROM applications WHERE tenant_id = $1;', tp),
+      pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments') AND tenant_id = $1;", tp),
+      pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '' AND tenant_id = $1;", tp),
+      pool.query(`
+        SELECT
+          u.name, u.email,
+          COUNT(l.id)::int AS leads,
+          SUM(CASE WHEN l.owner IS NULL OR l.owner = '' OR l.owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
+          SUM(CASE WHEN l.stage='Untouched' THEN 1 ELSE 0 END)::int AS untouched,
+          SUM(CASE WHEN l.stage='Contacted' THEN 1 ELSE 0 END)::int AS contacted,
+          SUM(CASE WHEN l.stage='Follow Up' THEN 1 ELSE 0 END)::int AS "followUp",
+          SUM(CASE WHEN l.stage='Interested' THEN 1 ELSE 0 END)::int AS interested,
+          SUM(CASE WHEN l.stage='Not Interested' THEN 1 ELSE 0 END)::int AS "notInterested",
+          SUM(CASE WHEN l.stage='Qualified Leads' THEN 1 ELSE 0 END)::int AS qualified,
+          SUM(CASE WHEN l.stage='Converted' THEN 1 ELSE 0 END)::int AS converted
+        FROM users u
+        LEFT JOIN leads l ON LOWER(l.owner) = LOWER(u.name) AND l.tenant_id = u.tenant_id
+        WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
+        GROUP BY u.name, u.email
+        HAVING COUNT(l.id) > 0
+        ORDER BY leads DESC
+        LIMIT 50;`, userParams),
+      pool.query(`
+        SELECT
+          CASE WHEN u.email ILIKE '%@cutmap.ac.in' THEN 'cutmap'
+               WHEN u.email ILIKE '%@cutm.ac.in'   THEN 'cutm'
+               ELSE 'other' END AS domain,
+          l.stage AS stage, COUNT(*)::int AS count
+        FROM leads l
+        JOIN users u ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g')) AND u.tenant_id = l.tenant_id
+        ${ownerWhere}
+        GROUP BY domain, l.stage;`, params),
+      pool.query(`
+        SELECT u.name AS counsellor, u.email AS email, l.stage AS stage, COUNT(l.id)::int AS count
+        FROM users u
+        JOIN leads l ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g')) AND l.tenant_id = u.tenant_id
+        WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
+        GROUP BY u.name, u.email, l.stage;`, userParams),
+    ])
 
     const byCounsellor = perCounsellor.rows.map(r => ({
       ...r,
@@ -2390,21 +2401,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
             : (r.email || '').includes('@cutm.ac.in') ? 'cutm' : 'other'
     }))
 
-    // CUTM vs CUTMAP split — per-stage counts, by the owning counselor's email
-    // domain (same rule as the Lead Manager domain tabs). Returns a stages map
-    // per domain so the dashboard can show any stage (incl. Invalid Number) and
-    // a filterable summary table.
-    const domainRes = await pool.query(`
-      SELECT
-        CASE WHEN u.email ILIKE '%@cutmap.ac.in' THEN 'cutmap'
-             WHEN u.email ILIKE '%@cutm.ac.in'   THEN 'cutm'
-             ELSE 'other' END AS domain,
-        l.stage AS stage, COUNT(*)::int AS count
-      FROM leads l
-      JOIN users u ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g')) AND u.tenant_id = l.tenant_id
-      ${ownerWhere}
-      GROUP BY domain, l.stage;
-    `, params)
+    // CUTM vs CUTMAP split — per-stage counts, by the owning counselor's email domain
     // CUTM and CUTMAP only — GT Entities are a separate business (own dashboard)
     const byDomain = { cutm: { total: 0, stages: {} }, cutmap: { total: 0, stages: {} } }
     for (const row of domainRes.rows) {
@@ -2418,15 +2415,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
     // (unassigned, GT-owned, or owner not matching a user) so cutm+cutmap+other = total.
     byDomain.other = { total: Math.max(0, (kpi.rows[0]?.totalLeads || 0) - byDomain.cutm.total - byDomain.cutmap.total), stages: {} }
 
-    // Counsellor × stage matrix (role-scoped via userScope) for the Stage Summary.
-    // Includes each counsellor's domain (cutm/cutmap) so the UI can filter.
-    const matrixRes = await pool.query(`
-      SELECT u.name AS counsellor, u.email AS email, l.stage AS stage, COUNT(l.id)::int AS count
-      FROM users u
-      JOIN leads l ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g')) AND l.tenant_id = u.tenant_id
-      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
-      GROUP BY u.name, u.email, l.stage;
-    `, userParams)
+    // Counsellor × stage matrix (role-scoped) for the Stage Summary — matrixRes was
+    // fetched in the Promise.all above.
     const matrixMap = {}
     for (const row of matrixRes.rows) {
       if (!matrixMap[row.counsellor]) {
