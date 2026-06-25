@@ -516,11 +516,15 @@ app.post('/api/auth/login', async (req, res) => {
     if (user.status !== 'Active') {
       return res.status(403).json({ error: 'Account is inactive. Please contact administrator.' })
     }
+    const tStat = await pool.query('SELECT status FROM tenants WHERE id = $1;', [user.tenant_id || 1])
+    if (tStat.rows[0] && tStat.rows[0].status !== 'Active') {
+      return res.status(403).json({ error: 'This organization is suspended. Please contact support.' })
+    }
 
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
     await pool.query('UPDATE users SET last_login = $1 WHERE id = $2;', [lastLoginStr, user.id])
     
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1 }, JWT_SECRET, { expiresIn: '7d' })
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1, is_platform_admin: !!user.is_platform_admin }, JWT_SECRET, { expiresIn: '7d' })
     
     res.json({
       token,
@@ -535,6 +539,7 @@ app.post('/api/auth/login', async (req, res) => {
         mobile_number: user.mobile_number,
         entities: user.entities || 'CUTM',
         isSuperAdmin: !!user.is_superadmin,
+        isPlatformAdmin: !!user.is_platform_admin,
         lastLogin: lastLoginStr
       }
     })
@@ -561,6 +566,10 @@ app.post('/api/auth/google', async (req, res) => {
       if (u.status !== 'Active') {
         return res.status(403).json({ error: 'Account is inactive. Contact your administrator.' })
       }
+      const tStat = await pool.query('SELECT status FROM tenants WHERE id = $1;', [u.tenant_id || 1])
+      if (tStat.rows[0] && tStat.rows[0].status !== 'Active') {
+        return res.status(403).json({ error: 'This organization is suspended. Please contact support.' })
+      }
       await pool.query(
         'UPDATE users SET last_login = $1, picture = COALESCE(NULLIF($2,\'\'), picture) WHERE id = $3;',
         [lastLoginStr, picture || '', u.id]
@@ -584,7 +593,7 @@ app.post('/api/auth/google', async (req, res) => {
         [`New user registered via Google: ${user.name} (${user.email}) — role: Counselor`, 'Just now'])
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1 }, JWT_SECRET, { expiresIn: '7d' })
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1, is_platform_admin: !!user.is_platform_admin }, JWT_SECRET, { expiresIn: '7d' })
     res.json({
       token,
       user: {
@@ -597,6 +606,7 @@ app.post('/api/auth/google', async (req, res) => {
         status:    user.status,
         entities:  user.entities || 'CUTM',
         isSuperAdmin: !!user.is_superadmin,
+        isPlatformAdmin: !!user.is_platform_admin,
         lastLogin: lastLoginStr
       }
     })
@@ -664,7 +674,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const userRes = await pool.query('SELECT id, name, email, role, team, status, picture, entities, is_superadmin AS "isSuperAdmin", last_login AS "lastLogin" FROM users WHERE id = $1;', [req.user.id])
+    const userRes = await pool.query('SELECT id, name, email, role, team, status, picture, entities, is_superadmin AS "isSuperAdmin", is_platform_admin AS "isPlatformAdmin", last_login AS "lastLogin" FROM users WHERE id = $1 AND tenant_id = $2;', [req.user.id, req.tenantId])
     if (userRes.rows.length === 0) return res.status(404).json({ error: 'User profile not found.' })
     res.json(userRes.rows[0])
   } catch (err) {
@@ -3271,6 +3281,85 @@ app.put('/api/tenant/config', authenticateToken, async (req, res) => {
     const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *;`, params)
     res.json(tenantConfigFromRow(r.rows[0]))
   } catch (e) { console.error('[tenant/config PUT]', e.message); res.status(500).json({ error: 'Failed to save tenant config.' }) }
+})
+
+// ── PHASE 4: platform admin (manages tenants — above per-tenant admins) ─────
+async function platformAdminOnly(req, res, next) {
+  const token = (req.headers['authorization'] || '').split(' ')[1]
+  if (!token) return res.status(401).json({ error: 'Access token missing.' })
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET)
+    const r = await pool.query('SELECT is_platform_admin FROM users WHERE id = $1;', [decoded.id])
+    if (!r.rows[0]?.is_platform_admin) return res.status(403).json({ error: 'Platform admin only.' })
+    req.user = decoded
+    next()
+  } catch { return res.status(403).json({ error: 'Invalid or expired token.' }) }
+}
+
+// List all tenants (+ basic counts)
+app.get('/api/platform/tenants', platformAdminOnly, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT t.id, t.name, t.slug, t.status, t.plan, t.allowed_domains AS "allowedDomains", t.created_at AS "createdAt",
+             (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id = t.id) AS users,
+             (SELECT COUNT(*)::int FROM leads l WHERE l.tenant_id = t.id) AS leads
+      FROM tenants t ORDER BY t.id;
+    `)
+    res.json(r.rows)
+  } catch (e) { console.error('[platform/tenants GET]', e.message); res.status(500).json({ error: 'Failed to list tenants.' }) }
+})
+
+// Create a tenant + its first admin (one click)
+app.post('/api/platform/tenants', platformAdminOnly, async (req, res) => {
+  const { name, slug, adminName, adminEmail, adminPassword, allowedDomains } = req.body
+  if (!name || !slug || !adminEmail) return res.status(400).json({ error: 'name, slug and adminEmail are required.' })
+  const cleanSlug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '')
+  if (!cleanSlug) return res.status(400).json({ error: 'slug must be alphanumeric.' })
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const dupSlug = await client.query('SELECT id FROM tenants WHERE slug = $1;', [cleanSlug])
+    if (dupSlug.rows.length) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'That slug is already taken.' }) }
+    const dupEmail = await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1);', [adminEmail])
+    if (dupEmail.rows.length) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'That admin email already exists.' }) }
+
+    const tRes = await client.query(
+      `INSERT INTO tenants (name, slug, allowed_domains, status, plan, branding, entities, stages)
+       VALUES ($1, $2, $3, 'Active', 'standard', '{}'::jsonb, '[]'::jsonb, '[]'::jsonb) RETURNING id;`,
+      [name, cleanSlug, Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')]
+    )
+    const tenantId = tRes.rows[0].id
+    const uRes = await client.query(
+      `INSERT INTO users (name, email, password, role, status, entities, is_superadmin, tenant_id)
+       VALUES ($1, $2, $3, 'Admin', 'Active', 'LEADS', TRUE, $4) RETURNING id, name, email;`,
+      [adminName || `${name} Admin`, adminEmail, adminPassword || 'ChangeMe@123', tenantId]
+    )
+    await client.query('COMMIT')
+    res.status(201).json({ success: true, tenant: { id: tenantId, name, slug: cleanSlug }, admin: uRes.rows[0], tempPassword: adminPassword || 'ChangeMe@123' })
+  } catch (e) {
+    await client.query('ROLLBACK')
+    console.error('[platform/tenants POST]', e.message)
+    res.status(500).json({ error: 'Failed to create tenant.' })
+  } finally { client.release() }
+})
+
+// Suspend / activate / rename a tenant
+app.patch('/api/platform/tenants/:id', platformAdminOnly, async (req, res) => {
+  const { status, name, allowedDomains } = req.body
+  if (Number(req.params.id) === 1 && status && status !== 'Active') {
+    return res.status(400).json({ error: 'The primary tenant cannot be suspended.' })
+  }
+  try {
+    const sets = [], params = []
+    if (status !== undefined)         { params.push(status); sets.push(`status = $${params.length}`) }
+    if (name !== undefined)           { params.push(name); sets.push(`name = $${params.length}`) }
+    if (allowedDomains !== undefined) { params.push(Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')); sets.push(`allowed_domains = $${params.length}`) }
+    if (!sets.length) return res.json({ message: 'Nothing to update.' })
+    params.push(req.params.id)
+    const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, slug, status;`, params)
+    if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found.' })
+    res.json(r.rows[0])
+  } catch (e) { console.error('[platform/tenants PATCH]', e.message); res.status(500).json({ error: 'Failed to update tenant.' }) }
 })
 
 // --- FILE UPLOAD ENDPOINTS ---

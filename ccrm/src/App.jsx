@@ -27,6 +27,7 @@ import PublicInquiry from './pages/PublicInquiry'
 import StudentPortal from './pages/StudentPortal'
 import Analytics from './pages/Analytics'
 import SocialComments from './pages/SocialComments'
+import PlatformTenants from './pages/PlatformTenants'
 import ServerHealth from './pages/ServerHealth'
 import SecurityAccess from './pages/SecurityAccess'
 import UserProfile from './pages/UserProfile'
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="applications"     element={<ApplicationManager />} />
             <Route path="applications/:id" element={<ApplicationDetails />} />
             <Route path="dashboard"        element={<Dashboard />} />
+            <Route path="platform-tenants" element={<PlatformTenants />} />
             <Route path="reports"          element={<Reports />} />
             <Route path="productivity"     element={<ProductivityReport />} />
             <Route element={<RoleGuard roles={['Admin','Manager']} />}>

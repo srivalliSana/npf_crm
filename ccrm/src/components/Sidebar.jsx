@@ -5,12 +5,13 @@ import {
   BarChart2, Settings, LogOut, CreditCard,
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
   Trophy, Mail, Globe, ExternalLink, Zap, Radio,
-  PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall, Layers, MessageCircle
+  PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall, Layers, MessageCircle, Building2
 } from 'lucide-react'
 import { APP_VERSION } from '../version'
 import { useCcrm } from '../context/CcrmContext'
 
 const NAV_ITEMS = [
+  { icon: Building2,       label: 'Tenants',            to: '/platform-tenants',       platformOnly: true },
   { icon: LayoutDashboard, label: 'Dashboard',          to: '/dashboard',              roles: null },
   { icon: Users,           label: 'Leads',              to: '/leads',                  roles: null },
   { icon: Users,           label: 'Website Leads',      to: '/websites-dashboard',     roles: ['Admin'] },
@@ -70,7 +71,9 @@ export default function Sidebar({ onLogout, user }) {
   const hasGT   = userEntities.some(e => GT_CODES.includes(e))
   const hasMain = userEntities.some(e => MAIN_CODES.includes(e))
 
+  const isPlatformAdmin = !!user?.isPlatformAdmin
   const visibleItems = NAV_ITEMS.filter(item => {
+    if (item.platformOnly) return isPlatformAdmin         // Tenants page — platform admin only
     if (item.label === 'GT Entities' && GT_CODES.length === 0) return false  // tenant has no GT entities
     if (isSuper) return true                              // Super Admin sees everything
     if (item.label === 'GT Entities') return hasGT        // only if granted a GT entity
