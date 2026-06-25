@@ -28,6 +28,7 @@ import StudentPortal from './pages/StudentPortal'
 import Analytics from './pages/Analytics'
 import SocialComments from './pages/SocialComments'
 import PlatformTenants from './pages/PlatformTenants'
+import OrgSettings from './pages/OrgSettings'
 import ServerHealth from './pages/ServerHealth'
 import SecurityAccess from './pages/SecurityAccess'
 import UserProfile from './pages/UserProfile'
@@ -113,6 +114,7 @@ export default function App() {
             <Route element={<RoleGuard roles={['Admin']} />}>
               <Route path="server-health"      element={<ServerHealth />} />
               <Route path="security"           element={<SecurityAccess />} />
+              <Route path="org-settings"       element={<OrgSettings />} />
             </Route>
             <Route path="campaigns"        element={<Campaigns />} />
             <Route path="tasks"            element={<Tasks />} />
