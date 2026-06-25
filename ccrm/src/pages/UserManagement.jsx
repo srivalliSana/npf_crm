@@ -33,7 +33,12 @@ function initials(name = '') {
 }
 
 export default function UserManagement({ currentUser }) {
-  const { users, addUser, updateUser, deleteUser, fetchAllData, showToast } = useCcrm()
+  const { users, addUser, updateUser, deleteUser, fetchAllData, showToast, tenantConfig } = useCcrm()
+  // Entity codes from per-tenant config (falls back to the default CUTM/GT set)
+  const ENTITY_CODES = Array.isArray(tenantConfig?.entities) && tenantConfig.entities.length
+    ? tenantConfig.entities.map(e => e.code)
+    : ENTITIES
+  const entityLabel = (code) => tenantConfig?.entities?.find(e => e.code === code)?.label || code
   const [search, setSearch]           = useState('')
   const [filter, setFilter]           = useState('All')
   const [selectedUser, setSelectedUser] = useState(null)
@@ -413,13 +418,13 @@ export default function UserManagement({ currentUser }) {
                     <div className="absolute right-0 top-8 z-30 bg-white border border-gray-200 rounded-lg shadow-xl p-3 w-60">
                       <p className="text-[10px] font-semibold text-gray-500 uppercase mb-2">Grant entities to {selectedIds.length} user(s)</p>
                       <div className="grid grid-cols-3 gap-1.5 mb-2">
-                        {ENTITIES.map(ent => {
+                        {ENTITY_CODES.map(ent => {
                           const on = bulkEnt.includes(ent)
                           return (
                             <button key={ent} type="button"
                               onClick={() => setBulkEnt(p => on ? p.filter(e => e !== ent) : [...p, ent])}
                               className={`text-xs font-medium px-1.5 py-1 rounded border ${on ? 'bg-primary-500 border-primary-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                              {ent}
+                              {entityLabel(ent)}
                             </button>
                           )
                         })}
@@ -673,13 +678,13 @@ export default function UserManagement({ currentUser }) {
                   Entity Access <span className="text-[10px] text-gray-400">(which lead sets this user can view)</span>
                 </label>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {ENTITIES.map(ent => {
+                  {ENTITY_CODES.map(ent => {
                     const on = form.entities.includes(ent)
                     return (
                       <button key={ent} type="button"
                         onClick={() => setForm(f => ({ ...f, entities: on ? f.entities.filter(e => e !== ent) : [...f.entities, ent] }))}
                         className={`text-xs font-medium px-2 py-1.5 rounded-lg border transition ${on ? 'bg-primary-500 border-primary-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                        {ent}
+                        {entityLabel(ent)}
                       </button>
                     )
                   })}
