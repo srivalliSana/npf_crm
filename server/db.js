@@ -774,12 +774,40 @@ export async function initTenancy() {
         created_at TIMESTAMP DEFAULT NOW()
       );
     `)
+    // Per-tenant config (Phase 3 de-hardcode): branding / entities / lead stages
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS entities JSONB DEFAULT '[]';`).catch(() => {})
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stages JSONB DEFAULT '[]';`).catch(() => {})
+
     // Default tenant = Centurion (id 1). Existing rows backfill to it via DEFAULT 1.
     await client.query(`INSERT INTO tenants (id, name, slug, allowed_domains)
       VALUES (1, 'Centurion', 'centurion', 'cutm.ac.in,cutmap.ac.in')
       ON CONFLICT (id) DO NOTHING;`)
     await client.query(`SELECT setval(pg_get_serial_sequence('tenants','id'),
       GREATEST((SELECT MAX(id) FROM tenants), 1));`).catch(() => {})
+
+    // Seed Centurion's existing branding/entities/stages (only if not yet set) so its
+    // app looks/behaves exactly as today. New tenants get generic defaults via the API.
+    const CENTURION_BRANDING = {
+      name: 'Centurion', shortName: 'CCRM', logoText: 'C',
+      appTitle: 'CCRM Admissions', primaryColor: '#4f46e5', tagline: 'Admissions'
+    }
+    const CENTURION_ENTITIES = [
+      { code: 'CUTM',   label: 'CUTM',   kind: 'main' },
+      { code: 'CUTMAP', label: 'CUTMAP', kind: 'main' },
+      { code: 'FTL',    label: 'FTL',    kind: 'gt'   },
+      { code: 'GTIB',   label: 'GTIB',   kind: 'gt'   },
+      { code: 'GTTECH', label: 'GTTECH', kind: 'gt'   },
+      { code: 'ESSE',   label: 'ESSE',   kind: 'gt'   }
+    ]
+    const CENTURION_STAGES = ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success']
+    await client.query(
+      `UPDATE tenants SET
+         branding = CASE WHEN branding = '{}'::jsonb OR branding IS NULL THEN $1::jsonb ELSE branding END,
+         entities = CASE WHEN entities = '[]'::jsonb OR entities IS NULL THEN $2::jsonb ELSE entities END,
+         stages   = CASE WHEN stages   = '[]'::jsonb OR stages   IS NULL THEN $3::jsonb ELSE stages   END
+       WHERE id = 1;`,
+      [JSON.stringify(CENTURION_BRANDING), JSON.stringify(CENTURION_ENTITIES), JSON.stringify(CENTURION_STAGES)]
+    ).catch(() => {})
 
     for (const t of TENANT_TABLES) {
       await client.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;`).catch(() => {})
