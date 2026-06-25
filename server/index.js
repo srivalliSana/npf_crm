@@ -3213,6 +3213,66 @@ app.post('/api/integration-settings', authenticateToken, async (req, res) => {
   }
 })
 
+// ── PHASE 3: per-tenant config (branding / entities / lead stages) ──────────
+const GENERIC_ENTITIES = [{ code: 'LEADS', label: 'Leads', kind: 'main' }]
+const GENERIC_STAGES = ['New', 'Contacted', 'Follow Up', 'Interested', 'Not Interested', 'Converted']
+
+function tenantConfigFromRow(t) {
+  const branding = (t.branding && Object.keys(t.branding).length) ? t.branding : {
+    name: t.name,
+    shortName: (t.name || 'CRM').slice(0, 6).toUpperCase(),
+    logoText: (t.name || 'C').charAt(0).toUpperCase(),
+    appTitle: `${t.name} CRM`,
+    primaryColor: '#4f46e5',
+    tagline: 'CRM'
+  }
+  const entities = (Array.isArray(t.entities) && t.entities.length) ? t.entities : GENERIC_ENTITIES
+  const stages = (Array.isArray(t.stages) && t.stages.length) ? t.stages : GENERIC_STAGES
+  return {
+    id: t.id, name: t.name, slug: t.slug, status: t.status, plan: t.plan,
+    allowedDomains: (t.allowed_domains || '').split(',').map(s => s.trim()).filter(Boolean),
+    branding, entities, stages
+  }
+}
+
+// Current tenant's full config (loaded by the app after login)
+app.get('/api/tenant/config', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM tenants WHERE id = $1;', [req.tenantId])
+    if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found.' })
+    res.json(tenantConfigFromRow(r.rows[0]))
+  } catch (e) { res.status(500).json({ error: 'Failed to load tenant config.' }) }
+})
+
+// Public config for the login/landing page — branding + allowed domains only (no auth)
+app.get('/api/tenant/public', async (req, res) => {
+  try {
+    const slug = req.query.slug || (req.headers.host || '').split('.')[0]
+    let r = slug ? await pool.query("SELECT * FROM tenants WHERE slug = $1 AND status = 'Active' LIMIT 1;", [slug]) : { rows: [] }
+    if (!r.rows[0]) r = await pool.query('SELECT * FROM tenants WHERE id = 1;')   // fallback Centurion
+    const cfg = tenantConfigFromRow(r.rows[0])
+    res.json({ name: cfg.name, slug: cfg.slug, branding: cfg.branding, allowedDomains: cfg.allowedDomains })
+  } catch (e) { res.status(500).json({ error: 'Failed to load public config.' }) }
+})
+
+// Update the current tenant's config (tenant Admin only)
+app.put('/api/tenant/config', authenticateToken, async (req, res) => {
+  if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+  const { branding, entities, stages, allowedDomains, name } = req.body
+  try {
+    const sets = [], params = []
+    if (branding !== undefined)       { params.push(JSON.stringify(branding)); sets.push(`branding = $${params.length}::jsonb`) }
+    if (entities !== undefined)       { params.push(JSON.stringify(entities)); sets.push(`entities = $${params.length}::jsonb`) }
+    if (stages !== undefined)         { params.push(JSON.stringify(stages));   sets.push(`stages = $${params.length}::jsonb`) }
+    if (allowedDomains !== undefined) { params.push(Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')); sets.push(`allowed_domains = $${params.length}`) }
+    if (name !== undefined)           { params.push(String(name)); sets.push(`name = $${params.length}`) }
+    if (!sets.length) return res.json({ message: 'Nothing to update.' })
+    params.push(req.tenantId)
+    const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *;`, params)
+    res.json(tenantConfigFromRow(r.rows[0]))
+  } catch (e) { console.error('[tenant/config PUT]', e.message); res.status(500).json({ error: 'Failed to save tenant config.' }) }
+})
+
 // --- FILE UPLOAD ENDPOINTS ---
 app.post('/api/upload/avatar', uploadAvatar.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file uploaded.' })
