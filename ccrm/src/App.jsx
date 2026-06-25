@@ -26,6 +26,7 @@ import TransferApprovals from './pages/TransferApprovals'
 import PublicInquiry from './pages/PublicInquiry'
 import StudentPortal from './pages/StudentPortal'
 import Analytics from './pages/Analytics'
+import SocialComments from './pages/SocialComments'
 import ServerHealth from './pages/ServerHealth'
 import SecurityAccess from './pages/SecurityAccess'
 import UserProfile from './pages/UserProfile'
@@ -105,6 +106,7 @@ export default function App() {
               <Route path="logs"           element={<UploadLogs />} />
               <Route path="call-activity"  element={<CallActivityReport />} />
               <Route path="workbook-import" element={<WorkbookImport />} />
+              <Route path="social-comments" element={<SocialComments />} />
             </Route>
             <Route element={<RoleGuard roles={['Admin']} />}>
               <Route path="server-health"      element={<ServerHealth />} />
