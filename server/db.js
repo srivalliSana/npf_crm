@@ -745,3 +745,49 @@ export async function initDb() {
     client.release()
   }
 }
+
+// ─── Multi-tenant foundation (Phase 1) ────────────────────────────────────────
+// Runs independently of initDb() so an unrelated migration abort can't block it.
+// Additive + idempotent: every data table gets tenant_id DEFAULT 1 (Centurion),
+// so existing single-tenant behaviour is unchanged until queries are scoped (Phase 2).
+const TENANT_TABLES = [
+  'users', 'leads', 'applications', 'payments', 'documents', 'notifications',
+  'integration_settings', 'lead_transfers', 'tasks', 'events', 'campaigns',
+  'rcs_templates', 'rcs_messages', 'upload_logs', 'lead_assignment_counter',
+  'esse_leads', 'ftl_leads', 'gtib_leads', 'gttech_leads', 'social_comments',
+  'drip_sequences', 'drip_enrollments', 'email_campaigns', 'calls'
+]
+
+export async function initTenancy() {
+  const client = await pool.connect()
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tenants (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        slug VARCHAR(80) UNIQUE,
+        status VARCHAR(20) DEFAULT 'Active',
+        plan VARCHAR(40) DEFAULT 'standard',
+        allowed_domains TEXT DEFAULT '',
+        branding JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `)
+    // Default tenant = Centurion (id 1). Existing rows backfill to it via DEFAULT 1.
+    await client.query(`INSERT INTO tenants (id, name, slug, allowed_domains)
+      VALUES (1, 'Centurion', 'centurion', 'cutm.ac.in,cutmap.ac.in')
+      ON CONFLICT (id) DO NOTHING;`)
+    await client.query(`SELECT setval(pg_get_serial_sequence('tenants','id'),
+      GREATEST((SELECT MAX(id) FROM tenants), 1));`).catch(() => {})
+
+    for (const t of TENANT_TABLES) {
+      await client.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;`).catch(() => {})
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_${t}_tenant ON ${t} (tenant_id);`).catch(() => {})
+    }
+    console.log('--- Multi-tenant foundation ready (tenants + tenant_id columns) ---')
+  } catch (err) {
+    console.error('initTenancy failed:', err.message)
+  } finally {
+    client.release()
+  }
+}
