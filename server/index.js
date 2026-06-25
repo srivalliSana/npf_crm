@@ -41,6 +41,23 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
+// ── Multi-tenant: resolve req.tenantId on every request (non-blocking) ──────────
+// Reads the JWT if present (Authorization: Bearer); falls back to Centurion (1) so
+// legacy/open endpoints keep working during the SaaS migration. authenticateToken
+// also sets req.tenantId — this just guarantees it exists everywhere.
+app.use((req, _res, next) => {
+  let tid = 1
+  try {
+    const token = (req.headers['authorization'] || '').split(' ')[1]
+    if (token) {
+      const decoded = jwt.verify(token, JWT_SECRET)
+      if (decoded && decoded.tenant_id) tid = decoded.tenant_id
+    }
+  } catch { /* invalid/expired token → default tenant */ }
+  req.tenantId = tid
+  next()
+})
+
 // Setup Static and Upload Folders
 const uploadDirs = [
   path.join(__dirname, 'uploads'),
@@ -670,6 +687,9 @@ app.get('/api/leads', async (req, res) => {
     const params = []
     const add = (clause, value) => { params.push(value); where.push(clause.replace('$$', `$${params.length}`)) }
 
+    // Tenant scoping (multi-tenant) — always first
+    add('tenant_id = $$', req.tenantId)
+
     // Role scoping: counsellors only see their own; admin/manager see all
     if (requesterRole && !['Admin', 'Manager'].includes(requesterRole) && requesterName) {
       add('LOWER(owner) = LOWER($$)', requesterName)
@@ -734,7 +754,7 @@ app.get('/api/leads/:id(\\d+)', async (req, res) => {
       `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
               owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor",
               not_interested_reason AS "notInterestedReason", lead_details AS "leadDetails"
-       FROM leads WHERE id = $1;`, [req.params.id])
+       FROM leads WHERE id = $1 AND tenant_id = $2;`, [req.params.id, req.tenantId])
     if (!r.rows.length) return res.status(404).json({ error: 'Lead not found.' })
     res.json(r.rows[0])
   } catch (err) {
@@ -1070,7 +1090,7 @@ app.post('/api/website-leads/status', authenticateToken, async (req, res) => {
     let ownerGuard = ''
     // Counsellors may only update the status of GT leads assigned to them
     if (!['Admin', 'Manager'].includes(req.user?.role)) {
-      const ur = await pool.query('SELECT name FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+      const ur = await pool.query('SELECT name FROM users WHERE (id = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [req.user?.id || 0, req.user?.email || '', req.tenantId])
       params.push(ur.rows[0]?.name || '___none___')
       ownerGuard = ` AND owner = $${params.length}`
     }
@@ -1110,7 +1130,7 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
     const requesterRole = req.user?.role || ''
     let requesterName = ''
     try {
-      const ur = await pool.query('SELECT name FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+      const ur = await pool.query('SELECT name FROM users WHERE (id = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [req.user?.id || 0, req.user?.email || '', req.tenantId])
       requesterName = ur.rows[0]?.name || ''
     } catch { /* ignore */ }
 
@@ -1126,15 +1146,15 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
     } else if (requestOwner && requestOwner !== 'Unassigned') {
       owner = requestOwner
     } else {
-      owner = await getNextAssignee()
+      owner = await getNextAssignee(req.tenantId)
       console.log(`[Lead Create] Admin/Manager add → auto-assigned to ${owner}`)
     }
 
     const insertRes = await pool.query(`
-      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING id, name, email, mobile, state, city, course, source, owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor";
-    `, [name, email, mobile, state, city, course, source, owner, finalRegDate, score || 0, stage || 'Untouched', stageColor || 'red'])
+    `, [name, email, mobile, state, city, course, source, owner, finalRegDate, score || 0, stage || 'Untouched', stageColor || 'red', req.tenantId])
 
     const newLead = insertRes.rows[0]
 
@@ -1170,7 +1190,7 @@ app.put('/api/leads/:id', async (req, res) => {
         stage_color            = COALESCE($11, stage_color),
         not_interested_reason  = COALESCE($12, not_interested_reason),
         lead_details           = COALESCE($13::jsonb, lead_details)
-      WHERE id = $14
+      WHERE id = $14 AND tenant_id = $15
       RETURNING id, name, email, mobile, state, city, course, source, owner,
                 reg_date AS "regDate", score, stage, stage_color AS "stageColor",
                 not_interested_reason AS "notInterestedReason",
@@ -1189,7 +1209,8 @@ app.put('/api/leads/:id', async (req, res) => {
       stageColor              ?? null,
       not_interested_reason   ?? null,
       leadDetails ? JSON.stringify(leadDetails) : null,
-      id
+      id,
+      req.tenantId
     ])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
     res.json(updateRes.rows[0])
@@ -1210,12 +1231,13 @@ app.post('/api/leads/bulk-assign', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'leadIds (array) and owner are required.' })
     }
     const placeholders = leadIds.map((_, i) => `$${i + 2}`).join(',')
-    const r = await pool.query(`UPDATE leads SET owner = $1 WHERE id IN (${placeholders});`, [owner, ...leadIds])
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`${r.rowCount} lead(s) assigned to ${owner}`, 'Just now'])
+    const tenantParam = `$${leadIds.length + 2}`
+    const r = await pool.query(`UPDATE leads SET owner = $1 WHERE id IN (${placeholders}) AND tenant_id = ${tenantParam};`, [owner, ...leadIds, req.tenantId])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`${r.rowCount} lead(s) assigned to ${owner}`, 'Just now', req.tenantId])
     // Auto-email the counsellor a single summary (not one per lead)
     try {
-      const u = await pool.query('SELECT email FROM users WHERE name = $1 LIMIT 1;', [owner])
+      const u = await pool.query('SELECT email FROM users WHERE name = $1 AND tenant_id = $2 LIMIT 1;', [owner, req.tenantId])
       const email = u.rows[0]?.email
       if (email) {
         await createNotification(email, `${r.rowCount} new lead(s) assigned`, `${r.rowCount} lead(s) have been assigned to you.`, 'lead_assigned', null)
@@ -1236,9 +1258,9 @@ app.post('/api/leads/delete-by-owner', authenticateToken, async (req, res) => {
     if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
     const { owner } = req.body
     if (!owner) return res.status(400).json({ error: 'owner required.' })
-    const r = await pool.query('DELETE FROM leads WHERE owner = $1;', [owner])
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`${r.rowCount} lead(s) deleted (owner: ${owner}) by ${req.user.email}`, 'Just now'])
+    const r = await pool.query('DELETE FROM leads WHERE owner = $1 AND tenant_id = $2;', [owner, req.tenantId])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`${r.rowCount} lead(s) deleted (owner: ${owner}) by ${req.user.email}`, 'Just now', req.tenantId])
     console.log(`[Delete by owner] ${r.rowCount} leads deleted for owner="${owner}" by ${req.user.email}`)
     res.json({ success: true, deleted: r.rowCount })
   } catch (err) {
@@ -1254,7 +1276,7 @@ app.delete('/api/leads/:id', async (req, res) => {
   const requesterName = req.body?.requesterName || req.query.requesterName || ''
 
   try {
-    const leadRes = await pool.query('SELECT id, owner, stage, name FROM leads WHERE id = $1;', [id])
+    const leadRes = await pool.query('SELECT id, owner, stage, name FROM leads WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     if (leadRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
     const lead = leadRes.rows[0]
 
@@ -1273,7 +1295,7 @@ app.delete('/api/leads/:id', async (req, res) => {
       }
     }
 
-    await pool.query('DELETE FROM leads WHERE id = $1;', [id])
+    await pool.query('DELETE FROM leads WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     res.json({ message: 'Lead deleted successfully.', id })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete lead.' })
@@ -3317,19 +3339,19 @@ app.post('/api/leads/check-duplicate', async (req, res) => {
 // Shared picker: returns the active counsellor/manager with the fewest leads and
 // bumps their counter. Returns 'Unassigned' if there are no eligible users.
 // (function declaration → hoisted, so inbound routes above can call it.)
-async function getNextAssignee() {
+async function getNextAssignee(tenantId = 1) {
   try {
     // Eligible = any active user who isn't an Admin/Finance role. This is tolerant of
     // custom role names (Counsellor / Faculty / Telecaller / etc.), not just the exact
     // 'Counselor'/'Manager' strings — otherwise auto-assign silently finds nobody.
-    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role NOT IN ('Admin', 'Finance') AND COALESCE(exclude_from_assignment, FALSE) = FALSE ORDER BY name;")
+    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role NOT IN ('Admin', 'Finance') AND COALESCE(exclude_from_assignment, FALSE) = FALSE AND tenant_id = $1 ORDER BY name;", [tenantId])
     if (usersRes.rows.length === 0) return 'Unassigned'
 
     // Ensure every active user has a counter row
     for (const u of usersRes.rows) {
       await pool.query(
-        'INSERT INTO lead_assignment_counter (counselor_name, counselor_email) VALUES ($1, $2) ON CONFLICT (counselor_name) DO NOTHING;',
-        [u.name, u.email]
+        'INSERT INTO lead_assignment_counter (counselor_name, counselor_email, tenant_id) VALUES ($1, $2, $3) ON CONFLICT (counselor_name) DO NOTHING;',
+        [u.name, u.email, tenantId]
       )
     }
 
@@ -3337,15 +3359,15 @@ async function getNextAssignee() {
     const counterRes = await pool.query(`
       SELECT lac.counselor_name
       FROM lead_assignment_counter lac
-      JOIN users u ON u.name = lac.counselor_name
-      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE
+      JOIN users u ON u.name = lac.counselor_name AND u.tenant_id = $1
+      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE AND lac.tenant_id = $1
       ORDER BY lac.assignment_count ASC, lac.last_assigned ASC
       LIMIT 1;
-    `)
+    `, [tenantId])
     const assignee = counterRes.rows[0]?.counselor_name || usersRes.rows[0].name
     await pool.query(
-      'UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;',
-      [assignee]
+      'UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1 AND tenant_id = $2;',
+      [assignee, tenantId]
     )
     return assignee
   } catch (err) {
