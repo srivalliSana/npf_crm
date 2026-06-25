@@ -67,7 +67,7 @@ export default function LeadManager() {
   const navigate = useNavigate()
   const { addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData, fetchLeadsPage,
           checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, sendBulkEmail, sendRcsToLead,
-          rcsTemplates, fetchRcsTemplates, enrollDrip, logCall } = useCcrm()
+          rcsTemplates, fetchRcsTemplates, enrollDrip, logCall, users } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
   const [selectAllPages, setSelectAllPages] = useState(false)
@@ -646,6 +646,18 @@ export default function LeadManager() {
     : []
   const stageOptions  = ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success']
 
+  // Owner assign dropdowns → active users granted the relevant entity (by domain tab),
+  // falling back to all counsellors if none are granted that entity.
+  const assignDomain = activeFilter === 'cutm' ? 'CUTM' : activeFilter === 'cutmap' ? 'CUTMAP' : null
+  const assignableCounsellors = (() => {
+    const granted = (users || []).filter(u => {
+      if (u.status && u.status !== 'Active') return false
+      const ents = String(u.entities || '').split(',').map(s => s.trim().toUpperCase())
+      return assignDomain ? ents.includes(assignDomain) : (ents.includes('CUTM') || ents.includes('CUTMAP'))
+    })
+    return granted.length ? granted : (counselors || [])
+  })()
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -810,7 +822,7 @@ export default function LeadManager() {
                   <select value={bulkAssignTo} onChange={e => setBulkAssignTo(e.target.value)}
                     className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
                     <option value="">Assign to…</option>
-                    {counselors?.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
+                    {assignableCounsellors.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
                   </select>
                   <button onClick={handleBulkAssign} disabled={bulkAssigning || !bulkAssignTo}
                     className="flex items-center gap-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-2.5 py-1 disabled:opacity-50 transition-colors">
@@ -1144,7 +1156,7 @@ export default function LeadManager() {
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Assign to Counselor</label>
                   <select value={newLead.owner} onChange={e => setNewLead(p => ({ ...p, owner: e.target.value }))} className="input-field text-sm">
                     <option value="">-- Select --</option>
-                    {counselors.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    {assignableCounsellors.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>
               )}
