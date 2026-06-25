@@ -5500,8 +5500,11 @@ async function syncGoogleSheet({ sheetId, apiKey, autoAssign = true } = {}) {
 }
 
 app.post('/api/integrations/sheets-sync', async (req, res) => {
-  const sheetId = req.body.sheetId || await getIntegrationSetting('sheets_spreadsheet_id')
-  const apiKey  = req.body.apiKey  || await getIntegrationSetting('sheets_api_key')
+  // Ignore the masked placeholder coming from the UI — always fall back to the real stored key
+  const bodySheet = (req.body.sheetId && req.body.sheetId !== SETTINGS_MASK) ? req.body.sheetId : null
+  const bodyKey   = (req.body.apiKey  && req.body.apiKey  !== SETTINGS_MASK) ? req.body.apiKey  : null
+  const sheetId = bodySheet || await getIntegrationSetting('sheets_spreadsheet_id')
+  const apiKey  = bodyKey   || await getIntegrationSetting('sheets_api_key')
   if (!sheetId) return res.status(400).json({ error: 'Google Sheet ID required.' })
   try {
     const result = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true })
