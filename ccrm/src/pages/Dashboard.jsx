@@ -22,7 +22,8 @@ export default function Dashboard() {
     let q = ''
     if (currentUser?.role === 'Counselor') q = `?owner=${encodeURIComponent(currentUser.name)}`
     else if (currentUser?.role === 'Manager') q = `?manager=${encodeURIComponent(currentUser.name)}`
-    fetch(`/api/dashboard/stats${q}`)
+    const token = localStorage.getItem('ccrm_token')
+    fetch(`/api/dashboard/stats${q}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(r => r.ok ? r.json() : null)
       .then(data => { setStats(data); setStatsLoading(false) })
       .catch(() => setStatsLoading(false))

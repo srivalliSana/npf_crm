@@ -48,14 +48,15 @@ export default function CommunicationsReport() {
   const fetchData = async () => {
     setLoading(true)
     try {
+      const H = { headers: { Authorization: `Bearer ${localStorage.getItem('ccrm_token')}` } }
       if (tab === 'email') {
-        const r = await fetch('/api/reports/email-logs').then(x => x.json())
+        const r = await fetch('/api/reports/email-logs', H).then(x => x.json())
         setEmailSummary(Array.isArray(r) ? r : [])
       } else if (tab === 'whatsapp') {
-        const r = await fetch('/api/reports/whatsapp-logs').then(x => x.json())
+        const r = await fetch('/api/reports/whatsapp-logs', H).then(x => x.json())
         setWaLogs(Array.isArray(r) ? r : [])
       } else if (tab === 'calls') {
-        const r = await fetch('/api/reports/call-logs').then(x => x.json())
+        const r = await fetch('/api/reports/call-logs', H).then(x => x.json())
         setCallData(r || { logs: [], outcomeStats: [], byCounselor: [] })
       }
     } catch {}
@@ -69,7 +70,7 @@ export default function CommunicationsReport() {
     setActiveCamp(camp)
     setLogsLoading(true)
     try {
-      const r = await fetch(`/api/reports/email-logs/${camp.campaignId}`).then(x => x.json())
+      const r = await fetch(`/api/reports/email-logs/${camp.campaignId}`, { headers: { Authorization: `Bearer ${localStorage.getItem('ccrm_token')}` } }).then(x => x.json())
       setEmailLogs(Array.isArray(r) ? r : [])
     } catch { setEmailLogs([]) }
     setLogsLoading(false)
@@ -96,7 +97,7 @@ export default function CommunicationsReport() {
     let logs = (activeCamp?.campaignId === camp.campaignId) ? emailLogs : null
     if (!logs || logs.length === 0) {
       try {
-        const r = await fetch(`/api/reports/email-logs/${camp.campaignId}`).then(x => x.json())
+        const r = await fetch(`/api/reports/email-logs/${camp.campaignId}`, { headers: { Authorization: `Bearer ${localStorage.getItem('ccrm_token')}` } }).then(x => x.json())
         logs = Array.isArray(r) ? r : []
       } catch { logs = [] }
     }

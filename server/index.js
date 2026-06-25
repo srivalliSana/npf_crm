@@ -58,6 +58,27 @@ app.use((req, _res, next) => {
   next()
 })
 
+// ── Lightweight in-memory rate limiter (no extra deps) ──────────────────────────
+const rateBuckets = new Map()
+function rateLimit({ windowMs, max }) {
+  return (req, res, next) => {
+    const k = `${req.ip}:${req.baseUrl || req.path}`
+    const now = Date.now()
+    let b = rateBuckets.get(k)
+    if (!b || now > b.reset) { b = { count: 0, reset: now + windowMs }; rateBuckets.set(k, b) }
+    b.count++
+    if (b.count > max) return res.status(429).json({ error: 'Too many requests — please slow down and try again shortly.' })
+    next()
+  }
+}
+// Prune expired buckets every 10 min so the Map can't grow unbounded
+const _rlPrune = setInterval(() => { const now = Date.now(); for (const [k, b] of rateBuckets) if (now > b.reset) rateBuckets.delete(k) }, 600000)
+if (_rlPrune.unref) _rlPrune.unref()
+
+// Brute-force protection on auth; generous cap on inbound webhooks
+app.use('/api/auth', rateLimit({ windowMs: 60000, max: 30 }))
+app.use('/api/webhooks', rateLimit({ windowMs: 60000, max: 300 }))
+
 // Setup Static and Upload Folders
 const uploadDirs = [
   path.join(__dirname, 'uploads'),
@@ -693,7 +714,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 })
 
 // --- LEADS ROUTERS ---
-app.get('/api/leads', async (req, res) => {
+app.get('/api/leads', authenticateToken, async (req, res) => {
   try {
     // ── Server-side pagination + search + filters + role scoping ──────────────
     // Loading the whole table into the browser freezes at scale (1cr rows),
@@ -769,7 +790,7 @@ app.get('/api/leads', async (req, res) => {
 })
 
 // Single lead by numeric id — used by detail page so it never needs the full list
-app.get('/api/leads/:id(\\d+)', async (req, res) => {
+app.get('/api/leads/:id(\\d+)', authenticateToken, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
@@ -1345,7 +1366,7 @@ app.get('/api/applications/next-app-id', async (req, res) => {
   }
 })
 
-app.get('/api/applications', async (req, res) => {
+app.get('/api/applications', authenticateToken, async (req, res) => {
   try {
     const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept" FROM applications WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(appsRes.rows)
@@ -1776,7 +1797,7 @@ app.delete('/api/applications/:id', async (req, res) => {
 })
 
 // --- TASKS ROUTERS ---
-app.get('/api/tasks', async (req, res) => {
+app.get('/api/tasks', authenticateToken, async (req, res) => {
   try {
     const tasksRes = await pool.query('SELECT id, title, type, priority, due, status, assignee, lead FROM tasks WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(tasksRes.rows)
@@ -1824,7 +1845,7 @@ app.put('/api/tasks/:id', async (req, res) => {
 })
 
 // --- PAYMENTS ROUTERS ---
-app.get('/api/payments', async (req, res) => {
+app.get('/api/payments', authenticateToken, async (req, res) => {
   try {
     const { requesterRole, requesterName } = req.query
     // Admin/Manager/Finance see all; counsellors only their assigned leads' payments (matched by name)
@@ -2063,7 +2084,7 @@ app.put('/api/queries/:id', async (req, res) => {
 })
 
 // --- DOCUMENTS ROUTERS ---
-app.get('/api/documents', async (req, res) => {
+app.get('/api/documents', authenticateToken, async (req, res) => {
   try {
     const { requesterRole, requesterName } = req.query
     // Admin/Manager/Finance see all; counsellors only their assigned leads' documents (matched by student name)
@@ -2124,7 +2145,7 @@ app.delete('/api/documents/:id', async (req, res) => {
 })
 
 // --- EVENTS ROUTERS ---
-app.get('/api/events', async (req, res) => {
+app.get('/api/events', authenticateToken, async (req, res) => {
   try {
     const evRes = await pool.query('SELECT id, title, date, time, type, venue, participants FROM events WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(evRes.rows)
@@ -2148,7 +2169,7 @@ app.post('/api/events', async (req, res) => {
 })
 
 // --- CAMPAIGNS ROUTERS ---
-app.get('/api/campaigns', async (req, res) => {
+app.get('/api/campaigns', authenticateToken, async (req, res) => {
   try {
     const campRes = await pool.query('SELECT id, name, channel, status, budget, spent, leads, conversions, start_date AS "startDate", end_date AS "endDate" FROM campaigns WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(campRes.rows)
@@ -2184,7 +2205,7 @@ app.put('/api/campaigns/:id', async (req, res) => {
 })
 
 // --- COUNSELORS (derived from users + live lead/app/payment stats) ---
-app.get('/api/counselors', async (req, res) => {
+app.get('/api/counselors', authenticateToken, async (req, res) => {
   try {
     const tnt = req.tenantId
     const usersRes = await pool.query(
@@ -2308,7 +2329,7 @@ app.get('/api/admin/version', (req, res) => {
 const dashboardCache = new Map()   // key → { ts, data }; short TTL to absorb repeat loads
 const DASHBOARD_TTL_MS = 60000
 
-app.get('/api/dashboard/stats', async (req, res) => {
+app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   try {
     const { owner, manager, campus } = req.query
 
@@ -2474,7 +2495,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
 })
 
 // ── REPORTS OVERVIEW — all aggregates computed in SQL (scales to millions) ───
-app.get('/api/reports/overview', async (req, res) => {
+app.get('/api/reports/overview', authenticateToken, async (req, res) => {
   try {
     const range = req.query.range || 'all'
     const now = new Date()
@@ -2689,7 +2710,7 @@ app.get('/api/admin/security-overview', async (req, res) => {
   }
 })
 
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authenticateToken, async (req, res) => {
   try {
     const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, is_superadmin AS "isSuperAdmin", last_login AS "lastLogin" FROM users WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(usersRes.rows)
@@ -5029,7 +5050,7 @@ app.post('/api/drip/process', async (req, res) => {
 })
 
 // --- FEATURE 7: SOURCE-TO-ENROLLMENT FUNNEL ---
-app.get('/api/reports/funnel', async (req, res) => {
+app.get('/api/reports/funnel', authenticateToken, async (req, res) => {
   try {
     const { source, campaign } = req.query
     const tnt = parseInt(req.tenantId) || 1   // trusted integer → safe to interpolate
@@ -5058,7 +5079,7 @@ app.get('/api/reports/funnel', async (req, res) => {
 })
 
 // --- FEATURE 8: COUNSELOR LEADERBOARD ---
-app.get('/api/reports/leaderboard', async (req, res) => {
+app.get('/api/reports/leaderboard', authenticateToken, async (req, res) => {
   try {
     const usersRes = await pool.query("SELECT id, name, email FROM users WHERE status = 'Active' AND tenant_id = $1 ORDER BY name;", [req.tenantId])
     const leaderboard = []
@@ -6042,7 +6063,7 @@ app.post('/api/email-campaigns/:id/send', async (req, res) => {
 // ── COMMUNICATION REPORTS ────────────────────────────────────────────────────
 
 // Email logs for a specific campaign
-app.get('/api/reports/email-logs/:campaignId', async (req, res) => {
+app.get('/api/reports/email-logs/:campaignId', authenticateToken, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT id, recipient_email AS "email", recipient_name AS "name", status, error_message AS "error", sent_at AS "sentAt"
@@ -6054,7 +6075,7 @@ app.get('/api/reports/email-logs/:campaignId', async (req, res) => {
 })
 
 // All email logs summary
-app.get('/api/reports/email-logs', async (req, res) => {
+app.get('/api/reports/email-logs', authenticateToken, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT el.campaign_id AS "campaignId", el.campaign_name AS "campaignName",
@@ -6070,7 +6091,7 @@ app.get('/api/reports/email-logs', async (req, res) => {
 })
 
 // WhatsApp bulk send history
-app.get('/api/reports/whatsapp-logs', async (req, res) => {
+app.get('/api/reports/whatsapp-logs', authenticateToken, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT id, campaign_name AS "campaignName", message_template AS "template",
@@ -6084,7 +6105,7 @@ app.get('/api/reports/whatsapp-logs', async (req, res) => {
 })
 
 // Call logs with outcome stats
-app.get('/api/reports/call-logs', async (req, res) => {
+app.get('/api/reports/call-logs', authenticateToken, async (req, res) => {
   try {
     const logs = await pool.query(
       `SELECT id, lead_name AS "leadName", lead_mobile AS "mobile", counselor,
