@@ -5449,43 +5449,62 @@ app.get('/api/reports/call-activity/leads', authenticateToken, async (req, res) 
 })
 
 // --- FEATURE 14: GOOGLE SHEETS AUTO-SYNC ---
+// Shared sync routine — used by the manual endpoint and the 5-min cron.
+// New leads are auto-assigned (round-robin) and the counsellor is alerted.
+async function syncGoogleSheet({ sheetId, apiKey, autoAssign = true } = {}) {
+  if (!sheetId) return { error: 'Google Sheet ID required.' }
+  const key = apiKey || process.env.GOOGLE_SHEETS_API_KEY
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A1:Z1000?key=${key}`
+  const sheetsRes = await fetch(url)
+  if (!sheetsRes.ok) {
+    const errText = await sheetsRes.text()
+    return { error: `Google Sheets API error: ${errText.substring(0, 200)}` }
+  }
+  const sheetsData = await sheetsRes.json()
+  const values = sheetsData.values || []
+  if (values.length < 2) return { synced: 0, skipped: 0, total: 0, message: 'No data rows found.' }
+
+  const headers = values[0].map(h => String(h).toLowerCase().trim())
+  const rows = values.slice(1)
+  let synced = 0, skipped = 0
+  for (const row of rows) {
+    const obj = {}
+    headers.forEach((h, i) => { obj[h] = row[i] || '' })
+    const name = obj.name || obj['student name'] || obj['full name'] || 'Unnamed'
+    const email = obj.email || obj['email id'] || `sheet_${Date.now()}@noemail.com`
+    const mobile = (obj.mobile || obj.phone || obj['phone number'] || '0000000000').replace(/\D/g, '') || '0000000000'
+    const course = obj.course || obj.program || 'B.Tech CSE'
+    const source = obj.source || 'Google Sheets'
+
+    if (mobile.length < 10) { skipped++; continue }
+    const dup = await pool.query('SELECT id FROM leads WHERE mobile = $1 LIMIT 1;', [mobile])
+    if (dup.rows.length > 0) { skipped++; continue }
+
+    const score = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
+    const owner = autoAssign ? await getNextAssignee() : 'Unassigned'
+    const ins = await pool.query(
+      `INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Untouched','red') RETURNING id;`,
+      [name.substring(0, 100), email.substring(0, 100), mobile.substring(0, 50), course.substring(0, 100), source.substring(0, 100), owner, new Date().toLocaleString('en-IN', { hour12: true }), score]
+    )
+    if (autoAssign && owner && owner !== 'Unassigned') {
+      await alertCounselor(owner, name, course, source, ins.rows[0].id)
+    }
+    synced++
+  }
+  if (synced > 0) {
+    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Google Sheets sync: ${synced} new leads imported, ${skipped} skipped`, 'Just now']).catch(() => {})
+  }
+  return { synced, skipped, total: rows.length }
+}
+
 app.post('/api/integrations/sheets-sync', async (req, res) => {
-  const { sheetId, apiKey } = req.body
+  const sheetId = req.body.sheetId || await getIntegrationSetting('sheets_spreadsheet_id')
+  const apiKey  = req.body.apiKey  || await getIntegrationSetting('sheets_api_key')
   if (!sheetId) return res.status(400).json({ error: 'Google Sheet ID required.' })
   try {
-    // Fetch sheet data via Google Sheets API
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A1:Z1000?key=${apiKey || process.env.GOOGLE_SHEETS_API_KEY}`
-    const sheetsRes = await fetch(url)
-    if (!sheetsRes.ok) {
-      const errText = await sheetsRes.text()
-      return res.status(400).json({ error: `Google Sheets API error: ${errText.substring(0, 200)}` })
-    }
-    const sheetsData = await sheetsRes.json()
-    const values = sheetsData.values || []
-    if (values.length < 2) return res.json({ synced: 0, message: 'No data rows found.' })
-
-    const headers = values[0].map(h => String(h).toLowerCase().trim())
-    const rows = values.slice(1)
-    let synced = 0, skipped = 0
-    for (const row of rows) {
-      const obj = {}
-      headers.forEach((h, i) => { obj[h] = row[i] || '' })
-      const name = obj.name || obj['student name'] || obj['full name'] || 'Unnamed'
-      const email = obj.email || obj['email id'] || `sheet_${Date.now()}@noemail.com`
-      const mobile = (obj.mobile || obj.phone || obj['phone number'] || '0000000000').replace(/\D/g, '') || '0000000000'
-      const course = obj.course || obj.program || 'B.Tech CSE'
-      const source = obj.source || 'Google Sheets'
-
-      const dup = await pool.query('SELECT id FROM leads WHERE mobile = $1 LIMIT 1;', [mobile])
-      if (dup.rows.length > 0) { skipped++; continue }
-
-      const score = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
-      await pool.query(`INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color) VALUES ($1,$2,$3,$4,$5,'Unassigned',$6,$7,'Untouched','red');`,
-        [name.substring(0,100), email.substring(0,100), mobile.substring(0,50), course.substring(0,100), source.substring(0,100), new Date().toLocaleString('en-IN', { hour12: true }), score])
-      synced++
-    }
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Google Sheets sync: ${synced} new leads imported, ${skipped} duplicates skipped`, 'Just now'])
-    res.json({ success: true, synced, skipped, total: rows.length })
+    const result = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true })
+    if (result.error) return res.status(400).json({ error: result.error })
+    res.json({ success: true, ...result })
   } catch (err) {
     console.error('[Sheets Sync]', err)
     res.status(500).json({ error: 'Google Sheets sync failed.' })
@@ -6152,6 +6171,25 @@ async function startServer() {
     console.log('[Cron] Sending morning untouched-leads reminders...')
     await sendMorningUntouchedEmails()
   }, { timezone: 'Asia/Kolkata' })
+
+  // Google Sheets auto-pull every 5 minutes — imports new rows + auto-assigns them
+  let sheetsSyncRunning = false
+  cron.schedule('*/5 * * * *', async () => {
+    if (sheetsSyncRunning) return
+    const sheetId = await getIntegrationSetting('sheets_spreadsheet_id')
+    const apiKey  = await getIntegrationSetting('sheets_api_key')
+    if (!sheetId || !apiKey) return   // not configured — skip silently
+    sheetsSyncRunning = true
+    try {
+      const r = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true })
+      if (r.error) console.error('[Sheets Cron]', r.error)
+      else if (r.synced) console.log(`[Sheets Cron] ${r.synced} new lead(s) imported & assigned, ${r.skipped} skipped`)
+    } catch (e) {
+      console.error('[Sheets Cron]', e.message)
+    } finally {
+      sheetsSyncRunning = false
+    }
+  })
 
   // Test endpoint to manually trigger the morning untouched-leads email
   app.post('/api/admin/test-morning-email', authenticateToken, async (req, res) => {
