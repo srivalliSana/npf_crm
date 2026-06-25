@@ -3811,6 +3811,45 @@ app.get('/api/webhooks/meta-leads', (req, res) => {
   res.status(403).json({ error: 'Verification failed.' })
 })
 
+// Capture an FB/IG comment: log it + create one auto-assigned lead per commenter.
+// Comments carry no phone/email, so we use a per-commenter pseudo-email for dedupe.
+async function captureSocialComment({ platform, postId, commentId, commenterId, commenterName, text, permalink }) {
+  if (!commentId) return
+  try {
+    const exists = await pool.query('SELECT id FROM social_comments WHERE comment_id = $1 LIMIT 1;', [commentId])
+    if (exists.rows.length > 0) return   // already captured
+
+    const sourceLabel = platform === 'instagram' ? 'Instagram Comment' : 'Facebook Comment'
+    const name = (commenterName || 'Social Commenter').substring(0, 100)
+    const pseudoEmail = `${platform}_${(commenterId || commentId)}@comment.noemail`.substring(0, 100)
+
+    let leadId = null
+    const dup = await pool.query('SELECT id FROM leads WHERE LOWER(email) = LOWER($1) LIMIT 1;', [pseudoEmail])
+    if (dup.rows.length > 0) {
+      leadId = dup.rows[0].id
+    } else {
+      const owner = await getNextAssignee()
+      const score = calculateLeadScore({ source: sourceLabel, stage: 'Untouched', mobile: '', email: pseudoEmail, course: '' })
+      const ins = await pool.query(
+        `INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color, lead_details)
+         VALUES ($1, $2, '', '', $3, $4, $5, $6, 'Untouched', 'red', $7) RETURNING id;`,
+        [name, pseudoEmail, sourceLabel, owner, new Date().toLocaleString('en-IN', { hour12: true }), score, JSON.stringify({ comment: text || '', platform, permalink: permalink || '', postId: postId || '' })]
+      )
+      leadId = ins.rows[0].id
+      if (owner && owner !== 'Unassigned') await alertCounselor(owner, name, 'Comment', sourceLabel, leadId)
+    }
+
+    await pool.query(
+      `INSERT INTO social_comments (platform, post_id, comment_id, commenter_id, commenter_name, text, permalink, lead_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (comment_id) DO NOTHING;`,
+      [platform, postId || '', commentId, commenterId || '', name, text || '', permalink || '', leadId]
+    )
+    console.log(`[Social Comment] ${platform} comment captured from ${name}`)
+  } catch (e) {
+    console.error('[captureSocialComment]', e.message)
+  }
+}
+
 app.post('/api/webhooks/meta-leads', async (req, res) => {
   try {
     const body = req.body
@@ -3890,6 +3929,38 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
               console.log(`[Meta Webhook] Duplicate lead skipped: ${mobile} / ${email}`)
             }
           }
+          // Facebook Page post comments
+          if (change.field === 'feed' && change.value?.item === 'comment' && change.value?.verb === 'add') {
+            const v = change.value
+            await captureSocialComment({
+              platform: 'facebook',
+              postId: v.post_id,
+              commentId: v.comment_id,
+              commenterId: v.from?.id,
+              commenterName: v.from?.name,
+              text: v.message,
+              permalink: v.post_id ? `https://www.facebook.com/${v.post_id}` : ''
+            })
+          }
+        }
+      }
+    }
+    // Instagram comments (object='instagram')
+    if (body.object === 'instagram') {
+      for (const entry of (body.entry || [])) {
+        for (const change of (entry.changes || [])) {
+          if (change.field === 'comments') {
+            const v = change.value || {}
+            await captureSocialComment({
+              platform: 'instagram',
+              postId: v.media?.id,
+              commentId: v.id,
+              commenterId: v.from?.id,
+              commenterName: v.from?.username,
+              text: v.text,
+              permalink: ''
+            })
+          }
         }
       }
     }
@@ -3897,6 +3968,28 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
   } catch (err) {
     console.error('[Meta Webhook Error]', err)
     res.status(500).json({ error: 'Webhook processing failed.' })
+  }
+})
+
+// List captured FB/Instagram comments
+app.get('/api/social-comments', authenticateToken, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
+    const offset = (page - 1) * limit
+    const platform = req.query.platform || ''
+    const where = []; const params = []
+    if (platform) { params.push(platform); where.push(`platform = $${params.length}`) }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM social_comments ${whereSql};`, params)
+    const rowsRes = await pool.query(
+      `SELECT id, platform, post_id, commenter_name, text, permalink, lead_id, created_at
+       FROM social_comments ${whereSql} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset};`, params
+    )
+    res.json({ rows: rowsRes.rows, total: countRes.rows[0].total, page, limit })
+  } catch (err) {
+    console.error('[GET social-comments]', err.message)
+    res.status(500).json({ error: 'Failed to fetch comments.' })
   }
 })
 

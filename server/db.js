@@ -85,6 +85,22 @@ export async function initDb() {
                         WHERE created_at IS NULL AND reg_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}';`).catch(() => {})
     await client.query(`UPDATE leads SET created_at = NOW() WHERE created_at IS NULL;`).catch(() => {})
 
+    // Facebook / Instagram comments captured via the Meta webhook
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_comments (
+        id SERIAL PRIMARY KEY,
+        platform VARCHAR(20),
+        post_id VARCHAR(150),
+        comment_id VARCHAR(150) UNIQUE,
+        commenter_id VARCHAR(150),
+        commenter_name VARCHAR(200),
+        text TEXT,
+        permalink TEXT,
+        lead_id INTEGER,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `).catch(() => {})
+
     // 3. Applications Table
     await client.query(`
       CREATE TABLE IF NOT EXISTS applications (
