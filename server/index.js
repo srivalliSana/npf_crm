@@ -1757,7 +1757,7 @@ app.delete('/api/applications/:id', async (req, res) => {
 // --- TASKS ROUTERS ---
 app.get('/api/tasks', async (req, res) => {
   try {
-    const tasksRes = await pool.query('SELECT id, title, type, priority, due, status, assignee, lead FROM tasks ORDER BY id DESC;')
+    const tasksRes = await pool.query('SELECT id, title, type, priority, due, status, assignee, lead FROM tasks WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(tasksRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch tasks.' })
@@ -1768,20 +1768,20 @@ app.post('/api/tasks', async (req, res) => {
   const { title, type, priority, due, status, assignee, lead } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO tasks (title, type, priority, due, status, assignee, lead)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO tasks (title, type, priority, due, status, assignee, lead, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, title, type, priority, due, status, assignee, lead;
-    `, [title, type || 'Call', priority || 'Medium', due, status || 'Pending', assignee, lead])
+    `, [title, type || 'Call', priority || 'Medium', due, status || 'Pending', assignee, lead, req.tenantId])
 
     // Sync automatic event calendar entry
     const eventDate = due ? due.split(' ')[0].split('/').reverse().join('-') : new Date().toISOString().split('T')[0]
     const eventTime = due ? due.split(' ')[1] + ' ' + due.split(' ')[2] : '10:00 AM'
     await pool.query(`
-      INSERT INTO events (title, date, time, type, venue, participants)
-      VALUES ($1, $2, $3, $4, $5, $6);
-    `, [title, eventDate, eventTime, type || 'Task', 'Online / Call', 1])
+      INSERT INTO events (title, date, time, type, venue, participants, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7);
+    `, [title, eventDate, eventTime, type || 'Task', 'Online / Call', 1, req.tenantId])
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Task scheduled: ${title} (Due: ${due || 'Soon'})`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Task scheduled: ${title} (Due: ${due || 'Soon'})`, 'Just now', req.tenantId])
 
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
@@ -1794,7 +1794,7 @@ app.put('/api/tasks/:id', async (req, res) => {
   const { id } = req.params
   const { status } = req.body
   try {
-    const updateRes = await pool.query('UPDATE tasks SET status = $1 WHERE id = $2 RETURNING id, status;', [status, id])
+    const updateRes = await pool.query('UPDATE tasks SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, status;', [status, id, req.tenantId])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Task not found.' })
     res.json(updateRes.rows[0])
   } catch (err) {
@@ -2129,7 +2129,7 @@ app.post('/api/events', async (req, res) => {
 // --- CAMPAIGNS ROUTERS ---
 app.get('/api/campaigns', async (req, res) => {
   try {
-    const campRes = await pool.query('SELECT id, name, channel, status, budget, spent, leads, conversions, start_date AS "startDate", end_date AS "endDate" FROM campaigns ORDER BY id DESC;')
+    const campRes = await pool.query('SELECT id, name, channel, status, budget, spent, leads, conversions, start_date AS "startDate", end_date AS "endDate" FROM campaigns WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(campRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch campaigns.' })
@@ -2140,10 +2140,10 @@ app.post('/api/campaigns', async (req, res) => {
   const { name, channel, status, budget } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO campaigns (name, channel, status, budget, spent, leads, conversions, start_date)
-      VALUES ($1, $2, $3, $4, 0, 0, 0, $5)
+      INSERT INTO campaigns (name, channel, status, budget, spent, leads, conversions, start_date, tenant_id)
+      VALUES ($1, $2, $3, $4, 0, 0, 0, $5, $6)
       RETURNING id, name, channel, status, budget, spent, leads, conversions, start_date AS "startDate";
-    `, [name, channel, status || 'Active', budget || 0, new Date().toLocaleDateString('en-IN')])
+    `, [name, channel, status || 'Active', budget || 0, new Date().toLocaleDateString('en-IN'), req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to create marketing campaign.' })
@@ -2154,7 +2154,7 @@ app.put('/api/campaigns/:id', async (req, res) => {
   const { id } = req.params
   const { status } = req.body
   try {
-    const updateRes = await pool.query('UPDATE campaigns SET status = $1 WHERE id = $2 RETURNING id, status;', [status, id])
+    const updateRes = await pool.query('UPDATE campaigns SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, status;', [status, id, req.tenantId])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Campaign not found.' })
     res.json(updateRes.rows[0])
   } catch (err) {
@@ -2288,10 +2288,11 @@ app.get('/api/dashboard/stats', async (req, res) => {
   try {
     const { owner, manager, campus } = req.query
 
-    // Build filters (parameterised) for role-scoped dashboards
+    // Build filters (parameterised) for role-scoped dashboards.
+    // $1 is always the tenant (multi-tenant) — every query below is scoped to it.
     let ownerWhere = ''
-    const params = []
-    const whereConditions = []
+    const params = [req.tenantId]
+    const whereConditions = ['l.tenant_id = $1']
 
     // Campus filter (if not "All")
     if (campus && campus !== 'All') {
@@ -2306,10 +2307,10 @@ app.get('/api/dashboard/stats', async (req, res) => {
     } else if (manager) {
       params.push(manager)
       params.push(manager)
-      whereConditions.push(`(l.owner = $${params.length - 1} OR l.owner IN (SELECT name FROM users WHERE reports_to = $${params.length}))`)
+      whereConditions.push(`(l.owner = $${params.length - 1} OR l.owner IN (SELECT name FROM users WHERE reports_to = $${params.length} AND tenant_id = $1))`)
     }
 
-    ownerWhere = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''
+    ownerWhere = 'WHERE ' + whereConditions.join(' AND ')
 
     // 1. Overall KPI counts (single scan)
     const kpi = await pool.query(`
@@ -2324,23 +2325,23 @@ app.get('/api/dashboard/stats', async (req, res) => {
     `, params)
 
     // 2. Application + payment totals
-    const appTotal  = await pool.query('SELECT COUNT(*)::int AS c FROM applications;')
-    const enrolTotal = await pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments');")
+    const appTotal  = await pool.query('SELECT COUNT(*)::int AS c FROM applications WHERE tenant_id = $1;', [req.tenantId])
+    const enrolTotal = await pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments') AND tenant_id = $1;", [req.tenantId])
     // Revenue counts ONLY admin-verified payments that have a UTR/reference on
     // record — i.e. UTR entered AND verified. 'Payment Done' (UTR submitted but
     // not yet approved) and any row without a UTR are excluded.
-    const revTotal  = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '';")
+    const revTotal  = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '' AND tenant_id = $1;", [req.tenantId])
 
     // 3. Per-counsellor stage breakdown — ONE GROUP BY, joined to users for domain
     // Scope the visible counsellors the same way as the KPI (own / team / all)
-    let userScope = ''
-    const userParams = []
+    let userScope = 'AND u.tenant_id = $1'
+    const userParams = [req.tenantId]
     if (owner) {
       userParams.push(owner)
-      userScope = `AND u.name = $${userParams.length}`
+      userScope += ` AND u.name = $${userParams.length}`
     } else if (manager) {
       userParams.push(manager)
-      userScope = `AND (u.name = $${userParams.length} OR u.reports_to = $${userParams.length})`
+      userScope += ` AND (u.name = $${userParams.length} OR u.reports_to = $${userParams.length})`
     }
     const perCounsellor = await pool.query(`
       SELECT
@@ -2355,7 +2356,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
         SUM(CASE WHEN l.stage='Qualified Leads' THEN 1 ELSE 0 END)::int AS qualified,
         SUM(CASE WHEN l.stage='Converted' THEN 1 ELSE 0 END)::int AS converted
       FROM users u
-      LEFT JOIN leads l ON LOWER(l.owner) = LOWER(u.name)
+      LEFT JOIN leads l ON LOWER(l.owner) = LOWER(u.name) AND l.tenant_id = u.tenant_id
       WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
       GROUP BY u.name, u.email
       HAVING COUNT(l.id) > 0
@@ -2380,7 +2381,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
              ELSE 'other' END AS domain,
         l.stage AS stage, COUNT(*)::int AS count
       FROM leads l
-      JOIN users u ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g'))
+      JOIN users u ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g')) AND u.tenant_id = l.tenant_id
       ${ownerWhere}
       GROUP BY domain, l.stage;
     `, params)
@@ -2402,7 +2403,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
     const matrixRes = await pool.query(`
       SELECT u.name AS counsellor, u.email AS email, l.stage AS stage, COUNT(l.id)::int AS count
       FROM users u
-      JOIN leads l ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g'))
+      JOIN leads l ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g')) AND l.tenant_id = u.tenant_id
       WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
       GROUP BY u.name, u.email, l.stage;
     `, userParams)
@@ -2421,14 +2422,14 @@ app.get('/api/dashboard/stats', async (req, res) => {
     // For a counsellor: their own GT-entity leads across the entities they're granted
     let gtEntities = []
     if (owner) {
-      const uent = await pool.query('SELECT entities FROM users WHERE name = $1 LIMIT 1;', [owner])
+      const uent = await pool.query('SELECT entities FROM users WHERE name = $1 AND tenant_id = $2 LIMIT 1;', [owner, req.tenantId])
       const granted = String(uent.rows[0]?.entities || 'CUTM').split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
       for (const code of ['FTL', 'GTIB', 'GTTECH', 'ESSE']) {
         if (!granted.includes(code)) continue
         const t = `${code.toLowerCase()}_leads`
         const g = await pool.query(
           `SELECT COUNT(*)::int AS total, SUM(CASE WHEN status='Not Contacted' THEN 1 ELSE 0 END)::int AS untouched
-           FROM ${t} WHERE LOWER(TRIM(owner)) = LOWER(TRIM($1));`, [owner]
+           FROM ${t} WHERE LOWER(TRIM(owner)) = LOWER(TRIM($1)) AND tenant_id = $2;`, [owner, req.tenantId]
         ).catch(() => ({ rows: [{ total: 0, untouched: 0 }] }))
         gtEntities.push({ entity: code, total: g.rows[0].total || 0, untouched: g.rows[0].untouched || 0 })
       }
@@ -2468,10 +2469,12 @@ app.get('/api/reports/overview', async (req, res) => {
       `THEN to_date(substring(${col} from '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}'),'DD/MM/YYYY') END`
     // Date predicate: keep rows in range OR with no parseable date (matches client)
     const datePred = (col, idx) => cutoffISO ? `(${dExpr(col)} IS NULL OR ${dExpr(col)} >= $${idx}::date)` : 'TRUE'
-    const lp = cutoffISO ? [cutoffISO] : []   // leads params
-    const lw = `WHERE ${datePred('reg_date', 1)}`
-    const aw = `WHERE ${datePred('date', 1)}`
-    const pw = `WHERE ${datePred('date', 1)}`
+    // tenant_id is appended last so the date predicate's $1 index stays valid
+    const lp = cutoffISO ? [cutoffISO, req.tenantId] : [req.tenantId]
+    const tIdx = lp.length
+    const lw = `WHERE tenant_id = $${tIdx} AND ${datePred('reg_date', 1)}`
+    const aw = `WHERE tenant_id = $${tIdx} AND ${datePred('date', 1)}`
+    const pw = `WHERE tenant_id = $${tIdx} AND ${datePred('date', 1)}`
 
     // KPI + funnel from leads
     const leadAgg = await pool.query(`
@@ -2736,13 +2739,13 @@ app.post('/api/lead-transfers', async (req, res) => {
   if (!leadId || !toOwner) return res.status(400).json({ error: 'leadId and toOwner required' })
   try {
     const r = await pool.query(`
-      INSERT INTO lead_transfers (lead_id, from_owner, to_owner, remark, requested_by, status)
-      VALUES ($1, $2, $3, $4, $5, 'pending')
+      INSERT INTO lead_transfers (lead_id, from_owner, to_owner, remark, requested_by, status, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, 'pending', $6)
       RETURNING id, lead_id AS "leadId", from_owner AS "fromOwner", to_owner AS "toOwner", remark, status, requested_at AS "requestedAt";
-    `, [leadId, fromOwner || '', toOwner, remark || '', fromOwner || ''])
+    `, [leadId, fromOwner || '', toOwner, remark || '', fromOwner || '', req.tenantId])
     // Notify admin
-    await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-      [`🔄 Transfer request: ${fromOwner} → ${toOwner} (Lead #${leadId}). Awaiting approval.`, 'Just now', 'transfer_request'])
+    await pool.query('INSERT INTO notifications (text, time, type, tenant_id) VALUES ($1, $2, $3, $4);',
+      [`🔄 Transfer request: ${fromOwner} → ${toOwner} (Lead #${leadId}). Awaiting approval.`, 'Just now', 'transfer_request', req.tenantId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -2756,10 +2759,11 @@ app.get('/api/lead-transfers', async (req, res) => {
              t.decided_by AS "decidedBy", t.requested_by AS "requestedBy",
              l.name AS "leadName", l.email AS "leadEmail", l.mobile AS "leadMobile"
       FROM lead_transfers t
-      LEFT JOIN leads l ON l.id = t.lead_id
+      LEFT JOIN leads l ON l.id = t.lead_id AND l.tenant_id = t.tenant_id
     `
-    const params = []
-    if (status) { q += ' WHERE t.status = $1'; params.push(status) }
+    const params = [req.tenantId]
+    q += ' WHERE t.tenant_id = $1'
+    if (status) { q += ' AND t.status = $2'; params.push(status) }
     q += ' ORDER BY t.requested_at DESC LIMIT 100;'
     const r = await pool.query(q, params)
     res.json(r.rows)
@@ -2770,24 +2774,24 @@ app.post('/api/lead-transfers/:id/decide', async (req, res) => {
   const { decision, decidedBy } = req.body   // 'approved' | 'rejected'
   if (!['approved','rejected'].includes(decision)) return res.status(400).json({ error: 'decision must be approved or rejected' })
   try {
-    const t = await pool.query('SELECT * FROM lead_transfers WHERE id = $1;', [req.params.id])
+    const t = await pool.query('SELECT * FROM lead_transfers WHERE id = $1 AND tenant_id = $2;', [req.params.id, req.tenantId])
     if (!t.rows[0]) return res.status(404).json({ error: 'Transfer not found' })
     if (t.rows[0].status !== 'pending') return res.status(400).json({ error: 'Already decided' })
 
     const r = await pool.query(`
       UPDATE lead_transfers
       SET status = $1, decided_at = NOW(), decided_by = $2
-      WHERE id = $3
+      WHERE id = $3 AND tenant_id = $4
       RETURNING *;
-    `, [decision, decidedBy || 'Admin', req.params.id])
+    `, [decision, decidedBy || 'Admin', req.params.id, req.tenantId])
 
     // If approved, actually reassign the lead
     if (decision === 'approved') {
-      await pool.query('UPDATE leads SET owner = $1 WHERE id = $2;', [r.rows[0].to_owner, r.rows[0].lead_id])
+      await pool.query('UPDATE leads SET owner = $1 WHERE id = $2 AND tenant_id = $3;', [r.rows[0].to_owner, r.rows[0].lead_id, req.tenantId])
     }
 
-    await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-      [`Transfer #${req.params.id} ${decision}: ${r.rows[0].from_owner} → ${r.rows[0].to_owner}`, 'Just now', 'transfer_decision'])
+    await pool.query('INSERT INTO notifications (text, time, type, tenant_id) VALUES ($1, $2, $3, $4);',
+      [`Transfer #${req.params.id} ${decision}: ${r.rows[0].from_owner} → ${r.rows[0].to_owner}`, 'Just now', 'transfer_decision', req.tenantId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -4847,14 +4851,15 @@ app.post('/api/drip/process', async (req, res) => {
 app.get('/api/reports/funnel', async (req, res) => {
   try {
     const { source, campaign } = req.query
-    const whereClause = source ? `WHERE l.source = '${source.replace(/'/g,"''")}' ` : ''
+    const tnt = parseInt(req.tenantId) || 1   // trusted integer → safe to interpolate
+    const srcCond = source ? ` AND source = '${source.replace(/'/g,"''")}'` : ''
 
-    const leads = await pool.query(`SELECT COUNT(*) FROM leads ${whereClause};`)
-    const contacted = await pool.query(`SELECT COUNT(*) FROM leads ${whereClause ? whereClause + "AND " : "WHERE "} stage IN ('Contacted', 'Follow Up', 'Interested', 'Qualified Leads', 'Converted');`)
-    const apps = await pool.query(`SELECT COUNT(*) FROM applications;`)
-    const payments = await pool.query(`SELECT COUNT(*) FROM payments WHERE status = 'Approved';`)
-    const enrolled = await pool.query(`SELECT COUNT(*) FROM applications WHERE stage IN ('Enrolment', 'Enrolments');`)
-    const sourceBreakdown = await pool.query(`SELECT source, COUNT(*) as count FROM leads GROUP BY source ORDER BY count DESC;`)
+    const leads = await pool.query(`SELECT COUNT(*) FROM leads WHERE tenant_id = ${tnt}${srcCond};`)
+    const contacted = await pool.query(`SELECT COUNT(*) FROM leads WHERE tenant_id = ${tnt}${srcCond} AND stage IN ('Contacted', 'Follow Up', 'Interested', 'Qualified Leads', 'Converted');`)
+    const apps = await pool.query(`SELECT COUNT(*) FROM applications WHERE tenant_id = ${tnt};`)
+    const payments = await pool.query(`SELECT COUNT(*) FROM payments WHERE status = 'Approved' AND tenant_id = ${tnt};`)
+    const enrolled = await pool.query(`SELECT COUNT(*) FROM applications WHERE stage IN ('Enrolment', 'Enrolments') AND tenant_id = ${tnt};`)
+    const sourceBreakdown = await pool.query(`SELECT source, COUNT(*) as count FROM leads WHERE tenant_id = ${tnt} GROUP BY source ORDER BY count DESC;`)
 
     res.json({
       funnel: [
@@ -4874,16 +4879,17 @@ app.get('/api/reports/funnel', async (req, res) => {
 // --- FEATURE 8: COUNSELOR LEADERBOARD ---
 app.get('/api/reports/leaderboard', async (req, res) => {
   try {
-    const usersRes = await pool.query("SELECT id, name, email FROM users WHERE status = 'Active' ORDER BY name;")
+    const usersRes = await pool.query("SELECT id, name, email FROM users WHERE status = 'Active' AND tenant_id = $1 ORDER BY name;", [req.tenantId])
     const leaderboard = []
+    const tnt = req.tenantId
     for (const u of usersRes.rows) {
       const simplName = u.name.split(' ')[0]
       const q = (sql, params) => pool.query(sql, params).then(r => parseInt(r.rows[0].count))
-      const leadsTotal = await q("SELECT COUNT(*) FROM leads WHERE owner = $1 OR owner LIKE $2;", [u.name, `${simplName}%`])
-      const converted = await q("SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND stage IN ('Qualified Leads','Converted');", [u.name, `${simplName}%`])
-      const enrolled = await q("SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND stage IN ('Enrolment','Enrolments');", [u.name, `${simplName}%`])
-      const payApproved = await q("SELECT COUNT(*) FROM payments p JOIN applications a ON p.app_no = a.app_no WHERE (a.owner = $1 OR a.owner LIKE $2) AND p.status = 'Approved';", [u.name, `${simplName}%`])
-      const callsCount = await q("SELECT COUNT(*) FROM call_logs WHERE counselor = $1 OR counselor LIKE $2;", [u.name, `${simplName}%`])
+      const leadsTotal = await q("SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND tenant_id = $3;", [u.name, `${simplName}%`, tnt])
+      const converted = await q("SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND stage IN ('Qualified Leads','Converted') AND tenant_id = $3;", [u.name, `${simplName}%`, tnt])
+      const enrolled = await q("SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND stage IN ('Enrolment','Enrolments') AND tenant_id = $3;", [u.name, `${simplName}%`, tnt])
+      const payApproved = await q("SELECT COUNT(*) FROM payments p JOIN applications a ON p.app_no = a.app_no WHERE (a.owner = $1 OR a.owner LIKE $2) AND p.status = 'Approved' AND a.tenant_id = $3;", [u.name, `${simplName}%`, tnt])
+      const callsCount = await q("SELECT COUNT(*) FROM call_logs WHERE (counselor = $1 OR counselor LIKE $2) AND tenant_id = $3;", [u.name, `${simplName}%`, tnt])
       const convRate = leadsTotal > 0 ? ((converted / leadsTotal) * 100).toFixed(1) : '0.0'
       leaderboard.push({ name: u.name, email: u.email, leads: leadsTotal, converted, enrolled, payApproved, calls: callsCount, convRate: parseFloat(convRate) })
     }
@@ -5535,13 +5541,13 @@ app.get('/api/reports/call-activity', authenticateToken, async (req, res) => {
       ? await pool.query(`
           SELECT program AS key, stage, COUNT(*)::int AS count
           FROM leads
-          WHERE program IS NOT NULL AND program <> ''
-          GROUP BY program, stage ORDER BY program;`)
+          WHERE program IS NOT NULL AND program <> '' AND tenant_id = $1
+          GROUP BY program, stage ORDER BY program;`, [req.tenantId])
       : await pool.query(`
           SELECT owner AS key, stage, COUNT(*)::int AS count
           FROM leads
-          WHERE owner IS NOT NULL AND owner <> '' AND owner <> 'Unassigned'
-          GROUP BY owner, stage ORDER BY owner;`)
+          WHERE owner IS NOT NULL AND owner <> '' AND owner <> 'Unassigned' AND tenant_id = $1
+          GROUP BY owner, stage ORDER BY owner;`, [req.tenantId])
     const map = {}
     for (const row of r.rows) {
       if (!map[row.key]) map[row.key] = { key: row.key, stages: {}, total: 0 }
@@ -5566,9 +5572,9 @@ app.get('/api/reports/call-activity/leads', authenticateToken, async (req, res) 
     const col = byProgram ? 'program' : 'owner'
     const r = await pool.query(`
       SELECT id, name, mobile, owner, program, stage, follow_up_date AS "followUpDate", reg_date AS "regDate"
-      FROM leads WHERE ${col} = $1 AND stage = $2
+      FROM leads WHERE ${col} = $1 AND stage = $2 AND tenant_id = $3
       ORDER BY id DESC LIMIT 500;
-    `, [val, stage])
+    `, [val, stage, req.tenantId])
     res.json(r.rows)
   } catch (err) {
     console.error('[Call Activity drill]', err.message)
@@ -5579,7 +5585,7 @@ app.get('/api/reports/call-activity/leads', authenticateToken, async (req, res) 
 // --- FEATURE 14: GOOGLE SHEETS AUTO-SYNC ---
 // Shared sync routine — used by the manual endpoint and the 5-min cron.
 // New leads are auto-assigned (round-robin) and the counsellor is alerted.
-async function syncGoogleSheet({ sheetId, apiKey, autoAssign = true } = {}) {
+async function syncGoogleSheet({ sheetId, apiKey, autoAssign = true, tenantId = 1 } = {}) {
   const id  = String(sheetId || '').trim()
   const key = String(apiKey || process.env.GOOGLE_SHEETS_API_KEY || '').trim()
   if (!id)  return { error: 'Google Sheet ID required.' }
@@ -5607,22 +5613,22 @@ async function syncGoogleSheet({ sheetId, apiKey, autoAssign = true } = {}) {
     const source = obj.source || 'Google Sheets'
 
     if (mobile.length < 10) { skipped++; continue }
-    const dup = await pool.query('SELECT id FROM leads WHERE mobile = $1 LIMIT 1;', [mobile])
+    const dup = await pool.query('SELECT id FROM leads WHERE mobile = $1 AND tenant_id = $2 LIMIT 1;', [mobile, tenantId])
     if (dup.rows.length > 0) { skipped++; continue }
 
     const score = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
-    const owner = autoAssign ? await getNextAssignee() : 'Unassigned'
+    const owner = autoAssign ? await getNextAssignee(tenantId) : 'Unassigned'
     const ins = await pool.query(
-      `INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Untouched','red') RETURNING id;`,
-      [name.substring(0, 100), email.substring(0, 100), mobile.substring(0, 50), course.substring(0, 100), source.substring(0, 100), owner, new Date().toLocaleString('en-IN', { hour12: true }), score]
+      `INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Untouched','red',$9) RETURNING id;`,
+      [name.substring(0, 100), email.substring(0, 100), mobile.substring(0, 50), course.substring(0, 100), source.substring(0, 100), owner, new Date().toLocaleString('en-IN', { hour12: true }), score, tenantId]
     )
     if (autoAssign && owner && owner !== 'Unassigned') {
-      await alertCounselor(owner, name, course, source, ins.rows[0].id)
+      await alertCounselor(owner, name, course, source, ins.rows[0].id, tenantId)
     }
     synced++
   }
   if (synced > 0) {
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Google Sheets sync: ${synced} new leads imported, ${skipped} skipped`, 'Just now']).catch(() => {})
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Google Sheets sync: ${synced} new leads imported, ${skipped} skipped`, 'Just now', tenantId]).catch(() => {})
   }
   return { synced, skipped, total: rows.length }
 }
@@ -5635,7 +5641,7 @@ app.post('/api/integrations/sheets-sync', async (req, res) => {
   const apiKey  = bodyKey   || await getIntegrationSetting('sheets_api_key')
   if (!sheetId) return res.status(400).json({ error: 'Google Sheet ID required.' })
   try {
-    const result = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true })
+    const result = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true, tenantId: req.tenantId })
     if (result.error) return res.status(400).json({ error: result.error })
     res.json({ success: true, ...result })
   } catch (err) {
@@ -5671,7 +5677,7 @@ app.post('/api/student/login', async (req, res) => {
 // --- FEATURE 16: CALL LOGS ---
 app.get('/api/calls', async (req, res) => {
   try {
-    const r = await pool.query('SELECT id, lead_name AS "leadName", lead_mobile AS "leadMobile", counselor, duration, outcome, notes, called_at AS "calledAt" FROM call_logs ORDER BY id DESC LIMIT 200;')
+    const r = await pool.query('SELECT id, lead_name AS "leadName", lead_mobile AS "leadMobile", counselor, duration, outcome, notes, called_at AS "calledAt" FROM call_logs WHERE tenant_id = $1 ORDER BY id DESC LIMIT 200;', [req.tenantId])
     res.json(r.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch call logs.' })
@@ -5683,14 +5689,14 @@ app.post('/api/calls', async (req, res) => {
   if (!leadMobile) return res.status(400).json({ error: 'Lead mobile required.' })
   try {
     const insertRes = await pool.query(`
-      INSERT INTO call_logs (lead_name, lead_mobile, counselor, duration, outcome, notes)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO call_logs (lead_name, lead_mobile, counselor, duration, outcome, notes, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, lead_name AS "leadName", lead_mobile AS "leadMobile", counselor, duration, outcome, notes, called_at AS "calledAt";
-    `, [leadName, leadMobile, counselor, duration || '0:00', outcome || 'Called', notes || ''])
+    `, [leadName, leadMobile, counselor, duration || '0:00', outcome || 'Called', notes || '', req.tenantId])
 
     // Update lead stage if connected
     if (outcome && outcome !== 'No Answer' && leadName) {
-      await pool.query("UPDATE leads SET stage = CASE WHEN stage = 'Untouched' THEN 'Contacted' ELSE stage END, stage_color = CASE WHEN stage = 'Untouched' THEN 'blue' ELSE stage_color END WHERE name = $1;", [leadName])
+      await pool.query("UPDATE leads SET stage = CASE WHEN stage = 'Untouched' THEN 'Contacted' ELSE stage END, stage_color = CASE WHEN stage = 'Untouched' THEN 'blue' ELSE stage_color END WHERE name = $1 AND tenant_id = $2;", [leadName, req.tenantId])
     }
 
     res.status(201).json(insertRes.rows[0])
@@ -5709,8 +5715,9 @@ app.get('/api/campus/stats', async (req, res) => {
         SUM(CASE WHEN stage IN ('Enrolment', 'Enrolments') THEN 1 ELSE 0 END) AS enrolled,
         SUM(CASE WHEN pay_status = 'Payment Approved' OR pay_status = 'Approved' THEN 1 ELSE 0 END) AS paid
       FROM applications
+      WHERE tenant_id = $1
       GROUP BY campus ORDER BY applications DESC;
-    `)
+    `, [req.tenantId])
     const CAMPUSES = ['Bhubaneswar', 'Vizianagaram', 'Paralakhemundi', 'Balasore']
     const result = CAMPUSES.map(name => {
       const row = campusStats.rows.find(r => r.campus === name) || {}
@@ -5857,8 +5864,8 @@ app.get('/api/reports/email-logs/:campaignId', async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT id, recipient_email AS "email", recipient_name AS "name", status, error_message AS "error", sent_at AS "sentAt"
-       FROM email_logs WHERE campaign_id = $1 ORDER BY sent_at DESC;`,
-      [req.params.campaignId]
+       FROM email_logs WHERE campaign_id = $1 AND tenant_id = $2 ORDER BY sent_at DESC;`,
+      [req.params.campaignId, req.tenantId]
     )
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -5873,7 +5880,8 @@ app.get('/api/reports/email-logs', async (req, res) => {
               SUM(CASE WHEN el.status = 'Sent' THEN 1 ELSE 0 END) AS "sent",
               SUM(CASE WHEN el.status = 'Failed' THEN 1 ELSE 0 END) AS "failed",
               MAX(el.sent_at) AS "lastSentAt"
-       FROM email_logs el GROUP BY el.campaign_id, el.campaign_name ORDER BY MAX(el.sent_at) DESC;`
+       FROM email_logs el WHERE el.tenant_id = $1 GROUP BY el.campaign_id, el.campaign_name ORDER BY MAX(el.sent_at) DESC;`,
+      [req.tenantId]
     )
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -5886,7 +5894,8 @@ app.get('/api/reports/whatsapp-logs', async (req, res) => {
       `SELECT id, campaign_name AS "campaignName", message_template AS "template",
               recipient_count AS "recipientCount", status, sent_by AS "sentBy",
               channel, sent_at AS "sentAt"
-       FROM whatsapp_logs ORDER BY sent_at DESC LIMIT 200;`
+       FROM whatsapp_logs WHERE tenant_id = $1 ORDER BY sent_at DESC LIMIT 200;`,
+      [req.tenantId]
     )
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -5898,15 +5907,18 @@ app.get('/api/reports/call-logs', async (req, res) => {
     const logs = await pool.query(
       `SELECT id, lead_name AS "leadName", lead_mobile AS "mobile", counselor,
               duration, outcome, notes, called_at AS "calledAt"
-       FROM call_logs ORDER BY called_at DESC LIMIT 500;`
+       FROM call_logs WHERE tenant_id = $1 ORDER BY called_at DESC LIMIT 500;`,
+      [req.tenantId]
     )
     const stats = await pool.query(
-      `SELECT outcome, COUNT(*) AS count FROM call_logs GROUP BY outcome ORDER BY count DESC;`
+      `SELECT outcome, COUNT(*) AS count FROM call_logs WHERE tenant_id = $1 GROUP BY outcome ORDER BY count DESC;`,
+      [req.tenantId]
     )
     const byCounselor = await pool.query(
       `SELECT counselor, COUNT(*) AS total,
               SUM(CASE WHEN outcome = 'Connected' THEN 1 ELSE 0 END) AS connected
-       FROM call_logs GROUP BY counselor ORDER BY total DESC;`
+       FROM call_logs WHERE tenant_id = $1 GROUP BY counselor ORDER BY total DESC;`,
+      [req.tenantId]
     )
     res.json({ logs: logs.rows, outcomeStats: stats.rows, byCounselor: byCounselor.rows })
   } catch (err) { res.status(500).json({ error: err.message }) }
