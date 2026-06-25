@@ -405,22 +405,22 @@ async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1
 }
 
 // Tracked campaign send — writes result to email_logs
-async function sendTrackedMail(recipient, recipientName, subject, messageBody, campaignId, campaignName) {
+async function sendTrackedMail(recipient, recipientName, subject, messageBody, campaignId, campaignName, tenantId = 1) {
   const logErr = async (err) => pool.query(
-    'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
-    [campaignId, campaignName, recipient, recipientName, 'Failed', err]
+    'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+    [campaignId, campaignName, recipient, recipientName, 'Failed', err, tenantId]
   ).catch(() => {})
 
   try {
-    const cfg = await createMailTransporter()
+    const cfg = await createMailTransporter(tenantId)
     if (cfg.error) {
       await logErr(cfg.error)
       return { success: false, error: cfg.error }
     }
     await cfg.transporter.sendMail({ from: cfg.from, to: recipient, subject, text: messageBody })
     await pool.query(
-      'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
-      [campaignId, campaignName, recipient, recipientName, 'Sent', '']
+      'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [campaignId, campaignName, recipient, recipientName, 'Sent', '', tenantId]
     ).catch(() => {})
     return { success: true, error: '' }
   } catch (e) {
@@ -2116,7 +2116,7 @@ app.delete('/api/documents/:id', async (req, res) => {
 // --- EVENTS ROUTERS ---
 app.get('/api/events', async (req, res) => {
   try {
-    const evRes = await pool.query('SELECT id, title, date, time, type, venue, participants FROM events ORDER BY id DESC;')
+    const evRes = await pool.query('SELECT id, title, date, time, type, venue, participants FROM events WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(evRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch events.' })
@@ -2127,10 +2127,10 @@ app.post('/api/events', async (req, res) => {
   const { title, date, time, type, venue, participants } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO events (title, date, time, type, venue, participants)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO events (title, date, time, type, venue, participants, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, title, date, time, type, venue, participants;
-    `, [title, date, time, type, venue, participants || 1])
+    `, [title, date, time, type, venue, participants || 1, req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to schedule calendar event.' })
@@ -2815,10 +2815,11 @@ app.get('/api/teams', async (req, res) => {
       SELECT t.id, t.name, t.description, t.created_at AS "createdAt",
              COUNT(u.id)::int AS "memberCount"
       FROM teams t
-      LEFT JOIN users u ON u.team = t.name
+      LEFT JOIN users u ON u.team = t.name AND u.tenant_id = t.tenant_id
+      WHERE t.tenant_id = $1
       GROUP BY t.id, t.name, t.description, t.created_at
       ORDER BY t.id;
-    `)
+    `, [req.tenantId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -2828,8 +2829,8 @@ app.post('/api/teams', async (req, res) => {
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' })
   try {
     const r = await pool.query(
-      `INSERT INTO teams (name, description) VALUES ($1, $2) RETURNING id, name, description;`,
-      [name.trim(), description || '']
+      `INSERT INTO teams (name, description, tenant_id) VALUES ($1, $2, $3) RETURNING id, name, description;`,
+      [name.trim(), description || '', req.tenantId]
     )
     res.json(r.rows[0])
   } catch (err) {
@@ -2842,8 +2843,8 @@ app.put('/api/teams/:id', async (req, res) => {
   const { name, description } = req.body
   try {
     const r = await pool.query(
-      `UPDATE teams SET name = COALESCE($1, name), description = COALESCE($2, description) WHERE id = $3 RETURNING *;`,
-      [name?.trim() || null, description ?? null, req.params.id]
+      `UPDATE teams SET name = COALESCE($1, name), description = COALESCE($2, description) WHERE id = $3 AND tenant_id = $4 RETURNING *;`,
+      [name?.trim() || null, description ?? null, req.params.id, req.tenantId]
     )
     if (!r.rows[0]) return res.status(404).json({ error: 'Team not found' })
     res.json(r.rows[0])
@@ -2853,9 +2854,9 @@ app.put('/api/teams/:id', async (req, res) => {
 app.delete('/api/teams/:id', async (req, res) => {
   try {
     // Check team isn't in use
-    const u = await pool.query('SELECT COUNT(*)::int AS c FROM users WHERE team = (SELECT name FROM teams WHERE id = $1);', [req.params.id])
+    const u = await pool.query('SELECT COUNT(*)::int AS c FROM users WHERE tenant_id = $2 AND team = (SELECT name FROM teams WHERE id = $1 AND tenant_id = $2);', [req.params.id, req.tenantId])
     if (u.rows[0].c > 0) return res.status(400).json({ error: `Cannot delete — ${u.rows[0].c} user(s) are in this team. Reassign them first.` })
-    await pool.query('DELETE FROM teams WHERE id = $1;', [req.params.id])
+    await pool.query('DELETE FROM teams WHERE id = $1 AND tenant_id = $2;', [req.params.id, req.tenantId])
     res.json({ ok: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -3492,8 +3493,8 @@ app.post('/api/leads/check-duplicate', async (req, res) => {
   const { mobile, email } = req.body
   try {
     const r = await pool.query(
-      'SELECT id, name, mobile, email, stage, source FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 5;',
-      [mobile, email]
+      'SELECT id, name, mobile, email, stage, source FROM leads WHERE (mobile = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 5;',
+      [mobile, email, req.tenantId]
     )
     res.json({ duplicates: r.rows, hasDuplicate: r.rows.length > 0 })
   } catch (err) {
@@ -3543,7 +3544,7 @@ async function getNextAssignee(tenantId = 1) {
 }
 
 app.get('/api/leads/next-assignee', async (req, res) => {
-  const assignee = await getNextAssignee()
+  const assignee = await getNextAssignee(req.tenantId)
   if (assignee === 'Unassigned') return res.status(500).json({ error: 'Auto-assignment failed.', assignee })
   res.json({ assignee })
 })
@@ -3552,24 +3553,24 @@ app.get('/api/leads/next-assignee', async (req, res) => {
 app.get('/api/leads/unassigned', async (req, res) => {
   try {
     const unassignedRes = await pool.query(`
-      SELECT COUNT(*) as total FROM leads WHERE owner IS NULL OR owner = '';
-    `)
+      SELECT COUNT(*) as total FROM leads WHERE (owner IS NULL OR owner = '') AND tenant_id = $1;
+    `, [req.tenantId])
     const sourceRes = await pool.query(`
       SELECT
         lead_source,
         COUNT(*) as count
       FROM leads
-      WHERE owner IS NULL OR owner = ''
+      WHERE (owner IS NULL OR owner = '') AND tenant_id = $1
       GROUP BY lead_source
       ORDER BY count DESC;
-    `)
+    `, [req.tenantId])
     const leadsRes = await pool.query(`
       SELECT id, name, email, mobile, lead_source, created_at
       FROM leads
-      WHERE owner IS NULL OR owner = ''
+      WHERE (owner IS NULL OR owner = '') AND tenant_id = $1
       ORDER BY created_at DESC
       LIMIT 100;
-    `)
+    `, [req.tenantId])
     res.json({
       total: parseInt(unassignedRes.rows[0]?.total || 0),
       bySource: sourceRes.rows.map(r => ({ source: r.lead_source, count: parseInt(r.count) })),
@@ -4311,11 +4312,11 @@ function calculateLeadScore({ source, stage, mobile, email, course, state }) {
 app.post('/api/leads/recalculate-score/:id', async (req, res) => {
   const { id } = req.params
   try {
-    const r = await pool.query('SELECT * FROM leads WHERE id = $1;', [id])
+    const r = await pool.query('SELECT * FROM leads WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Lead not found.' })
     const lead = r.rows[0]
     const score = calculateLeadScore({ source: lead.source, stage: lead.stage, mobile: lead.mobile, email: lead.email, course: lead.course })
-    await pool.query('UPDATE leads SET score = $1 WHERE id = $2;', [score, id])
+    await pool.query('UPDATE leads SET score = $1 WHERE id = $2 AND tenant_id = $3;', [score, id, req.tenantId])
     res.json({ score })
   } catch (err) {
     res.status(500).json({ error: 'Score recalculation failed.' })
@@ -4329,13 +4330,13 @@ app.post('/api/leads/bulk-whatsapp', async (req, res) => {
 
   try {
     // Read WhatsApp config from DB integration_settings (the source of truth)
-    const waToken = await getIntegrationSetting('whatsapp_access_token')
-    const waPhone = await getIntegrationSetting('whatsapp_phone_number_id')
+    const waToken = await getIntegrationSetting('whatsapp_access_token', req.tenantId)
+    const waPhone = await getIntegrationSetting('whatsapp_phone_number_id', req.tenantId)
     const waApiUrl = 'https://graph.facebook.com/v21.0'
     const isConfigured = !!(waToken && waPhone)
 
     const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
-    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
+    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders}) AND tenant_id = $${leadIds.length + 1};`, [...leadIds, req.tenantId])
     const leads = leadsRes.rows
 
     let sentCount = 0, failed = 0
@@ -4371,8 +4372,8 @@ app.post('/api/leads/bulk-whatsapp', async (req, res) => {
                  : 'Sent'
 
     await pool.query(
-      'INSERT INTO whatsapp_logs (campaign_name, message_template, recipient_count, status, sent_by, channel) VALUES ($1, $2, $3, $4, $5, $6);',
-      [templateName || 'Bulk Outreach', message.substring(0, 255), sentCount, status, sentBy || 'Unknown', 'whatsapp']
+      'INSERT INTO whatsapp_logs (campaign_name, message_template, recipient_count, status, sent_by, channel, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7);',
+      [templateName || 'Bulk Outreach', message.substring(0, 255), sentCount, status, sentBy || 'Unknown', 'whatsapp', req.tenantId]
     )
 
     if (!isConfigured) {
@@ -4472,15 +4473,15 @@ app.post('/api/leads/bulk-sms', async (req, res) => {
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
   try {
-    const provider    = await getIntegrationSetting('sms_provider')
-    const apiKey      = await getIntegrationSetting('sms_api_key')
-    const apiSid      = await getIntegrationSetting('sms_api_sid')
-    const senderId    = await getIntegrationSetting('sms_sender_id')
-    const fromNumber  = await getIntegrationSetting('sms_from_number')
-    const templateId  = await getIntegrationSetting('sms_template_id')
+    const provider    = await getIntegrationSetting('sms_provider', req.tenantId)
+    const apiKey      = await getIntegrationSetting('sms_api_key', req.tenantId)
+    const apiSid      = await getIntegrationSetting('sms_api_sid', req.tenantId)
+    const senderId    = await getIntegrationSetting('sms_sender_id', req.tenantId)
+    const fromNumber  = await getIntegrationSetting('sms_from_number', req.tenantId)
+    const templateId  = await getIntegrationSetting('sms_template_id', req.tenantId)
 
     const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
-    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
+    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders}) AND tenant_id = $${leadIds.length + 1};`, [...leadIds, req.tenantId])
     const leads = leadsRes.rows
 
     let sentCount = 0, failed = 0
@@ -4503,7 +4504,7 @@ app.post('/api/leads/bulk-sms', async (req, res) => {
       }
     }
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`SMS bulk via ${provider || 'msg91'}: ${sentCount} sent, ${failed} failed`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`SMS bulk via ${provider || 'msg91'}: ${sentCount} sent, ${failed} failed`, 'Just now', req.tenantId])
     res.json({ success: true, sent: sentCount, failed, total: leads.length, provider: provider || 'msg91' })
   } catch (err) {
     console.error('[SMS Bulk]', err)
@@ -4666,7 +4667,8 @@ app.get('/api/rcs/templates', async (req, res) => {
     const r = await pool.query(
       `SELECT id, template_id AS "templateId", name, rcs_type AS "rcsType", status,
               provider, variables, preview, created_at AS "createdAt", approved_at AS "approvedAt"
-       FROM rcs_templates ORDER BY status DESC, created_at DESC;`
+       FROM rcs_templates WHERE tenant_id = $1 ORDER BY status DESC, created_at DESC;`,
+      [req.tenantId]
     )
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -4677,8 +4679,8 @@ app.post('/api/rcs/templates', async (req, res) => {
   if (!templateId) return res.status(400).json({ error: 'templateId required.' })
   try {
     const r = await pool.query(`
-      INSERT INTO rcs_templates (template_id, name, rcs_type, status, provider, variables, preview, approved_at)
-      VALUES ($1, $2, $3, $4::text, $5, $6::jsonb, $7, CASE WHEN $4::text = 'APPROVED' THEN NOW() ELSE NULL END)
+      INSERT INTO rcs_templates (template_id, name, rcs_type, status, provider, variables, preview, approved_at, tenant_id)
+      VALUES ($1, $2, $3, $4::text, $5, $6::jsonb, $7, CASE WHEN $4::text = 'APPROVED' THEN NOW() ELSE NULL END, $8)
       ON CONFLICT (template_id) DO UPDATE
         SET name      = EXCLUDED.name,
             rcs_type  = EXCLUDED.rcs_type,
@@ -4688,14 +4690,14 @@ app.post('/api/rcs/templates', async (req, res) => {
             preview   = EXCLUDED.preview,
             approved_at = CASE WHEN EXCLUDED.status = 'APPROVED' AND rcs_templates.status != 'APPROVED' THEN NOW() ELSE rcs_templates.approved_at END
       RETURNING id, template_id AS "templateId", name, rcs_type AS "rcsType", status, provider, variables, preview;
-    `, [templateId, name || templateId, (rcsType || 'BASIC').toUpperCase(), (status || 'PENDING').toUpperCase(), provider || 'rcssms', JSON.stringify(variables || []), preview || ''])
+    `, [templateId, name || templateId, (rcsType || 'BASIC').toUpperCase(), (status || 'PENDING').toUpperCase(), provider || 'rcssms', JSON.stringify(variables || []), preview || '', req.tenantId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 app.delete('/api/rcs/templates/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM rcs_templates WHERE id = $1;', [req.params.id])
+    await pool.query('DELETE FROM rcs_templates WHERE id = $1 AND tenant_id = $2;', [req.params.id, req.tenantId])
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -4826,20 +4828,21 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
   try {
-    const provider     = await getIntegrationSetting('rcs_provider')
-    const apiKey       = await getIntegrationSetting('rcs_api_key')
-    const clientSecret = await getIntegrationSetting('rcs_client_secret')
-    const agentId      = await getIntegrationSetting('rcs_agent_id')
-    const senderId     = await getIntegrationSetting('rcs_sender_id')
-    const username     = await getIntegrationSetting('rcs_username')
-    const password     = await getIntegrationSetting('rcs_password')
-    const rcsid        = await getIntegrationSetting('rcs_rcsid')
+    const tid = req.tenantId
+    const provider     = await getIntegrationSetting('rcs_provider', tid)
+    const apiKey       = await getIntegrationSetting('rcs_api_key', tid)
+    const clientSecret = await getIntegrationSetting('rcs_client_secret', tid)
+    const agentId      = await getIntegrationSetting('rcs_agent_id', tid)
+    const senderId     = await getIntegrationSetting('rcs_sender_id', tid)
+    const username     = await getIntegrationSetting('rcs_username', tid)
+    const password     = await getIntegrationSetting('rcs_password', tid)
+    const rcsid        = await getIntegrationSetting('rcs_rcsid', tid)
     // Per-call template override > saved default
-    const templateId = requestedTemplateId || await getIntegrationSetting('rcs_template_id')
-    const rcsType    = requestedRcsType    || await getIntegrationSetting('rcs_type')
+    const templateId = requestedTemplateId || await getIntegrationSetting('rcs_template_id', tid)
+    const rcsType    = requestedRcsType    || await getIntegrationSetting('rcs_type', tid)
 
     const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
-    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
+    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders}) AND tenant_id = $${leadIds.length + 1};`, [...leadIds, tid])
     const leads = leadsRes.rows
 
     // For rcssms, batch send up to 500 numbers in one call (msisdn supports comma-separated)
@@ -4889,7 +4892,7 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
       }
     }
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`RCS bulk via ${provider || 'gupshup'}: ${sentCount} sent, ${failed} failed`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`RCS bulk via ${provider || 'gupshup'}: ${sentCount} sent, ${failed} failed`, 'Just now', req.tenantId])
     res.json({ success: true, sent: sentCount, failed, total: leads.length, provider: provider || 'gupshup' })
   } catch (err) {
     console.error('[RCS Bulk]', err)
@@ -4904,11 +4907,12 @@ app.post('/api/leads/bulk-email', authenticateToken, async (req, res) => {
   if (!subject || !String(subject).trim()) return res.status(400).json({ error: 'Subject is required.' })
   if (!message || !String(message).trim()) return res.status(400).json({ error: 'Message is required.' })
   try {
-    const cfg = await createMailTransporter()
+    const cfg = await createMailTransporter(req.tenantId)
     if (cfg.error) return res.status(400).json({ error: cfg.error })
 
-    const placeholders = leadIds.map((_, i) => `$${i + 1}`).join(',')
-    const leadsRes = await pool.query(`SELECT id, name, email FROM leads WHERE id IN (${placeholders});`, leadIds.map(Number).filter(Boolean))
+    const ids = leadIds.map(Number).filter(Boolean)
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',')
+    const leadsRes = await pool.query(`SELECT id, name, email FROM leads WHERE id IN (${placeholders}) AND tenant_id = $${ids.length + 1};`, [...ids, req.tenantId])
 
     let sent = 0, failed = 0, skipped = 0
     for (const lead of leadsRes.rows) {
@@ -4922,8 +4926,8 @@ app.post('/api/leads/bulk-email', authenticateToken, async (req, res) => {
         sent++
       } catch (e) { failed++; console.error('[Bulk Email]', email, e.message) }
     }
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`Bulk email by ${req.user?.email || 'user'}: ${sent} sent · ${failed} failed · ${skipped} no-email`, 'Just now']).catch(() => {})
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`Bulk email by ${req.user?.email || 'user'}: ${sent} sent · ${failed} failed · ${skipped} no-email`, 'Just now', req.tenantId]).catch(() => {})
     res.json({ success: true, sent, failed, skipped, total: leadsRes.rows.length })
   } catch (err) {
     console.error('[Bulk Email]', err.message)
@@ -4936,15 +4940,15 @@ app.post('/api/drip/enroll', async (req, res) => {
   const { leadId, leadName, leadEmail, leadMobile, sequenceName } = req.body
   try {
     // Check if already enrolled
-    const existing = await pool.query('SELECT id FROM drip_sequences WHERE lead_id = $1 AND status = $2;', [leadId, 'Active'])
+    const existing = await pool.query('SELECT id FROM drip_sequences WHERE lead_id = $1 AND status = $2 AND tenant_id = $3;', [leadId, 'Active', req.tenantId])
     if (existing.rows.length > 0) return res.json({ message: 'Already enrolled in drip sequence.' })
 
     const nextActionAt = new Date()
     const insertRes = await pool.query(`
-      INSERT INTO drip_sequences (lead_id, lead_name, lead_email, lead_mobile, sequence_name, current_step, status, next_action_at)
-      VALUES ($1, $2, $3, $4, $5, 0, 'Active', $6)
+      INSERT INTO drip_sequences (lead_id, lead_name, lead_email, lead_mobile, sequence_name, current_step, status, next_action_at, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, 0, 'Active', $6, $7)
       RETURNING *;
-    `, [leadId, leadName, leadEmail, leadMobile, sequenceName || 'Standard Admission', nextActionAt])
+    `, [leadId, leadName, leadEmail, leadMobile, sequenceName || 'Standard Admission', nextActionAt, req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to enroll in drip sequence.' })
@@ -4953,7 +4957,7 @@ app.post('/api/drip/enroll', async (req, res) => {
 
 app.get('/api/drip', async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM drip_sequences ORDER BY id DESC LIMIT 100;')
+    const r = await pool.query('SELECT * FROM drip_sequences WHERE tenant_id = $1 ORDER BY id DESC LIMIT 100;', [req.tenantId])
     res.json(r.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch drip sequences.' })
@@ -4984,13 +4988,13 @@ app.post('/api/drip/process', async (req, res) => {
         continue
       }
 
-      // Log the action
-      await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-        [`[Drip] ${step.type} → ${seq.lead_name}: ${step.message.replace('{name}', seq.lead_name).substring(0, 80)}`, 'Just now'])
+      // Log the action (tagged to the sequence's tenant)
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+        [`[Drip] ${step.type} → ${seq.lead_name}: ${step.message.replace('{name}', seq.lead_name).substring(0, 80)}`, 'Just now', seq.tenant_id || 1])
 
       if (step.type === 'Task') {
-        await pool.query(`INSERT INTO tasks (title, type, priority, due, status, assignee, lead) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
-          [step.message.replace('{name}', seq.lead_name), 'Call', 'High', new Date().toLocaleString('en-IN', { hour12: true }), 'Pending', 'Unassigned', seq.lead_name])
+        await pool.query(`INSERT INTO tasks (title, type, priority, due, status, assignee, lead, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+          [step.message.replace('{name}', seq.lead_name), 'Call', 'High', new Date().toLocaleString('en-IN', { hour12: true }), 'Pending', 'Unassigned', seq.lead_name, seq.tenant_id || 1])
       }
 
       // Advance to next step
@@ -5952,7 +5956,7 @@ app.get('/api/targets/achievement', async (req, res) => {
 // --- FEATURE 20: EMAIL CAMPAIGN BUILDER ---
 app.get('/api/email-campaigns', async (req, res) => {
   try {
-    const r = await pool.query('SELECT id, name, subject, segment, status, sent_count AS "sentCount", open_count AS "openCount", click_count AS "clickCount", created_at AS "createdAt", sent_at AS "sentAt" FROM email_campaigns ORDER BY id DESC;')
+    const r = await pool.query('SELECT id, name, subject, segment, status, sent_count AS "sentCount", open_count AS "openCount", click_count AS "clickCount", created_at AS "createdAt", sent_at AS "sentAt" FROM email_campaigns WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(r.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch email campaigns.' })
@@ -5964,10 +5968,10 @@ app.post('/api/email-campaigns', async (req, res) => {
   if (!name || !subject) return res.status(400).json({ error: 'Campaign name and subject required.' })
   try {
     const insertRes = await pool.query(`
-      INSERT INTO email_campaigns (name, subject, template, segment, status)
-      VALUES ($1, $2, $3, $4, 'Draft')
+      INSERT INTO email_campaigns (name, subject, template, segment, status, tenant_id)
+      VALUES ($1, $2, $3, $4, 'Draft', $5)
       RETURNING id, name, subject, segment, status, sent_count AS "sentCount", open_count AS "openCount", click_count AS "clickCount", created_at AS "createdAt";
-    `, [name, subject, template || '', segment || 'All Leads'])
+    `, [name, subject, template || '', segment || 'All Leads', req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to create email campaign.' })
@@ -5977,7 +5981,7 @@ app.post('/api/email-campaigns', async (req, res) => {
 app.post('/api/email-campaigns/:id/send', async (req, res) => {
   const { id } = req.params
   try {
-    const campRes = await pool.query('SELECT * FROM email_campaigns WHERE id = $1;', [id])
+    const campRes = await pool.query('SELECT * FROM email_campaigns WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     if (!campRes.rows[0]) return res.status(404).json({ error: 'Campaign not found.' })
     const camp = campRes.rows[0]
     const segment = camp.segment || 'All Leads'
@@ -5997,27 +6001,27 @@ app.post('/api/email-campaigns/:id/send', async (req, res) => {
     else if (segment === 'Payment Pending') segWhere += " AND stage IN ('Payment Pending','Application Submitted','Payment Approved')"
     else if (segment === 'Hot Leads')       segWhere += " AND score >= 75"
 
-    const leadsRes = await pool.query(`SELECT email, name FROM leads WHERE ${segWhere};`)
+    const leadsRes = await pool.query(`SELECT email, name FROM leads WHERE ${segWhere} AND tenant_id = $1;`, [req.tenantId])
     const recipients = leadsRes.rows
     let sentCount = 0, failedCount = 0
 
     // Delete previous logs for this campaign (re-send scenario)
-    await pool.query('DELETE FROM email_logs WHERE campaign_id = $1;', [id])
+    await pool.query('DELETE FROM email_logs WHERE campaign_id = $1 AND tenant_id = $2;', [id, req.tenantId])
 
     for (const lead of recipients) {
       const personalizedSubject = camp.subject.replace(/\{name\}/g, lead.name)
       const personalizedBody    = camp.template.replace(/\{name\}/g, lead.name)
-      const result = await sendTrackedMail(lead.email, lead.name, personalizedSubject, personalizedBody, id, camp.name)
+      const result = await sendTrackedMail(lead.email, lead.name, personalizedSubject, personalizedBody, id, camp.name, req.tenantId)
       if (result.success) sentCount++
       else failedCount++
     }
 
     await pool.query(
-      `UPDATE email_campaigns SET status = 'Sent', sent_count = $1, sent_at = NOW() WHERE id = $2;`,
-      [sentCount, id]
+      `UPDATE email_campaigns SET status = 'Sent', sent_count = $1, sent_at = NOW() WHERE id = $2 AND tenant_id = $3;`,
+      [sentCount, id, req.tenantId]
     )
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`Email campaign "${camp.name}": ${sentCount} sent, ${failedCount} failed (${segment})`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`Email campaign "${camp.name}": ${sentCount} sent, ${failedCount} failed (${segment})`, 'Just now', req.tenantId])
     res.json({ success: true, sent: sentCount, failed: failedCount, total: recipients.length, segment })
   } catch (err) {
     console.error('[Email Campaign Send]', err)
@@ -6118,9 +6122,9 @@ app.put('/api/email-campaigns/:id', async (req, res) => {
           template = COALESCE($3, template),
           segment  = COALESCE($4, segment),
           status   = COALESCE($5, status)
-      WHERE id = $6
+      WHERE id = $6 AND tenant_id = $7
       RETURNING id, name, subject, segment, status, template;
-    `, [name ?? null, subject ?? null, template ?? null, segment ?? null, status ?? null, id])
+    `, [name ?? null, subject ?? null, template ?? null, segment ?? null, status ?? null, id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Not found.' })
     res.json(r.rows[0])
   } catch (err) {
@@ -6132,7 +6136,7 @@ app.put('/api/email-campaigns/:id', async (req, res) => {
 app.delete('/api/email-campaigns/:id', async (req, res) => {
   const { id } = req.params
   try {
-    await pool.query('DELETE FROM email_campaigns WHERE id = $1;', [id])
+    await pool.query('DELETE FROM email_campaigns WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     res.json({ message: 'Campaign deleted.' })
   } catch (err) {
     res.status(500).json({ error: 'Delete failed.' })
