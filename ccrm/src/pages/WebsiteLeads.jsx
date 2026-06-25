@@ -22,8 +22,16 @@ const STATUS_COLOR = {
 }
 
 export default function WebsiteLeads({ website }) {
-  const { showToast, counselors, currentUser } = useCcrm()
+  const { showToast, counselors, currentUser, users } = useCcrm()
   const isPrivileged = ['Admin', 'Manager'].includes(currentUser?.role)
+  // Assignable = active users granted THIS entity. Falls back to all counsellors if
+  // nobody is granted it yet (so assignment is never blocked).
+  const entityCode = String(website || '').toUpperCase()
+  const grantedToEntity = (users || []).filter(u =>
+    (u.status === 'Active' || !u.status) &&
+    String(u.entities || '').split(',').map(s => s.trim().toUpperCase()).includes(entityCode)
+  )
+  const assignable = grantedToEntity.length ? grantedToEntity : (counselors || [])
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -292,8 +300,8 @@ export default function WebsiteLeads({ website }) {
               onChange={e => setAssignToUser(e.target.value)}
               className="px-3 py-1 text-sm border border-blue-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Select counselor...</option>
-              {counselors?.map(c => (
+              <option value="">Select faculty...</option>
+              {assignable.map(c => (
                 <option key={c.id} value={c.name}>{c.name}</option>
               ))}
             </select>
@@ -400,9 +408,13 @@ export default function WebsiteLeads({ website }) {
                           className="px-2 py-1 text-xs border rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="Unassigned">Unassigned</option>
-                          {counselors?.map(c => (
-                            <option key={c.id} value={c.name}>{c.name}</option>
-                          ))}
+                          {(() => {
+                            const names = assignable.map(c => c.name)
+                            const opts = lead.owner && !names.includes(lead.owner)
+                              ? [{ id: 'cur', name: lead.owner }, ...assignable]
+                              : assignable
+                            return opts.map(c => <option key={c.id} value={c.name}>{c.name}</option>)
+                          })()}
                         </select>
                       ) : (
                         <span className="text-xs text-gray-700">{lead.owner || '—'}</span>
