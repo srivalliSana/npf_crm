@@ -23,7 +23,7 @@ export default function Leaderboard() {
   const fetchLeaderboard = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/reports/leaderboard')
+      const res = await fetch('/api/reports/leaderboard', { headers: { Authorization: `Bearer ${localStorage.getItem('ccrm_token')}` } })
       if (res.ok) {
         const rows = await res.json()
         setData(rows)

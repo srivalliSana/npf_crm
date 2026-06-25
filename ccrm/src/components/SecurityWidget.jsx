@@ -9,7 +9,7 @@ export default function SecurityWidget() {
 
   const refresh = () => {
     setLoading(true)
-    fetch('/api/admin/security-overview')
+    fetch('/api/admin/security-overview', { headers: { Authorization: `Bearer ${localStorage.getItem('ccrm_token')}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => setData(d))
       .catch(() => setData(null))
