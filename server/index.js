@@ -1318,7 +1318,7 @@ app.get('/api/applications/next-app-id', async (req, res) => {
 
 app.get('/api/applications', async (req, res) => {
   try {
-    const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept" FROM applications ORDER BY id DESC;')
+    const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept" FROM applications WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(appsRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch applications.' })
@@ -1341,27 +1341,27 @@ app.post('/api/applications', async (req, res) => {
   try {
     // Pull existing lead_details to seed application's admission_details (counsellor already filled them)
     const leadRes = await pool.query(
-      `SELECT lead_details FROM leads WHERE (LOWER(email) = LOWER($1) AND email != '' AND email IS NOT NULL) OR mobile = $2 ORDER BY id DESC LIMIT 1;`,
-      [email || '', mobile || '']
+      `SELECT lead_details FROM leads WHERE ((LOWER(email) = LOWER($1) AND email != '' AND email IS NOT NULL) OR mobile = $2) AND tenant_id = $3 ORDER BY id DESC LIMIT 1;`,
+      [email || '', mobile || '', req.tenantId]
     ).catch(() => ({ rows: [] }))
     const seededDetails = (leadRes.rows[0]?.lead_details) || {}
 
     const insertRes = await pool.query(`
-      INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, pay_method, campus, course, stage, owner, date, admission_details)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+      INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, pay_method, campus, course, stage, owner, date, admission_details, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14)
       RETURNING id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails";
-    `, [name, finalAppNo, email, mobile, formStatus || 'Incomplete', payStatus || 'Payment Pending', payMethod || '', campus || 'Bhubaneswar', course, stage || 'Application Started', owner || 'Unassigned', finalDate, JSON.stringify(seededDetails)])
+    `, [name, finalAppNo, email, mobile, formStatus || 'Incomplete', payStatus || 'Payment Pending', payMethod || '', campus || 'Bhubaneswar', course, stage || 'Application Started', owner || 'Unassigned', finalDate, JSON.stringify(seededDetails), req.tenantId])
 
     // Auto-create notification
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Application submitted: ${name} (${finalAppNo})`, 'Just now'])
-    
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Application submitted: ${name} (${finalAppNo})`, 'Just now', req.tenantId])
+
     // Auto-create payment entry
-    const payIdRes = await pool.query('SELECT COUNT(*) FROM payments WHERE app_no = $1;', [finalAppNo])
+    const payIdRes = await pool.query('SELECT COUNT(*) FROM payments WHERE app_no = $1 AND tenant_id = $2;', [finalAppNo, req.tenantId])
     if (parseInt(payIdRes.rows[0].count) === 0) {
       await pool.query(`
-        INSERT INTO payments (name, app_no, amount, method, status, date)
-        VALUES ($1, $2, $3, $4, $5, $6);
-      `, [name, finalAppNo, 25000, payMethod || '', payStatus === 'Approved' ? 'Approved' : 'Pending', payStatus === 'Approved' ? finalDate : ''])
+        INSERT INTO payments (name, app_no, amount, method, status, date, tenant_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
+      `, [name, finalAppNo, 25000, payMethod || '', payStatus === 'Approved' ? 'Approved' : 'Pending', payStatus === 'Approved' ? finalDate : '', req.tenantId])
     }
 
     res.status(201).json(insertRes.rows[0])
@@ -1389,9 +1389,9 @@ app.put('/api/applications/:id', async (req, res) => {
           owner       = COALESCE($11, owner),
           date        = COALESCE($12, date),
           admission_details = COALESCE($13::jsonb, admission_details)
-      WHERE id = $14
+      WHERE id = $14 AND tenant_id = $15
       RETURNING id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date;
-    `, [name ?? null, appNo ?? null, email ?? null, mobile ?? null, formStatus ?? null, payStatus ?? null, payMethod ?? null, campus ?? null, course ?? null, stage ?? null, owner ?? null, date ?? null, leadDetails ? JSON.stringify(leadDetails) : null, id])
+    `, [name ?? null, appNo ?? null, email ?? null, mobile ?? null, formStatus ?? null, payStatus ?? null, payMethod ?? null, campus ?? null, course ?? null, stage ?? null, owner ?? null, date ?? null, leadDetails ? JSON.stringify(leadDetails) : null, id, req.tenantId])
 
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Application not found.' })
 
@@ -1401,17 +1401,18 @@ app.put('/api/applications/:id', async (req, res) => {
       await pool.query(`
         UPDATE payments
         SET status = $1, date = $2, txn_id = CASE WHEN txn_id = '' AND $3 = TRUE THEN $4 ELSE txn_id END
-        WHERE app_no = $5;
+        WHERE app_no = $5 AND tenant_id = $6;
       `, [
         isApproved ? 'Approved' : (payStatus === 'Failed' ? 'Failed' : 'Pending'),
         isApproved ? new Date().toLocaleDateString('en-IN') : '',
         isApproved,
         `TXN${Math.floor(100000 + Math.random() * 900000)}`,
-        appNo
+        appNo,
+        req.tenantId
       ])
 
       if (isApproved) {
-        await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Payment approved: ₹25,000 received for ${appNo}`, 'Just now'])
+        await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Payment approved: ₹25,000 received for ${appNo}`, 'Just now', req.tenantId])
         // Dispatches secure SMTP receipt mail alert
         sendSystemMailAlert(email, 'CUEE Admission Payment Approved', `Hello ${name},\n\nWe have successfully received and approved your payment of ₹25,000 for CUEE Registration application: ${appNo}.\n\nBest regards,\nAdmissions Office`)
       }
@@ -1520,9 +1521,9 @@ app.put('/api/applications/:id/admission-details', async (req, res) => {
       UPDATE applications
       SET admission_details = $1::jsonb,
           school_dept       = COALESCE($2, school_dept)
-      WHERE id = $3
+      WHERE id = $3 AND tenant_id = $4
       RETURNING id, app_no AS "appNo", admission_details AS "admissionDetails", school_dept AS "schoolDept";
-    `, [JSON.stringify(details), details.schoolDept ?? null, id])
+    `, [JSON.stringify(details), details.schoolDept ?? null, id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Application not found.' })
     res.json(r.rows[0])
   } catch (err) {
@@ -1693,9 +1694,9 @@ app.post('/api/applications/:id/send-letter', async (req, res) => {
       SELECT a.id, a.name, a.app_no, a.email, a.mobile, a.campus, a.course, a.owner, a.admission_details, a.school_dept,
              u.email AS owner_email, u.mobile AS owner_mobile
       FROM applications a
-      LEFT JOIN users u ON u.name = a.owner
-      WHERE a.id = $1;
-    `, [id])
+      LEFT JOIN users u ON u.name = a.owner AND u.tenant_id = a.tenant_id
+      WHERE a.id = $1 AND a.tenant_id = $2;
+    `, [id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Application not found.' })
     const app = r.rows[0]
     const details = app.admission_details || {}
@@ -1725,7 +1726,7 @@ app.post('/api/applications/:id/send-letter', async (req, res) => {
     })
 
     // Mark as sent
-    await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE id = $1;`, [id])
+    await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [id, req.tenantId])
 
     res.json({ success: true, sentTo: toEmail, ccTo: details.parentEmail || null })
   } catch (err) {
@@ -1737,7 +1738,7 @@ app.post('/api/applications/:id/send-letter', async (req, res) => {
 app.delete('/api/applications/:id', async (req, res) => {
   const { id } = req.params
   try {
-    const deleteRes = await pool.query('DELETE FROM applications WHERE id = $1 RETURNING id, app_no AS "appNo";', [id])
+    const deleteRes = await pool.query('DELETE FROM applications WHERE id = $1 AND tenant_id = $2 RETURNING id, app_no AS "appNo";', [id, req.tenantId])
     if (deleteRes.rows.length === 0) return res.status(404).json({ error: 'Application not found.' })
     res.json({ message: 'Application deleted.', id })
   } catch (err) {
@@ -1799,11 +1800,11 @@ app.get('/api/payments', async (req, res) => {
     const { requesterRole, requesterName } = req.query
     // Admin/Manager/Finance see all; counsellors only their assigned leads' payments (matched by name)
     const isCounsellor = requesterRole && !['Admin', 'Manager', 'Finance'].includes(requesterRole) && requesterName
-    let sql = 'SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode" FROM payments'
-    const params = []
+    let sql = 'SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode" FROM payments WHERE tenant_id = $1'
+    const params = [req.tenantId]
     if (isCounsellor) {
       params.push(requesterName)
-      sql += ' WHERE LOWER(name) IN (SELECT LOWER(name) FROM leads WHERE LOWER(owner) = LOWER($1))'
+      sql += ` AND LOWER(name) IN (SELECT LOWER(name) FROM leads WHERE LOWER(owner) = LOWER($${params.length}) AND tenant_id = $1)`
     }
     sql += ' ORDER BY id DESC;'
     const payRes = await pool.query(sql, params)
@@ -1818,10 +1819,10 @@ app.post('/api/payments', async (req, res) => {
   const finalDate = date || new Date().toLocaleDateString('en-IN')
   try {
     const insertRes = await pool.query(`
-      INSERT INTO payments (name, app_no, amount, method, status, date)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO payments (name, app_no, amount, method, status, date, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId";
-    `, [name, appNo, amount || 25000, method || '', status || 'Pending', finalDate])
+    `, [name, appNo, amount || 25000, method || '', status || 'Pending', finalDate, req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to create payment transaction.' })
@@ -1836,9 +1837,9 @@ app.put('/api/payments/:id', async (req, res) => {
     const updateRes = await pool.query(`
       UPDATE payments
       SET status = $1, date = CASE WHEN status <> 'Approved' AND $2 = TRUE THEN $3 ELSE date END, txn_id = CASE WHEN txn_id = '' AND $4 = TRUE THEN $5 ELSE txn_id END
-      WHERE id = $6
+      WHERE id = $6 AND tenant_id = $7
       RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId";
-    `, [status, isApproved, new Date().toLocaleDateString('en-IN'), isApproved, `TXN${Math.floor(100000 + Math.random() * 900000)}`, id])
+    `, [status, isApproved, new Date().toLocaleDateString('en-IN'), isApproved, `TXN${Math.floor(100000 + Math.random() * 900000)}`, id, req.tenantId])
 
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Payment record not found.' })
     res.json(updateRes.rows[0])
@@ -1849,15 +1850,15 @@ app.put('/api/payments/:id', async (req, res) => {
 
 // Submit UTR / offline ref number — sets status = 'Payment Done'
 // Helper — auto-fire admission letter when payment is recorded
-async function autoSendAdmissionLetter(appNo, utrNumber) {
+async function autoSendAdmissionLetter(appNo, utrNumber, tenantId = 1) {
   try {
     const r = await pool.query(`
       SELECT a.id, a.name, a.app_no, a.email, a.campus, a.course, a.owner, a.admission_details, a.school_dept,
              u.email AS owner_email, u.mobile AS owner_mobile
       FROM applications a
-      LEFT JOIN users u ON u.name = a.owner
-      WHERE a.app_no = $1;
-    `, [appNo])
+      LEFT JOIN users u ON u.name = a.owner AND u.tenant_id = a.tenant_id
+      WHERE a.app_no = $1 AND a.tenant_id = $2;
+    `, [appNo, tenantId])
     if (!r.rows[0]) return
     const app = r.rows[0]
     const details = { ...(app.admission_details || {}), utrNumber }
@@ -1877,7 +1878,7 @@ async function autoSendAdmissionLetter(appNo, utrNumber) {
       text: `Dear ${details.studentName || app.name},\n\nCongratulations! Your payment has been received and your Provisional Admission Letter is attached.\n\nReference ID: ${appNo}\nUTR: ${utrNumber}\nProgram: ${app.course}\nCampus: ${app.campus}\n\nBest regards,\nCUTM Admissions Team`,
       attachments: [{ filename: `Provisional_Letter_${appNo}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
     })
-    await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE app_no = $1;`, [appNo])
+    await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE app_no = $1 AND tenant_id = $2;`, [appNo, tenantId])
     console.log(`[Auto-Letter] Sent for ${appNo} → ${toEmail}`)
   } catch (e) {
     console.error(`[Auto-Letter] Failed for ${appNo}:`, e.message)
@@ -1893,16 +1894,16 @@ app.post('/api/payments/:id/submit-utr', async (req, res) => {
       UPDATE payments
       SET status = 'Payment Done', utr_number = $1, pay_mode = $2,
           date = $3
-      WHERE id = $4
+      WHERE id = $4 AND tenant_id = $5
       RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode";
-    `, [utrNumber, payMode || 'offline', new Date().toLocaleDateString('en-IN'), id])
+    `, [utrNumber, payMode || 'offline', new Date().toLocaleDateString('en-IN'), id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Payment not found.' })
 
     // Also update linked application pay status
-    await pool.query(`UPDATE applications SET pay_status = 'Payment Done' WHERE app_no = $1;`, [r.rows[0].appNo])
+    await pool.query(`UPDATE applications SET pay_status = 'Payment Done' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
 
     // Auto-send provisional letter (non-blocking)
-    autoSendAdmissionLetter(r.rows[0].appNo, utrNumber).catch(() => {})
+    autoSendAdmissionLetter(r.rows[0].appNo, utrNumber, req.tenantId).catch(() => {})
 
     res.json(r.rows[0])
   } catch (err) {
@@ -1916,15 +1917,15 @@ app.post('/api/payments/:id/approve', async (req, res) => {
   try {
     const r = await pool.query(`
       UPDATE payments SET status = 'Paid'
-      WHERE id = $1 AND status = 'Payment Done'
+      WHERE id = $1 AND status = 'Payment Done' AND tenant_id = $2
       RETURNING id, name, app_no AS "appNo", amount, status, utr_number AS "utrNumber";
-    `, [id])
+    `, [id, req.tenantId])
     if (!r.rows[0]) return res.status(400).json({ error: 'Payment not found or not in Payment Done status.' })
-    await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1;`, [r.rows[0].appNo])
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
-      [`Payment approved: ₹25,000 — ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now'])
+    await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+      [`Payment approved: ₹25,000 — ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now', req.tenantId])
     // Auto-send provisional letter (non-blocking)
-    autoSendAdmissionLetter(r.rows[0].appNo, r.rows[0].utrNumber || 'N/A').catch(() => {})
+    autoSendAdmissionLetter(r.rows[0].appNo, r.rows[0].utrNumber || 'N/A', req.tenantId).catch(() => {})
     res.json(r.rows[0])
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -2038,11 +2039,11 @@ app.get('/api/documents', async (req, res) => {
     const { requesterRole, requesterName } = req.query
     // Admin/Manager/Finance see all; counsellors only their assigned leads' documents (matched by student name)
     const isCounsellor = requesterRole && !['Admin', 'Manager', 'Finance'].includes(requesterRole) && requesterName
-    let sql = 'SELECT id, student, type, status, upload_date AS "uploadDate", file_url AS "fileUrl" FROM documents'
-    const params = []
+    let sql = 'SELECT id, student, type, status, upload_date AS "uploadDate", file_url AS "fileUrl" FROM documents WHERE tenant_id = $1'
+    const params = [req.tenantId]
     if (isCounsellor) {
       params.push(requesterName)
-      sql += ' WHERE LOWER(student) IN (SELECT LOWER(name) FROM leads WHERE LOWER(owner) = LOWER($1))'
+      sql += ` AND LOWER(student) IN (SELECT LOWER(name) FROM leads WHERE LOWER(owner) = LOWER($${params.length}) AND tenant_id = $1)`
     }
     sql += ' ORDER BY id DESC;'
     const docsRes = await pool.query(sql, params)
@@ -2056,12 +2057,12 @@ app.post('/api/documents', async (req, res) => {
   const { student, type, status, fileUrl } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO documents (student, type, status, upload_date, file_url)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO documents (student, type, status, upload_date, file_url, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, student, type, status, upload_date AS "uploadDate", file_url AS "fileUrl";
-    `, [student, type, status || 'Pending', new Date().toLocaleDateString('en-IN'), fileUrl || ''])
+    `, [student, type, status || 'Pending', new Date().toLocaleDateString('en-IN'), fileUrl || '', req.tenantId])
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Student uploaded document for verification: ${type}`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Student uploaded document for verification: ${type}`, 'Just now', req.tenantId])
 
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
@@ -2074,7 +2075,7 @@ app.put('/api/documents/:id', async (req, res) => {
   const { id } = req.params
   const { status } = req.body
   try {
-    const updateRes = await pool.query('UPDATE documents SET status = $1 WHERE id = $2 RETURNING id, status;', [status, id])
+    const updateRes = await pool.query('UPDATE documents SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, status;', [status, id, req.tenantId])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Document not found.' })
     res.json(updateRes.rows[0])
   } catch (err) {
@@ -2085,7 +2086,7 @@ app.put('/api/documents/:id', async (req, res) => {
 app.delete('/api/documents/:id', async (req, res) => {
   const { id } = req.params
   try {
-    const deleteRes = await pool.query('DELETE FROM documents WHERE id = $1 RETURNING id;', [id])
+    const deleteRes = await pool.query('DELETE FROM documents WHERE id = $1 AND tenant_id = $2 RETURNING id;', [id, req.tenantId])
     if (deleteRes.rows.length === 0) return res.status(404).json({ error: 'Document not found.' })
     res.json({ message: 'Document deleted.', id })
   } catch (err) {
