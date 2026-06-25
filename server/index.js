@@ -7,7 +7,7 @@ import fs from 'fs'
 import XLSXPkg from 'xlsx'
 const XLSX = XLSXPkg.default ?? XLSXPkg
 import { fileURLToPath } from 'url'
-import { pool, initDb } from './db.js'
+import { pool, initDb, initTenancy } from './db.js'
 import cron from 'node-cron'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { promisify } from 'util'
@@ -94,6 +94,7 @@ function authenticateToken(req, res, next) {
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid or expired token.' })
     req.user = user
+    req.tenantId = user.tenant_id || 1   // multi-tenant scope (Phase 1: defaults to Centurion)
     next()
   })
 }
@@ -501,7 +502,7 @@ app.post('/api/auth/login', async (req, res) => {
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
     await pool.query('UPDATE users SET last_login = $1 WHERE id = $2;', [lastLoginStr, user.id])
     
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1 }, JWT_SECRET, { expiresIn: '7d' })
     
     res.json({
       token,
@@ -565,7 +566,7 @@ app.post('/api/auth/google', async (req, res) => {
         [`New user registered via Google: ${user.name} (${user.email}) — role: Counselor`, 'Just now'])
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1 }, JWT_SECRET, { expiresIn: '7d' })
     res.json({
       token,
       user: {
@@ -6242,6 +6243,7 @@ let cronJobRunning = false  // Prevent duplicate execution
 
 async function startServer() {
   await initDb()
+  await initTenancy()   // multi-tenant foundation (Phase 1)
 
   // Schedule daily cron jobs at 3:00 AM IST
   cron.schedule('0 3 * * *', async () => {
