@@ -47,6 +47,7 @@ const NAV_ITEMS = [
   { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin'] },
   { icon: Server,          label: 'Server Health', to: '/server-health',    roles: ['Admin'] },
   { icon: ShieldCheck,     label: 'Security & Access', to: '/security',      roles: ['Admin'] },
+  { icon: Building2,       label: 'Organization',  to: '/org-settings',     roles: ['Admin'] },
   { icon: Settings,        label: 'Settings',      to: '/settings',         roles: null },
   { icon: HelpCircle,      label: 'Help',          to: '/help',             roles: null },
 ]

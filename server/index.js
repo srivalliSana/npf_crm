@@ -576,21 +576,31 @@ app.post('/api/auth/google', async (req, res) => {
       )
       user = { ...u, last_login: lastLoginStr, picture: picture || u.picture }
     } else {
-      // New Google user — create as Counselor (Admin can promote later)
+      // New Google user — route to the tenant whose allowed_domains include this email's
+      // domain (each tenant controls which domains may self-register via Google).
+      const domain = (email.split('@')[1] || '').toLowerCase()
+      const tRes = await pool.query(
+        "SELECT id FROM tenants WHERE status = 'Active' AND (',' || lower(replace(allowed_domains, ' ', '')) || ',') LIKE ('%,' || $1 || ',%') ORDER BY id LIMIT 1;",
+        [domain]
+      )
+      const newTenantId = tRes.rows[0]?.id
+      if (!newTenantId) {
+        return res.status(403).json({ error: 'Your email domain is not authorized to sign in. Contact your administrator.' })
+      }
       const insert = await pool.query(`
-        INSERT INTO users (name, email, password, role, team, status, last_login, picture)
-        VALUES ($1, $2, $3, 'Counselor', 'Sales', 'Active', $4, $5)
+        INSERT INTO users (name, email, password, role, team, status, last_login, picture, tenant_id)
+        VALUES ($1, $2, $3, 'Counselor', 'Sales', 'Active', $4, $5, $6)
         RETURNING *;
-      `, [name || email.split('@')[0], email, `google_${Date.now()}`, lastLoginStr, picture || ''])
+      `, [name || email.split('@')[0], email, `google_${Date.now()}`, lastLoginStr, picture || '', newTenantId])
       user = insert.rows[0]
 
       // Add to round-robin assignment counter
       await pool.query(
-        'INSERT INTO lead_assignment_counter (counselor_name, counselor_email) VALUES ($1, $2) ON CONFLICT (counselor_name) DO NOTHING;',
-        [user.name, user.email]
+        'INSERT INTO lead_assignment_counter (counselor_name, counselor_email, tenant_id) VALUES ($1, $2, $3) ON CONFLICT (counselor_name) DO NOTHING;',
+        [user.name, user.email, newTenantId]
       )
-      await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-        [`New user registered via Google: ${user.name} (${user.email}) — role: Counselor`, 'Just now'])
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+        [`New user registered via Google: ${user.name} (${user.email}) — role: Counselor`, 'Just now', newTenantId])
     }
 
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1, is_platform_admin: !!user.is_platform_admin }, JWT_SECRET, { expiresIn: '7d' })
@@ -6180,17 +6190,20 @@ if (fs.existsSync(distPath)) {
 
 // --- DAILY CRON JOBS: Email Report + S3 Backup ---
 async function sendProductivityEmailReport() {
-  try {
-    const recipients = await getIntegrationSetting('report_email_recipients')
+  const tenantsRes = await pool.query("SELECT id FROM tenants WHERE status='Active';").catch(() => ({ rows: [{ id: 1 }] }))
+  for (const tnt of tenantsRes.rows) {
+   const tid = tnt.id
+   try {
+    const recipients = await getIntegrationSetting('report_email_recipients', tid)
     if (!recipients) {
-      console.log('[Cron] Email report recipients not configured — skipping')
-      return
+      console.log(`[Cron] Report recipients not set for tenant ${tid} — skipping`)
+      continue
     }
 
     const emails = recipients.split(',').map(e => e.trim()).filter(e => e)
-    if (emails.length === 0) return
+    if (emails.length === 0) continue
 
-    // Fetch dashboard stats
+    // Fetch dashboard stats (tenant-scoped)
     const statsRes = await pool.query(`
       SELECT
         COUNT(*)::int AS "totalLeads",
@@ -6200,20 +6213,20 @@ async function sendProductivityEmailReport() {
         SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,
         SUM(CASE WHEN stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
         SUM(CASE WHEN stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess"
-      FROM leads;
+      FROM leads WHERE tenant_id = ${tid};
     `)
     const kpi = statsRes.rows[0]
 
-    const appRes = await pool.query('SELECT COUNT(*)::int AS c FROM applications;')
+    const appRes = await pool.query(`SELECT COUNT(*)::int AS c FROM applications WHERE tenant_id = ${tid};`)
     const applications = appRes.rows[0].c
 
-    const enrRes = await pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments');")
+    const enrRes = await pool.query(`SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments') AND tenant_id = ${tid};`)
     const enrolments = enrRes.rows[0].c
 
-    const revRes = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '';")
+    const revRes = await pool.query(`SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '' AND tenant_id = ${tid};`)
     const revenue = Number(revRes.rows[0].s)
 
-    // Fetch per-counsellor stats
+    // Fetch per-counsellor stats (tenant-scoped)
     const counselRes = await pool.query(`
       SELECT
         u.name, u.email,
@@ -6223,8 +6236,8 @@ async function sendProductivityEmailReport() {
         SUM(CASE WHEN l.stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
         SUM(CASE WHEN l.stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess"
       FROM users u
-      LEFT JOIN leads l ON l.owner = u.name
-      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager')
+      LEFT JOIN leads l ON l.owner = u.name AND l.tenant_id = u.tenant_id
+      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') AND u.tenant_id = ${tid}
       GROUP BY u.name, u.email
       HAVING COUNT(l.id) > 0
       ORDER BY leads DESC
@@ -6285,11 +6298,11 @@ async function sendProductivityEmailReport() {
       </html>
     `
 
-    // Send emails
-    const cfg = await createMailTransporter()
+    // Send emails (per-tenant SMTP)
+    const cfg = await createMailTransporter(tid)
     if (cfg.error) {
-      console.error('[Cron] SMTP not configured:', cfg.error)
-      return
+      console.error(`[Cron] SMTP not configured for tenant ${tid}:`, cfg.error)
+      continue
     }
 
     for (const email of emails) {
@@ -6301,9 +6314,10 @@ async function sendProductivityEmailReport() {
       })
     }
 
-    console.log(`[Cron] Email report sent to ${emails.length} recipient(s)`)
-  } catch (e) {
-    console.error('[Cron] Email report failed:', e.message)
+    console.log(`[Cron] Email report (tenant ${tid}) sent to ${emails.length} recipient(s)`)
+   } catch (e) {
+    console.error(`[Cron] Email report failed (tenant ${tid}):`, e.message)
+   }
   }
 }
 

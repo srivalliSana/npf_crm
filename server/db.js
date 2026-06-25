@@ -828,6 +828,21 @@ export async function initTenancy() {
         AND NOT EXISTS (SELECT 1 FROM users WHERE is_platform_admin = TRUE);
     `).catch(() => {})
 
+    // Safety net for fresh DBs: initDb may abort before these user-column migrations run,
+    // which breaks onboarding (e.g. missing `entities`). Re-assert them here (idempotent).
+    for (const col of [
+      "entities TEXT DEFAULT 'CUTM'",
+      'exclude_from_assignment BOOLEAN DEFAULT FALSE',
+      'is_superadmin BOOLEAN DEFAULT FALSE',
+      "mobile VARCHAR(50) DEFAULT ''",
+      "mobile_number VARCHAR(50) DEFAULT ''",
+      "reports_to VARCHAR(150) DEFAULT ''",
+      "picture TEXT DEFAULT ''",
+      "last_login VARCHAR(100) DEFAULT ''"
+    ]) {
+      await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col};`).catch(() => {})
+    }
+
     // Dashboard/report performance: index the owner↔name normalised join + common aggregates
     await client.query(`CREATE INDEX IF NOT EXISTS idx_leads_owner_norm ON leads (LOWER(regexp_replace(owner, '[^a-zA-Z0-9]', '', 'g')));`).catch(() => {})
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_name_norm ON users (LOWER(regexp_replace(name, '[^a-zA-Z0-9]', '', 'g')));`).catch(() => {})
