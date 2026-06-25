@@ -3837,14 +3837,26 @@ app.get('/api/integrations/messaging-provider/:channel', authenticateToken, asyn
 })
 
 // --- FEATURE 3 & 4: META LEAD ADS WEBHOOK ---
-app.get('/api/webhooks/meta-leads', (req, res) => {
-  // Facebook webhook verification
+// Resolve a webhook URL's :tenantSlug → tenant id (defaults to Centurion = 1).
+// Lets each tenant use its own inbound URL (…/meta-leads/acme) without a JWT.
+async function resolveSlugTenant(slug) {
+  if (!slug) return 1
+  try {
+    const r = await pool.query("SELECT id FROM tenants WHERE slug = $1 AND status = 'Active' LIMIT 1;", [slug])
+    return r.rows[0]?.id || 1
+  } catch { return 1 }
+}
+
+// Optional :tenantSlug → base path stays Centurion; /…/<slug> routes to that tenant.
+app.get('/api/webhooks/meta-leads/:tenantSlug?', async (req, res) => {
+  // Facebook webhook verification — verify token is per-tenant (falls back to env)
+  const tid = await resolveSlugTenant(req.params.tenantSlug)
   const mode = req.query['hub.mode']
   const token = req.query['hub.verify_token']
   const challenge = req.query['hub.challenge']
-  const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'ccrm_meta_verify_2026'
+  const VERIFY_TOKEN = (await getIntegrationSetting('meta_verify_token', tid)) || process.env.META_VERIFY_TOKEN || 'ccrm_meta_verify_2026'
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('[Meta Webhook] Verification successful.')
+    console.log(`[Meta Webhook] Verification successful (tenant ${tid}).`)
     return res.status(200).send(challenge)
   }
   res.status(403).json({ error: 'Verification failed.' })
@@ -3852,10 +3864,10 @@ app.get('/api/webhooks/meta-leads', (req, res) => {
 
 // Capture an FB/IG comment: log it + create one auto-assigned lead per commenter.
 // Comments carry no phone/email, so we use a per-commenter pseudo-email for dedupe.
-async function captureSocialComment({ platform, postId, commentId, commenterId, commenterName, text, permalink }) {
+async function captureSocialComment({ platform, postId, commentId, commenterId, commenterName, text, permalink, tenantId = 1 }) {
   if (!commentId) return
   try {
-    const exists = await pool.query('SELECT id FROM social_comments WHERE comment_id = $1 LIMIT 1;', [commentId])
+    const exists = await pool.query('SELECT id FROM social_comments WHERE comment_id = $1 AND tenant_id = $2 LIMIT 1;', [commentId, tenantId])
     if (exists.rows.length > 0) return   // already captured
 
     const sourceLabel = platform === 'instagram' ? 'Instagram Comment' : 'Facebook Comment'
@@ -3863,25 +3875,25 @@ async function captureSocialComment({ platform, postId, commentId, commenterId, 
     const pseudoEmail = `${platform}_${(commenterId || commentId)}@comment.noemail`.substring(0, 100)
 
     let leadId = null
-    const dup = await pool.query('SELECT id FROM leads WHERE LOWER(email) = LOWER($1) LIMIT 1;', [pseudoEmail])
+    const dup = await pool.query('SELECT id FROM leads WHERE LOWER(email) = LOWER($1) AND tenant_id = $2 LIMIT 1;', [pseudoEmail, tenantId])
     if (dup.rows.length > 0) {
       leadId = dup.rows[0].id
     } else {
-      const owner = await getNextAssignee()
+      const owner = await getNextAssignee(tenantId)
       const score = calculateLeadScore({ source: sourceLabel, stage: 'Untouched', mobile: '', email: pseudoEmail, course: '' })
       const ins = await pool.query(
-        `INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color, lead_details)
-         VALUES ($1, $2, '', '', $3, $4, $5, $6, 'Untouched', 'red', $7) RETURNING id;`,
-        [name, pseudoEmail, sourceLabel, owner, new Date().toLocaleString('en-IN', { hour12: true }), score, JSON.stringify({ comment: text || '', platform, permalink: permalink || '', postId: postId || '' })]
+        `INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color, lead_details, tenant_id)
+         VALUES ($1, $2, '', '', $3, $4, $5, $6, 'Untouched', 'red', $7, $8) RETURNING id;`,
+        [name, pseudoEmail, sourceLabel, owner, new Date().toLocaleString('en-IN', { hour12: true }), score, JSON.stringify({ comment: text || '', platform, permalink: permalink || '', postId: postId || '' }), tenantId]
       )
       leadId = ins.rows[0].id
-      if (owner && owner !== 'Unassigned') await alertCounselor(owner, name, 'Comment', sourceLabel, leadId)
+      if (owner && owner !== 'Unassigned') await alertCounselor(owner, name, 'Comment', sourceLabel, leadId, tenantId)
     }
 
     await pool.query(
-      `INSERT INTO social_comments (platform, post_id, comment_id, commenter_id, commenter_name, text, permalink, lead_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (comment_id) DO NOTHING;`,
-      [platform, postId || '', commentId, commenterId || '', name, text || '', permalink || '', leadId]
+      `INSERT INTO social_comments (platform, post_id, comment_id, commenter_id, commenter_name, text, permalink, lead_id, tenant_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (comment_id) DO NOTHING;`,
+      [platform, postId || '', commentId, commenterId || '', name, text || '', permalink || '', leadId, tenantId]
     )
     console.log(`[Social Comment] ${platform} comment captured from ${name}`)
   } catch (e) {
@@ -3889,8 +3901,9 @@ async function captureSocialComment({ platform, postId, commentId, commenterId, 
   }
 }
 
-app.post('/api/webhooks/meta-leads', async (req, res) => {
+app.post('/api/webhooks/meta-leads/:tenantSlug?', async (req, res) => {
   try {
+    req.tenantId = await resolveSlugTenant(req.params.tenantSlug)
     const body = req.body
     if (body.object === 'page') {
       for (const entry of (body.entry || [])) {
@@ -3945,23 +3958,23 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
             }
 
             // Dedup check
-            const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
+            const dupCheck = await pool.query('SELECT id FROM leads WHERE (mobile = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [mobile, email, req.tenantId])
             if (dupCheck.rows.length === 0) {
               // Meta (Facebook/Instagram lead ads) → auto-assign round-robin
               const score = calculateLeadScore({ source: 'Meta', stage: 'Untouched', mobile, email, course })
-              const assignee = await getNextAssignee()
+              const assignee = await getNextAssignee(req.tenantId)
               const newLead = await pool.query(`
-                INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
-                VALUES ($1, $2, $3, $4, $5, $6, 'Meta', $9, $7, $8, 'Untouched', 'red')
+                INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, tenant_id)
+                VALUES ($1, $2, $3, $4, $5, $6, 'Meta', $9, $7, $8, 'Untouched', 'red', $10)
                 RETURNING id;
-              `, [name, email, mobile, state, city, course, new Date().toLocaleString('en-IN', { hour12: true }), score, assignee])
+              `, [name, email, mobile, state, city, course, new Date().toLocaleString('en-IN', { hour12: true }), score, assignee, req.tenantId])
 
               if (assignee && assignee !== 'Unassigned') {
-                await alertCounselor(assignee, name, course, 'Meta', newLead.rows[0].id)
+                await alertCounselor(assignee, name, course, 'Meta', newLead.rows[0].id, req.tenantId)
                 console.log(`[Meta Webhook] New lead auto-assigned to ${assignee}: ${name}`)
               } else {
-                await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-                  [`New Meta lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+                await pool.query('INSERT INTO notifications (text, time, type, tenant_id) VALUES ($1, $2, $3, $4);',
+                  [`New Meta lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned', req.tenantId])
                 console.log(`[Meta Webhook] New lead imported UNASSIGNED (no eligible counsellor): ${name}`)
               }
             } else {
@@ -3978,7 +3991,8 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
               commenterId: v.from?.id,
               commenterName: v.from?.name,
               text: v.message,
-              permalink: v.post_id ? `https://www.facebook.com/${v.post_id}` : ''
+              permalink: v.post_id ? `https://www.facebook.com/${v.post_id}` : '',
+              tenantId: req.tenantId
             })
           }
         }
@@ -3997,7 +4011,8 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
               commenterId: v.from?.id,
               commenterName: v.from?.username,
               text: v.text,
-              permalink: ''
+              permalink: '',
+              tenantId: req.tenantId
             })
           }
         }
@@ -4034,25 +4049,26 @@ app.get('/api/social-comments', authenticateToken, async (req, res) => {
 })
 
 // Google Ads Lead Form Webhook
-app.post('/api/webhooks/google-leads', async (req, res) => {
+app.post('/api/webhooks/google-leads/:tenantSlug?', async (req, res) => {
   try {
+    req.tenantId = await resolveSlugTenant(req.params.tenantSlug)
     const lead = req.body
     const name = lead.user_column_data?.find(f => f.column_name === 'FULL_NAME')?.string_value || lead.full_name || 'Google Lead'
     const email = lead.user_column_data?.find(f => f.column_name === 'EMAIL')?.string_value || lead.email || `google_${Date.now()}@noemail.com`
     const mobile = lead.user_column_data?.find(f => f.column_name === 'PHONE_NUMBER')?.string_value || lead.phone_number || '0000000000'
     const course = lead.user_column_data?.find(f => f.column_name === 'COURSE')?.string_value || 'B.Tech CSE'
 
-    const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
+    const dupCheck = await pool.query('SELECT id FROM leads WHERE (mobile = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [mobile, email, req.tenantId])
     if (dupCheck.rows.length === 0) {
       // Inbound leads land UNASSIGNED — admin/manager distributes manually
       const score = calculateLeadScore({ source: 'Google Ads', stage: 'Untouched', mobile, email, course })
       await pool.query(`
-        INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
-        VALUES ($1, $2, $3, $4, 'Google Ads', 'Unassigned', $5, $6, 'Untouched', 'red')
+        INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color, tenant_id)
+        VALUES ($1, $2, $3, $4, 'Google Ads', 'Unassigned', $5, $6, 'Untouched', 'red', $7)
         RETURNING id;
-      `, [name, email, mobile, course, new Date().toLocaleString('en-IN', { hour12: true }), score])
-      await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-        [`New Google Ads lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+      `, [name, email, mobile, course, new Date().toLocaleString('en-IN', { hour12: true }), score, req.tenantId])
+      await pool.query('INSERT INTO notifications (text, time, type, tenant_id) VALUES ($1, $2, $3, $4);',
+        [`New Google Ads lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned', req.tenantId])
     }
     res.status(200).json({ received: true })
   } catch (err) {
@@ -4903,12 +4919,13 @@ app.get('/api/reports/leaderboard', async (req, res) => {
 })
 
 // --- FEATURE 10: PUBLIC INQUIRY FORM ---
-app.post('/api/public/inquiry', async (req, res) => {
+app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
   const { name, email, mobile, state, city, course, source } = req.body
   if (!name || !mobile) return res.status(400).json({ error: 'Name and mobile are required.' })
   try {
+    const tenantId = await resolveSlugTenant(req.params.tenantSlug || req.query.tenant)
     // Dedup check
-    const dup = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email || ''])
+    const dup = await pool.query('SELECT id FROM leads WHERE (mobile = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [mobile, email || '', tenantId])
     if (dup.rows.length > 0) {
       return res.status(200).json({ message: 'Your inquiry was already received. Our team will contact you shortly.', duplicate: true })
     }
@@ -4918,20 +4935,20 @@ app.post('/api/public/inquiry', async (req, res) => {
     const socialMediaSources = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
     const isFromSocialMedia = source && socialMediaSources.some(sm => source.toLowerCase().includes(sm))
     const leadSource = source?.toLowerCase().includes('facebook') ? 'facebook' : 'form'
-    const owner = isFromSocialMedia ? await getNextAssignee() : 'Unassigned'
+    const owner = isFromSocialMedia ? await getNextAssignee(tenantId) : 'Unassigned'
     const insertRes = await pool.query(`
-      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $11, $8, $9, 'Untouched', 'red', $10)
+      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $11, $8, $9, 'Untouched', 'red', $10, $12)
       RETURNING id, name, course;
-    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, owner])
+    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, owner, tenantId])
 
     const pubLead = insertRes.rows[0]
     if (owner && owner !== 'Unassigned') {
-      await alertCounselor(owner, name, course || 'B.Tech CSE', source || 'Website', pubLead.id)
+      await alertCounselor(owner, name, course || 'B.Tech CSE', source || 'Website', pubLead.id, tenantId)
     } else {
       // Notify admins a new unassigned lead arrived from the landing page
-      await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-        [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+      await pool.query('INSERT INTO notifications (text, time, type, tenant_id) VALUES ($1, $2, $3, $4);',
+        [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned', tenantId])
     }
 
     res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: pubLead })
