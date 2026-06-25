@@ -67,7 +67,14 @@ export default function LeadManager() {
   const navigate = useNavigate()
   const { addLead, deleteLead, updateLead, currentUser, counselors, showToast, fetchAllData, fetchLeadsPage,
           checkDuplicate, getNextAssignee, sendBulkWhatsApp, sendBulkSMS, sendBulkRCS, sendBulkEmail, sendRcsToLead,
-          rcsTemplates, fetchRcsTemplates, enrollDrip, logCall, users } = useCcrm()
+          rcsTemplates, fetchRcsTemplates, enrollDrip, logCall, users, tenantConfig } = useCcrm()
+  // Domain tabs from the tenant's main entities. Server-side domain filtering (by email
+  // suffix) only supports cutm/cutmap, so only those appear as tabs; other tenants see "All".
+  const DOMAIN_CODES = ['cutm', 'cutmap']
+  const domainTabs = (tenantConfig?.entities || [])
+    .filter(e => e.kind === 'main' && DOMAIN_CODES.includes(String(e.code).toLowerCase()))
+    .map(e => ({ id: String(e.code).toLowerCase(), label: e.label }))
+  const leadTabs = [{ id: 'all', label: 'All Leads' }, ...domainTabs]
 
   const [selectedRows, setSelectedRows] = useState([])
   const [selectAllPages, setSelectAllPages] = useState(false)
@@ -644,7 +651,9 @@ export default function LeadManager() {
   const ownerOptions  = (currentUser?.role === 'Admin' || currentUser?.role === 'Manager')
     ? ['Unassigned', ...(counselors || []).map(c => c.name)]
     : []
-  const stageOptions  = ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success']
+  const stageOptions  = (Array.isArray(tenantConfig?.stages) && tenantConfig.stages.length)
+    ? tenantConfig.stages
+    : ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success']
 
   // Owner assign dropdowns → active users granted the relevant entity (by domain tab),
   // falling back to all counsellors if none are granted that entity.
@@ -700,11 +709,7 @@ export default function LeadManager() {
 
       {/* Filter Tabs — Domain-based filtering */}
       <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 shadow-sm flex items-center gap-2 flex-wrap">
-        {[
-          { id: 'all', label: 'All Leads' },
-          { id: 'cutm', label: 'CUTM' },
-          { id: 'cutmap', label: 'CUTMAP' }
-        ].map(tab => (
+        {leadTabs.map(tab => (
           <button key={tab.id} onClick={() => {
             console.log(`[Tab Click] Clicked tab: ${tab.id}`)
             setActiveFilter(tab.id)
