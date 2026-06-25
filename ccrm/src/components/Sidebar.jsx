@@ -8,6 +8,7 @@ import {
   PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall, Layers, MessageCircle
 } from 'lucide-react'
 import { APP_VERSION } from '../version'
+import { useCcrm } from '../context/CcrmContext'
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',          to: '/dashboard',              roles: null },
@@ -51,26 +52,35 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ onLogout, user }) {
   const navigate = useNavigate()
+  const { tenantConfig } = useCcrm()
   const userRole = user?.role || 'Counselor'
   const isSuper = !!user?.isSuperAdmin   // Super Admin bypasses entity gating, sees all
   const expanded = true
   const [openSubmenu, setOpenSubmenu] = useState(null)
 
+  // Entity model from per-tenant config (falls back to Centurion's CUTM/GT layout)
+  const cfgEntities = Array.isArray(tenantConfig?.entities) ? tenantConfig.entities : []
+  const GT_CODES   = cfgEntities.length ? cfgEntities.filter(e => e.kind === 'gt').map(e => e.code)   : ['FTL', 'GTIB', 'GTTECH', 'ESSE']
+  const MAIN_CODES = cfgEntities.length ? cfgEntities.filter(e => e.kind === 'main').map(e => e.code) : ['CUTM', 'CUTMAP']
+  const gtLabel = (code) => cfgEntities.find(e => e.code === code)?.label || code
+  const brand = tenantConfig?.branding || {}
+
   // Entity access (admin-granted): which lead sets this user can see
-  const GT_CODES = ['FTL', 'GTIB', 'GTTECH', 'ESSE']
-  const userEntities = String(user?.entities || 'CUTM').split(',').map(s => s.trim()).filter(Boolean)
+  const userEntities = String(user?.entities || MAIN_CODES[0] || '').split(',').map(s => s.trim()).filter(Boolean)
   const hasGT   = userEntities.some(e => GT_CODES.includes(e))
-  const hasMain = userEntities.includes('CUTM') || userEntities.includes('CUTMAP')
+  const hasMain = userEntities.some(e => MAIN_CODES.includes(e))
 
   const visibleItems = NAV_ITEMS.filter(item => {
+    if (item.label === 'GT Entities' && GT_CODES.length === 0) return false  // tenant has no GT entities
     if (isSuper) return true                              // Super Admin sees everything
     if (item.label === 'GT Entities') return hasGT        // only if granted a GT entity
-    if (item.label === 'Leads')       return hasMain      // only if granted CUTM/CUTMAP
+    if (item.label === 'Leads')       return hasMain      // only if granted a main entity
     return !item.roles || item.roles.includes(userRole)   // admin still sees admin-only items
   }).map(item => {
-    // Show only the GT sub-entities this user is granted (admins included unless Super)
-    if (item.label === 'GT Entities' && !isSuper && item.submenu) {
-      return { ...item, submenu: item.submenu.filter(s => userEntities.includes(s.label)) }
+    // Build the GT submenu from the tenant's GT entities, filtered to those granted
+    if (item.label === 'GT Entities' && item.submenu) {
+      const codes = isSuper ? GT_CODES : GT_CODES.filter(c => userEntities.includes(c))
+      return { ...item, submenu: codes.map(c => ({ label: gtLabel(c), to: `/${c.toLowerCase()}-leads` })) }
     }
     return item
   })
@@ -84,12 +94,14 @@ export default function Sidebar({ onLogout, user }) {
         className="w-full flex items-center gap-3 px-4 h-16 cursor-pointer border-b border-primary-600 overflow-hidden"
         onClick={() => navigate('/dashboard')}
       >
-        <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow flex-shrink-0">
-          <span className="text-primary-500 font-extrabold text-xl leading-none">C</span>
+        <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow flex-shrink-0 overflow-hidden">
+          {brand.logoUrl
+            ? <img src={brand.logoUrl} alt="logo" className="w-full h-full object-contain" />
+            : <span className="text-primary-500 font-extrabold text-xl leading-none">{brand.logoText || 'C'}</span>}
         </div>
         <div className={`overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="text-white font-extrabold text-sm leading-tight whitespace-nowrap">CCRM</div>
-          <div className="text-primary-200 text-[10px] leading-tight whitespace-nowrap">Admissions</div>
+          <div className="text-white font-extrabold text-sm leading-tight whitespace-nowrap">{brand.shortName || 'CCRM'}</div>
+          <div className="text-primary-200 text-[10px] leading-tight whitespace-nowrap">{brand.tagline || 'Admissions'}</div>
         </div>
       </div>
 
