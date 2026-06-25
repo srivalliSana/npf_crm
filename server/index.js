@@ -434,11 +434,11 @@ async function sendTrackedMail(recipient, recipientName, subject, messageBody, c
 // --- NOTIFICATION & ALERT HELPERS ---
 
 // Create a per-user in-app notification (userEmail=null → visible to all admins)
-async function createNotification(userEmail, title, text, type = 'info', leadId = null) {
+async function createNotification(userEmail, title, text, type = 'info', leadId = null, tenantId = 1) {
   try {
     await pool.query(
-      'INSERT INTO notifications (user_email, title, text, type, lead_id, time, unread, created_at) VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW());',
-      [userEmail || null, (title || text || '').substring(0, 255), text, type, leadId, 'Just now']
+      'INSERT INTO notifications (user_email, title, text, type, lead_id, time, unread, created_at, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW(), $7);',
+      [userEmail || null, (title || text || '').substring(0, 255), text, type, leadId, 'Just now', tenantId]
     )
   } catch (err) {
     console.error('[createNotification]', err.message)
@@ -454,11 +454,11 @@ async function getIntegrationSetting(key) {
 }
 
 // Alert a counselor via in-app notification + email + WhatsApp when a lead is assigned
-async function alertCounselor(assigneeName, leadName, course, source, leadId) {
+async function alertCounselor(assigneeName, leadName, course, source, leadId, tenantId = 1) {
   if (!assigneeName || assigneeName === 'Unassigned') return
   try {
     // Look up counselor's email + mobile
-    const userRes = await pool.query('SELECT email, mobile FROM users WHERE name = $1 LIMIT 1;', [assigneeName])
+    const userRes = await pool.query('SELECT email, mobile FROM users WHERE name = $1 AND tenant_id = $2 LIMIT 1;', [assigneeName, tenantId])
     const counselor = userRes.rows[0]
     if (!counselor) return
 
@@ -466,7 +466,7 @@ async function alertCounselor(assigneeName, leadName, course, source, leadId) {
     const text = `${leadName} (${course}) — Source: ${source}`
 
     // 1. In-app notification (targeted to counselor)
-    await createNotification(counselor.email, title, text, 'lead_assigned', leadId)
+    await createNotification(counselor.email, title, text, 'lead_assigned', leadId, tenantId)
 
     // 2. Email alert via SMTP/msmtp
     sendSystemMailAlert(
@@ -774,6 +774,7 @@ app.get('/api/gttech-leads', async (req, res) => {
 
     const where = []
     const params = []
+    params.push(req.tenantId); where.push(`tenant_id = $${params.length}`)
 
     if (search) {
       params.push(`%${search}%`)
@@ -821,6 +822,7 @@ app.get('/api/ftl-leads', async (req, res) => {
 
     const where = []
     const params = []
+    params.push(req.tenantId); where.push(`tenant_id = $${params.length}`)
 
     if (search) {
       params.push(`%${search}%`)
@@ -868,6 +870,7 @@ app.get('/api/gtib-leads', async (req, res) => {
 
     const where = []
     const params = []
+    params.push(req.tenantId); where.push(`tenant_id = $${params.length}`)
 
     if (search) {
       params.push(`%${search}%`)
@@ -915,6 +918,7 @@ app.get('/api/esse-leads', async (req, res) => {
 
     const where = []
     const params = []
+    params.push(req.tenantId); where.push(`tenant_id = $${params.length}`)
 
     if (search) {
       params.push(`%${search}%`)
@@ -1009,6 +1013,8 @@ app.post('/api/website-leads/import', authenticateToken, uploadDoc.single('file'
           website_code: website,
         }
 
+        // Tag the tenant (multi-tenant)
+        if (cols.tenant_id) fields.tenant_id = req.tenantId
         // Only insert columns that actually exist in the table
         const useCols = Object.keys(fields).filter(c => cols[c])
         // Satisfy any NOT NULL json/jsonb column (no default) we aren't already setting → '{}'
@@ -1055,17 +1061,17 @@ app.post('/api/website-leads/assign', authenticateToken, async (req, res) => {
   if (owner === undefined || owner === null) return res.status(400).json({ error: 'Faculty/owner required.' })
   try {
     const r = await pool.query(
-      `UPDATE ${website}_leads SET owner = $1 WHERE id = ANY($2::int[]);`,
-      [String(owner).trim().substring(0, 120), ids.map(Number).filter(Boolean)]
+      `UPDATE ${website}_leads SET owner = $1 WHERE id = ANY($2::int[]) AND tenant_id = $3;`,
+      [String(owner).trim().substring(0, 120), ids.map(Number).filter(Boolean), req.tenantId]
     )
     console.log(`[Website Leads Assign] ${website}: ${r.rowCount} → ${owner} by ${req.user.email}`)
     // Auto-email the faculty (skip when clearing the owner)
     if (owner && String(owner).trim()) {
       try {
-        const u = await pool.query('SELECT email FROM users WHERE name = $1 LIMIT 1;', [String(owner).trim()])
+        const u = await pool.query('SELECT email FROM users WHERE name = $1 AND tenant_id = $2 LIMIT 1;', [String(owner).trim(), req.tenantId])
         const email = u.rows[0]?.email
         if (email) {
-          await createNotification(email, `${r.rowCount} ${website.toUpperCase()} lead(s) assigned`, `${r.rowCount} ${website.toUpperCase()} lead(s) have been assigned to you.`, 'lead_assigned', null)
+          await createNotification(email, `${r.rowCount} ${website.toUpperCase()} lead(s) assigned`, `${r.rowCount} ${website.toUpperCase()} lead(s) have been assigned to you.`, 'lead_assigned', null, req.tenantId)
           sendSystemMailAlert(email, `[CCRM] ${r.rowCount} ${website.toUpperCase()} Lead(s) Assigned`,
             `Hello ${owner},\n\n${r.rowCount} ${website.toUpperCase()} lead(s) have been assigned to you in CCRM.\n\nLog in: https://crm.cutmap.ac.in/${website}-leads\n\nBest regards,\nCCRM`)
         }
@@ -1094,8 +1100,10 @@ app.post('/api/website-leads/status', authenticateToken, async (req, res) => {
       params.push(ur.rows[0]?.name || '___none___')
       ownerGuard = ` AND owner = $${params.length}`
     }
+    params.push(req.tenantId)
+    const tenantGuard = ` AND tenant_id = $${params.length}`
     const r = await pool.query(
-      `UPDATE ${website}_leads SET status = $1 WHERE id = ANY($2::int[])${ownerGuard};`,
+      `UPDATE ${website}_leads SET status = $1 WHERE id = ANY($2::int[])${ownerGuard}${tenantGuard};`,
       params
     )
     console.log(`[Website Leads Status] ${website}: ${r.rowCount} → ${status} by ${req.user.email}`)
@@ -1113,7 +1121,7 @@ app.get('/api/website-leads/my-count', authenticateToken, async (req, res) => {
   try {
     let total = 0
     for (const t of ['ftl_leads', 'gtib_leads', 'gttech_leads', 'esse_leads']) {
-      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM ${t} WHERE LOWER(TRIM(owner)) = LOWER(TRIM($1));`, [owner]).catch(() => ({ rows: [{ c: 0 }] }))
+      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM ${t} WHERE LOWER(TRIM(owner)) = LOWER(TRIM($1)) AND tenant_id = $2;`, [owner, req.tenantId]).catch(() => ({ rows: [{ c: 0 }] }))
       total += r.rows[0].c
     }
     res.json({ total })
@@ -1160,7 +1168,7 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
 
     // Alert assigned counselor if not unassigned
     if (owner !== 'Unassigned') {
-      await alertCounselor(owner, name, course, source || 'Manual', newLead.id)
+      await alertCounselor(owner, name, course, source || 'Manual', newLead.id, req.tenantId)
     }
 
     res.status(201).json(newLead)
@@ -1240,7 +1248,7 @@ app.post('/api/leads/bulk-assign', authenticateToken, async (req, res) => {
       const u = await pool.query('SELECT email FROM users WHERE name = $1 AND tenant_id = $2 LIMIT 1;', [owner, req.tenantId])
       const email = u.rows[0]?.email
       if (email) {
-        await createNotification(email, `${r.rowCount} new lead(s) assigned`, `${r.rowCount} lead(s) have been assigned to you.`, 'lead_assigned', null)
+        await createNotification(email, `${r.rowCount} new lead(s) assigned`, `${r.rowCount} lead(s) have been assigned to you.`, 'lead_assigned', null, req.tenantId)
         sendSystemMailAlert(email, `[CCRM] ${r.rowCount} New Lead(s) Assigned`,
           `Hello ${owner},\n\n${r.rowCount} lead(s) have been assigned to you in CCRM.\n\nLog in to follow up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`)
       }
@@ -3095,15 +3103,15 @@ app.get('/api/notifications', async (req, res) => {
       // Admins/Managers see all notifications
       const r = await pool.query(`
         SELECT id, user_email AS "userEmail", title, text, type, lead_id AS "leadId", time, unread, created_at AS "createdAt"
-        FROM notifications ORDER BY id DESC LIMIT 100;
-      `)
+        FROM notifications WHERE tenant_id = $1 ORDER BY id DESC LIMIT 100;
+      `, [req.tenantId])
       rows = r.rows
     } else {
       // Counselors see only their own + broadcasts (user_email IS NULL)
       const r = await pool.query(`
         SELECT id, user_email AS "userEmail", title, text, type, lead_id AS "leadId", time, unread, created_at AS "createdAt"
-        FROM notifications WHERE user_email = $1 OR user_email IS NULL ORDER BY id DESC LIMIT 50;
-      `, [user.email])
+        FROM notifications WHERE (user_email = $1 OR user_email IS NULL) AND tenant_id = $2 ORDER BY id DESC LIMIT 50;
+      `, [user.email, req.tenantId])
       rows = r.rows
     }
     res.json(rows)
@@ -3120,9 +3128,9 @@ app.put('/api/notifications/read-all', async (req, res) => {
   try { const u = jwt.verify(token, JWT_SECRET); userEmail = u.email } catch {}
   try {
     if (userEmail) {
-      await pool.query('UPDATE notifications SET unread = FALSE WHERE user_email = $1 OR user_email IS NULL;', [userEmail])
+      await pool.query('UPDATE notifications SET unread = FALSE WHERE (user_email = $1 OR user_email IS NULL) AND tenant_id = $2;', [userEmail, req.tenantId])
     } else {
-      await pool.query('UPDATE notifications SET unread = FALSE;')
+      await pool.query('UPDATE notifications SET unread = FALSE WHERE tenant_id = $1;', [req.tenantId])
     }
     res.json({ message: 'All notifications marked as read.' })
   } catch (err) {
@@ -3134,7 +3142,7 @@ app.put('/api/notifications/read-all', async (req, res) => {
 app.put('/api/notifications/:id/read', async (req, res) => {
   const { id } = req.params
   try {
-    await pool.query('UPDATE notifications SET unread = FALSE WHERE id = $1;', [id])
+    await pool.query('UPDATE notifications SET unread = FALSE WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     res.json({ message: 'Notification marked as read.' })
   } catch (err) {
     res.status(500).json({ error: 'Failed to mark notification as read.' })
@@ -3146,10 +3154,10 @@ app.put('/api/notifications', async (req, res) => {
   const { id, unread } = req.body
   try {
     if (id) {
-      const updateRes = await pool.query('UPDATE notifications SET unread = $1 WHERE id = $2 RETURNING id, unread;', [unread, id])
+      const updateRes = await pool.query('UPDATE notifications SET unread = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, unread;', [unread, id, req.tenantId])
       res.json(updateRes.rows[0])
     } else {
-      await pool.query('UPDATE notifications SET unread = FALSE;')
+      await pool.query('UPDATE notifications SET unread = FALSE WHERE tenant_id = $1;', [req.tenantId])
       res.json({ message: 'All notifications marked as read.' })
     }
   } catch (err) {
@@ -4005,6 +4013,7 @@ app.get('/api/social-comments', authenticateToken, async (req, res) => {
     const offset = (page - 1) * limit
     const platform = req.query.platform || ''
     const where = []; const params = []
+    params.push(req.tenantId); where.push(`tenant_id = $${params.length}`)
     if (platform) { params.push(platform); where.push(`platform = $${params.length}`) }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM social_comments ${whereSql};`, params)
