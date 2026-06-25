@@ -3158,7 +3158,7 @@ app.post('/api/integration-settings', authenticateToken, async (req, res) => {
     let saved = 0
     for (const [key, value] of Object.entries(settings)) {
       if (!key || typeof key !== 'string') continue
-      const v = String(value ?? '')
+      const v = String(value ?? '').trim()               // trim stray copy-paste whitespace
       if (v === SETTINGS_MASK) continue                  // unchanged masked secret — keep existing
       if (isSecretKey(key) && v === '') continue         // never blank-out a secret
       await pool.query(
@@ -5452,9 +5452,11 @@ app.get('/api/reports/call-activity/leads', authenticateToken, async (req, res) 
 // Shared sync routine — used by the manual endpoint and the 5-min cron.
 // New leads are auto-assigned (round-robin) and the counsellor is alerted.
 async function syncGoogleSheet({ sheetId, apiKey, autoAssign = true } = {}) {
-  if (!sheetId) return { error: 'Google Sheet ID required.' }
-  const key = apiKey || process.env.GOOGLE_SHEETS_API_KEY
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A1:Z1000?key=${key}`
+  const id  = String(sheetId || '').trim()
+  const key = String(apiKey || process.env.GOOGLE_SHEETS_API_KEY || '').trim()
+  if (!id)  return { error: 'Google Sheet ID required.' }
+  if (!key) return { error: 'Google Sheets API key not configured.' }
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}/values/Sheet1!A1:Z1000?key=${encodeURIComponent(key)}`
   const sheetsRes = await fetch(url)
   if (!sheetsRes.ok) {
     const errText = await sheetsRes.text()
