@@ -2295,9 +2295,18 @@ app.get('/api/admin/version', (req, res) => {
 // ── ADMIN — Server Health & Security Overview ────────────────────────────────
 // ── DASHBOARD STATS — all aggregation in SQL (scales to 1cr+ rows) ──────────
 // Optional ?owner=Name (counsellor) or ?manager=Name (their team) to scope.
+const dashboardCache = new Map()   // key → { ts, data }; short TTL to absorb repeat loads
+const DASHBOARD_TTL_MS = 60000
+
 app.get('/api/dashboard/stats', async (req, res) => {
   try {
     const { owner, manager, campus } = req.query
+
+    // Serve a recent cached result (dashboard tolerates ~60s staleness; avoids
+    // re-scanning the whole leads table on every page load / poll).
+    const cacheKey = JSON.stringify({ t: req.tenantId, owner: owner || '', manager: manager || '', campus: campus || '' })
+    const hit = dashboardCache.get(cacheKey)
+    if (hit && (Date.now() - hit.ts) < DASHBOARD_TTL_MS) return res.json(hit.data)
 
     // Build filters (parameterised) for role-scoped dashboards.
     // $1 is always the tenant (multi-tenant) — every query below is scoped to it.
@@ -2446,7 +2455,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
       }
     }
 
-    res.json({
+    const payload = {
       kpi: kpi.rows[0],
       applications: appTotal.rows[0].c,
       enrolments:   enrolTotal.rows[0].c,
@@ -2455,7 +2464,9 @@ app.get('/api/dashboard/stats', async (req, res) => {
       byDomain,
       byCounsellorStages,
       gtEntities,
-    })
+    }
+    dashboardCache.set(cacheKey, { ts: Date.now(), data: payload })
+    res.json(payload)
   } catch (err) {
     console.error('[dashboard/stats]', err)
     res.status(500).json({ error: err.message })

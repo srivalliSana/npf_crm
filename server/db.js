@@ -828,6 +828,12 @@ export async function initTenancy() {
         AND NOT EXISTS (SELECT 1 FROM users WHERE is_platform_admin = TRUE);
     `).catch(() => {})
 
+    // Dashboard/report performance: index the owner↔name normalised join + common aggregates
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_leads_owner_norm ON leads (LOWER(regexp_replace(owner, '[^a-zA-Z0-9]', '', 'g')));`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_users_name_norm ON users (LOWER(regexp_replace(name, '[^a-zA-Z0-9]', '', 'g')));`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_leads_tenant_stage ON leads (tenant_id, stage);`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_leads_tenant_owner ON leads (tenant_id, owner);`).catch(() => {})
+
     console.log('--- Multi-tenant foundation ready (tenants + tenant_id columns) ---')
   } catch (err) {
     console.error('initTenancy failed:', err.message)
