@@ -755,7 +755,8 @@ const TENANT_TABLES = [
   'integration_settings', 'lead_transfers', 'tasks', 'events', 'campaigns',
   'rcs_templates', 'rcs_messages', 'upload_logs', 'lead_assignment_counter',
   'esse_leads', 'ftl_leads', 'gtib_leads', 'gttech_leads', 'social_comments',
-  'drip_sequences', 'drip_enrollments', 'email_campaigns', 'calls'
+  'drip_sequences', 'drip_enrollments', 'email_campaigns', 'calls',
+  'call_logs', 'whatsapp_logs', 'email_logs', 'sms_logs', 'queries'
 ]
 
 export async function initTenancy() {
