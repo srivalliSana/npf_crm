@@ -785,6 +785,11 @@ export async function initTenancy() {
       await client.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;`).catch(() => {})
       await client.query(`CREATE INDEX IF NOT EXISTS idx_${t}_tenant ON ${t} (tenant_id);`).catch(() => {})
     }
+
+    // integration_settings: key was globally UNIQUE — make it per-tenant (tenant_id, key)
+    await client.query(`ALTER TABLE integration_settings DROP CONSTRAINT IF EXISTS integration_settings_key_key;`).catch(() => {})
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_intset_tenant_key ON integration_settings (tenant_id, key);`).catch(() => {})
+
     console.log('--- Multi-tenant foundation ready (tenants + tenant_id columns) ---')
   } catch (err) {
     console.error('initTenancy failed:', err.message)

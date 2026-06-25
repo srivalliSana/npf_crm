@@ -356,12 +356,12 @@ app.post('/api/admin/reset-production', adminOnly, async (req, res) => {
 
 // --- SMTP ALERT MAILER SENDER ---
 // ── Nodemailer transporter — lazy-loaded so missing package won't crash server ─
-async function createMailTransporter() {
-  const host     = await getIntegrationSetting('smtp_host')      || process.env.SMTP_HOST     || ''
-  const port     = parseInt(await getIntegrationSetting('smtp_port') || process.env.SMTP_PORT || '587')
-  const user     = await getIntegrationSetting('smtp_user')      || process.env.SMTP_USER     || ''
-  const pass     = await getIntegrationSetting('smtp_pass')      || process.env.SMTP_PASS     || ''
-  const fromName = await getIntegrationSetting('smtp_from_name') || 'CUTM Admissions'
+async function createMailTransporter(tenantId = 1) {
+  const host     = await getIntegrationSetting('smtp_host', tenantId)      || process.env.SMTP_HOST     || ''
+  const port     = parseInt(await getIntegrationSetting('smtp_port', tenantId) || process.env.SMTP_PORT || '587')
+  const user     = await getIntegrationSetting('smtp_user', tenantId)      || process.env.SMTP_USER     || ''
+  const pass     = await getIntegrationSetting('smtp_pass', tenantId)      || process.env.SMTP_PASS     || ''
+  const fromName = await getIntegrationSetting('smtp_from_name', tenantId) || 'CUTM Admissions'
 
   // Return specific missing-field info so errors are actionable
   const missing = []
@@ -392,10 +392,10 @@ async function createMailTransporter() {
 }
 
 // Fire-and-forget alert email (counselor notifications, OTPs, etc.)
-async function sendSystemMailAlert(recipient, subject, messageBody) {
+async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1) {
   console.log(`[Mail] To: ${recipient} | Sub: ${subject}`)
   try {
-    const cfg = await createMailTransporter()
+    const cfg = await createMailTransporter(tenantId)
     if (cfg.error) { console.warn('[Mail] Skipped —', cfg.error); return }
     await cfg.transporter.sendMail({ from: cfg.from, to: recipient, subject, text: messageBody })
     console.log(`[Mail] Sent to ${recipient}`)
@@ -445,10 +445,10 @@ async function createNotification(userEmail, title, text, type = 'info', leadId 
   }
 }
 
-// Fetch a single integration setting from DB
-async function getIntegrationSetting(key) {
+// Fetch a single integration setting from DB (per-tenant; defaults to Centurion=1)
+async function getIntegrationSetting(key, tenantId = 1) {
   try {
-    const r = await pool.query('SELECT value FROM integration_settings WHERE key = $1;', [key])
+    const r = await pool.query('SELECT value FROM integration_settings WHERE key = $1 AND tenant_id = $2;', [key, tenantId])
     return r.rows[0]?.value || null
   } catch { return null }
 }
@@ -472,12 +472,13 @@ async function alertCounselor(assigneeName, leadName, course, source, leadId, te
     sendSystemMailAlert(
       counselor.email,
       `[CCRM] New Lead Assigned: ${leadName}`,
-      `Hello ${assigneeName},\n\nA new lead has been assigned to you in CCRM:\n\nName: ${leadName}\nCourse: ${course}\nSource: ${source}\n\nPlease log in to follow up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`
+      `Hello ${assigneeName},\n\nA new lead has been assigned to you in CCRM:\n\nName: ${leadName}\nCourse: ${course}\nSource: ${source}\n\nPlease log in to follow up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`,
+      tenantId
     )
 
     // 3. WhatsApp alert to counselor's mobile (if WA API configured + counselor has mobile)
-    const waToken = await getIntegrationSetting('whatsapp_access_token')
-    const waPhoneId = await getIntegrationSetting('whatsapp_phone_number_id')
+    const waToken = await getIntegrationSetting('whatsapp_access_token', tenantId)
+    const waPhoneId = await getIntegrationSetting('whatsapp_phone_number_id', tenantId)
     if (waToken && waPhoneId && counselor.mobile) {
       const mobile = counselor.mobile.replace(/\D/g, '')
       if (mobile.length >= 10) {
@@ -3177,7 +3178,7 @@ const isSecretKey = (k) => /(pass|secret|token|api_key|access_key|salt|hash)/i.t
 
 app.get('/api/integration-settings', async (req, res) => {
   try {
-    const r = await pool.query('SELECT key, value FROM integration_settings ORDER BY key;')
+    const r = await pool.query('SELECT key, value FROM integration_settings WHERE tenant_id = $1 ORDER BY key;', [req.tenantId])
     const settings = {}
     for (const row of r.rows) {
       settings[row.key] = isSecretKey(row.key) ? (row.value ? SETTINGS_MASK : '') : row.value
@@ -3200,8 +3201,8 @@ app.post('/api/integration-settings', authenticateToken, async (req, res) => {
       if (v === SETTINGS_MASK) continue                  // unchanged masked secret — keep existing
       if (isSecretKey(key) && v === '') continue         // never blank-out a secret
       await pool.query(
-        'INSERT INTO integration_settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();',
-        [key.substring(0, 100), v]
+        'INSERT INTO integration_settings (key, value, updated_at, tenant_id) VALUES ($1, $2, NOW(), $3) ON CONFLICT (tenant_id, key) DO UPDATE SET value = $2, updated_at = NOW();',
+        [key.substring(0, 100), v, req.tenantId]
       )
       saved++
     }
@@ -5927,10 +5928,10 @@ app.get('/api/reports/call-logs', async (req, res) => {
 // Test SMTP connection — called from Integrations page
 app.post('/api/integration-settings/test-smtp', async (req, res) => {
   try {
-    const cfg = await createMailTransporter()
+    const cfg = await createMailTransporter(req.tenantId)
     if (cfg.error) return res.status(400).json({ ok: false, error: cfg.error })
     // Send a test email to the configured address itself
-    const user = await getIntegrationSetting('smtp_user') || ''
+    const user = await getIntegrationSetting('smtp_user', req.tenantId) || ''
     await cfg.transporter.verify()
     res.json({ ok: true, message: `SMTP connection verified (${user}) — credentials are correct!` })
   } catch (e) {
@@ -6259,25 +6260,33 @@ async function performS3Backup() {
 
 // --- MORNING REMINDER: email each counsellor their untouched leads ---
 async function sendMorningUntouchedEmails() {
+  let totalSent = 0
   try {
-    const r = await pool.query(`
-      SELECT u.name, u.email, COUNT(l.id)::int AS untouched
-      FROM users u
-      JOIN leads l ON LOWER(l.owner) = LOWER(u.name)
-      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance')
-        AND l.stage = 'Untouched' AND u.email IS NOT NULL AND u.email <> ''
-      GROUP BY u.name, u.email
-      HAVING COUNT(l.id) > 0;
-    `)
-    for (const row of r.rows) {
-      sendSystemMailAlert(
-        row.email,
-        `[CCRM] ${row.untouched} untouched lead(s) awaiting your follow-up`,
-        `Good morning ${row.name},\n\nYou have ${row.untouched} untouched lead(s) in CCRM that need your attention today.\n\nPlease log in and start following up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`
-      )
+    // Per-tenant: scope counts to each tenant and send with that tenant's SMTP
+    const tenants = await pool.query("SELECT id FROM tenants WHERE status = 'Active';").catch(() => ({ rows: [{ id: 1 }] }))
+    for (const t of tenants.rows) {
+      const r = await pool.query(`
+        SELECT u.name, u.email, COUNT(l.id)::int AS untouched
+        FROM users u
+        JOIN leads l ON LOWER(l.owner) = LOWER(u.name) AND l.tenant_id = u.tenant_id
+        WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance')
+          AND l.stage = 'Untouched' AND u.email IS NOT NULL AND u.email <> ''
+          AND u.tenant_id = $1
+        GROUP BY u.name, u.email
+        HAVING COUNT(l.id) > 0;
+      `, [t.id])
+      for (const row of r.rows) {
+        sendSystemMailAlert(
+          row.email,
+          `[CCRM] ${row.untouched} untouched lead(s) awaiting your follow-up`,
+          `Good morning ${row.name},\n\nYou have ${row.untouched} untouched lead(s) in CCRM that need your attention today.\n\nPlease log in and start following up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`,
+          t.id
+        )
+      }
+      totalSent += r.rows.length
     }
-    console.log(`[Morning Untouched] Reminders sent to ${r.rows.length} counsellor(s)`)
-    return r.rows.length
+    console.log(`[Morning Untouched] Reminders sent to ${totalSent} counsellor(s)`)
+    return totalSent
   } catch (e) {
     console.error('[Morning Untouched]', e.message)
     return 0
@@ -6322,14 +6331,18 @@ async function startServer() {
   let sheetsSyncRunning = false
   cron.schedule('*/5 * * * *', async () => {
     if (sheetsSyncRunning) return
-    const sheetId = await getIntegrationSetting('sheets_spreadsheet_id')
-    const apiKey  = await getIntegrationSetting('sheets_api_key')
-    if (!sheetId || !apiKey) return   // not configured — skip silently
     sheetsSyncRunning = true
     try {
-      const r = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true })
-      if (r.error) console.error('[Sheets Cron]', r.error)
-      else if (r.synced) console.log(`[Sheets Cron] ${r.synced} new lead(s) imported & assigned, ${r.skipped} skipped`)
+      // Per-tenant: each active tenant pulls from its own configured sheet
+      const tenants = await pool.query("SELECT id FROM tenants WHERE status = 'Active';").catch(() => ({ rows: [{ id: 1 }] }))
+      for (const t of tenants.rows) {
+        const sheetId = await getIntegrationSetting('sheets_spreadsheet_id', t.id)
+        const apiKey  = await getIntegrationSetting('sheets_api_key', t.id)
+        if (!sheetId || !apiKey) continue   // not configured for this tenant — skip
+        const r = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true, tenantId: t.id })
+        if (r.error) console.error(`[Sheets Cron] tenant ${t.id}:`, r.error)
+        else if (r.synced) console.log(`[Sheets Cron] tenant ${t.id}: ${r.synced} new lead(s) imported & assigned, ${r.skipped} skipped`)
+      }
     } catch (e) {
       console.error('[Sheets Cron]', e.message)
     } finally {
