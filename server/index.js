@@ -2156,36 +2156,38 @@ app.put('/api/campaigns/:id', async (req, res) => {
 // --- COUNSELORS (derived from users + live lead/app/payment stats) ---
 app.get('/api/counselors', async (req, res) => {
   try {
+    const tnt = req.tenantId
     const usersRes = await pool.query(
-      "SELECT id, name, email FROM users WHERE status = 'Active' ORDER BY name;"
+      "SELECT id, name, email FROM users WHERE status = 'Active' AND tenant_id = $1 ORDER BY name;",
+      [tnt]
     )
     const counselors = []
     for (const u of usersRes.rows) {
       const simplName = u.name.split(' ')[0]
 
       const leadsRes = await pool.query(
-        "SELECT COUNT(*) FROM leads WHERE owner = $1 OR owner LIKE $2;",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
       const untouchedRes = await pool.query(
-        "SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND stage = 'Untouched';",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND stage = 'Untouched' AND tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
       const appsRes = await pool.query(
-        "SELECT COUNT(*) FROM applications WHERE owner = $1 OR owner LIKE $2;",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
       const payRes = await pool.query(
-        "SELECT COUNT(*) FROM payments p JOIN applications a ON p.app_no = a.app_no WHERE (a.owner = $1 OR a.owner LIKE $2) AND (p.status = 'Approved' OR p.status = 'Payment Approved');",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM payments p JOIN applications a ON p.app_no = a.app_no WHERE (a.owner = $1 OR a.owner LIKE $2) AND (p.status = 'Approved' OR p.status = 'Payment Approved') AND a.tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
       const submittedRes = await pool.query(
-        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND stage = 'Application Submitted';",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND stage = 'Application Submitted' AND tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
       const enrolledRes = await pool.query(
-        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND (stage = 'Enrolment' OR stage = 'Enrolments');",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND (stage = 'Enrolment' OR stage = 'Enrolments') AND tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
 
       // Telephony — call_logs by counsellor
@@ -2655,7 +2657,7 @@ app.get('/api/admin/security-overview', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
   try {
-    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, is_superadmin AS "isSuperAdmin", last_login AS "lastLogin" FROM users ORDER BY id DESC;')
+    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, is_superadmin AS "isSuperAdmin", last_login AS "lastLogin" FROM users WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(usersRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch user accounts.' })
@@ -2666,10 +2668,10 @@ app.post('/api/users', async (req, res) => {
   const { name, email, password, role, team, status, mobile, reportsTo } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO users (name, email, password, role, team, status, mobile, reports_to)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO users (name, email, password, role, team, status, mobile, reports_to, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", last_login AS "lastLogin";
-    `, [name, email, password || 'User@123', role || 'Counselor', team || 'Sales', status || 'Active', mobile || '', reportsTo || ''])
+    `, [name, email, password || 'User@123', role || 'Counselor', team || 'Sales', status || 'Active', mobile || '', reportsTo || '', req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     console.error(err)
@@ -2686,11 +2688,11 @@ app.put('/api/users/:id', async (req, res) => {
     const params = [name, role, team, status, picture, mobile ?? null, reportsTo ?? null, mobile_number ?? null, (typeof excludeFromAssignment === 'boolean' ? excludeFromAssignment : null), entStr]
 
     if (password) {
-      queryStr += ', password = $11 WHERE id = $12'
-      params.push(password, id)
+      queryStr += ', password = $11 WHERE id = $12 AND tenant_id = $13'
+      params.push(password, id, req.tenantId)
     } else {
-      queryStr += ' WHERE id = $11'
-      params.push(id)
+      queryStr += ' WHERE id = $11 AND tenant_id = $12'
+      params.push(id, req.tenantId)
     }
 
     queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, mobile_number, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, last_login AS "lastLogin";'
@@ -2711,7 +2713,7 @@ app.post('/api/users/bulk-entities', authenticateToken, async (req, res) => {
   if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No users selected.' })
   const ent = Array.isArray(entities) ? entities.join(',') : String(entities || '')
   try {
-    const r = await pool.query('UPDATE users SET entities = $1 WHERE id = ANY($2::int[]);', [ent, ids.map(Number).filter(Boolean)])
+    const r = await pool.query('UPDATE users SET entities = $1 WHERE id = ANY($2::int[]) AND tenant_id = $3;', [ent, ids.map(Number).filter(Boolean), req.tenantId])
     res.json({ success: true, updated: r.rowCount, entities: ent })
   } catch (err) {
     console.error('[Bulk Entities]', err.message)
@@ -2902,8 +2904,8 @@ app.post('/api/users/:id/reset-password', async (req, res) => {
     const tempPwd = `${words[Math.floor(Math.random()*words.length)]}#${Math.floor(1000 + Math.random()*9000)}`
 
     const r = await pool.query(
-      'UPDATE users SET password = $1 WHERE id = $2 RETURNING id, name, email;',
-      [tempPwd, id]
+      'UPDATE users SET password = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, name, email;',
+      [tempPwd, id, req.tenantId]
     )
     if (r.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
 
@@ -2933,7 +2935,7 @@ app.post('/api/users/bulk-status', async (req, res) => {
   const { ids, status } = req.body
   if (!ids?.length || !status) return res.status(400).json({ error: 'ids and status required.' })
   try {
-    await pool.query('UPDATE users SET status = $1 WHERE id = ANY($2::int[]);', [status, ids])
+    await pool.query('UPDATE users SET status = $1 WHERE id = ANY($2::int[]) AND tenant_id = $3;', [status, ids, req.tenantId])
     res.json({ success: true, updated: ids.length, status })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -2945,17 +2947,17 @@ app.get('/api/users/activity', async (req, res) => {
     const logins = await pool.query(`
       SELECT name, email, role, last_login AS "lastLogin", status
       FROM users
-      WHERE last_login IS NOT NULL AND last_login <> ''
+      WHERE last_login IS NOT NULL AND last_login <> '' AND tenant_id = $1
       ORDER BY id DESC LIMIT 20;
-    `)
+    `, [req.tenantId])
 
     // Recent lead assignment notifications (proxy for activity)
     const notifs = await pool.query(`
       SELECT text, time, type, created_at AS "createdAt"
       FROM notifications
-      WHERE type IN ('lead_assigned','info') OR text ILIKE '%user%' OR text ILIKE '%registered%'
+      WHERE (type IN ('lead_assigned','info') OR text ILIKE '%user%' OR text ILIKE '%registered%') AND tenant_id = $1
       ORDER BY id DESC LIMIT 20;
-    `)
+    `, [req.tenantId])
 
     res.json({ recentLogins: logins.rows, activity: notifs.rows })
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -3004,16 +3006,16 @@ app.post('/api/users/bulk-upload', (req, res, next) => {
 
       try {
         const newUser = await pool.query(`
-          INSERT INTO users (name, email, mobile, password, role, team, status)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          INSERT INTO users (name, email, mobile, password, role, team, status, tenant_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           RETURNING id, name;
-        `, [name, email, mobile || null, password, role, team, status])
+        `, [name, email, mobile || null, password, role, team, status, req.tenantId])
 
         // Add to round-robin counter if counselor/manager
         if (['Counselor','Manager'].includes(role)) {
           await pool.query(
-            'INSERT INTO lead_assignment_counter (counselor_name, counselor_email) VALUES ($1, $2) ON CONFLICT DO NOTHING;',
-            [name, email]
+            'INSERT INTO lead_assignment_counter (counselor_name, counselor_email, tenant_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;',
+            [name, email, req.tenantId]
           )
         }
         inserted++
@@ -3023,8 +3025,8 @@ app.post('/api/users/bulk-upload', (req, res, next) => {
       }
     }
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`Bulk user upload: ${inserted} created, ${skipped} skipped`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`Bulk user upload: ${inserted} created, ${skipped} skipped`, 'Just now', req.tenantId])
 
     res.json({ success: true, inserted, skipped, total: rawData.length, errors: errors.slice(0, 10) })
   } catch (err) {
@@ -3039,16 +3041,16 @@ app.delete('/api/users/:id', authenticateToken, async (req, res) => {
   const { id } = req.params
   try {
     // Resolve requester (super admin?) and target role
-    const meRes = await pool.query('SELECT is_superadmin FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+    const meRes = await pool.query('SELECT is_superadmin FROM users WHERE (id = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [req.user?.id || 0, req.user?.email || '', req.tenantId])
     const iAmSuper = !!meRes.rows[0]?.is_superadmin
-    const tgtRes = await pool.query('SELECT role, is_superadmin FROM users WHERE id = $1;', [id])
+    const tgtRes = await pool.query('SELECT role, is_superadmin FROM users WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     if (tgtRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
     const target = tgtRes.rows[0]
     // Only a super admin can delete an Admin or another super admin
     if ((target.role === 'Admin' || target.is_superadmin) && !iAmSuper) {
       return res.status(403).json({ error: 'Only a Super Admin can delete an admin account.' })
     }
-    const deleteRes = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id;', [id])
+    const deleteRes = await pool.query('DELETE FROM users WHERE id = $1 AND tenant_id = $2 RETURNING id;', [id, req.tenantId])
     if (deleteRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
     res.json({ message: 'User deleted successfully.', id })
   } catch (err) {
@@ -3061,11 +3063,11 @@ app.post('/api/users/:id/superadmin', authenticateToken, async (req, res) => {
   const { id } = req.params
   const { isSuperAdmin } = req.body
   try {
-    const meRes = await pool.query('SELECT is_superadmin FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+    const meRes = await pool.query('SELECT is_superadmin FROM users WHERE (id = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [req.user?.id || 0, req.user?.email || '', req.tenantId])
     if (!meRes.rows[0]?.is_superadmin) return res.status(403).json({ error: 'Only a Super Admin can change Super Admin status.' })
     const r = await pool.query(
-      'UPDATE users SET is_superadmin = $1 WHERE id = $2 RETURNING id, name, role, is_superadmin AS "isSuperAdmin";',
-      [!!isSuperAdmin, id]
+      'UPDATE users SET is_superadmin = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, name, role, is_superadmin AS "isSuperAdmin";',
+      [!!isSuperAdmin, id, req.tenantId]
     )
     if (r.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
     res.json({ success: true, user: r.rows[0] })
