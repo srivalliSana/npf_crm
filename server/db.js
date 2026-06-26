@@ -827,6 +827,8 @@ export async function initTenancy() {
       WHERE id = (SELECT id FROM users WHERE tenant_id = 1 AND role = 'Admin' ORDER BY id ASC LIMIT 1)
         AND NOT EXISTS (SELECT 1 FROM users WHERE is_platform_admin = TRUE);
     `).catch(() => {})
+    // A platform admin is also a (tenant) super admin — full powers, incl. promoting others
+    await client.query(`UPDATE users SET is_superadmin = TRUE WHERE is_platform_admin = TRUE;`).catch(() => {})
 
     // Safety net for fresh DBs: initDb may abort before these user-column migrations run,
     // which breaks onboarding (e.g. missing `entities`). Re-assert them here (idempotent).
