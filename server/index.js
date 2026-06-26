@@ -4,10 +4,11 @@ import jwt from 'jsonwebtoken'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import crypto from 'crypto'
 import XLSXPkg from 'xlsx'
 const XLSX = XLSXPkg.default ?? XLSXPkg
 import { fileURLToPath } from 'url'
-import { pool, initDb } from './db.js'
+import { pool, initDb, initTenancy } from './db.js'
 import cron from 'node-cron'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { promisify } from 'util'
@@ -40,6 +41,62 @@ app.use(cors({
 }))
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+
+// ── Multi-tenant: resolve req.tenantId on every request (non-blocking) ──────────
+// Reads the JWT if present (Authorization: Bearer); falls back to Centurion (1) so
+// legacy/open endpoints keep working during the SaaS migration. authenticateToken
+// also sets req.tenantId — this just guarantees it exists everywhere.
+app.use((req, _res, next) => {
+  let tid = 1
+  req.authValid = false
+  try {
+    const token = (req.headers['authorization'] || '').split(' ')[1]
+    if (token) {
+      const decoded = jwt.verify(token, JWT_SECRET)
+      if (decoded) { req.authValid = true; if (decoded.tenant_id) tid = decoded.tenant_id }
+    }
+  } catch { /* invalid/expired token → default tenant */ }
+  req.tenantId = tid
+  next()
+})
+
+// ── Lightweight in-memory rate limiter (no extra deps) ──────────────────────────
+const rateBuckets = new Map()
+function rateLimit({ windowMs, max }) {
+  return (req, res, next) => {
+    const k = `${req.ip}:${req.baseUrl || req.path}`
+    const now = Date.now()
+    let b = rateBuckets.get(k)
+    if (!b || now > b.reset) { b = { count: 0, reset: now + windowMs }; rateBuckets.set(k, b) }
+    b.count++
+    if (b.count > max) return res.status(429).json({ error: 'Too many requests — please slow down and try again shortly.' })
+    next()
+  }
+}
+// Prune expired buckets every 10 min so the Map can't grow unbounded
+const _rlPrune = setInterval(() => { const now = Date.now(); for (const [k, b] of rateBuckets) if (now > b.reset) rateBuckets.delete(k) }, 600000)
+if (_rlPrune.unref) _rlPrune.unref()
+
+// Brute-force protection on auth; generous cap on inbound webhooks
+app.use('/api/auth', rateLimit({ windowMs: 60000, max: 30 }))
+app.use('/api/webhooks', rateLimit({ windowMs: 60000, max: 300 }))
+
+// ── Global auth gate: every /api route needs a valid JWT except this public allowlist
+const PUBLIC_API = [
+  /^\/api\/auth\/login$/,
+  /^\/api\/auth\/google$/,
+  /^\/api\/webhooks\//,          // all inbound webhooks (Meta, Google, GT forms, rcssms…)
+  /^\/api\/public\//,            // public inquiry form
+  /^\/api\/student\//,           // student portal login/status
+  /^\/api\/tenant\/public$/,     // login/landing branding
+  /^\/api\/calls\/webhook$/,     // telephony callback
+]
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next()          // static / SPA assets
+  if (PUBLIC_API.some(re => re.test(req.path))) return next()
+  if (!req.authValid) return res.status(401).json({ error: 'Authentication required.' })
+  next()
+})
 
 // Setup Static and Upload Folders
 const uploadDirs = [
@@ -94,6 +151,7 @@ function authenticateToken(req, res, next) {
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid or expired token.' })
     req.user = user
+    req.tenantId = user.tenant_id || 1   // multi-tenant scope (Phase 1: defaults to Centurion)
     next()
   })
 }
@@ -338,12 +396,12 @@ app.post('/api/admin/reset-production', adminOnly, async (req, res) => {
 
 // --- SMTP ALERT MAILER SENDER ---
 // ── Nodemailer transporter — lazy-loaded so missing package won't crash server ─
-async function createMailTransporter() {
-  const host     = await getIntegrationSetting('smtp_host')      || process.env.SMTP_HOST     || ''
-  const port     = parseInt(await getIntegrationSetting('smtp_port') || process.env.SMTP_PORT || '587')
-  const user     = await getIntegrationSetting('smtp_user')      || process.env.SMTP_USER     || ''
-  const pass     = await getIntegrationSetting('smtp_pass')      || process.env.SMTP_PASS     || ''
-  const fromName = await getIntegrationSetting('smtp_from_name') || 'CUTM Admissions'
+async function createMailTransporter(tenantId = 1) {
+  const host     = await getIntegrationSetting('smtp_host', tenantId)      || process.env.SMTP_HOST     || ''
+  const port     = parseInt(await getIntegrationSetting('smtp_port', tenantId) || process.env.SMTP_PORT || '587')
+  const user     = await getIntegrationSetting('smtp_user', tenantId)      || process.env.SMTP_USER     || ''
+  const pass     = await getIntegrationSetting('smtp_pass', tenantId)      || process.env.SMTP_PASS     || ''
+  const fromName = await getIntegrationSetting('smtp_from_name', tenantId) || 'CUTM Admissions'
 
   // Return specific missing-field info so errors are actionable
   const missing = []
@@ -374,10 +432,10 @@ async function createMailTransporter() {
 }
 
 // Fire-and-forget alert email (counselor notifications, OTPs, etc.)
-async function sendSystemMailAlert(recipient, subject, messageBody) {
+async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1) {
   console.log(`[Mail] To: ${recipient} | Sub: ${subject}`)
   try {
-    const cfg = await createMailTransporter()
+    const cfg = await createMailTransporter(tenantId)
     if (cfg.error) { console.warn('[Mail] Skipped —', cfg.error); return }
     await cfg.transporter.sendMail({ from: cfg.from, to: recipient, subject, text: messageBody })
     console.log(`[Mail] Sent to ${recipient}`)
@@ -387,22 +445,22 @@ async function sendSystemMailAlert(recipient, subject, messageBody) {
 }
 
 // Tracked campaign send — writes result to email_logs
-async function sendTrackedMail(recipient, recipientName, subject, messageBody, campaignId, campaignName) {
+async function sendTrackedMail(recipient, recipientName, subject, messageBody, campaignId, campaignName, tenantId = 1) {
   const logErr = async (err) => pool.query(
-    'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
-    [campaignId, campaignName, recipient, recipientName, 'Failed', err]
+    'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+    [campaignId, campaignName, recipient, recipientName, 'Failed', err, tenantId]
   ).catch(() => {})
 
   try {
-    const cfg = await createMailTransporter()
+    const cfg = await createMailTransporter(tenantId)
     if (cfg.error) {
       await logErr(cfg.error)
       return { success: false, error: cfg.error }
     }
     await cfg.transporter.sendMail({ from: cfg.from, to: recipient, subject, text: messageBody })
     await pool.query(
-      'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message) VALUES ($1,$2,$3,$4,$5,$6)',
-      [campaignId, campaignName, recipient, recipientName, 'Sent', '']
+      'INSERT INTO email_logs (campaign_id, campaign_name, recipient_email, recipient_name, status, error_message, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [campaignId, campaignName, recipient, recipientName, 'Sent', '', tenantId]
     ).catch(() => {})
     return { success: true, error: '' }
   } catch (e) {
@@ -416,31 +474,31 @@ async function sendTrackedMail(recipient, recipientName, subject, messageBody, c
 // --- NOTIFICATION & ALERT HELPERS ---
 
 // Create a per-user in-app notification (userEmail=null → visible to all admins)
-async function createNotification(userEmail, title, text, type = 'info', leadId = null) {
+async function createNotification(userEmail, title, text, type = 'info', leadId = null, tenantId = 1) {
   try {
     await pool.query(
-      'INSERT INTO notifications (user_email, title, text, type, lead_id, time, unread, created_at) VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW());',
-      [userEmail || null, (title || text || '').substring(0, 255), text, type, leadId, 'Just now']
+      'INSERT INTO notifications (user_email, title, text, type, lead_id, time, unread, created_at, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW(), $7);',
+      [userEmail || null, (title || text || '').substring(0, 255), text, type, leadId, 'Just now', tenantId]
     )
   } catch (err) {
     console.error('[createNotification]', err.message)
   }
 }
 
-// Fetch a single integration setting from DB
-async function getIntegrationSetting(key) {
+// Fetch a single integration setting from DB (per-tenant; defaults to Centurion=1)
+async function getIntegrationSetting(key, tenantId = 1) {
   try {
-    const r = await pool.query('SELECT value FROM integration_settings WHERE key = $1;', [key])
-    return r.rows[0]?.value || null
+    const r = await pool.query('SELECT value FROM integration_settings WHERE key = $1 AND tenant_id = $2;', [key, tenantId])
+    return decryptSecret(r.rows[0]?.value) || null
   } catch { return null }
 }
 
 // Alert a counselor via in-app notification + email + WhatsApp when a lead is assigned
-async function alertCounselor(assigneeName, leadName, course, source, leadId) {
+async function alertCounselor(assigneeName, leadName, course, source, leadId, tenantId = 1) {
   if (!assigneeName || assigneeName === 'Unassigned') return
   try {
     // Look up counselor's email + mobile
-    const userRes = await pool.query('SELECT email, mobile FROM users WHERE name = $1 LIMIT 1;', [assigneeName])
+    const userRes = await pool.query('SELECT email, mobile FROM users WHERE name = $1 AND tenant_id = $2 LIMIT 1;', [assigneeName, tenantId])
     const counselor = userRes.rows[0]
     if (!counselor) return
 
@@ -448,18 +506,19 @@ async function alertCounselor(assigneeName, leadName, course, source, leadId) {
     const text = `${leadName} (${course}) — Source: ${source}`
 
     // 1. In-app notification (targeted to counselor)
-    await createNotification(counselor.email, title, text, 'lead_assigned', leadId)
+    await createNotification(counselor.email, title, text, 'lead_assigned', leadId, tenantId)
 
     // 2. Email alert via SMTP/msmtp
     sendSystemMailAlert(
       counselor.email,
       `[CCRM] New Lead Assigned: ${leadName}`,
-      `Hello ${assigneeName},\n\nA new lead has been assigned to you in CCRM:\n\nName: ${leadName}\nCourse: ${course}\nSource: ${source}\n\nPlease log in to follow up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`
+      `Hello ${assigneeName},\n\nA new lead has been assigned to you in CCRM:\n\nName: ${leadName}\nCourse: ${course}\nSource: ${source}\n\nPlease log in to follow up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`,
+      tenantId
     )
 
     // 3. WhatsApp alert to counselor's mobile (if WA API configured + counselor has mobile)
-    const waToken = await getIntegrationSetting('whatsapp_access_token')
-    const waPhoneId = await getIntegrationSetting('whatsapp_phone_number_id')
+    const waToken = await getIntegrationSetting('whatsapp_access_token', tenantId)
+    const waPhoneId = await getIntegrationSetting('whatsapp_phone_number_id', tenantId)
     if (waToken && waPhoneId && counselor.mobile) {
       const mobile = counselor.mobile.replace(/\D/g, '')
       if (mobile.length >= 10) {
@@ -497,11 +556,15 @@ app.post('/api/auth/login', async (req, res) => {
     if (user.status !== 'Active') {
       return res.status(403).json({ error: 'Account is inactive. Please contact administrator.' })
     }
+    const tStat = await pool.query('SELECT status FROM tenants WHERE id = $1;', [user.tenant_id || 1])
+    if (tStat.rows[0] && tStat.rows[0].status !== 'Active') {
+      return res.status(403).json({ error: 'This organization is suspended. Please contact support.' })
+    }
 
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
     await pool.query('UPDATE users SET last_login = $1 WHERE id = $2;', [lastLoginStr, user.id])
     
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1, is_platform_admin: !!user.is_platform_admin }, JWT_SECRET, { expiresIn: '7d' })
     
     res.json({
       token,
@@ -516,6 +579,7 @@ app.post('/api/auth/login', async (req, res) => {
         mobile_number: user.mobile_number,
         entities: user.entities || 'CUTM',
         isSuperAdmin: !!user.is_superadmin,
+        isPlatformAdmin: !!user.is_platform_admin,
         lastLogin: lastLoginStr
       }
     })
@@ -542,30 +606,44 @@ app.post('/api/auth/google', async (req, res) => {
       if (u.status !== 'Active') {
         return res.status(403).json({ error: 'Account is inactive. Contact your administrator.' })
       }
+      const tStat = await pool.query('SELECT status FROM tenants WHERE id = $1;', [u.tenant_id || 1])
+      if (tStat.rows[0] && tStat.rows[0].status !== 'Active') {
+        return res.status(403).json({ error: 'This organization is suspended. Please contact support.' })
+      }
       await pool.query(
         'UPDATE users SET last_login = $1, picture = COALESCE(NULLIF($2,\'\'), picture) WHERE id = $3;',
         [lastLoginStr, picture || '', u.id]
       )
       user = { ...u, last_login: lastLoginStr, picture: picture || u.picture }
     } else {
-      // New Google user — create as Counselor (Admin can promote later)
+      // New Google user — route to the tenant whose allowed_domains include this email's
+      // domain (each tenant controls which domains may self-register via Google).
+      const domain = (email.split('@')[1] || '').toLowerCase()
+      const tRes = await pool.query(
+        "SELECT id FROM tenants WHERE status = 'Active' AND (',' || lower(replace(allowed_domains, ' ', '')) || ',') LIKE ('%,' || $1 || ',%') ORDER BY id LIMIT 1;",
+        [domain]
+      )
+      const newTenantId = tRes.rows[0]?.id
+      if (!newTenantId) {
+        return res.status(403).json({ error: 'Your email domain is not authorized to sign in. Contact your administrator.' })
+      }
       const insert = await pool.query(`
-        INSERT INTO users (name, email, password, role, team, status, last_login, picture)
-        VALUES ($1, $2, $3, 'Counselor', 'Sales', 'Active', $4, $5)
+        INSERT INTO users (name, email, password, role, team, status, last_login, picture, tenant_id)
+        VALUES ($1, $2, $3, 'Counselor', 'Sales', 'Active', $4, $5, $6)
         RETURNING *;
-      `, [name || email.split('@')[0], email, `google_${Date.now()}`, lastLoginStr, picture || ''])
+      `, [name || email.split('@')[0], email, `google_${Date.now()}`, lastLoginStr, picture || '', newTenantId])
       user = insert.rows[0]
 
       // Add to round-robin assignment counter
       await pool.query(
-        'INSERT INTO lead_assignment_counter (counselor_name, counselor_email) VALUES ($1, $2) ON CONFLICT (counselor_name) DO NOTHING;',
-        [user.name, user.email]
+        'INSERT INTO lead_assignment_counter (counselor_name, counselor_email, tenant_id) VALUES ($1, $2, $3) ON CONFLICT (counselor_name) DO NOTHING;',
+        [user.name, user.email, newTenantId]
       )
-      await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-        [`New user registered via Google: ${user.name} (${user.email}) — role: Counselor`, 'Just now'])
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+        [`New user registered via Google: ${user.name} (${user.email}) — role: Counselor`, 'Just now', newTenantId])
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1, is_platform_admin: !!user.is_platform_admin }, JWT_SECRET, { expiresIn: '7d' })
     res.json({
       token,
       user: {
@@ -578,6 +656,7 @@ app.post('/api/auth/google', async (req, res) => {
         status:    user.status,
         entities:  user.entities || 'CUTM',
         isSuperAdmin: !!user.is_superadmin,
+        isPlatformAdmin: !!user.is_platform_admin,
         lastLogin: lastLoginStr
       }
     })
@@ -645,7 +724,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const userRes = await pool.query('SELECT id, name, email, role, team, status, picture, entities, is_superadmin AS "isSuperAdmin", last_login AS "lastLogin" FROM users WHERE id = $1;', [req.user.id])
+    const userRes = await pool.query('SELECT id, name, email, role, team, status, picture, entities, is_superadmin AS "isSuperAdmin", is_platform_admin AS "isPlatformAdmin", last_login AS "lastLogin" FROM users WHERE id = $1 AND tenant_id = $2;', [req.user.id, req.tenantId])
     if (userRes.rows.length === 0) return res.status(404).json({ error: 'User profile not found.' })
     res.json(userRes.rows[0])
   } catch (err) {
@@ -654,7 +733,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 })
 
 // --- LEADS ROUTERS ---
-app.get('/api/leads', async (req, res) => {
+app.get('/api/leads', authenticateToken, async (req, res) => {
   try {
     // ── Server-side pagination + search + filters + role scoping ──────────────
     // Loading the whole table into the browser freezes at scale (1cr rows),
@@ -668,6 +747,9 @@ app.get('/api/leads', async (req, res) => {
     const where = []
     const params = []
     const add = (clause, value) => { params.push(value); where.push(clause.replace('$$', `$${params.length}`)) }
+
+    // Tenant scoping (multi-tenant) — always first
+    add('tenant_id = $$', req.tenantId)
 
     // Role scoping: counsellors only see their own; admin/manager see all
     if (requesterRole && !['Admin', 'Manager'].includes(requesterRole) && requesterName) {
@@ -727,13 +809,13 @@ app.get('/api/leads', async (req, res) => {
 })
 
 // Single lead by numeric id — used by detail page so it never needs the full list
-app.get('/api/leads/:id(\\d+)', async (req, res) => {
+app.get('/api/leads/:id(\\d+)', authenticateToken, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT id, name, email, mobile, state, city, course, source, source_type AS "sourceType",
               owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor",
               not_interested_reason AS "notInterestedReason", lead_details AS "leadDetails"
-       FROM leads WHERE id = $1;`, [req.params.id])
+       FROM leads WHERE id = $1 AND tenant_id = $2;`, [req.params.id, req.tenantId])
     if (!r.rows.length) return res.status(404).json({ error: 'Lead not found.' })
     res.json(r.rows[0])
   } catch (err) {
@@ -753,6 +835,7 @@ app.get('/api/gttech-leads', async (req, res) => {
 
     const where = []
     const params = []
+    params.push(req.tenantId); where.push(`tenant_id = $${params.length}`)
 
     if (search) {
       params.push(`%${search}%`)
@@ -800,6 +883,7 @@ app.get('/api/ftl-leads', async (req, res) => {
 
     const where = []
     const params = []
+    params.push(req.tenantId); where.push(`tenant_id = $${params.length}`)
 
     if (search) {
       params.push(`%${search}%`)
@@ -847,6 +931,7 @@ app.get('/api/gtib-leads', async (req, res) => {
 
     const where = []
     const params = []
+    params.push(req.tenantId); where.push(`tenant_id = $${params.length}`)
 
     if (search) {
       params.push(`%${search}%`)
@@ -894,6 +979,7 @@ app.get('/api/esse-leads', async (req, res) => {
 
     const where = []
     const params = []
+    params.push(req.tenantId); where.push(`tenant_id = $${params.length}`)
 
     if (search) {
       params.push(`%${search}%`)
@@ -988,6 +1074,8 @@ app.post('/api/website-leads/import', authenticateToken, uploadDoc.single('file'
           website_code: website,
         }
 
+        // Tag the tenant (multi-tenant)
+        if (cols.tenant_id) fields.tenant_id = req.tenantId
         // Only insert columns that actually exist in the table
         const useCols = Object.keys(fields).filter(c => cols[c])
         // Satisfy any NOT NULL json/jsonb column (no default) we aren't already setting → '{}'
@@ -1034,17 +1122,17 @@ app.post('/api/website-leads/assign', authenticateToken, async (req, res) => {
   if (owner === undefined || owner === null) return res.status(400).json({ error: 'Faculty/owner required.' })
   try {
     const r = await pool.query(
-      `UPDATE ${website}_leads SET owner = $1 WHERE id = ANY($2::int[]);`,
-      [String(owner).trim().substring(0, 120), ids.map(Number).filter(Boolean)]
+      `UPDATE ${website}_leads SET owner = $1 WHERE id = ANY($2::int[]) AND tenant_id = $3;`,
+      [String(owner).trim().substring(0, 120), ids.map(Number).filter(Boolean), req.tenantId]
     )
     console.log(`[Website Leads Assign] ${website}: ${r.rowCount} → ${owner} by ${req.user.email}`)
     // Auto-email the faculty (skip when clearing the owner)
     if (owner && String(owner).trim()) {
       try {
-        const u = await pool.query('SELECT email FROM users WHERE name = $1 LIMIT 1;', [String(owner).trim()])
+        const u = await pool.query('SELECT email FROM users WHERE name = $1 AND tenant_id = $2 LIMIT 1;', [String(owner).trim(), req.tenantId])
         const email = u.rows[0]?.email
         if (email) {
-          await createNotification(email, `${r.rowCount} ${website.toUpperCase()} lead(s) assigned`, `${r.rowCount} ${website.toUpperCase()} lead(s) have been assigned to you.`, 'lead_assigned', null)
+          await createNotification(email, `${r.rowCount} ${website.toUpperCase()} lead(s) assigned`, `${r.rowCount} ${website.toUpperCase()} lead(s) have been assigned to you.`, 'lead_assigned', null, req.tenantId)
           sendSystemMailAlert(email, `[CCRM] ${r.rowCount} ${website.toUpperCase()} Lead(s) Assigned`,
             `Hello ${owner},\n\n${r.rowCount} ${website.toUpperCase()} lead(s) have been assigned to you in CCRM.\n\nLog in: https://crm.cutmap.ac.in/${website}-leads\n\nBest regards,\nCCRM`)
         }
@@ -1069,12 +1157,14 @@ app.post('/api/website-leads/status', authenticateToken, async (req, res) => {
     let ownerGuard = ''
     // Counsellors may only update the status of GT leads assigned to them
     if (!['Admin', 'Manager'].includes(req.user?.role)) {
-      const ur = await pool.query('SELECT name FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+      const ur = await pool.query('SELECT name FROM users WHERE (id = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [req.user?.id || 0, req.user?.email || '', req.tenantId])
       params.push(ur.rows[0]?.name || '___none___')
       ownerGuard = ` AND owner = $${params.length}`
     }
+    params.push(req.tenantId)
+    const tenantGuard = ` AND tenant_id = $${params.length}`
     const r = await pool.query(
-      `UPDATE ${website}_leads SET status = $1 WHERE id = ANY($2::int[])${ownerGuard};`,
+      `UPDATE ${website}_leads SET status = $1 WHERE id = ANY($2::int[])${ownerGuard}${tenantGuard};`,
       params
     )
     console.log(`[Website Leads Status] ${website}: ${r.rowCount} → ${status} by ${req.user.email}`)
@@ -1092,7 +1182,7 @@ app.get('/api/website-leads/my-count', authenticateToken, async (req, res) => {
   try {
     let total = 0
     for (const t of ['ftl_leads', 'gtib_leads', 'gttech_leads', 'esse_leads']) {
-      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM ${t} WHERE LOWER(TRIM(owner)) = LOWER(TRIM($1));`, [owner]).catch(() => ({ rows: [{ c: 0 }] }))
+      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM ${t} WHERE LOWER(TRIM(owner)) = LOWER(TRIM($1)) AND tenant_id = $2;`, [owner, req.tenantId]).catch(() => ({ rows: [{ c: 0 }] }))
       total += r.rows[0].c
     }
     res.json({ total })
@@ -1109,7 +1199,7 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
     const requesterRole = req.user?.role || ''
     let requesterName = ''
     try {
-      const ur = await pool.query('SELECT name FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+      const ur = await pool.query('SELECT name FROM users WHERE (id = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [req.user?.id || 0, req.user?.email || '', req.tenantId])
       requesterName = ur.rows[0]?.name || ''
     } catch { /* ignore */ }
 
@@ -1125,21 +1215,21 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
     } else if (requestOwner && requestOwner !== 'Unassigned') {
       owner = requestOwner
     } else {
-      owner = await getNextAssignee()
+      owner = await getNextAssignee(req.tenantId)
       console.log(`[Lead Create] Admin/Manager add → auto-assigned to ${owner}`)
     }
 
     const insertRes = await pool.query(`
-      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING id, name, email, mobile, state, city, course, source, owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor";
-    `, [name, email, mobile, state, city, course, source, owner, finalRegDate, score || 0, stage || 'Untouched', stageColor || 'red'])
+    `, [name, email, mobile, state, city, course, source, owner, finalRegDate, score || 0, stage || 'Untouched', stageColor || 'red', req.tenantId])
 
     const newLead = insertRes.rows[0]
 
     // Alert assigned counselor if not unassigned
     if (owner !== 'Unassigned') {
-      await alertCounselor(owner, name, course, source || 'Manual', newLead.id)
+      await alertCounselor(owner, name, course, source || 'Manual', newLead.id, req.tenantId)
     }
 
     res.status(201).json(newLead)
@@ -1169,7 +1259,7 @@ app.put('/api/leads/:id', async (req, res) => {
         stage_color            = COALESCE($11, stage_color),
         not_interested_reason  = COALESCE($12, not_interested_reason),
         lead_details           = COALESCE($13::jsonb, lead_details)
-      WHERE id = $14
+      WHERE id = $14 AND tenant_id = $15
       RETURNING id, name, email, mobile, state, city, course, source, owner,
                 reg_date AS "regDate", score, stage, stage_color AS "stageColor",
                 not_interested_reason AS "notInterestedReason",
@@ -1188,7 +1278,8 @@ app.put('/api/leads/:id', async (req, res) => {
       stageColor              ?? null,
       not_interested_reason   ?? null,
       leadDetails ? JSON.stringify(leadDetails) : null,
-      id
+      id,
+      req.tenantId
     ])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
     res.json(updateRes.rows[0])
@@ -1209,15 +1300,16 @@ app.post('/api/leads/bulk-assign', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'leadIds (array) and owner are required.' })
     }
     const placeholders = leadIds.map((_, i) => `$${i + 2}`).join(',')
-    const r = await pool.query(`UPDATE leads SET owner = $1 WHERE id IN (${placeholders});`, [owner, ...leadIds])
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`${r.rowCount} lead(s) assigned to ${owner}`, 'Just now'])
+    const tenantParam = `$${leadIds.length + 2}`
+    const r = await pool.query(`UPDATE leads SET owner = $1 WHERE id IN (${placeholders}) AND tenant_id = ${tenantParam};`, [owner, ...leadIds, req.tenantId])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`${r.rowCount} lead(s) assigned to ${owner}`, 'Just now', req.tenantId])
     // Auto-email the counsellor a single summary (not one per lead)
     try {
-      const u = await pool.query('SELECT email FROM users WHERE name = $1 LIMIT 1;', [owner])
+      const u = await pool.query('SELECT email FROM users WHERE name = $1 AND tenant_id = $2 LIMIT 1;', [owner, req.tenantId])
       const email = u.rows[0]?.email
       if (email) {
-        await createNotification(email, `${r.rowCount} new lead(s) assigned`, `${r.rowCount} lead(s) have been assigned to you.`, 'lead_assigned', null)
+        await createNotification(email, `${r.rowCount} new lead(s) assigned`, `${r.rowCount} lead(s) have been assigned to you.`, 'lead_assigned', null, req.tenantId)
         sendSystemMailAlert(email, `[CCRM] ${r.rowCount} New Lead(s) Assigned`,
           `Hello ${owner},\n\n${r.rowCount} lead(s) have been assigned to you in CCRM.\n\nLog in to follow up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`)
       }
@@ -1235,9 +1327,9 @@ app.post('/api/leads/delete-by-owner', authenticateToken, async (req, res) => {
     if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
     const { owner } = req.body
     if (!owner) return res.status(400).json({ error: 'owner required.' })
-    const r = await pool.query('DELETE FROM leads WHERE owner = $1;', [owner])
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`${r.rowCount} lead(s) deleted (owner: ${owner}) by ${req.user.email}`, 'Just now'])
+    const r = await pool.query('DELETE FROM leads WHERE owner = $1 AND tenant_id = $2;', [owner, req.tenantId])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`${r.rowCount} lead(s) deleted (owner: ${owner}) by ${req.user.email}`, 'Just now', req.tenantId])
     console.log(`[Delete by owner] ${r.rowCount} leads deleted for owner="${owner}" by ${req.user.email}`)
     res.json({ success: true, deleted: r.rowCount })
   } catch (err) {
@@ -1253,7 +1345,7 @@ app.delete('/api/leads/:id', async (req, res) => {
   const requesterName = req.body?.requesterName || req.query.requesterName || ''
 
   try {
-    const leadRes = await pool.query('SELECT id, owner, stage, name FROM leads WHERE id = $1;', [id])
+    const leadRes = await pool.query('SELECT id, owner, stage, name FROM leads WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     if (leadRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
     const lead = leadRes.rows[0]
 
@@ -1272,7 +1364,7 @@ app.delete('/api/leads/:id', async (req, res) => {
       }
     }
 
-    await pool.query('DELETE FROM leads WHERE id = $1;', [id])
+    await pool.query('DELETE FROM leads WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     res.json({ message: 'Lead deleted successfully.', id })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete lead.' })
@@ -1293,9 +1385,9 @@ app.get('/api/applications/next-app-id', async (req, res) => {
   }
 })
 
-app.get('/api/applications', async (req, res) => {
+app.get('/api/applications', authenticateToken, async (req, res) => {
   try {
-    const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept" FROM applications ORDER BY id DESC;')
+    const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept" FROM applications WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(appsRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch applications.' })
@@ -1318,27 +1410,27 @@ app.post('/api/applications', async (req, res) => {
   try {
     // Pull existing lead_details to seed application's admission_details (counsellor already filled them)
     const leadRes = await pool.query(
-      `SELECT lead_details FROM leads WHERE (LOWER(email) = LOWER($1) AND email != '' AND email IS NOT NULL) OR mobile = $2 ORDER BY id DESC LIMIT 1;`,
-      [email || '', mobile || '']
+      `SELECT lead_details FROM leads WHERE ((LOWER(email) = LOWER($1) AND email != '' AND email IS NOT NULL) OR mobile = $2) AND tenant_id = $3 ORDER BY id DESC LIMIT 1;`,
+      [email || '', mobile || '', req.tenantId]
     ).catch(() => ({ rows: [] }))
     const seededDetails = (leadRes.rows[0]?.lead_details) || {}
 
     const insertRes = await pool.query(`
-      INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, pay_method, campus, course, stage, owner, date, admission_details)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+      INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, pay_method, campus, course, stage, owner, date, admission_details, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14)
       RETURNING id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails";
-    `, [name, finalAppNo, email, mobile, formStatus || 'Incomplete', payStatus || 'Payment Pending', payMethod || '', campus || 'Bhubaneswar', course, stage || 'Application Started', owner || 'Unassigned', finalDate, JSON.stringify(seededDetails)])
+    `, [name, finalAppNo, email, mobile, formStatus || 'Incomplete', payStatus || 'Payment Pending', payMethod || '', campus || 'Bhubaneswar', course, stage || 'Application Started', owner || 'Unassigned', finalDate, JSON.stringify(seededDetails), req.tenantId])
 
     // Auto-create notification
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Application submitted: ${name} (${finalAppNo})`, 'Just now'])
-    
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Application submitted: ${name} (${finalAppNo})`, 'Just now', req.tenantId])
+
     // Auto-create payment entry
-    const payIdRes = await pool.query('SELECT COUNT(*) FROM payments WHERE app_no = $1;', [finalAppNo])
+    const payIdRes = await pool.query('SELECT COUNT(*) FROM payments WHERE app_no = $1 AND tenant_id = $2;', [finalAppNo, req.tenantId])
     if (parseInt(payIdRes.rows[0].count) === 0) {
       await pool.query(`
-        INSERT INTO payments (name, app_no, amount, method, status, date)
-        VALUES ($1, $2, $3, $4, $5, $6);
-      `, [name, finalAppNo, 25000, payMethod || '', payStatus === 'Approved' ? 'Approved' : 'Pending', payStatus === 'Approved' ? finalDate : ''])
+        INSERT INTO payments (name, app_no, amount, method, status, date, tenant_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
+      `, [name, finalAppNo, 25000, payMethod || '', payStatus === 'Approved' ? 'Approved' : 'Pending', payStatus === 'Approved' ? finalDate : '', req.tenantId])
     }
 
     res.status(201).json(insertRes.rows[0])
@@ -1366,9 +1458,9 @@ app.put('/api/applications/:id', async (req, res) => {
           owner       = COALESCE($11, owner),
           date        = COALESCE($12, date),
           admission_details = COALESCE($13::jsonb, admission_details)
-      WHERE id = $14
+      WHERE id = $14 AND tenant_id = $15
       RETURNING id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date;
-    `, [name ?? null, appNo ?? null, email ?? null, mobile ?? null, formStatus ?? null, payStatus ?? null, payMethod ?? null, campus ?? null, course ?? null, stage ?? null, owner ?? null, date ?? null, leadDetails ? JSON.stringify(leadDetails) : null, id])
+    `, [name ?? null, appNo ?? null, email ?? null, mobile ?? null, formStatus ?? null, payStatus ?? null, payMethod ?? null, campus ?? null, course ?? null, stage ?? null, owner ?? null, date ?? null, leadDetails ? JSON.stringify(leadDetails) : null, id, req.tenantId])
 
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Application not found.' })
 
@@ -1378,17 +1470,18 @@ app.put('/api/applications/:id', async (req, res) => {
       await pool.query(`
         UPDATE payments
         SET status = $1, date = $2, txn_id = CASE WHEN txn_id = '' AND $3 = TRUE THEN $4 ELSE txn_id END
-        WHERE app_no = $5;
+        WHERE app_no = $5 AND tenant_id = $6;
       `, [
         isApproved ? 'Approved' : (payStatus === 'Failed' ? 'Failed' : 'Pending'),
         isApproved ? new Date().toLocaleDateString('en-IN') : '',
         isApproved,
         `TXN${Math.floor(100000 + Math.random() * 900000)}`,
-        appNo
+        appNo,
+        req.tenantId
       ])
 
       if (isApproved) {
-        await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Payment approved: ₹25,000 received for ${appNo}`, 'Just now'])
+        await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Payment approved: ₹25,000 received for ${appNo}`, 'Just now', req.tenantId])
         // Dispatches secure SMTP receipt mail alert
         sendSystemMailAlert(email, 'CUEE Admission Payment Approved', `Hello ${name},\n\nWe have successfully received and approved your payment of ₹25,000 for CUEE Registration application: ${appNo}.\n\nBest regards,\nAdmissions Office`)
       }
@@ -1497,9 +1590,9 @@ app.put('/api/applications/:id/admission-details', async (req, res) => {
       UPDATE applications
       SET admission_details = $1::jsonb,
           school_dept       = COALESCE($2, school_dept)
-      WHERE id = $3
+      WHERE id = $3 AND tenant_id = $4
       RETURNING id, app_no AS "appNo", admission_details AS "admissionDetails", school_dept AS "schoolDept";
-    `, [JSON.stringify(details), details.schoolDept ?? null, id])
+    `, [JSON.stringify(details), details.schoolDept ?? null, id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Application not found.' })
     res.json(r.rows[0])
   } catch (err) {
@@ -1670,9 +1763,9 @@ app.post('/api/applications/:id/send-letter', async (req, res) => {
       SELECT a.id, a.name, a.app_no, a.email, a.mobile, a.campus, a.course, a.owner, a.admission_details, a.school_dept,
              u.email AS owner_email, u.mobile AS owner_mobile
       FROM applications a
-      LEFT JOIN users u ON u.name = a.owner
-      WHERE a.id = $1;
-    `, [id])
+      LEFT JOIN users u ON u.name = a.owner AND u.tenant_id = a.tenant_id
+      WHERE a.id = $1 AND a.tenant_id = $2;
+    `, [id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Application not found.' })
     const app = r.rows[0]
     const details = app.admission_details || {}
@@ -1702,7 +1795,7 @@ app.post('/api/applications/:id/send-letter', async (req, res) => {
     })
 
     // Mark as sent
-    await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE id = $1;`, [id])
+    await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [id, req.tenantId])
 
     res.json({ success: true, sentTo: toEmail, ccTo: details.parentEmail || null })
   } catch (err) {
@@ -1714,7 +1807,7 @@ app.post('/api/applications/:id/send-letter', async (req, res) => {
 app.delete('/api/applications/:id', async (req, res) => {
   const { id } = req.params
   try {
-    const deleteRes = await pool.query('DELETE FROM applications WHERE id = $1 RETURNING id, app_no AS "appNo";', [id])
+    const deleteRes = await pool.query('DELETE FROM applications WHERE id = $1 AND tenant_id = $2 RETURNING id, app_no AS "appNo";', [id, req.tenantId])
     if (deleteRes.rows.length === 0) return res.status(404).json({ error: 'Application not found.' })
     res.json({ message: 'Application deleted.', id })
   } catch (err) {
@@ -1723,9 +1816,9 @@ app.delete('/api/applications/:id', async (req, res) => {
 })
 
 // --- TASKS ROUTERS ---
-app.get('/api/tasks', async (req, res) => {
+app.get('/api/tasks', authenticateToken, async (req, res) => {
   try {
-    const tasksRes = await pool.query('SELECT id, title, type, priority, due, status, assignee, lead FROM tasks ORDER BY id DESC;')
+    const tasksRes = await pool.query('SELECT id, title, type, priority, due, status, assignee, lead FROM tasks WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(tasksRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch tasks.' })
@@ -1736,20 +1829,20 @@ app.post('/api/tasks', async (req, res) => {
   const { title, type, priority, due, status, assignee, lead } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO tasks (title, type, priority, due, status, assignee, lead)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO tasks (title, type, priority, due, status, assignee, lead, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, title, type, priority, due, status, assignee, lead;
-    `, [title, type || 'Call', priority || 'Medium', due, status || 'Pending', assignee, lead])
+    `, [title, type || 'Call', priority || 'Medium', due, status || 'Pending', assignee, lead, req.tenantId])
 
     // Sync automatic event calendar entry
     const eventDate = due ? due.split(' ')[0].split('/').reverse().join('-') : new Date().toISOString().split('T')[0]
     const eventTime = due ? due.split(' ')[1] + ' ' + due.split(' ')[2] : '10:00 AM'
     await pool.query(`
-      INSERT INTO events (title, date, time, type, venue, participants)
-      VALUES ($1, $2, $3, $4, $5, $6);
-    `, [title, eventDate, eventTime, type || 'Task', 'Online / Call', 1])
+      INSERT INTO events (title, date, time, type, venue, participants, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7);
+    `, [title, eventDate, eventTime, type || 'Task', 'Online / Call', 1, req.tenantId])
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Task scheduled: ${title} (Due: ${due || 'Soon'})`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Task scheduled: ${title} (Due: ${due || 'Soon'})`, 'Just now', req.tenantId])
 
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
@@ -1762,7 +1855,7 @@ app.put('/api/tasks/:id', async (req, res) => {
   const { id } = req.params
   const { status } = req.body
   try {
-    const updateRes = await pool.query('UPDATE tasks SET status = $1 WHERE id = $2 RETURNING id, status;', [status, id])
+    const updateRes = await pool.query('UPDATE tasks SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, status;', [status, id, req.tenantId])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Task not found.' })
     res.json(updateRes.rows[0])
   } catch (err) {
@@ -1771,16 +1864,16 @@ app.put('/api/tasks/:id', async (req, res) => {
 })
 
 // --- PAYMENTS ROUTERS ---
-app.get('/api/payments', async (req, res) => {
+app.get('/api/payments', authenticateToken, async (req, res) => {
   try {
     const { requesterRole, requesterName } = req.query
     // Admin/Manager/Finance see all; counsellors only their assigned leads' payments (matched by name)
     const isCounsellor = requesterRole && !['Admin', 'Manager', 'Finance'].includes(requesterRole) && requesterName
-    let sql = 'SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode" FROM payments'
-    const params = []
+    let sql = 'SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode" FROM payments WHERE tenant_id = $1'
+    const params = [req.tenantId]
     if (isCounsellor) {
       params.push(requesterName)
-      sql += ' WHERE LOWER(name) IN (SELECT LOWER(name) FROM leads WHERE LOWER(owner) = LOWER($1))'
+      sql += ` AND LOWER(name) IN (SELECT LOWER(name) FROM leads WHERE LOWER(owner) = LOWER($${params.length}) AND tenant_id = $1)`
     }
     sql += ' ORDER BY id DESC;'
     const payRes = await pool.query(sql, params)
@@ -1795,10 +1888,10 @@ app.post('/api/payments', async (req, res) => {
   const finalDate = date || new Date().toLocaleDateString('en-IN')
   try {
     const insertRes = await pool.query(`
-      INSERT INTO payments (name, app_no, amount, method, status, date)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO payments (name, app_no, amount, method, status, date, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId";
-    `, [name, appNo, amount || 25000, method || '', status || 'Pending', finalDate])
+    `, [name, appNo, amount || 25000, method || '', status || 'Pending', finalDate, req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to create payment transaction.' })
@@ -1813,9 +1906,9 @@ app.put('/api/payments/:id', async (req, res) => {
     const updateRes = await pool.query(`
       UPDATE payments
       SET status = $1, date = CASE WHEN status <> 'Approved' AND $2 = TRUE THEN $3 ELSE date END, txn_id = CASE WHEN txn_id = '' AND $4 = TRUE THEN $5 ELSE txn_id END
-      WHERE id = $6
+      WHERE id = $6 AND tenant_id = $7
       RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId";
-    `, [status, isApproved, new Date().toLocaleDateString('en-IN'), isApproved, `TXN${Math.floor(100000 + Math.random() * 900000)}`, id])
+    `, [status, isApproved, new Date().toLocaleDateString('en-IN'), isApproved, `TXN${Math.floor(100000 + Math.random() * 900000)}`, id, req.tenantId])
 
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Payment record not found.' })
     res.json(updateRes.rows[0])
@@ -1826,15 +1919,15 @@ app.put('/api/payments/:id', async (req, res) => {
 
 // Submit UTR / offline ref number — sets status = 'Payment Done'
 // Helper — auto-fire admission letter when payment is recorded
-async function autoSendAdmissionLetter(appNo, utrNumber) {
+async function autoSendAdmissionLetter(appNo, utrNumber, tenantId = 1) {
   try {
     const r = await pool.query(`
       SELECT a.id, a.name, a.app_no, a.email, a.campus, a.course, a.owner, a.admission_details, a.school_dept,
              u.email AS owner_email, u.mobile AS owner_mobile
       FROM applications a
-      LEFT JOIN users u ON u.name = a.owner
-      WHERE a.app_no = $1;
-    `, [appNo])
+      LEFT JOIN users u ON u.name = a.owner AND u.tenant_id = a.tenant_id
+      WHERE a.app_no = $1 AND a.tenant_id = $2;
+    `, [appNo, tenantId])
     if (!r.rows[0]) return
     const app = r.rows[0]
     const details = { ...(app.admission_details || {}), utrNumber }
@@ -1854,7 +1947,7 @@ async function autoSendAdmissionLetter(appNo, utrNumber) {
       text: `Dear ${details.studentName || app.name},\n\nCongratulations! Your payment has been received and your Provisional Admission Letter is attached.\n\nReference ID: ${appNo}\nUTR: ${utrNumber}\nProgram: ${app.course}\nCampus: ${app.campus}\n\nBest regards,\nCUTM Admissions Team`,
       attachments: [{ filename: `Provisional_Letter_${appNo}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
     })
-    await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE app_no = $1;`, [appNo])
+    await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE app_no = $1 AND tenant_id = $2;`, [appNo, tenantId])
     console.log(`[Auto-Letter] Sent for ${appNo} → ${toEmail}`)
   } catch (e) {
     console.error(`[Auto-Letter] Failed for ${appNo}:`, e.message)
@@ -1870,16 +1963,16 @@ app.post('/api/payments/:id/submit-utr', async (req, res) => {
       UPDATE payments
       SET status = 'Payment Done', utr_number = $1, pay_mode = $2,
           date = $3
-      WHERE id = $4
+      WHERE id = $4 AND tenant_id = $5
       RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode";
-    `, [utrNumber, payMode || 'offline', new Date().toLocaleDateString('en-IN'), id])
+    `, [utrNumber, payMode || 'offline', new Date().toLocaleDateString('en-IN'), id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Payment not found.' })
 
     // Also update linked application pay status
-    await pool.query(`UPDATE applications SET pay_status = 'Payment Done' WHERE app_no = $1;`, [r.rows[0].appNo])
+    await pool.query(`UPDATE applications SET pay_status = 'Payment Done' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
 
     // Auto-send provisional letter (non-blocking)
-    autoSendAdmissionLetter(r.rows[0].appNo, utrNumber).catch(() => {})
+    autoSendAdmissionLetter(r.rows[0].appNo, utrNumber, req.tenantId).catch(() => {})
 
     res.json(r.rows[0])
   } catch (err) {
@@ -1893,15 +1986,15 @@ app.post('/api/payments/:id/approve', async (req, res) => {
   try {
     const r = await pool.query(`
       UPDATE payments SET status = 'Paid'
-      WHERE id = $1 AND status = 'Payment Done'
+      WHERE id = $1 AND status = 'Payment Done' AND tenant_id = $2
       RETURNING id, name, app_no AS "appNo", amount, status, utr_number AS "utrNumber";
-    `, [id])
+    `, [id, req.tenantId])
     if (!r.rows[0]) return res.status(400).json({ error: 'Payment not found or not in Payment Done status.' })
-    await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1;`, [r.rows[0].appNo])
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1,$2);',
-      [`Payment approved: ₹25,000 — ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now'])
+    await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+      [`Payment approved: ₹25,000 — ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now', req.tenantId])
     // Auto-send provisional letter (non-blocking)
-    autoSendAdmissionLetter(r.rows[0].appNo, r.rows[0].utrNumber || 'N/A').catch(() => {})
+    autoSendAdmissionLetter(r.rows[0].appNo, r.rows[0].utrNumber || 'N/A', req.tenantId).catch(() => {})
     res.json(r.rows[0])
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -2010,16 +2103,16 @@ app.put('/api/queries/:id', async (req, res) => {
 })
 
 // --- DOCUMENTS ROUTERS ---
-app.get('/api/documents', async (req, res) => {
+app.get('/api/documents', authenticateToken, async (req, res) => {
   try {
     const { requesterRole, requesterName } = req.query
     // Admin/Manager/Finance see all; counsellors only their assigned leads' documents (matched by student name)
     const isCounsellor = requesterRole && !['Admin', 'Manager', 'Finance'].includes(requesterRole) && requesterName
-    let sql = 'SELECT id, student, type, status, upload_date AS "uploadDate", file_url AS "fileUrl" FROM documents'
-    const params = []
+    let sql = 'SELECT id, student, type, status, upload_date AS "uploadDate", file_url AS "fileUrl" FROM documents WHERE tenant_id = $1'
+    const params = [req.tenantId]
     if (isCounsellor) {
       params.push(requesterName)
-      sql += ' WHERE LOWER(student) IN (SELECT LOWER(name) FROM leads WHERE LOWER(owner) = LOWER($1))'
+      sql += ` AND LOWER(student) IN (SELECT LOWER(name) FROM leads WHERE LOWER(owner) = LOWER($${params.length}) AND tenant_id = $1)`
     }
     sql += ' ORDER BY id DESC;'
     const docsRes = await pool.query(sql, params)
@@ -2033,12 +2126,12 @@ app.post('/api/documents', async (req, res) => {
   const { student, type, status, fileUrl } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO documents (student, type, status, upload_date, file_url)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO documents (student, type, status, upload_date, file_url, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, student, type, status, upload_date AS "uploadDate", file_url AS "fileUrl";
-    `, [student, type, status || 'Pending', new Date().toLocaleDateString('en-IN'), fileUrl || ''])
+    `, [student, type, status || 'Pending', new Date().toLocaleDateString('en-IN'), fileUrl || '', req.tenantId])
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Student uploaded document for verification: ${type}`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Student uploaded document for verification: ${type}`, 'Just now', req.tenantId])
 
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
@@ -2051,7 +2144,7 @@ app.put('/api/documents/:id', async (req, res) => {
   const { id } = req.params
   const { status } = req.body
   try {
-    const updateRes = await pool.query('UPDATE documents SET status = $1 WHERE id = $2 RETURNING id, status;', [status, id])
+    const updateRes = await pool.query('UPDATE documents SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, status;', [status, id, req.tenantId])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Document not found.' })
     res.json(updateRes.rows[0])
   } catch (err) {
@@ -2062,7 +2155,7 @@ app.put('/api/documents/:id', async (req, res) => {
 app.delete('/api/documents/:id', async (req, res) => {
   const { id } = req.params
   try {
-    const deleteRes = await pool.query('DELETE FROM documents WHERE id = $1 RETURNING id;', [id])
+    const deleteRes = await pool.query('DELETE FROM documents WHERE id = $1 AND tenant_id = $2 RETURNING id;', [id, req.tenantId])
     if (deleteRes.rows.length === 0) return res.status(404).json({ error: 'Document not found.' })
     res.json({ message: 'Document deleted.', id })
   } catch (err) {
@@ -2071,9 +2164,9 @@ app.delete('/api/documents/:id', async (req, res) => {
 })
 
 // --- EVENTS ROUTERS ---
-app.get('/api/events', async (req, res) => {
+app.get('/api/events', authenticateToken, async (req, res) => {
   try {
-    const evRes = await pool.query('SELECT id, title, date, time, type, venue, participants FROM events ORDER BY id DESC;')
+    const evRes = await pool.query('SELECT id, title, date, time, type, venue, participants FROM events WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(evRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch events.' })
@@ -2084,10 +2177,10 @@ app.post('/api/events', async (req, res) => {
   const { title, date, time, type, venue, participants } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO events (title, date, time, type, venue, participants)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO events (title, date, time, type, venue, participants, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, title, date, time, type, venue, participants;
-    `, [title, date, time, type, venue, participants || 1])
+    `, [title, date, time, type, venue, participants || 1, req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to schedule calendar event.' })
@@ -2095,9 +2188,9 @@ app.post('/api/events', async (req, res) => {
 })
 
 // --- CAMPAIGNS ROUTERS ---
-app.get('/api/campaigns', async (req, res) => {
+app.get('/api/campaigns', authenticateToken, async (req, res) => {
   try {
-    const campRes = await pool.query('SELECT id, name, channel, status, budget, spent, leads, conversions, start_date AS "startDate", end_date AS "endDate" FROM campaigns ORDER BY id DESC;')
+    const campRes = await pool.query('SELECT id, name, channel, status, budget, spent, leads, conversions, start_date AS "startDate", end_date AS "endDate" FROM campaigns WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(campRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch campaigns.' })
@@ -2108,10 +2201,10 @@ app.post('/api/campaigns', async (req, res) => {
   const { name, channel, status, budget } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO campaigns (name, channel, status, budget, spent, leads, conversions, start_date)
-      VALUES ($1, $2, $3, $4, 0, 0, 0, $5)
+      INSERT INTO campaigns (name, channel, status, budget, spent, leads, conversions, start_date, tenant_id)
+      VALUES ($1, $2, $3, $4, 0, 0, 0, $5, $6)
       RETURNING id, name, channel, status, budget, spent, leads, conversions, start_date AS "startDate";
-    `, [name, channel, status || 'Active', budget || 0, new Date().toLocaleDateString('en-IN')])
+    `, [name, channel, status || 'Active', budget || 0, new Date().toLocaleDateString('en-IN'), req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to create marketing campaign.' })
@@ -2122,7 +2215,7 @@ app.put('/api/campaigns/:id', async (req, res) => {
   const { id } = req.params
   const { status } = req.body
   try {
-    const updateRes = await pool.query('UPDATE campaigns SET status = $1 WHERE id = $2 RETURNING id, status;', [status, id])
+    const updateRes = await pool.query('UPDATE campaigns SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, status;', [status, id, req.tenantId])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Campaign not found.' })
     res.json(updateRes.rows[0])
   } catch (err) {
@@ -2131,38 +2224,40 @@ app.put('/api/campaigns/:id', async (req, res) => {
 })
 
 // --- COUNSELORS (derived from users + live lead/app/payment stats) ---
-app.get('/api/counselors', async (req, res) => {
+app.get('/api/counselors', authenticateToken, async (req, res) => {
   try {
+    const tnt = req.tenantId
     const usersRes = await pool.query(
-      "SELECT id, name, email FROM users WHERE status = 'Active' ORDER BY name;"
+      "SELECT id, name, email FROM users WHERE status = 'Active' AND tenant_id = $1 ORDER BY name;",
+      [tnt]
     )
     const counselors = []
     for (const u of usersRes.rows) {
       const simplName = u.name.split(' ')[0]
 
       const leadsRes = await pool.query(
-        "SELECT COUNT(*) FROM leads WHERE owner = $1 OR owner LIKE $2;",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
       const untouchedRes = await pool.query(
-        "SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND stage = 'Untouched';",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND stage = 'Untouched' AND tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
       const appsRes = await pool.query(
-        "SELECT COUNT(*) FROM applications WHERE owner = $1 OR owner LIKE $2;",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
       const payRes = await pool.query(
-        "SELECT COUNT(*) FROM payments p JOIN applications a ON p.app_no = a.app_no WHERE (a.owner = $1 OR a.owner LIKE $2) AND (p.status = 'Approved' OR p.status = 'Payment Approved');",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM payments p JOIN applications a ON p.app_no = a.app_no WHERE (a.owner = $1 OR a.owner LIKE $2) AND (p.status = 'Approved' OR p.status = 'Payment Approved') AND a.tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
       const submittedRes = await pool.query(
-        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND stage = 'Application Submitted';",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND stage = 'Application Submitted' AND tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
       const enrolledRes = await pool.query(
-        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND (stage = 'Enrolment' OR stage = 'Enrolments');",
-        [u.name, `${simplName}%`]
+        "SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND (stage = 'Enrolment' OR stage = 'Enrolments') AND tenant_id = $3;",
+        [u.name, `${simplName}%`, tnt]
       )
 
       // Telephony — call_logs by counsellor
@@ -2250,14 +2345,24 @@ app.get('/api/admin/version', (req, res) => {
 // ── ADMIN — Server Health & Security Overview ────────────────────────────────
 // ── DASHBOARD STATS — all aggregation in SQL (scales to 1cr+ rows) ──────────
 // Optional ?owner=Name (counsellor) or ?manager=Name (their team) to scope.
-app.get('/api/dashboard/stats', async (req, res) => {
+const dashboardCache = new Map()   // key → { ts, data }; short TTL to absorb repeat loads
+const DASHBOARD_TTL_MS = 60000
+
+app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   try {
     const { owner, manager, campus } = req.query
 
-    // Build filters (parameterised) for role-scoped dashboards
+    // Serve a recent cached result (dashboard tolerates ~60s staleness; avoids
+    // re-scanning the whole leads table on every page load / poll).
+    const cacheKey = JSON.stringify({ t: req.tenantId, owner: owner || '', manager: manager || '', campus: campus || '' })
+    const hit = dashboardCache.get(cacheKey)
+    if (hit && (Date.now() - hit.ts) < DASHBOARD_TTL_MS) return res.json(hit.data)
+
+    // Build filters (parameterised) for role-scoped dashboards.
+    // $1 is always the tenant (multi-tenant) — every query below is scoped to it.
     let ownerWhere = ''
-    const params = []
-    const whereConditions = []
+    const params = [req.tenantId]
+    const whereConditions = ['l.tenant_id = $1']
 
     // Campus filter (if not "All")
     if (campus && campus !== 'All') {
@@ -2272,62 +2377,73 @@ app.get('/api/dashboard/stats', async (req, res) => {
     } else if (manager) {
       params.push(manager)
       params.push(manager)
-      whereConditions.push(`(l.owner = $${params.length - 1} OR l.owner IN (SELECT name FROM users WHERE reports_to = $${params.length}))`)
+      whereConditions.push(`(l.owner = $${params.length - 1} OR l.owner IN (SELECT name FROM users WHERE reports_to = $${params.length} AND tenant_id = $1))`)
     }
 
-    ownerWhere = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''
+    ownerWhere = 'WHERE ' + whereConditions.join(' AND ')
 
-    // 1. Overall KPI counts (single scan)
-    const kpi = await pool.query(`
-      SELECT
-        COUNT(*)::int AS "totalLeads",
-        SUM(CASE WHEN owner IS NULL OR owner = '' OR owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
-        SUM(CASE WHEN stage='Untouched'           THEN 1 ELSE 0 END)::int AS untouched,
-        SUM(CASE WHEN stage='Follow Up'        THEN 1 ELSE 0 END)::int AS "followUp",
-        SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,
-        SUM(CASE WHEN stage='Not Interested'      THEN 1 ELSE 0 END)::int AS "notInterested"
-      FROM leads l ${ownerWhere};
-    `, params)
-
-    // 2. Application + payment totals
-    const appTotal  = await pool.query('SELECT COUNT(*)::int AS c FROM applications;')
-    const enrolTotal = await pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments');")
-    // Revenue counts ONLY admin-verified payments that have a UTR/reference on
-    // record — i.e. UTR entered AND verified. 'Payment Done' (UTR submitted but
-    // not yet approved) and any row without a UTR are excluded.
-    const revTotal  = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '';")
-
-    // 3. Per-counsellor stage breakdown — ONE GROUP BY, joined to users for domain
     // Scope the visible counsellors the same way as the KPI (own / team / all)
-    let userScope = ''
-    const userParams = []
+    let userScope = 'AND u.tenant_id = $1'
+    const userParams = [req.tenantId]
     if (owner) {
       userParams.push(owner)
-      userScope = `AND u.name = $${userParams.length}`
+      userScope += ` AND u.name = $${userParams.length}`
     } else if (manager) {
       userParams.push(manager)
-      userScope = `AND (u.name = $${userParams.length} OR u.reports_to = $${userParams.length})`
+      userScope += ` AND (u.name = $${userParams.length} OR u.reports_to = $${userParams.length})`
     }
-    const perCounsellor = await pool.query(`
-      SELECT
-        u.name, u.email,
-        COUNT(l.id)::int AS leads,
-        SUM(CASE WHEN l.owner IS NULL OR l.owner = '' OR l.owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
-        SUM(CASE WHEN l.stage='Untouched' THEN 1 ELSE 0 END)::int AS untouched,
-        SUM(CASE WHEN l.stage='Contacted' THEN 1 ELSE 0 END)::int AS contacted,
-        SUM(CASE WHEN l.stage='Follow Up' THEN 1 ELSE 0 END)::int AS "followUp",
-        SUM(CASE WHEN l.stage='Interested' THEN 1 ELSE 0 END)::int AS interested,
-        SUM(CASE WHEN l.stage='Not Interested' THEN 1 ELSE 0 END)::int AS "notInterested",
-        SUM(CASE WHEN l.stage='Qualified Leads' THEN 1 ELSE 0 END)::int AS qualified,
-        SUM(CASE WHEN l.stage='Converted' THEN 1 ELSE 0 END)::int AS converted
-      FROM users u
-      LEFT JOIN leads l ON LOWER(l.owner) = LOWER(u.name)
-      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
-      GROUP BY u.name, u.email
-      HAVING COUNT(l.id) > 0
-      ORDER BY leads DESC
-      LIMIT 50;
-    `, userParams)
+    const tp = [req.tenantId]
+
+    // All independent aggregates run concurrently (was ~4s sequential → ~slowest query)
+    const [kpi, appTotal, enrolTotal, revTotal, perCounsellor, domainRes, matrixRes] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*)::int AS "totalLeads",
+          SUM(CASE WHEN owner IS NULL OR owner = '' OR owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
+          SUM(CASE WHEN stage='Untouched'      THEN 1 ELSE 0 END)::int AS untouched,
+          SUM(CASE WHEN stage='Follow Up'      THEN 1 ELSE 0 END)::int AS "followUp",
+          SUM(CASE WHEN stage='Interested'     THEN 1 ELSE 0 END)::int AS interested,
+          SUM(CASE WHEN stage='Not Interested' THEN 1 ELSE 0 END)::int AS "notInterested"
+        FROM leads l ${ownerWhere};`, params),
+      pool.query('SELECT COUNT(*)::int AS c FROM applications WHERE tenant_id = $1;', tp),
+      pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments') AND tenant_id = $1;", tp),
+      pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '' AND tenant_id = $1;", tp),
+      pool.query(`
+        SELECT
+          u.name, u.email,
+          COUNT(l.id)::int AS leads,
+          SUM(CASE WHEN l.owner IS NULL OR l.owner = '' OR l.owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
+          SUM(CASE WHEN l.stage='Untouched' THEN 1 ELSE 0 END)::int AS untouched,
+          SUM(CASE WHEN l.stage='Contacted' THEN 1 ELSE 0 END)::int AS contacted,
+          SUM(CASE WHEN l.stage='Follow Up' THEN 1 ELSE 0 END)::int AS "followUp",
+          SUM(CASE WHEN l.stage='Interested' THEN 1 ELSE 0 END)::int AS interested,
+          SUM(CASE WHEN l.stage='Not Interested' THEN 1 ELSE 0 END)::int AS "notInterested",
+          SUM(CASE WHEN l.stage='Qualified Leads' THEN 1 ELSE 0 END)::int AS qualified,
+          SUM(CASE WHEN l.stage='Converted' THEN 1 ELSE 0 END)::int AS converted
+        FROM users u
+        LEFT JOIN leads l ON LOWER(l.owner) = LOWER(u.name) AND l.tenant_id = u.tenant_id
+        WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
+        GROUP BY u.name, u.email
+        HAVING COUNT(l.id) > 0
+        ORDER BY leads DESC
+        LIMIT 50;`, userParams),
+      pool.query(`
+        SELECT
+          CASE WHEN u.email ILIKE '%@cutmap.ac.in' THEN 'cutmap'
+               WHEN u.email ILIKE '%@cutm.ac.in'   THEN 'cutm'
+               ELSE 'other' END AS domain,
+          l.stage AS stage, COUNT(*)::int AS count
+        FROM leads l
+        JOIN users u ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g')) AND u.tenant_id = l.tenant_id
+        ${ownerWhere}
+        GROUP BY domain, l.stage;`, params),
+      pool.query(`
+        SELECT u.name AS counsellor, u.email AS email, l.stage AS stage, COUNT(l.id)::int AS count
+        FROM users u
+        JOIN leads l ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g')) AND l.tenant_id = u.tenant_id
+        WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
+        GROUP BY u.name, u.email, l.stage;`, userParams),
+    ])
 
     const byCounsellor = perCounsellor.rows.map(r => ({
       ...r,
@@ -2335,21 +2451,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
             : (r.email || '').includes('@cutm.ac.in') ? 'cutm' : 'other'
     }))
 
-    // CUTM vs CUTMAP split — per-stage counts, by the owning counselor's email
-    // domain (same rule as the Lead Manager domain tabs). Returns a stages map
-    // per domain so the dashboard can show any stage (incl. Invalid Number) and
-    // a filterable summary table.
-    const domainRes = await pool.query(`
-      SELECT
-        CASE WHEN u.email ILIKE '%@cutmap.ac.in' THEN 'cutmap'
-             WHEN u.email ILIKE '%@cutm.ac.in'   THEN 'cutm'
-             ELSE 'other' END AS domain,
-        l.stage AS stage, COUNT(*)::int AS count
-      FROM leads l
-      JOIN users u ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g'))
-      ${ownerWhere}
-      GROUP BY domain, l.stage;
-    `, params)
+    // CUTM vs CUTMAP split — per-stage counts, by the owning counselor's email domain
     // CUTM and CUTMAP only — GT Entities are a separate business (own dashboard)
     const byDomain = { cutm: { total: 0, stages: {} }, cutmap: { total: 0, stages: {} } }
     for (const row of domainRes.rows) {
@@ -2363,15 +2465,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
     // (unassigned, GT-owned, or owner not matching a user) so cutm+cutmap+other = total.
     byDomain.other = { total: Math.max(0, (kpi.rows[0]?.totalLeads || 0) - byDomain.cutm.total - byDomain.cutmap.total), stages: {} }
 
-    // Counsellor × stage matrix (role-scoped via userScope) for the Stage Summary.
-    // Includes each counsellor's domain (cutm/cutmap) so the UI can filter.
-    const matrixRes = await pool.query(`
-      SELECT u.name AS counsellor, u.email AS email, l.stage AS stage, COUNT(l.id)::int AS count
-      FROM users u
-      JOIN leads l ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g'))
-      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
-      GROUP BY u.name, u.email, l.stage;
-    `, userParams)
+    // Counsellor × stage matrix (role-scoped) for the Stage Summary — matrixRes was
+    // fetched in the Promise.all above.
     const matrixMap = {}
     for (const row of matrixRes.rows) {
       if (!matrixMap[row.counsellor]) {
@@ -2387,20 +2482,20 @@ app.get('/api/dashboard/stats', async (req, res) => {
     // For a counsellor: their own GT-entity leads across the entities they're granted
     let gtEntities = []
     if (owner) {
-      const uent = await pool.query('SELECT entities FROM users WHERE name = $1 LIMIT 1;', [owner])
+      const uent = await pool.query('SELECT entities FROM users WHERE name = $1 AND tenant_id = $2 LIMIT 1;', [owner, req.tenantId])
       const granted = String(uent.rows[0]?.entities || 'CUTM').split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
       for (const code of ['FTL', 'GTIB', 'GTTECH', 'ESSE']) {
         if (!granted.includes(code)) continue
         const t = `${code.toLowerCase()}_leads`
         const g = await pool.query(
           `SELECT COUNT(*)::int AS total, SUM(CASE WHEN status='Not Contacted' THEN 1 ELSE 0 END)::int AS untouched
-           FROM ${t} WHERE LOWER(TRIM(owner)) = LOWER(TRIM($1));`, [owner]
+           FROM ${t} WHERE LOWER(TRIM(owner)) = LOWER(TRIM($1)) AND tenant_id = $2;`, [owner, req.tenantId]
         ).catch(() => ({ rows: [{ total: 0, untouched: 0 }] }))
         gtEntities.push({ entity: code, total: g.rows[0].total || 0, untouched: g.rows[0].untouched || 0 })
       }
     }
 
-    res.json({
+    const payload = {
       kpi: kpi.rows[0],
       applications: appTotal.rows[0].c,
       enrolments:   enrolTotal.rows[0].c,
@@ -2409,7 +2504,9 @@ app.get('/api/dashboard/stats', async (req, res) => {
       byDomain,
       byCounsellorStages,
       gtEntities,
-    })
+    }
+    dashboardCache.set(cacheKey, { ts: Date.now(), data: payload })
+    res.json(payload)
   } catch (err) {
     console.error('[dashboard/stats]', err)
     res.status(500).json({ error: err.message })
@@ -2417,7 +2514,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
 })
 
 // ── REPORTS OVERVIEW — all aggregates computed in SQL (scales to millions) ───
-app.get('/api/reports/overview', async (req, res) => {
+app.get('/api/reports/overview', authenticateToken, async (req, res) => {
   try {
     const range = req.query.range || 'all'
     const now = new Date()
@@ -2434,10 +2531,12 @@ app.get('/api/reports/overview', async (req, res) => {
       `THEN to_date(substring(${col} from '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}'),'DD/MM/YYYY') END`
     // Date predicate: keep rows in range OR with no parseable date (matches client)
     const datePred = (col, idx) => cutoffISO ? `(${dExpr(col)} IS NULL OR ${dExpr(col)} >= $${idx}::date)` : 'TRUE'
-    const lp = cutoffISO ? [cutoffISO] : []   // leads params
-    const lw = `WHERE ${datePred('reg_date', 1)}`
-    const aw = `WHERE ${datePred('date', 1)}`
-    const pw = `WHERE ${datePred('date', 1)}`
+    // tenant_id is appended last so the date predicate's $1 index stays valid
+    const lp = cutoffISO ? [cutoffISO, req.tenantId] : [req.tenantId]
+    const tIdx = lp.length
+    const lw = `WHERE tenant_id = $${tIdx} AND ${datePred('reg_date', 1)}`
+    const aw = `WHERE tenant_id = $${tIdx} AND ${datePred('date', 1)}`
+    const pw = `WHERE tenant_id = $${tIdx} AND ${datePred('date', 1)}`
 
     // KPI + funnel from leads
     const leadAgg = await pool.query(`
@@ -2630,9 +2729,9 @@ app.get('/api/admin/security-overview', async (req, res) => {
   }
 })
 
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authenticateToken, async (req, res) => {
   try {
-    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, is_superadmin AS "isSuperAdmin", last_login AS "lastLogin" FROM users ORDER BY id DESC;')
+    const usersRes = await pool.query('SELECT id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, is_superadmin AS "isSuperAdmin", last_login AS "lastLogin" FROM users WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(usersRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch user accounts.' })
@@ -2643,10 +2742,10 @@ app.post('/api/users', async (req, res) => {
   const { name, email, password, role, team, status, mobile, reportsTo } = req.body
   try {
     const insertRes = await pool.query(`
-      INSERT INTO users (name, email, password, role, team, status, mobile, reports_to)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO users (name, email, password, role, team, status, mobile, reports_to, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id, name, email, role, team, status, picture, mobile, reports_to AS "reportsTo", last_login AS "lastLogin";
-    `, [name, email, password || 'User@123', role || 'Counselor', team || 'Sales', status || 'Active', mobile || '', reportsTo || ''])
+    `, [name, email, password || 'User@123', role || 'Counselor', team || 'Sales', status || 'Active', mobile || '', reportsTo || '', req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     console.error(err)
@@ -2663,11 +2762,11 @@ app.put('/api/users/:id', async (req, res) => {
     const params = [name, role, team, status, picture, mobile ?? null, reportsTo ?? null, mobile_number ?? null, (typeof excludeFromAssignment === 'boolean' ? excludeFromAssignment : null), entStr]
 
     if (password) {
-      queryStr += ', password = $11 WHERE id = $12'
-      params.push(password, id)
+      queryStr += ', password = $11 WHERE id = $12 AND tenant_id = $13'
+      params.push(password, id, req.tenantId)
     } else {
-      queryStr += ' WHERE id = $11'
-      params.push(id)
+      queryStr += ' WHERE id = $11 AND tenant_id = $12'
+      params.push(id, req.tenantId)
     }
 
     queryStr += ' RETURNING id, name, email, role, team, status, picture, mobile, mobile_number, reports_to AS "reportsTo", exclude_from_assignment AS "excludeFromAssignment", entities, last_login AS "lastLogin";'
@@ -2688,7 +2787,7 @@ app.post('/api/users/bulk-entities', authenticateToken, async (req, res) => {
   if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No users selected.' })
   const ent = Array.isArray(entities) ? entities.join(',') : String(entities || '')
   try {
-    const r = await pool.query('UPDATE users SET entities = $1 WHERE id = ANY($2::int[]);', [ent, ids.map(Number).filter(Boolean)])
+    const r = await pool.query('UPDATE users SET entities = $1 WHERE id = ANY($2::int[]) AND tenant_id = $3;', [ent, ids.map(Number).filter(Boolean), req.tenantId])
     res.json({ success: true, updated: r.rowCount, entities: ent })
   } catch (err) {
     console.error('[Bulk Entities]', err.message)
@@ -2702,13 +2801,13 @@ app.post('/api/lead-transfers', async (req, res) => {
   if (!leadId || !toOwner) return res.status(400).json({ error: 'leadId and toOwner required' })
   try {
     const r = await pool.query(`
-      INSERT INTO lead_transfers (lead_id, from_owner, to_owner, remark, requested_by, status)
-      VALUES ($1, $2, $3, $4, $5, 'pending')
+      INSERT INTO lead_transfers (lead_id, from_owner, to_owner, remark, requested_by, status, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, 'pending', $6)
       RETURNING id, lead_id AS "leadId", from_owner AS "fromOwner", to_owner AS "toOwner", remark, status, requested_at AS "requestedAt";
-    `, [leadId, fromOwner || '', toOwner, remark || '', fromOwner || ''])
+    `, [leadId, fromOwner || '', toOwner, remark || '', fromOwner || '', req.tenantId])
     // Notify admin
-    await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-      [`🔄 Transfer request: ${fromOwner} → ${toOwner} (Lead #${leadId}). Awaiting approval.`, 'Just now', 'transfer_request'])
+    await pool.query('INSERT INTO notifications (text, time, type, tenant_id) VALUES ($1, $2, $3, $4);',
+      [`🔄 Transfer request: ${fromOwner} → ${toOwner} (Lead #${leadId}). Awaiting approval.`, 'Just now', 'transfer_request', req.tenantId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -2722,10 +2821,11 @@ app.get('/api/lead-transfers', async (req, res) => {
              t.decided_by AS "decidedBy", t.requested_by AS "requestedBy",
              l.name AS "leadName", l.email AS "leadEmail", l.mobile AS "leadMobile"
       FROM lead_transfers t
-      LEFT JOIN leads l ON l.id = t.lead_id
+      LEFT JOIN leads l ON l.id = t.lead_id AND l.tenant_id = t.tenant_id
     `
-    const params = []
-    if (status) { q += ' WHERE t.status = $1'; params.push(status) }
+    const params = [req.tenantId]
+    q += ' WHERE t.tenant_id = $1'
+    if (status) { q += ' AND t.status = $2'; params.push(status) }
     q += ' ORDER BY t.requested_at DESC LIMIT 100;'
     const r = await pool.query(q, params)
     res.json(r.rows)
@@ -2736,24 +2836,24 @@ app.post('/api/lead-transfers/:id/decide', async (req, res) => {
   const { decision, decidedBy } = req.body   // 'approved' | 'rejected'
   if (!['approved','rejected'].includes(decision)) return res.status(400).json({ error: 'decision must be approved or rejected' })
   try {
-    const t = await pool.query('SELECT * FROM lead_transfers WHERE id = $1;', [req.params.id])
+    const t = await pool.query('SELECT * FROM lead_transfers WHERE id = $1 AND tenant_id = $2;', [req.params.id, req.tenantId])
     if (!t.rows[0]) return res.status(404).json({ error: 'Transfer not found' })
     if (t.rows[0].status !== 'pending') return res.status(400).json({ error: 'Already decided' })
 
     const r = await pool.query(`
       UPDATE lead_transfers
       SET status = $1, decided_at = NOW(), decided_by = $2
-      WHERE id = $3
+      WHERE id = $3 AND tenant_id = $4
       RETURNING *;
-    `, [decision, decidedBy || 'Admin', req.params.id])
+    `, [decision, decidedBy || 'Admin', req.params.id, req.tenantId])
 
     // If approved, actually reassign the lead
     if (decision === 'approved') {
-      await pool.query('UPDATE leads SET owner = $1 WHERE id = $2;', [r.rows[0].to_owner, r.rows[0].lead_id])
+      await pool.query('UPDATE leads SET owner = $1 WHERE id = $2 AND tenant_id = $3;', [r.rows[0].to_owner, r.rows[0].lead_id, req.tenantId])
     }
 
-    await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-      [`Transfer #${req.params.id} ${decision}: ${r.rows[0].from_owner} → ${r.rows[0].to_owner}`, 'Just now', 'transfer_decision'])
+    await pool.query('INSERT INTO notifications (text, time, type, tenant_id) VALUES ($1, $2, $3, $4);',
+      [`Transfer #${req.params.id} ${decision}: ${r.rows[0].from_owner} → ${r.rows[0].to_owner}`, 'Just now', 'transfer_decision', req.tenantId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -2765,10 +2865,11 @@ app.get('/api/teams', async (req, res) => {
       SELECT t.id, t.name, t.description, t.created_at AS "createdAt",
              COUNT(u.id)::int AS "memberCount"
       FROM teams t
-      LEFT JOIN users u ON u.team = t.name
+      LEFT JOIN users u ON u.team = t.name AND u.tenant_id = t.tenant_id
+      WHERE t.tenant_id = $1
       GROUP BY t.id, t.name, t.description, t.created_at
       ORDER BY t.id;
-    `)
+    `, [req.tenantId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -2778,8 +2879,8 @@ app.post('/api/teams', async (req, res) => {
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' })
   try {
     const r = await pool.query(
-      `INSERT INTO teams (name, description) VALUES ($1, $2) RETURNING id, name, description;`,
-      [name.trim(), description || '']
+      `INSERT INTO teams (name, description, tenant_id) VALUES ($1, $2, $3) RETURNING id, name, description;`,
+      [name.trim(), description || '', req.tenantId]
     )
     res.json(r.rows[0])
   } catch (err) {
@@ -2792,8 +2893,8 @@ app.put('/api/teams/:id', async (req, res) => {
   const { name, description } = req.body
   try {
     const r = await pool.query(
-      `UPDATE teams SET name = COALESCE($1, name), description = COALESCE($2, description) WHERE id = $3 RETURNING *;`,
-      [name?.trim() || null, description ?? null, req.params.id]
+      `UPDATE teams SET name = COALESCE($1, name), description = COALESCE($2, description) WHERE id = $3 AND tenant_id = $4 RETURNING *;`,
+      [name?.trim() || null, description ?? null, req.params.id, req.tenantId]
     )
     if (!r.rows[0]) return res.status(404).json({ error: 'Team not found' })
     res.json(r.rows[0])
@@ -2803,9 +2904,9 @@ app.put('/api/teams/:id', async (req, res) => {
 app.delete('/api/teams/:id', async (req, res) => {
   try {
     // Check team isn't in use
-    const u = await pool.query('SELECT COUNT(*)::int AS c FROM users WHERE team = (SELECT name FROM teams WHERE id = $1);', [req.params.id])
+    const u = await pool.query('SELECT COUNT(*)::int AS c FROM users WHERE tenant_id = $2 AND team = (SELECT name FROM teams WHERE id = $1 AND tenant_id = $2);', [req.params.id, req.tenantId])
     if (u.rows[0].c > 0) return res.status(400).json({ error: `Cannot delete — ${u.rows[0].c} user(s) are in this team. Reassign them first.` })
-    await pool.query('DELETE FROM teams WHERE id = $1;', [req.params.id])
+    await pool.query('DELETE FROM teams WHERE id = $1 AND tenant_id = $2;', [req.params.id, req.tenantId])
     res.json({ ok: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -2879,8 +2980,8 @@ app.post('/api/users/:id/reset-password', async (req, res) => {
     const tempPwd = `${words[Math.floor(Math.random()*words.length)]}#${Math.floor(1000 + Math.random()*9000)}`
 
     const r = await pool.query(
-      'UPDATE users SET password = $1 WHERE id = $2 RETURNING id, name, email;',
-      [tempPwd, id]
+      'UPDATE users SET password = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, name, email;',
+      [tempPwd, id, req.tenantId]
     )
     if (r.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
 
@@ -2910,7 +3011,7 @@ app.post('/api/users/bulk-status', async (req, res) => {
   const { ids, status } = req.body
   if (!ids?.length || !status) return res.status(400).json({ error: 'ids and status required.' })
   try {
-    await pool.query('UPDATE users SET status = $1 WHERE id = ANY($2::int[]);', [status, ids])
+    await pool.query('UPDATE users SET status = $1 WHERE id = ANY($2::int[]) AND tenant_id = $3;', [status, ids, req.tenantId])
     res.json({ success: true, updated: ids.length, status })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -2922,17 +3023,17 @@ app.get('/api/users/activity', async (req, res) => {
     const logins = await pool.query(`
       SELECT name, email, role, last_login AS "lastLogin", status
       FROM users
-      WHERE last_login IS NOT NULL AND last_login <> ''
+      WHERE last_login IS NOT NULL AND last_login <> '' AND tenant_id = $1
       ORDER BY id DESC LIMIT 20;
-    `)
+    `, [req.tenantId])
 
     // Recent lead assignment notifications (proxy for activity)
     const notifs = await pool.query(`
       SELECT text, time, type, created_at AS "createdAt"
       FROM notifications
-      WHERE type IN ('lead_assigned','info') OR text ILIKE '%user%' OR text ILIKE '%registered%'
+      WHERE (type IN ('lead_assigned','info') OR text ILIKE '%user%' OR text ILIKE '%registered%') AND tenant_id = $1
       ORDER BY id DESC LIMIT 20;
-    `)
+    `, [req.tenantId])
 
     res.json({ recentLogins: logins.rows, activity: notifs.rows })
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -2981,16 +3082,16 @@ app.post('/api/users/bulk-upload', (req, res, next) => {
 
       try {
         const newUser = await pool.query(`
-          INSERT INTO users (name, email, mobile, password, role, team, status)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          INSERT INTO users (name, email, mobile, password, role, team, status, tenant_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           RETURNING id, name;
-        `, [name, email, mobile || null, password, role, team, status])
+        `, [name, email, mobile || null, password, role, team, status, req.tenantId])
 
         // Add to round-robin counter if counselor/manager
         if (['Counselor','Manager'].includes(role)) {
           await pool.query(
-            'INSERT INTO lead_assignment_counter (counselor_name, counselor_email) VALUES ($1, $2) ON CONFLICT DO NOTHING;',
-            [name, email]
+            'INSERT INTO lead_assignment_counter (counselor_name, counselor_email, tenant_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;',
+            [name, email, req.tenantId]
           )
         }
         inserted++
@@ -3000,8 +3101,8 @@ app.post('/api/users/bulk-upload', (req, res, next) => {
       }
     }
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`Bulk user upload: ${inserted} created, ${skipped} skipped`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`Bulk user upload: ${inserted} created, ${skipped} skipped`, 'Just now', req.tenantId])
 
     res.json({ success: true, inserted, skipped, total: rawData.length, errors: errors.slice(0, 10) })
   } catch (err) {
@@ -3016,16 +3117,16 @@ app.delete('/api/users/:id', authenticateToken, async (req, res) => {
   const { id } = req.params
   try {
     // Resolve requester (super admin?) and target role
-    const meRes = await pool.query('SELECT is_superadmin FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
+    const meRes = await pool.query('SELECT is_superadmin FROM users WHERE (id = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [req.user?.id || 0, req.user?.email || '', req.tenantId])
     const iAmSuper = !!meRes.rows[0]?.is_superadmin
-    const tgtRes = await pool.query('SELECT role, is_superadmin FROM users WHERE id = $1;', [id])
+    const tgtRes = await pool.query('SELECT role, is_superadmin FROM users WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     if (tgtRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
     const target = tgtRes.rows[0]
     // Only a super admin can delete an Admin or another super admin
     if ((target.role === 'Admin' || target.is_superadmin) && !iAmSuper) {
       return res.status(403).json({ error: 'Only a Super Admin can delete an admin account.' })
     }
-    const deleteRes = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id;', [id])
+    const deleteRes = await pool.query('DELETE FROM users WHERE id = $1 AND tenant_id = $2 RETURNING id;', [id, req.tenantId])
     if (deleteRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
     res.json({ message: 'User deleted successfully.', id })
   } catch (err) {
@@ -3038,11 +3139,11 @@ app.post('/api/users/:id/superadmin', authenticateToken, async (req, res) => {
   const { id } = req.params
   const { isSuperAdmin } = req.body
   try {
-    const meRes = await pool.query('SELECT is_superadmin FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [req.user?.id || 0, req.user?.email || ''])
-    if (!meRes.rows[0]?.is_superadmin) return res.status(403).json({ error: 'Only a Super Admin can change Super Admin status.' })
+    const meRes = await pool.query('SELECT is_superadmin, is_platform_admin FROM users WHERE (id = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [req.user?.id || 0, req.user?.email || '', req.tenantId])
+    if (!meRes.rows[0]?.is_superadmin && !meRes.rows[0]?.is_platform_admin) return res.status(403).json({ error: 'Only a Super Admin can change Super Admin status.' })
     const r = await pool.query(
-      'UPDATE users SET is_superadmin = $1 WHERE id = $2 RETURNING id, name, role, is_superadmin AS "isSuperAdmin";',
-      [!!isSuperAdmin, id]
+      'UPDATE users SET is_superadmin = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, name, role, is_superadmin AS "isSuperAdmin";',
+      [!!isSuperAdmin, id, req.tenantId]
     )
     if (r.rows.length === 0) return res.status(404).json({ error: 'User not found.' })
     res.json({ success: true, user: r.rows[0] })
@@ -3069,15 +3170,15 @@ app.get('/api/notifications', async (req, res) => {
       // Admins/Managers see all notifications
       const r = await pool.query(`
         SELECT id, user_email AS "userEmail", title, text, type, lead_id AS "leadId", time, unread, created_at AS "createdAt"
-        FROM notifications ORDER BY id DESC LIMIT 100;
-      `)
+        FROM notifications WHERE tenant_id = $1 ORDER BY id DESC LIMIT 100;
+      `, [req.tenantId])
       rows = r.rows
     } else {
       // Counselors see only their own + broadcasts (user_email IS NULL)
       const r = await pool.query(`
         SELECT id, user_email AS "userEmail", title, text, type, lead_id AS "leadId", time, unread, created_at AS "createdAt"
-        FROM notifications WHERE user_email = $1 OR user_email IS NULL ORDER BY id DESC LIMIT 50;
-      `, [user.email])
+        FROM notifications WHERE (user_email = $1 OR user_email IS NULL) AND tenant_id = $2 ORDER BY id DESC LIMIT 50;
+      `, [user.email, req.tenantId])
       rows = r.rows
     }
     res.json(rows)
@@ -3094,9 +3195,9 @@ app.put('/api/notifications/read-all', async (req, res) => {
   try { const u = jwt.verify(token, JWT_SECRET); userEmail = u.email } catch {}
   try {
     if (userEmail) {
-      await pool.query('UPDATE notifications SET unread = FALSE WHERE user_email = $1 OR user_email IS NULL;', [userEmail])
+      await pool.query('UPDATE notifications SET unread = FALSE WHERE (user_email = $1 OR user_email IS NULL) AND tenant_id = $2;', [userEmail, req.tenantId])
     } else {
-      await pool.query('UPDATE notifications SET unread = FALSE;')
+      await pool.query('UPDATE notifications SET unread = FALSE WHERE tenant_id = $1;', [req.tenantId])
     }
     res.json({ message: 'All notifications marked as read.' })
   } catch (err) {
@@ -3108,7 +3209,7 @@ app.put('/api/notifications/read-all', async (req, res) => {
 app.put('/api/notifications/:id/read', async (req, res) => {
   const { id } = req.params
   try {
-    await pool.query('UPDATE notifications SET unread = FALSE WHERE id = $1;', [id])
+    await pool.query('UPDATE notifications SET unread = FALSE WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     res.json({ message: 'Notification marked as read.' })
   } catch (err) {
     res.status(500).json({ error: 'Failed to mark notification as read.' })
@@ -3120,10 +3221,10 @@ app.put('/api/notifications', async (req, res) => {
   const { id, unread } = req.body
   try {
     if (id) {
-      const updateRes = await pool.query('UPDATE notifications SET unread = $1 WHERE id = $2 RETURNING id, unread;', [unread, id])
+      const updateRes = await pool.query('UPDATE notifications SET unread = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, unread;', [unread, id, req.tenantId])
       res.json(updateRes.rows[0])
     } else {
-      await pool.query('UPDATE notifications SET unread = FALSE;')
+      await pool.query('UPDATE notifications SET unread = FALSE WHERE tenant_id = $1;', [req.tenantId])
       res.json({ message: 'All notifications marked as read.' })
     }
   } catch (err) {
@@ -3137,9 +3238,29 @@ app.put('/api/notifications', async (req, res) => {
 const SETTINGS_MASK = '••••••'
 const isSecretKey = (k) => /(pass|secret|token|api_key|access_key|salt|hash)/i.test(k) || /_key$/i.test(k)
 
+// Secrets-at-rest encryption (opt-in via SETTINGS_ENC_KEY env). Backward-compatible:
+// legacy plaintext values still read fine; new secret writes are AES-256-GCM encrypted.
+const _encKey = process.env.SETTINGS_ENC_KEY ? crypto.scryptSync(process.env.SETTINGS_ENC_KEY, 'ccrm-settings', 32) : null
+function encryptSecret(plain) {
+  if (!_encKey || plain == null || plain === '') return plain
+  const iv = crypto.randomBytes(12)
+  const c = crypto.createCipheriv('aes-256-gcm', _encKey, iv)
+  const enc = Buffer.concat([c.update(String(plain), 'utf8'), c.final()])
+  return 'enc:v1:' + Buffer.concat([iv, c.getAuthTag(), enc]).toString('base64')
+}
+function decryptSecret(stored) {
+  if (!_encKey || typeof stored !== 'string' || !stored.startsWith('enc:v1:')) return stored
+  try {
+    const raw = Buffer.from(stored.slice(7), 'base64')
+    const d = crypto.createDecipheriv('aes-256-gcm', _encKey, raw.subarray(0, 12))
+    d.setAuthTag(raw.subarray(12, 28))
+    return Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString('utf8')
+  } catch { return stored }
+}
+
 app.get('/api/integration-settings', async (req, res) => {
   try {
-    const r = await pool.query('SELECT key, value FROM integration_settings ORDER BY key;')
+    const r = await pool.query('SELECT key, value FROM integration_settings WHERE tenant_id = $1 ORDER BY key;', [req.tenantId])
     const settings = {}
     for (const row of r.rows) {
       settings[row.key] = isSecretKey(row.key) ? (row.value ? SETTINGS_MASK : '') : row.value
@@ -3161,9 +3282,10 @@ app.post('/api/integration-settings', authenticateToken, async (req, res) => {
       const v = String(value ?? '').trim()               // trim stray copy-paste whitespace
       if (v === SETTINGS_MASK) continue                  // unchanged masked secret — keep existing
       if (isSecretKey(key) && v === '') continue         // never blank-out a secret
+      const stored = isSecretKey(key) ? encryptSecret(v) : v   // encrypt secrets at rest (if key set)
       await pool.query(
-        'INSERT INTO integration_settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW();',
-        [key.substring(0, 100), v]
+        'INSERT INTO integration_settings (key, value, updated_at, tenant_id) VALUES ($1, $2, NOW(), $3) ON CONFLICT (tenant_id, key) DO UPDATE SET value = $2, updated_at = NOW();',
+        [key.substring(0, 100), stored, req.tenantId]
       )
       saved++
     }
@@ -3172,6 +3294,145 @@ app.post('/api/integration-settings', authenticateToken, async (req, res) => {
     console.error('[Integration Settings]', err)
     res.status(500).json({ error: 'Failed to save integration settings.' })
   }
+})
+
+// ── PHASE 3: per-tenant config (branding / entities / lead stages) ──────────
+const GENERIC_ENTITIES = [{ code: 'LEADS', label: 'Leads', kind: 'main' }]
+const GENERIC_STAGES = ['New', 'Contacted', 'Follow Up', 'Interested', 'Not Interested', 'Converted']
+
+function tenantConfigFromRow(t) {
+  const branding = (t.branding && Object.keys(t.branding).length) ? t.branding : {
+    name: t.name,
+    shortName: (t.name || 'CRM').slice(0, 6).toUpperCase(),
+    logoText: (t.name || 'C').charAt(0).toUpperCase(),
+    appTitle: `${t.name} CRM`,
+    primaryColor: '#4f46e5',
+    tagline: 'CRM'
+  }
+  const entities = (Array.isArray(t.entities) && t.entities.length) ? t.entities : GENERIC_ENTITIES
+  const stages = (Array.isArray(t.stages) && t.stages.length) ? t.stages : GENERIC_STAGES
+  return {
+    id: t.id, name: t.name, slug: t.slug, status: t.status, plan: t.plan,
+    allowedDomains: (t.allowed_domains || '').split(',').map(s => s.trim()).filter(Boolean),
+    branding, entities, stages
+  }
+}
+
+// Current tenant's full config (loaded by the app after login)
+app.get('/api/tenant/config', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM tenants WHERE id = $1;', [req.tenantId])
+    if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found.' })
+    res.json(tenantConfigFromRow(r.rows[0]))
+  } catch (e) { res.status(500).json({ error: 'Failed to load tenant config.' }) }
+})
+
+// Public config for the login/landing page — branding + allowed domains only (no auth)
+app.get('/api/tenant/public', async (req, res) => {
+  try {
+    const slug = req.query.slug || (req.headers.host || '').split('.')[0]
+    let r = slug ? await pool.query("SELECT * FROM tenants WHERE slug = $1 AND status = 'Active' LIMIT 1;", [slug]) : { rows: [] }
+    if (!r.rows[0]) r = await pool.query('SELECT * FROM tenants WHERE id = 1;')   // fallback Centurion
+    const cfg = tenantConfigFromRow(r.rows[0])
+    res.json({ name: cfg.name, slug: cfg.slug, branding: cfg.branding, allowedDomains: cfg.allowedDomains })
+  } catch (e) { res.status(500).json({ error: 'Failed to load public config.' }) }
+})
+
+// Update the current tenant's config (tenant Admin only)
+app.put('/api/tenant/config', authenticateToken, async (req, res) => {
+  if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+  const { branding, entities, stages, allowedDomains, name } = req.body
+  try {
+    const sets = [], params = []
+    if (branding !== undefined)       { params.push(JSON.stringify(branding)); sets.push(`branding = $${params.length}::jsonb`) }
+    if (entities !== undefined)       { params.push(JSON.stringify(entities)); sets.push(`entities = $${params.length}::jsonb`) }
+    if (stages !== undefined)         { params.push(JSON.stringify(stages));   sets.push(`stages = $${params.length}::jsonb`) }
+    if (allowedDomains !== undefined) { params.push(Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')); sets.push(`allowed_domains = $${params.length}`) }
+    if (name !== undefined)           { params.push(String(name)); sets.push(`name = $${params.length}`) }
+    if (!sets.length) return res.json({ message: 'Nothing to update.' })
+    params.push(req.tenantId)
+    const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *;`, params)
+    res.json(tenantConfigFromRow(r.rows[0]))
+  } catch (e) { console.error('[tenant/config PUT]', e.message); res.status(500).json({ error: 'Failed to save tenant config.' }) }
+})
+
+// ── PHASE 4: platform admin (manages tenants — above per-tenant admins) ─────
+async function platformAdminOnly(req, res, next) {
+  const token = (req.headers['authorization'] || '').split(' ')[1]
+  if (!token) return res.status(401).json({ error: 'Access token missing.' })
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET)
+    const r = await pool.query('SELECT is_platform_admin FROM users WHERE id = $1;', [decoded.id])
+    if (!r.rows[0]?.is_platform_admin) return res.status(403).json({ error: 'Platform admin only.' })
+    req.user = decoded
+    next()
+  } catch { return res.status(403).json({ error: 'Invalid or expired token.' }) }
+}
+
+// List all tenants (+ basic counts)
+app.get('/api/platform/tenants', platformAdminOnly, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT t.id, t.name, t.slug, t.status, t.plan, t.allowed_domains AS "allowedDomains", t.created_at AS "createdAt",
+             (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id = t.id) AS users,
+             (SELECT COUNT(*)::int FROM leads l WHERE l.tenant_id = t.id) AS leads
+      FROM tenants t ORDER BY t.id;
+    `)
+    res.json(r.rows)
+  } catch (e) { console.error('[platform/tenants GET]', e.message); res.status(500).json({ error: 'Failed to list tenants.' }) }
+})
+
+// Create a tenant + its first admin (one click)
+app.post('/api/platform/tenants', platformAdminOnly, async (req, res) => {
+  const { name, slug, adminName, adminEmail, adminPassword, allowedDomains } = req.body
+  if (!name || !slug || !adminEmail) return res.status(400).json({ error: 'name, slug and adminEmail are required.' })
+  const cleanSlug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '')
+  if (!cleanSlug) return res.status(400).json({ error: 'slug must be alphanumeric.' })
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const dupSlug = await client.query('SELECT id FROM tenants WHERE slug = $1;', [cleanSlug])
+    if (dupSlug.rows.length) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'That slug is already taken.' }) }
+    const dupEmail = await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1);', [adminEmail])
+    if (dupEmail.rows.length) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'That admin email already exists.' }) }
+
+    const tRes = await client.query(
+      `INSERT INTO tenants (name, slug, allowed_domains, status, plan, branding, entities, stages)
+       VALUES ($1, $2, $3, 'Active', 'standard', '{}'::jsonb, '[]'::jsonb, '[]'::jsonb) RETURNING id;`,
+      [name, cleanSlug, Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')]
+    )
+    const tenantId = tRes.rows[0].id
+    const uRes = await client.query(
+      `INSERT INTO users (name, email, password, role, status, entities, is_superadmin, tenant_id)
+       VALUES ($1, $2, $3, 'Admin', 'Active', 'LEADS', TRUE, $4) RETURNING id, name, email;`,
+      [adminName || `${name} Admin`, adminEmail, adminPassword || 'ChangeMe@123', tenantId]
+    )
+    await client.query('COMMIT')
+    res.status(201).json({ success: true, tenant: { id: tenantId, name, slug: cleanSlug }, admin: uRes.rows[0], tempPassword: adminPassword || 'ChangeMe@123' })
+  } catch (e) {
+    await client.query('ROLLBACK')
+    console.error('[platform/tenants POST]', e.message)
+    res.status(500).json({ error: 'Failed to create tenant.' })
+  } finally { client.release() }
+})
+
+// Suspend / activate / rename a tenant
+app.patch('/api/platform/tenants/:id', platformAdminOnly, async (req, res) => {
+  const { status, name, allowedDomains } = req.body
+  if (Number(req.params.id) === 1 && status && status !== 'Active') {
+    return res.status(400).json({ error: 'The primary tenant cannot be suspended.' })
+  }
+  try {
+    const sets = [], params = []
+    if (status !== undefined)         { params.push(status); sets.push(`status = $${params.length}`) }
+    if (name !== undefined)           { params.push(name); sets.push(`name = $${params.length}`) }
+    if (allowedDomains !== undefined) { params.push(Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')); sets.push(`allowed_domains = $${params.length}`) }
+    if (!sets.length) return res.json({ message: 'Nothing to update.' })
+    params.push(req.params.id)
+    const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, slug, status;`, params)
+    if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found.' })
+    res.json(r.rows[0])
+  } catch (e) { console.error('[platform/tenants PATCH]', e.message); res.status(500).json({ error: 'Failed to update tenant.' }) }
 })
 
 // --- FILE UPLOAD ENDPOINTS ---
@@ -3303,8 +3564,8 @@ app.post('/api/leads/check-duplicate', async (req, res) => {
   const { mobile, email } = req.body
   try {
     const r = await pool.query(
-      'SELECT id, name, mobile, email, stage, source FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 5;',
-      [mobile, email]
+      'SELECT id, name, mobile, email, stage, source FROM leads WHERE (mobile = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 5;',
+      [mobile, email, req.tenantId]
     )
     res.json({ duplicates: r.rows, hasDuplicate: r.rows.length > 0 })
   } catch (err) {
@@ -3316,19 +3577,19 @@ app.post('/api/leads/check-duplicate', async (req, res) => {
 // Shared picker: returns the active counsellor/manager with the fewest leads and
 // bumps their counter. Returns 'Unassigned' if there are no eligible users.
 // (function declaration → hoisted, so inbound routes above can call it.)
-async function getNextAssignee() {
+async function getNextAssignee(tenantId = 1) {
   try {
     // Eligible = any active user who isn't an Admin/Finance role. This is tolerant of
     // custom role names (Counsellor / Faculty / Telecaller / etc.), not just the exact
     // 'Counselor'/'Manager' strings — otherwise auto-assign silently finds nobody.
-    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role NOT IN ('Admin', 'Finance') AND COALESCE(exclude_from_assignment, FALSE) = FALSE ORDER BY name;")
+    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role NOT IN ('Admin', 'Finance') AND COALESCE(exclude_from_assignment, FALSE) = FALSE AND tenant_id = $1 ORDER BY name;", [tenantId])
     if (usersRes.rows.length === 0) return 'Unassigned'
 
     // Ensure every active user has a counter row
     for (const u of usersRes.rows) {
       await pool.query(
-        'INSERT INTO lead_assignment_counter (counselor_name, counselor_email) VALUES ($1, $2) ON CONFLICT (counselor_name) DO NOTHING;',
-        [u.name, u.email]
+        'INSERT INTO lead_assignment_counter (counselor_name, counselor_email, tenant_id) VALUES ($1, $2, $3) ON CONFLICT (counselor_name) DO NOTHING;',
+        [u.name, u.email, tenantId]
       )
     }
 
@@ -3336,15 +3597,15 @@ async function getNextAssignee() {
     const counterRes = await pool.query(`
       SELECT lac.counselor_name
       FROM lead_assignment_counter lac
-      JOIN users u ON u.name = lac.counselor_name
-      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE
+      JOIN users u ON u.name = lac.counselor_name AND u.tenant_id = $1
+      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE AND lac.tenant_id = $1
       ORDER BY lac.assignment_count ASC, lac.last_assigned ASC
       LIMIT 1;
-    `)
+    `, [tenantId])
     const assignee = counterRes.rows[0]?.counselor_name || usersRes.rows[0].name
     await pool.query(
-      'UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1;',
-      [assignee]
+      'UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1 AND tenant_id = $2;',
+      [assignee, tenantId]
     )
     return assignee
   } catch (err) {
@@ -3354,7 +3615,7 @@ async function getNextAssignee() {
 }
 
 app.get('/api/leads/next-assignee', async (req, res) => {
-  const assignee = await getNextAssignee()
+  const assignee = await getNextAssignee(req.tenantId)
   if (assignee === 'Unassigned') return res.status(500).json({ error: 'Auto-assignment failed.', assignee })
   res.json({ assignee })
 })
@@ -3363,24 +3624,24 @@ app.get('/api/leads/next-assignee', async (req, res) => {
 app.get('/api/leads/unassigned', async (req, res) => {
   try {
     const unassignedRes = await pool.query(`
-      SELECT COUNT(*) as total FROM leads WHERE owner IS NULL OR owner = '';
-    `)
+      SELECT COUNT(*) as total FROM leads WHERE (owner IS NULL OR owner = '') AND tenant_id = $1;
+    `, [req.tenantId])
     const sourceRes = await pool.query(`
       SELECT
         lead_source,
         COUNT(*) as count
       FROM leads
-      WHERE owner IS NULL OR owner = ''
+      WHERE (owner IS NULL OR owner = '') AND tenant_id = $1
       GROUP BY lead_source
       ORDER BY count DESC;
-    `)
+    `, [req.tenantId])
     const leadsRes = await pool.query(`
       SELECT id, name, email, mobile, lead_source, created_at
       FROM leads
-      WHERE owner IS NULL OR owner = ''
+      WHERE (owner IS NULL OR owner = '') AND tenant_id = $1
       ORDER BY created_at DESC
       LIMIT 100;
-    `)
+    `, [req.tenantId])
     res.json({
       total: parseInt(unassignedRes.rows[0]?.total || 0),
       bySource: sourceRes.rows.map(r => ({ source: r.lead_source, count: parseInt(r.count) })),
@@ -3798,14 +4059,26 @@ app.get('/api/integrations/messaging-provider/:channel', authenticateToken, asyn
 })
 
 // --- FEATURE 3 & 4: META LEAD ADS WEBHOOK ---
-app.get('/api/webhooks/meta-leads', (req, res) => {
-  // Facebook webhook verification
+// Resolve a webhook URL's :tenantSlug → tenant id (defaults to Centurion = 1).
+// Lets each tenant use its own inbound URL (…/meta-leads/acme) without a JWT.
+async function resolveSlugTenant(slug) {
+  if (!slug) return 1
+  try {
+    const r = await pool.query("SELECT id FROM tenants WHERE slug = $1 AND status = 'Active' LIMIT 1;", [slug])
+    return r.rows[0]?.id || 1
+  } catch { return 1 }
+}
+
+// Optional :tenantSlug → base path stays Centurion; /…/<slug> routes to that tenant.
+app.get('/api/webhooks/meta-leads/:tenantSlug?', async (req, res) => {
+  // Facebook webhook verification — verify token is per-tenant (falls back to env)
+  const tid = await resolveSlugTenant(req.params.tenantSlug)
   const mode = req.query['hub.mode']
   const token = req.query['hub.verify_token']
   const challenge = req.query['hub.challenge']
-  const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'ccrm_meta_verify_2026'
+  const VERIFY_TOKEN = (await getIntegrationSetting('meta_verify_token', tid)) || process.env.META_VERIFY_TOKEN || 'ccrm_meta_verify_2026'
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('[Meta Webhook] Verification successful.')
+    console.log(`[Meta Webhook] Verification successful (tenant ${tid}).`)
     return res.status(200).send(challenge)
   }
   res.status(403).json({ error: 'Verification failed.' })
@@ -3813,10 +4086,10 @@ app.get('/api/webhooks/meta-leads', (req, res) => {
 
 // Capture an FB/IG comment: log it + create one auto-assigned lead per commenter.
 // Comments carry no phone/email, so we use a per-commenter pseudo-email for dedupe.
-async function captureSocialComment({ platform, postId, commentId, commenterId, commenterName, text, permalink }) {
+async function captureSocialComment({ platform, postId, commentId, commenterId, commenterName, text, permalink, tenantId = 1 }) {
   if (!commentId) return
   try {
-    const exists = await pool.query('SELECT id FROM social_comments WHERE comment_id = $1 LIMIT 1;', [commentId])
+    const exists = await pool.query('SELECT id FROM social_comments WHERE comment_id = $1 AND tenant_id = $2 LIMIT 1;', [commentId, tenantId])
     if (exists.rows.length > 0) return   // already captured
 
     const sourceLabel = platform === 'instagram' ? 'Instagram Comment' : 'Facebook Comment'
@@ -3824,25 +4097,25 @@ async function captureSocialComment({ platform, postId, commentId, commenterId, 
     const pseudoEmail = `${platform}_${(commenterId || commentId)}@comment.noemail`.substring(0, 100)
 
     let leadId = null
-    const dup = await pool.query('SELECT id FROM leads WHERE LOWER(email) = LOWER($1) LIMIT 1;', [pseudoEmail])
+    const dup = await pool.query('SELECT id FROM leads WHERE LOWER(email) = LOWER($1) AND tenant_id = $2 LIMIT 1;', [pseudoEmail, tenantId])
     if (dup.rows.length > 0) {
       leadId = dup.rows[0].id
     } else {
-      const owner = await getNextAssignee()
+      const owner = await getNextAssignee(tenantId)
       const score = calculateLeadScore({ source: sourceLabel, stage: 'Untouched', mobile: '', email: pseudoEmail, course: '' })
       const ins = await pool.query(
-        `INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color, lead_details)
-         VALUES ($1, $2, '', '', $3, $4, $5, $6, 'Untouched', 'red', $7) RETURNING id;`,
-        [name, pseudoEmail, sourceLabel, owner, new Date().toLocaleString('en-IN', { hour12: true }), score, JSON.stringify({ comment: text || '', platform, permalink: permalink || '', postId: postId || '' })]
+        `INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color, lead_details, tenant_id)
+         VALUES ($1, $2, '', '', $3, $4, $5, $6, 'Untouched', 'red', $7, $8) RETURNING id;`,
+        [name, pseudoEmail, sourceLabel, owner, new Date().toLocaleString('en-IN', { hour12: true }), score, JSON.stringify({ comment: text || '', platform, permalink: permalink || '', postId: postId || '' }), tenantId]
       )
       leadId = ins.rows[0].id
-      if (owner && owner !== 'Unassigned') await alertCounselor(owner, name, 'Comment', sourceLabel, leadId)
+      if (owner && owner !== 'Unassigned') await alertCounselor(owner, name, 'Comment', sourceLabel, leadId, tenantId)
     }
 
     await pool.query(
-      `INSERT INTO social_comments (platform, post_id, comment_id, commenter_id, commenter_name, text, permalink, lead_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (comment_id) DO NOTHING;`,
-      [platform, postId || '', commentId, commenterId || '', name, text || '', permalink || '', leadId]
+      `INSERT INTO social_comments (platform, post_id, comment_id, commenter_id, commenter_name, text, permalink, lead_id, tenant_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (comment_id) DO NOTHING;`,
+      [platform, postId || '', commentId, commenterId || '', name, text || '', permalink || '', leadId, tenantId]
     )
     console.log(`[Social Comment] ${platform} comment captured from ${name}`)
   } catch (e) {
@@ -3850,8 +4123,9 @@ async function captureSocialComment({ platform, postId, commentId, commenterId, 
   }
 }
 
-app.post('/api/webhooks/meta-leads', async (req, res) => {
+app.post('/api/webhooks/meta-leads/:tenantSlug?', async (req, res) => {
   try {
+    req.tenantId = await resolveSlugTenant(req.params.tenantSlug)
     const body = req.body
     if (body.object === 'page') {
       for (const entry of (body.entry || [])) {
@@ -3906,23 +4180,23 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
             }
 
             // Dedup check
-            const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
+            const dupCheck = await pool.query('SELECT id FROM leads WHERE (mobile = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [mobile, email, req.tenantId])
             if (dupCheck.rows.length === 0) {
               // Meta (Facebook/Instagram lead ads) → auto-assign round-robin
               const score = calculateLeadScore({ source: 'Meta', stage: 'Untouched', mobile, email, course })
-              const assignee = await getNextAssignee()
+              const assignee = await getNextAssignee(req.tenantId)
               const newLead = await pool.query(`
-                INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color)
-                VALUES ($1, $2, $3, $4, $5, $6, 'Meta', $9, $7, $8, 'Untouched', 'red')
+                INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, tenant_id)
+                VALUES ($1, $2, $3, $4, $5, $6, 'Meta', $9, $7, $8, 'Untouched', 'red', $10)
                 RETURNING id;
-              `, [name, email, mobile, state, city, course, new Date().toLocaleString('en-IN', { hour12: true }), score, assignee])
+              `, [name, email, mobile, state, city, course, new Date().toLocaleString('en-IN', { hour12: true }), score, assignee, req.tenantId])
 
               if (assignee && assignee !== 'Unassigned') {
-                await alertCounselor(assignee, name, course, 'Meta', newLead.rows[0].id)
+                await alertCounselor(assignee, name, course, 'Meta', newLead.rows[0].id, req.tenantId)
                 console.log(`[Meta Webhook] New lead auto-assigned to ${assignee}: ${name}`)
               } else {
-                await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-                  [`New Meta lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+                await pool.query('INSERT INTO notifications (text, time, type, tenant_id) VALUES ($1, $2, $3, $4);',
+                  [`New Meta lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned', req.tenantId])
                 console.log(`[Meta Webhook] New lead imported UNASSIGNED (no eligible counsellor): ${name}`)
               }
             } else {
@@ -3939,7 +4213,8 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
               commenterId: v.from?.id,
               commenterName: v.from?.name,
               text: v.message,
-              permalink: v.post_id ? `https://www.facebook.com/${v.post_id}` : ''
+              permalink: v.post_id ? `https://www.facebook.com/${v.post_id}` : '',
+              tenantId: req.tenantId
             })
           }
         }
@@ -3958,7 +4233,8 @@ app.post('/api/webhooks/meta-leads', async (req, res) => {
               commenterId: v.from?.id,
               commenterName: v.from?.username,
               text: v.text,
-              permalink: ''
+              permalink: '',
+              tenantId: req.tenantId
             })
           }
         }
@@ -3979,6 +4255,7 @@ app.get('/api/social-comments', authenticateToken, async (req, res) => {
     const offset = (page - 1) * limit
     const platform = req.query.platform || ''
     const where = []; const params = []
+    params.push(req.tenantId); where.push(`tenant_id = $${params.length}`)
     if (platform) { params.push(platform); where.push(`platform = $${params.length}`) }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM social_comments ${whereSql};`, params)
@@ -3994,25 +4271,26 @@ app.get('/api/social-comments', authenticateToken, async (req, res) => {
 })
 
 // Google Ads Lead Form Webhook
-app.post('/api/webhooks/google-leads', async (req, res) => {
+app.post('/api/webhooks/google-leads/:tenantSlug?', async (req, res) => {
   try {
+    req.tenantId = await resolveSlugTenant(req.params.tenantSlug)
     const lead = req.body
     const name = lead.user_column_data?.find(f => f.column_name === 'FULL_NAME')?.string_value || lead.full_name || 'Google Lead'
     const email = lead.user_column_data?.find(f => f.column_name === 'EMAIL')?.string_value || lead.email || `google_${Date.now()}@noemail.com`
     const mobile = lead.user_column_data?.find(f => f.column_name === 'PHONE_NUMBER')?.string_value || lead.phone_number || '0000000000'
     const course = lead.user_column_data?.find(f => f.column_name === 'COURSE')?.string_value || 'B.Tech CSE'
 
-    const dupCheck = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
+    const dupCheck = await pool.query('SELECT id FROM leads WHERE (mobile = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [mobile, email, req.tenantId])
     if (dupCheck.rows.length === 0) {
       // Inbound leads land UNASSIGNED — admin/manager distributes manually
       const score = calculateLeadScore({ source: 'Google Ads', stage: 'Untouched', mobile, email, course })
       await pool.query(`
-        INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color)
-        VALUES ($1, $2, $3, $4, 'Google Ads', 'Unassigned', $5, $6, 'Untouched', 'red')
+        INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color, tenant_id)
+        VALUES ($1, $2, $3, $4, 'Google Ads', 'Unassigned', $5, $6, 'Untouched', 'red', $7)
         RETURNING id;
-      `, [name, email, mobile, course, new Date().toLocaleString('en-IN', { hour12: true }), score])
-      await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-        [`New Google Ads lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+      `, [name, email, mobile, course, new Date().toLocaleString('en-IN', { hour12: true }), score, req.tenantId])
+      await pool.query('INSERT INTO notifications (text, time, type, tenant_id) VALUES ($1, $2, $3, $4);',
+        [`New Google Ads lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned', req.tenantId])
     }
     res.status(200).json({ received: true })
   } catch (err) {
@@ -4105,11 +4383,11 @@ function calculateLeadScore({ source, stage, mobile, email, course, state }) {
 app.post('/api/leads/recalculate-score/:id', async (req, res) => {
   const { id } = req.params
   try {
-    const r = await pool.query('SELECT * FROM leads WHERE id = $1;', [id])
+    const r = await pool.query('SELECT * FROM leads WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Lead not found.' })
     const lead = r.rows[0]
     const score = calculateLeadScore({ source: lead.source, stage: lead.stage, mobile: lead.mobile, email: lead.email, course: lead.course })
-    await pool.query('UPDATE leads SET score = $1 WHERE id = $2;', [score, id])
+    await pool.query('UPDATE leads SET score = $1 WHERE id = $2 AND tenant_id = $3;', [score, id, req.tenantId])
     res.json({ score })
   } catch (err) {
     res.status(500).json({ error: 'Score recalculation failed.' })
@@ -4123,13 +4401,13 @@ app.post('/api/leads/bulk-whatsapp', async (req, res) => {
 
   try {
     // Read WhatsApp config from DB integration_settings (the source of truth)
-    const waToken = await getIntegrationSetting('whatsapp_access_token')
-    const waPhone = await getIntegrationSetting('whatsapp_phone_number_id')
+    const waToken = await getIntegrationSetting('whatsapp_access_token', req.tenantId)
+    const waPhone = await getIntegrationSetting('whatsapp_phone_number_id', req.tenantId)
     const waApiUrl = 'https://graph.facebook.com/v21.0'
     const isConfigured = !!(waToken && waPhone)
 
     const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
-    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
+    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders}) AND tenant_id = $${leadIds.length + 1};`, [...leadIds, req.tenantId])
     const leads = leadsRes.rows
 
     let sentCount = 0, failed = 0
@@ -4165,8 +4443,8 @@ app.post('/api/leads/bulk-whatsapp', async (req, res) => {
                  : 'Sent'
 
     await pool.query(
-      'INSERT INTO whatsapp_logs (campaign_name, message_template, recipient_count, status, sent_by, channel) VALUES ($1, $2, $3, $4, $5, $6);',
-      [templateName || 'Bulk Outreach', message.substring(0, 255), sentCount, status, sentBy || 'Unknown', 'whatsapp']
+      'INSERT INTO whatsapp_logs (campaign_name, message_template, recipient_count, status, sent_by, channel, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7);',
+      [templateName || 'Bulk Outreach', message.substring(0, 255), sentCount, status, sentBy || 'Unknown', 'whatsapp', req.tenantId]
     )
 
     if (!isConfigured) {
@@ -4266,15 +4544,15 @@ app.post('/api/leads/bulk-sms', async (req, res) => {
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
   try {
-    const provider    = await getIntegrationSetting('sms_provider')
-    const apiKey      = await getIntegrationSetting('sms_api_key')
-    const apiSid      = await getIntegrationSetting('sms_api_sid')
-    const senderId    = await getIntegrationSetting('sms_sender_id')
-    const fromNumber  = await getIntegrationSetting('sms_from_number')
-    const templateId  = await getIntegrationSetting('sms_template_id')
+    const provider    = await getIntegrationSetting('sms_provider', req.tenantId)
+    const apiKey      = await getIntegrationSetting('sms_api_key', req.tenantId)
+    const apiSid      = await getIntegrationSetting('sms_api_sid', req.tenantId)
+    const senderId    = await getIntegrationSetting('sms_sender_id', req.tenantId)
+    const fromNumber  = await getIntegrationSetting('sms_from_number', req.tenantId)
+    const templateId  = await getIntegrationSetting('sms_template_id', req.tenantId)
 
     const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
-    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
+    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders}) AND tenant_id = $${leadIds.length + 1};`, [...leadIds, req.tenantId])
     const leads = leadsRes.rows
 
     let sentCount = 0, failed = 0
@@ -4297,7 +4575,7 @@ app.post('/api/leads/bulk-sms', async (req, res) => {
       }
     }
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`SMS bulk via ${provider || 'msg91'}: ${sentCount} sent, ${failed} failed`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`SMS bulk via ${provider || 'msg91'}: ${sentCount} sent, ${failed} failed`, 'Just now', req.tenantId])
     res.json({ success: true, sent: sentCount, failed, total: leads.length, provider: provider || 'msg91' })
   } catch (err) {
     console.error('[SMS Bulk]', err)
@@ -4460,7 +4738,8 @@ app.get('/api/rcs/templates', async (req, res) => {
     const r = await pool.query(
       `SELECT id, template_id AS "templateId", name, rcs_type AS "rcsType", status,
               provider, variables, preview, created_at AS "createdAt", approved_at AS "approvedAt"
-       FROM rcs_templates ORDER BY status DESC, created_at DESC;`
+       FROM rcs_templates WHERE tenant_id = $1 ORDER BY status DESC, created_at DESC;`,
+      [req.tenantId]
     )
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -4471,8 +4750,8 @@ app.post('/api/rcs/templates', async (req, res) => {
   if (!templateId) return res.status(400).json({ error: 'templateId required.' })
   try {
     const r = await pool.query(`
-      INSERT INTO rcs_templates (template_id, name, rcs_type, status, provider, variables, preview, approved_at)
-      VALUES ($1, $2, $3, $4::text, $5, $6::jsonb, $7, CASE WHEN $4::text = 'APPROVED' THEN NOW() ELSE NULL END)
+      INSERT INTO rcs_templates (template_id, name, rcs_type, status, provider, variables, preview, approved_at, tenant_id)
+      VALUES ($1, $2, $3, $4::text, $5, $6::jsonb, $7, CASE WHEN $4::text = 'APPROVED' THEN NOW() ELSE NULL END, $8)
       ON CONFLICT (template_id) DO UPDATE
         SET name      = EXCLUDED.name,
             rcs_type  = EXCLUDED.rcs_type,
@@ -4482,14 +4761,14 @@ app.post('/api/rcs/templates', async (req, res) => {
             preview   = EXCLUDED.preview,
             approved_at = CASE WHEN EXCLUDED.status = 'APPROVED' AND rcs_templates.status != 'APPROVED' THEN NOW() ELSE rcs_templates.approved_at END
       RETURNING id, template_id AS "templateId", name, rcs_type AS "rcsType", status, provider, variables, preview;
-    `, [templateId, name || templateId, (rcsType || 'BASIC').toUpperCase(), (status || 'PENDING').toUpperCase(), provider || 'rcssms', JSON.stringify(variables || []), preview || ''])
+    `, [templateId, name || templateId, (rcsType || 'BASIC').toUpperCase(), (status || 'PENDING').toUpperCase(), provider || 'rcssms', JSON.stringify(variables || []), preview || '', req.tenantId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 app.delete('/api/rcs/templates/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM rcs_templates WHERE id = $1;', [req.params.id])
+    await pool.query('DELETE FROM rcs_templates WHERE id = $1 AND tenant_id = $2;', [req.params.id, req.tenantId])
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -4620,20 +4899,21 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
   try {
-    const provider     = await getIntegrationSetting('rcs_provider')
-    const apiKey       = await getIntegrationSetting('rcs_api_key')
-    const clientSecret = await getIntegrationSetting('rcs_client_secret')
-    const agentId      = await getIntegrationSetting('rcs_agent_id')
-    const senderId     = await getIntegrationSetting('rcs_sender_id')
-    const username     = await getIntegrationSetting('rcs_username')
-    const password     = await getIntegrationSetting('rcs_password')
-    const rcsid        = await getIntegrationSetting('rcs_rcsid')
+    const tid = req.tenantId
+    const provider     = await getIntegrationSetting('rcs_provider', tid)
+    const apiKey       = await getIntegrationSetting('rcs_api_key', tid)
+    const clientSecret = await getIntegrationSetting('rcs_client_secret', tid)
+    const agentId      = await getIntegrationSetting('rcs_agent_id', tid)
+    const senderId     = await getIntegrationSetting('rcs_sender_id', tid)
+    const username     = await getIntegrationSetting('rcs_username', tid)
+    const password     = await getIntegrationSetting('rcs_password', tid)
+    const rcsid        = await getIntegrationSetting('rcs_rcsid', tid)
     // Per-call template override > saved default
-    const templateId = requestedTemplateId || await getIntegrationSetting('rcs_template_id')
-    const rcsType    = requestedRcsType    || await getIntegrationSetting('rcs_type')
+    const templateId = requestedTemplateId || await getIntegrationSetting('rcs_template_id', tid)
+    const rcsType    = requestedRcsType    || await getIntegrationSetting('rcs_type', tid)
 
     const placeholders = leadIds.map((_, i) => `$${i+1}`).join(',')
-    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders});`, leadIds)
+    const leadsRes = await pool.query(`SELECT id, name, mobile FROM leads WHERE id IN (${placeholders}) AND tenant_id = $${leadIds.length + 1};`, [...leadIds, tid])
     const leads = leadsRes.rows
 
     // For rcssms, batch send up to 500 numbers in one call (msisdn supports comma-separated)
@@ -4683,7 +4963,7 @@ app.post('/api/leads/bulk-rcs', async (req, res) => {
       }
     }
 
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`RCS bulk via ${provider || 'gupshup'}: ${sentCount} sent, ${failed} failed`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`RCS bulk via ${provider || 'gupshup'}: ${sentCount} sent, ${failed} failed`, 'Just now', req.tenantId])
     res.json({ success: true, sent: sentCount, failed, total: leads.length, provider: provider || 'gupshup' })
   } catch (err) {
     console.error('[RCS Bulk]', err)
@@ -4698,11 +4978,12 @@ app.post('/api/leads/bulk-email', authenticateToken, async (req, res) => {
   if (!subject || !String(subject).trim()) return res.status(400).json({ error: 'Subject is required.' })
   if (!message || !String(message).trim()) return res.status(400).json({ error: 'Message is required.' })
   try {
-    const cfg = await createMailTransporter()
+    const cfg = await createMailTransporter(req.tenantId)
     if (cfg.error) return res.status(400).json({ error: cfg.error })
 
-    const placeholders = leadIds.map((_, i) => `$${i + 1}`).join(',')
-    const leadsRes = await pool.query(`SELECT id, name, email FROM leads WHERE id IN (${placeholders});`, leadIds.map(Number).filter(Boolean))
+    const ids = leadIds.map(Number).filter(Boolean)
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',')
+    const leadsRes = await pool.query(`SELECT id, name, email FROM leads WHERE id IN (${placeholders}) AND tenant_id = $${ids.length + 1};`, [...ids, req.tenantId])
 
     let sent = 0, failed = 0, skipped = 0
     for (const lead of leadsRes.rows) {
@@ -4716,8 +4997,8 @@ app.post('/api/leads/bulk-email', authenticateToken, async (req, res) => {
         sent++
       } catch (e) { failed++; console.error('[Bulk Email]', email, e.message) }
     }
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`Bulk email by ${req.user?.email || 'user'}: ${sent} sent · ${failed} failed · ${skipped} no-email`, 'Just now']).catch(() => {})
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`Bulk email by ${req.user?.email || 'user'}: ${sent} sent · ${failed} failed · ${skipped} no-email`, 'Just now', req.tenantId]).catch(() => {})
     res.json({ success: true, sent, failed, skipped, total: leadsRes.rows.length })
   } catch (err) {
     console.error('[Bulk Email]', err.message)
@@ -4730,15 +5011,15 @@ app.post('/api/drip/enroll', async (req, res) => {
   const { leadId, leadName, leadEmail, leadMobile, sequenceName } = req.body
   try {
     // Check if already enrolled
-    const existing = await pool.query('SELECT id FROM drip_sequences WHERE lead_id = $1 AND status = $2;', [leadId, 'Active'])
+    const existing = await pool.query('SELECT id FROM drip_sequences WHERE lead_id = $1 AND status = $2 AND tenant_id = $3;', [leadId, 'Active', req.tenantId])
     if (existing.rows.length > 0) return res.json({ message: 'Already enrolled in drip sequence.' })
 
     const nextActionAt = new Date()
     const insertRes = await pool.query(`
-      INSERT INTO drip_sequences (lead_id, lead_name, lead_email, lead_mobile, sequence_name, current_step, status, next_action_at)
-      VALUES ($1, $2, $3, $4, $5, 0, 'Active', $6)
+      INSERT INTO drip_sequences (lead_id, lead_name, lead_email, lead_mobile, sequence_name, current_step, status, next_action_at, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, 0, 'Active', $6, $7)
       RETURNING *;
-    `, [leadId, leadName, leadEmail, leadMobile, sequenceName || 'Standard Admission', nextActionAt])
+    `, [leadId, leadName, leadEmail, leadMobile, sequenceName || 'Standard Admission', nextActionAt, req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to enroll in drip sequence.' })
@@ -4747,7 +5028,7 @@ app.post('/api/drip/enroll', async (req, res) => {
 
 app.get('/api/drip', async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM drip_sequences ORDER BY id DESC LIMIT 100;')
+    const r = await pool.query('SELECT * FROM drip_sequences WHERE tenant_id = $1 ORDER BY id DESC LIMIT 100;', [req.tenantId])
     res.json(r.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch drip sequences.' })
@@ -4778,13 +5059,13 @@ app.post('/api/drip/process', async (req, res) => {
         continue
       }
 
-      // Log the action
-      await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-        [`[Drip] ${step.type} → ${seq.lead_name}: ${step.message.replace('{name}', seq.lead_name).substring(0, 80)}`, 'Just now'])
+      // Log the action (tagged to the sequence's tenant)
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+        [`[Drip] ${step.type} → ${seq.lead_name}: ${step.message.replace('{name}', seq.lead_name).substring(0, 80)}`, 'Just now', seq.tenant_id || 1])
 
       if (step.type === 'Task') {
-        await pool.query(`INSERT INTO tasks (title, type, priority, due, status, assignee, lead) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
-          [step.message.replace('{name}', seq.lead_name), 'Call', 'High', new Date().toLocaleString('en-IN', { hour12: true }), 'Pending', 'Unassigned', seq.lead_name])
+        await pool.query(`INSERT INTO tasks (title, type, priority, due, status, assignee, lead, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+          [step.message.replace('{name}', seq.lead_name), 'Call', 'High', new Date().toLocaleString('en-IN', { hour12: true }), 'Pending', 'Unassigned', seq.lead_name, seq.tenant_id || 1])
       }
 
       // Advance to next step
@@ -4809,17 +5090,18 @@ app.post('/api/drip/process', async (req, res) => {
 })
 
 // --- FEATURE 7: SOURCE-TO-ENROLLMENT FUNNEL ---
-app.get('/api/reports/funnel', async (req, res) => {
+app.get('/api/reports/funnel', authenticateToken, async (req, res) => {
   try {
     const { source, campaign } = req.query
-    const whereClause = source ? `WHERE l.source = '${source.replace(/'/g,"''")}' ` : ''
+    const tnt = parseInt(req.tenantId) || 1   // trusted integer → safe to interpolate
+    const srcCond = source ? ` AND source = '${source.replace(/'/g,"''")}'` : ''
 
-    const leads = await pool.query(`SELECT COUNT(*) FROM leads ${whereClause};`)
-    const contacted = await pool.query(`SELECT COUNT(*) FROM leads ${whereClause ? whereClause + "AND " : "WHERE "} stage IN ('Contacted', 'Follow Up', 'Interested', 'Qualified Leads', 'Converted');`)
-    const apps = await pool.query(`SELECT COUNT(*) FROM applications;`)
-    const payments = await pool.query(`SELECT COUNT(*) FROM payments WHERE status = 'Approved';`)
-    const enrolled = await pool.query(`SELECT COUNT(*) FROM applications WHERE stage IN ('Enrolment', 'Enrolments');`)
-    const sourceBreakdown = await pool.query(`SELECT source, COUNT(*) as count FROM leads GROUP BY source ORDER BY count DESC;`)
+    const leads = await pool.query(`SELECT COUNT(*) FROM leads WHERE tenant_id = ${tnt}${srcCond};`)
+    const contacted = await pool.query(`SELECT COUNT(*) FROM leads WHERE tenant_id = ${tnt}${srcCond} AND stage IN ('Contacted', 'Follow Up', 'Interested', 'Qualified Leads', 'Converted');`)
+    const apps = await pool.query(`SELECT COUNT(*) FROM applications WHERE tenant_id = ${tnt};`)
+    const payments = await pool.query(`SELECT COUNT(*) FROM payments WHERE status = 'Approved' AND tenant_id = ${tnt};`)
+    const enrolled = await pool.query(`SELECT COUNT(*) FROM applications WHERE stage IN ('Enrolment', 'Enrolments') AND tenant_id = ${tnt};`)
+    const sourceBreakdown = await pool.query(`SELECT source, COUNT(*) as count FROM leads WHERE tenant_id = ${tnt} GROUP BY source ORDER BY count DESC;`)
 
     res.json({
       funnel: [
@@ -4837,18 +5119,19 @@ app.get('/api/reports/funnel', async (req, res) => {
 })
 
 // --- FEATURE 8: COUNSELOR LEADERBOARD ---
-app.get('/api/reports/leaderboard', async (req, res) => {
+app.get('/api/reports/leaderboard', authenticateToken, async (req, res) => {
   try {
-    const usersRes = await pool.query("SELECT id, name, email FROM users WHERE status = 'Active' ORDER BY name;")
+    const usersRes = await pool.query("SELECT id, name, email FROM users WHERE status = 'Active' AND tenant_id = $1 ORDER BY name;", [req.tenantId])
     const leaderboard = []
+    const tnt = req.tenantId
     for (const u of usersRes.rows) {
       const simplName = u.name.split(' ')[0]
       const q = (sql, params) => pool.query(sql, params).then(r => parseInt(r.rows[0].count))
-      const leadsTotal = await q("SELECT COUNT(*) FROM leads WHERE owner = $1 OR owner LIKE $2;", [u.name, `${simplName}%`])
-      const converted = await q("SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND stage IN ('Qualified Leads','Converted');", [u.name, `${simplName}%`])
-      const enrolled = await q("SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND stage IN ('Enrolment','Enrolments');", [u.name, `${simplName}%`])
-      const payApproved = await q("SELECT COUNT(*) FROM payments p JOIN applications a ON p.app_no = a.app_no WHERE (a.owner = $1 OR a.owner LIKE $2) AND p.status = 'Approved';", [u.name, `${simplName}%`])
-      const callsCount = await q("SELECT COUNT(*) FROM call_logs WHERE counselor = $1 OR counselor LIKE $2;", [u.name, `${simplName}%`])
+      const leadsTotal = await q("SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND tenant_id = $3;", [u.name, `${simplName}%`, tnt])
+      const converted = await q("SELECT COUNT(*) FROM leads WHERE (owner = $1 OR owner LIKE $2) AND stage IN ('Qualified Leads','Converted') AND tenant_id = $3;", [u.name, `${simplName}%`, tnt])
+      const enrolled = await q("SELECT COUNT(*) FROM applications WHERE (owner = $1 OR owner LIKE $2) AND stage IN ('Enrolment','Enrolments') AND tenant_id = $3;", [u.name, `${simplName}%`, tnt])
+      const payApproved = await q("SELECT COUNT(*) FROM payments p JOIN applications a ON p.app_no = a.app_no WHERE (a.owner = $1 OR a.owner LIKE $2) AND p.status = 'Approved' AND a.tenant_id = $3;", [u.name, `${simplName}%`, tnt])
+      const callsCount = await q("SELECT COUNT(*) FROM call_logs WHERE (counselor = $1 OR counselor LIKE $2) AND tenant_id = $3;", [u.name, `${simplName}%`, tnt])
       const convRate = leadsTotal > 0 ? ((converted / leadsTotal) * 100).toFixed(1) : '0.0'
       leaderboard.push({ name: u.name, email: u.email, leads: leadsTotal, converted, enrolled, payApproved, calls: callsCount, convRate: parseFloat(convRate) })
     }
@@ -4861,12 +5144,13 @@ app.get('/api/reports/leaderboard', async (req, res) => {
 })
 
 // --- FEATURE 10: PUBLIC INQUIRY FORM ---
-app.post('/api/public/inquiry', async (req, res) => {
+app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
   const { name, email, mobile, state, city, course, source } = req.body
   if (!name || !mobile) return res.status(400).json({ error: 'Name and mobile are required.' })
   try {
+    const tenantId = await resolveSlugTenant(req.params.tenantSlug || req.query.tenant)
     // Dedup check
-    const dup = await pool.query('SELECT id FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email || ''])
+    const dup = await pool.query('SELECT id FROM leads WHERE (mobile = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [mobile, email || '', tenantId])
     if (dup.rows.length > 0) {
       return res.status(200).json({ message: 'Your inquiry was already received. Our team will contact you shortly.', duplicate: true })
     }
@@ -4876,20 +5160,20 @@ app.post('/api/public/inquiry', async (req, res) => {
     const socialMediaSources = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
     const isFromSocialMedia = source && socialMediaSources.some(sm => source.toLowerCase().includes(sm))
     const leadSource = source?.toLowerCase().includes('facebook') ? 'facebook' : 'form'
-    const owner = isFromSocialMedia ? await getNextAssignee() : 'Unassigned'
+    const owner = isFromSocialMedia ? await getNextAssignee(tenantId) : 'Unassigned'
     const insertRes = await pool.query(`
-      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $11, $8, $9, 'Untouched', 'red', $10)
+      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $11, $8, $9, 'Untouched', 'red', $10, $12)
       RETURNING id, name, course;
-    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, owner])
+    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, owner, tenantId])
 
     const pubLead = insertRes.rows[0]
     if (owner && owner !== 'Unassigned') {
-      await alertCounselor(owner, name, course || 'B.Tech CSE', source || 'Website', pubLead.id)
+      await alertCounselor(owner, name, course || 'B.Tech CSE', source || 'Website', pubLead.id, tenantId)
     } else {
       // Notify admins a new unassigned lead arrived from the landing page
-      await pool.query('INSERT INTO notifications (text, time, type) VALUES ($1, $2, $3);',
-        [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned'])
+      await pool.query('INSERT INTO notifications (text, time, type, tenant_id) VALUES ($1, $2, $3, $4);',
+        [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned', tenantId])
     }
 
     res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: pubLead })
@@ -5500,13 +5784,13 @@ app.get('/api/reports/call-activity', authenticateToken, async (req, res) => {
       ? await pool.query(`
           SELECT program AS key, stage, COUNT(*)::int AS count
           FROM leads
-          WHERE program IS NOT NULL AND program <> ''
-          GROUP BY program, stage ORDER BY program;`)
+          WHERE program IS NOT NULL AND program <> '' AND tenant_id = $1
+          GROUP BY program, stage ORDER BY program;`, [req.tenantId])
       : await pool.query(`
           SELECT owner AS key, stage, COUNT(*)::int AS count
           FROM leads
-          WHERE owner IS NOT NULL AND owner <> '' AND owner <> 'Unassigned'
-          GROUP BY owner, stage ORDER BY owner;`)
+          WHERE owner IS NOT NULL AND owner <> '' AND owner <> 'Unassigned' AND tenant_id = $1
+          GROUP BY owner, stage ORDER BY owner;`, [req.tenantId])
     const map = {}
     for (const row of r.rows) {
       if (!map[row.key]) map[row.key] = { key: row.key, stages: {}, total: 0 }
@@ -5531,9 +5815,9 @@ app.get('/api/reports/call-activity/leads', authenticateToken, async (req, res) 
     const col = byProgram ? 'program' : 'owner'
     const r = await pool.query(`
       SELECT id, name, mobile, owner, program, stage, follow_up_date AS "followUpDate", reg_date AS "regDate"
-      FROM leads WHERE ${col} = $1 AND stage = $2
+      FROM leads WHERE ${col} = $1 AND stage = $2 AND tenant_id = $3
       ORDER BY id DESC LIMIT 500;
-    `, [val, stage])
+    `, [val, stage, req.tenantId])
     res.json(r.rows)
   } catch (err) {
     console.error('[Call Activity drill]', err.message)
@@ -5544,7 +5828,7 @@ app.get('/api/reports/call-activity/leads', authenticateToken, async (req, res) 
 // --- FEATURE 14: GOOGLE SHEETS AUTO-SYNC ---
 // Shared sync routine — used by the manual endpoint and the 5-min cron.
 // New leads are auto-assigned (round-robin) and the counsellor is alerted.
-async function syncGoogleSheet({ sheetId, apiKey, autoAssign = true } = {}) {
+async function syncGoogleSheet({ sheetId, apiKey, autoAssign = true, tenantId = 1 } = {}) {
   const id  = String(sheetId || '').trim()
   const key = String(apiKey || process.env.GOOGLE_SHEETS_API_KEY || '').trim()
   if (!id)  return { error: 'Google Sheet ID required.' }
@@ -5572,22 +5856,22 @@ async function syncGoogleSheet({ sheetId, apiKey, autoAssign = true } = {}) {
     const source = obj.source || 'Google Sheets'
 
     if (mobile.length < 10) { skipped++; continue }
-    const dup = await pool.query('SELECT id FROM leads WHERE mobile = $1 LIMIT 1;', [mobile])
+    const dup = await pool.query('SELECT id FROM leads WHERE mobile = $1 AND tenant_id = $2 LIMIT 1;', [mobile, tenantId])
     if (dup.rows.length > 0) { skipped++; continue }
 
     const score = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
-    const owner = autoAssign ? await getNextAssignee() : 'Unassigned'
+    const owner = autoAssign ? await getNextAssignee(tenantId) : 'Unassigned'
     const ins = await pool.query(
-      `INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Untouched','red') RETURNING id;`,
-      [name.substring(0, 100), email.substring(0, 100), mobile.substring(0, 50), course.substring(0, 100), source.substring(0, 100), owner, new Date().toLocaleString('en-IN', { hour12: true }), score]
+      `INSERT INTO leads (name, email, mobile, course, source, owner, reg_date, score, stage, stage_color, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Untouched','red',$9) RETURNING id;`,
+      [name.substring(0, 100), email.substring(0, 100), mobile.substring(0, 50), course.substring(0, 100), source.substring(0, 100), owner, new Date().toLocaleString('en-IN', { hour12: true }), score, tenantId]
     )
     if (autoAssign && owner && owner !== 'Unassigned') {
-      await alertCounselor(owner, name, course, source, ins.rows[0].id)
+      await alertCounselor(owner, name, course, source, ins.rows[0].id, tenantId)
     }
     synced++
   }
   if (synced > 0) {
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Google Sheets sync: ${synced} new leads imported, ${skipped} skipped`, 'Just now']).catch(() => {})
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Google Sheets sync: ${synced} new leads imported, ${skipped} skipped`, 'Just now', tenantId]).catch(() => {})
   }
   return { synced, skipped, total: rows.length }
 }
@@ -5600,7 +5884,7 @@ app.post('/api/integrations/sheets-sync', async (req, res) => {
   const apiKey  = bodyKey   || await getIntegrationSetting('sheets_api_key')
   if (!sheetId) return res.status(400).json({ error: 'Google Sheet ID required.' })
   try {
-    const result = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true })
+    const result = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true, tenantId: req.tenantId })
     if (result.error) return res.status(400).json({ error: result.error })
     res.json({ success: true, ...result })
   } catch (err) {
@@ -5636,7 +5920,7 @@ app.post('/api/student/login', async (req, res) => {
 // --- FEATURE 16: CALL LOGS ---
 app.get('/api/calls', async (req, res) => {
   try {
-    const r = await pool.query('SELECT id, lead_name AS "leadName", lead_mobile AS "leadMobile", counselor, duration, outcome, notes, called_at AS "calledAt" FROM call_logs ORDER BY id DESC LIMIT 200;')
+    const r = await pool.query('SELECT id, lead_name AS "leadName", lead_mobile AS "leadMobile", counselor, duration, outcome, notes, called_at AS "calledAt" FROM call_logs WHERE tenant_id = $1 ORDER BY id DESC LIMIT 200;', [req.tenantId])
     res.json(r.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch call logs.' })
@@ -5648,14 +5932,14 @@ app.post('/api/calls', async (req, res) => {
   if (!leadMobile) return res.status(400).json({ error: 'Lead mobile required.' })
   try {
     const insertRes = await pool.query(`
-      INSERT INTO call_logs (lead_name, lead_mobile, counselor, duration, outcome, notes)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO call_logs (lead_name, lead_mobile, counselor, duration, outcome, notes, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, lead_name AS "leadName", lead_mobile AS "leadMobile", counselor, duration, outcome, notes, called_at AS "calledAt";
-    `, [leadName, leadMobile, counselor, duration || '0:00', outcome || 'Called', notes || ''])
+    `, [leadName, leadMobile, counselor, duration || '0:00', outcome || 'Called', notes || '', req.tenantId])
 
     // Update lead stage if connected
     if (outcome && outcome !== 'No Answer' && leadName) {
-      await pool.query("UPDATE leads SET stage = CASE WHEN stage = 'Untouched' THEN 'Contacted' ELSE stage END, stage_color = CASE WHEN stage = 'Untouched' THEN 'blue' ELSE stage_color END WHERE name = $1;", [leadName])
+      await pool.query("UPDATE leads SET stage = CASE WHEN stage = 'Untouched' THEN 'Contacted' ELSE stage END, stage_color = CASE WHEN stage = 'Untouched' THEN 'blue' ELSE stage_color END WHERE name = $1 AND tenant_id = $2;", [leadName, req.tenantId])
     }
 
     res.status(201).json(insertRes.rows[0])
@@ -5674,8 +5958,9 @@ app.get('/api/campus/stats', async (req, res) => {
         SUM(CASE WHEN stage IN ('Enrolment', 'Enrolments') THEN 1 ELSE 0 END) AS enrolled,
         SUM(CASE WHEN pay_status = 'Payment Approved' OR pay_status = 'Approved' THEN 1 ELSE 0 END) AS paid
       FROM applications
+      WHERE tenant_id = $1
       GROUP BY campus ORDER BY applications DESC;
-    `)
+    `, [req.tenantId])
     const CAMPUSES = ['Bhubaneswar', 'Vizianagaram', 'Paralakhemundi', 'Balasore']
     const result = CAMPUSES.map(name => {
       const row = campusStats.rows.find(r => r.campus === name) || {}
@@ -5742,7 +6027,7 @@ app.get('/api/targets/achievement', async (req, res) => {
 // --- FEATURE 20: EMAIL CAMPAIGN BUILDER ---
 app.get('/api/email-campaigns', async (req, res) => {
   try {
-    const r = await pool.query('SELECT id, name, subject, segment, status, sent_count AS "sentCount", open_count AS "openCount", click_count AS "clickCount", created_at AS "createdAt", sent_at AS "sentAt" FROM email_campaigns ORDER BY id DESC;')
+    const r = await pool.query('SELECT id, name, subject, segment, status, sent_count AS "sentCount", open_count AS "openCount", click_count AS "clickCount", created_at AS "createdAt", sent_at AS "sentAt" FROM email_campaigns WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(r.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch email campaigns.' })
@@ -5754,10 +6039,10 @@ app.post('/api/email-campaigns', async (req, res) => {
   if (!name || !subject) return res.status(400).json({ error: 'Campaign name and subject required.' })
   try {
     const insertRes = await pool.query(`
-      INSERT INTO email_campaigns (name, subject, template, segment, status)
-      VALUES ($1, $2, $3, $4, 'Draft')
+      INSERT INTO email_campaigns (name, subject, template, segment, status, tenant_id)
+      VALUES ($1, $2, $3, $4, 'Draft', $5)
       RETURNING id, name, subject, segment, status, sent_count AS "sentCount", open_count AS "openCount", click_count AS "clickCount", created_at AS "createdAt";
-    `, [name, subject, template || '', segment || 'All Leads'])
+    `, [name, subject, template || '', segment || 'All Leads', req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to create email campaign.' })
@@ -5767,7 +6052,7 @@ app.post('/api/email-campaigns', async (req, res) => {
 app.post('/api/email-campaigns/:id/send', async (req, res) => {
   const { id } = req.params
   try {
-    const campRes = await pool.query('SELECT * FROM email_campaigns WHERE id = $1;', [id])
+    const campRes = await pool.query('SELECT * FROM email_campaigns WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     if (!campRes.rows[0]) return res.status(404).json({ error: 'Campaign not found.' })
     const camp = campRes.rows[0]
     const segment = camp.segment || 'All Leads'
@@ -5787,27 +6072,27 @@ app.post('/api/email-campaigns/:id/send', async (req, res) => {
     else if (segment === 'Payment Pending') segWhere += " AND stage IN ('Payment Pending','Application Submitted','Payment Approved')"
     else if (segment === 'Hot Leads')       segWhere += " AND score >= 75"
 
-    const leadsRes = await pool.query(`SELECT email, name FROM leads WHERE ${segWhere};`)
+    const leadsRes = await pool.query(`SELECT email, name FROM leads WHERE ${segWhere} AND tenant_id = $1;`, [req.tenantId])
     const recipients = leadsRes.rows
     let sentCount = 0, failedCount = 0
 
     // Delete previous logs for this campaign (re-send scenario)
-    await pool.query('DELETE FROM email_logs WHERE campaign_id = $1;', [id])
+    await pool.query('DELETE FROM email_logs WHERE campaign_id = $1 AND tenant_id = $2;', [id, req.tenantId])
 
     for (const lead of recipients) {
       const personalizedSubject = camp.subject.replace(/\{name\}/g, lead.name)
       const personalizedBody    = camp.template.replace(/\{name\}/g, lead.name)
-      const result = await sendTrackedMail(lead.email, lead.name, personalizedSubject, personalizedBody, id, camp.name)
+      const result = await sendTrackedMail(lead.email, lead.name, personalizedSubject, personalizedBody, id, camp.name, req.tenantId)
       if (result.success) sentCount++
       else failedCount++
     }
 
     await pool.query(
-      `UPDATE email_campaigns SET status = 'Sent', sent_count = $1, sent_at = NOW() WHERE id = $2;`,
-      [sentCount, id]
+      `UPDATE email_campaigns SET status = 'Sent', sent_count = $1, sent_at = NOW() WHERE id = $2 AND tenant_id = $3;`,
+      [sentCount, id, req.tenantId]
     )
-    await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);',
-      [`Email campaign "${camp.name}": ${sentCount} sent, ${failedCount} failed (${segment})`, 'Just now'])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`Email campaign "${camp.name}": ${sentCount} sent, ${failedCount} failed (${segment})`, 'Just now', req.tenantId])
     res.json({ success: true, sent: sentCount, failed: failedCount, total: recipients.length, segment })
   } catch (err) {
     console.error('[Email Campaign Send]', err)
@@ -5818,19 +6103,19 @@ app.post('/api/email-campaigns/:id/send', async (req, res) => {
 // ── COMMUNICATION REPORTS ────────────────────────────────────────────────────
 
 // Email logs for a specific campaign
-app.get('/api/reports/email-logs/:campaignId', async (req, res) => {
+app.get('/api/reports/email-logs/:campaignId', authenticateToken, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT id, recipient_email AS "email", recipient_name AS "name", status, error_message AS "error", sent_at AS "sentAt"
-       FROM email_logs WHERE campaign_id = $1 ORDER BY sent_at DESC;`,
-      [req.params.campaignId]
+       FROM email_logs WHERE campaign_id = $1 AND tenant_id = $2 ORDER BY sent_at DESC;`,
+      [req.params.campaignId, req.tenantId]
     )
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 // All email logs summary
-app.get('/api/reports/email-logs', async (req, res) => {
+app.get('/api/reports/email-logs', authenticateToken, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT el.campaign_id AS "campaignId", el.campaign_name AS "campaignName",
@@ -5838,40 +6123,45 @@ app.get('/api/reports/email-logs', async (req, res) => {
               SUM(CASE WHEN el.status = 'Sent' THEN 1 ELSE 0 END) AS "sent",
               SUM(CASE WHEN el.status = 'Failed' THEN 1 ELSE 0 END) AS "failed",
               MAX(el.sent_at) AS "lastSentAt"
-       FROM email_logs el GROUP BY el.campaign_id, el.campaign_name ORDER BY MAX(el.sent_at) DESC;`
+       FROM email_logs el WHERE el.tenant_id = $1 GROUP BY el.campaign_id, el.campaign_name ORDER BY MAX(el.sent_at) DESC;`,
+      [req.tenantId]
     )
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 // WhatsApp bulk send history
-app.get('/api/reports/whatsapp-logs', async (req, res) => {
+app.get('/api/reports/whatsapp-logs', authenticateToken, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT id, campaign_name AS "campaignName", message_template AS "template",
               recipient_count AS "recipientCount", status, sent_by AS "sentBy",
               channel, sent_at AS "sentAt"
-       FROM whatsapp_logs ORDER BY sent_at DESC LIMIT 200;`
+       FROM whatsapp_logs WHERE tenant_id = $1 ORDER BY sent_at DESC LIMIT 200;`,
+      [req.tenantId]
     )
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 // Call logs with outcome stats
-app.get('/api/reports/call-logs', async (req, res) => {
+app.get('/api/reports/call-logs', authenticateToken, async (req, res) => {
   try {
     const logs = await pool.query(
       `SELECT id, lead_name AS "leadName", lead_mobile AS "mobile", counselor,
               duration, outcome, notes, called_at AS "calledAt"
-       FROM call_logs ORDER BY called_at DESC LIMIT 500;`
+       FROM call_logs WHERE tenant_id = $1 ORDER BY called_at DESC LIMIT 500;`,
+      [req.tenantId]
     )
     const stats = await pool.query(
-      `SELECT outcome, COUNT(*) AS count FROM call_logs GROUP BY outcome ORDER BY count DESC;`
+      `SELECT outcome, COUNT(*) AS count FROM call_logs WHERE tenant_id = $1 GROUP BY outcome ORDER BY count DESC;`,
+      [req.tenantId]
     )
     const byCounselor = await pool.query(
       `SELECT counselor, COUNT(*) AS total,
               SUM(CASE WHEN outcome = 'Connected' THEN 1 ELSE 0 END) AS connected
-       FROM call_logs GROUP BY counselor ORDER BY total DESC;`
+       FROM call_logs WHERE tenant_id = $1 GROUP BY counselor ORDER BY total DESC;`,
+      [req.tenantId]
     )
     res.json({ logs: logs.rows, outcomeStats: stats.rows, byCounselor: byCounselor.rows })
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -5880,10 +6170,10 @@ app.get('/api/reports/call-logs', async (req, res) => {
 // Test SMTP connection — called from Integrations page
 app.post('/api/integration-settings/test-smtp', async (req, res) => {
   try {
-    const cfg = await createMailTransporter()
+    const cfg = await createMailTransporter(req.tenantId)
     if (cfg.error) return res.status(400).json({ ok: false, error: cfg.error })
     // Send a test email to the configured address itself
-    const user = await getIntegrationSetting('smtp_user') || ''
+    const user = await getIntegrationSetting('smtp_user', req.tenantId) || ''
     await cfg.transporter.verify()
     res.json({ ok: true, message: `SMTP connection verified (${user}) — credentials are correct!` })
   } catch (e) {
@@ -5903,9 +6193,9 @@ app.put('/api/email-campaigns/:id', async (req, res) => {
           template = COALESCE($3, template),
           segment  = COALESCE($4, segment),
           status   = COALESCE($5, status)
-      WHERE id = $6
+      WHERE id = $6 AND tenant_id = $7
       RETURNING id, name, subject, segment, status, template;
-    `, [name ?? null, subject ?? null, template ?? null, segment ?? null, status ?? null, id])
+    `, [name ?? null, subject ?? null, template ?? null, segment ?? null, status ?? null, id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Not found.' })
     res.json(r.rows[0])
   } catch (err) {
@@ -5917,7 +6207,7 @@ app.put('/api/email-campaigns/:id', async (req, res) => {
 app.delete('/api/email-campaigns/:id', async (req, res) => {
   const { id } = req.params
   try {
-    await pool.query('DELETE FROM email_campaigns WHERE id = $1;', [id])
+    await pool.query('DELETE FROM email_campaigns WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
     res.json({ message: 'Campaign deleted.' })
   } catch (err) {
     res.status(500).json({ error: 'Delete failed.' })
@@ -5961,17 +6251,20 @@ if (fs.existsSync(distPath)) {
 
 // --- DAILY CRON JOBS: Email Report + S3 Backup ---
 async function sendProductivityEmailReport() {
-  try {
-    const recipients = await getIntegrationSetting('report_email_recipients')
+  const tenantsRes = await pool.query("SELECT id FROM tenants WHERE status='Active';").catch(() => ({ rows: [{ id: 1 }] }))
+  for (const tnt of tenantsRes.rows) {
+   const tid = tnt.id
+   try {
+    const recipients = await getIntegrationSetting('report_email_recipients', tid)
     if (!recipients) {
-      console.log('[Cron] Email report recipients not configured — skipping')
-      return
+      console.log(`[Cron] Report recipients not set for tenant ${tid} — skipping`)
+      continue
     }
 
     const emails = recipients.split(',').map(e => e.trim()).filter(e => e)
-    if (emails.length === 0) return
+    if (emails.length === 0) continue
 
-    // Fetch dashboard stats
+    // Fetch dashboard stats (tenant-scoped)
     const statsRes = await pool.query(`
       SELECT
         COUNT(*)::int AS "totalLeads",
@@ -5981,20 +6274,20 @@ async function sendProductivityEmailReport() {
         SUM(CASE WHEN stage='Interested'          THEN 1 ELSE 0 END)::int AS interested,
         SUM(CASE WHEN stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
         SUM(CASE WHEN stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess"
-      FROM leads;
+      FROM leads WHERE tenant_id = ${tid};
     `)
     const kpi = statsRes.rows[0]
 
-    const appRes = await pool.query('SELECT COUNT(*)::int AS c FROM applications;')
+    const appRes = await pool.query(`SELECT COUNT(*)::int AS c FROM applications WHERE tenant_id = ${tid};`)
     const applications = appRes.rows[0].c
 
-    const enrRes = await pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments');")
+    const enrRes = await pool.query(`SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments') AND tenant_id = ${tid};`)
     const enrolments = enrRes.rows[0].c
 
-    const revRes = await pool.query("SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '';")
+    const revRes = await pool.query(`SELECT COALESCE(SUM(amount),0)::bigint AS s FROM payments WHERE status IN ('Approved','Payment Approved','Paid') AND utr_number IS NOT NULL AND TRIM(utr_number) <> '' AND tenant_id = ${tid};`)
     const revenue = Number(revRes.rows[0].s)
 
-    // Fetch per-counsellor stats
+    // Fetch per-counsellor stats (tenant-scoped)
     const counselRes = await pool.query(`
       SELECT
         u.name, u.email,
@@ -6004,8 +6297,8 @@ async function sendProductivityEmailReport() {
         SUM(CASE WHEN l.stage IN ('Process for Payment','Qualified Leads') THEN 1 ELSE 0 END)::int AS "processPay",
         SUM(CASE WHEN l.stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS "paymentSuccess"
       FROM users u
-      LEFT JOIN leads l ON l.owner = u.name
-      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager')
+      LEFT JOIN leads l ON l.owner = u.name AND l.tenant_id = u.tenant_id
+      WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') AND u.tenant_id = ${tid}
       GROUP BY u.name, u.email
       HAVING COUNT(l.id) > 0
       ORDER BY leads DESC
@@ -6066,11 +6359,11 @@ async function sendProductivityEmailReport() {
       </html>
     `
 
-    // Send emails
-    const cfg = await createMailTransporter()
+    // Send emails (per-tenant SMTP)
+    const cfg = await createMailTransporter(tid)
     if (cfg.error) {
-      console.error('[Cron] SMTP not configured:', cfg.error)
-      return
+      console.error(`[Cron] SMTP not configured for tenant ${tid}:`, cfg.error)
+      continue
     }
 
     for (const email of emails) {
@@ -6082,9 +6375,10 @@ async function sendProductivityEmailReport() {
       })
     }
 
-    console.log(`[Cron] Email report sent to ${emails.length} recipient(s)`)
-  } catch (e) {
-    console.error('[Cron] Email report failed:', e.message)
+    console.log(`[Cron] Email report (tenant ${tid}) sent to ${emails.length} recipient(s)`)
+   } catch (e) {
+    console.error(`[Cron] Email report failed (tenant ${tid}):`, e.message)
+   }
   }
 }
 
@@ -6212,25 +6506,33 @@ async function performS3Backup() {
 
 // --- MORNING REMINDER: email each counsellor their untouched leads ---
 async function sendMorningUntouchedEmails() {
+  let totalSent = 0
   try {
-    const r = await pool.query(`
-      SELECT u.name, u.email, COUNT(l.id)::int AS untouched
-      FROM users u
-      JOIN leads l ON LOWER(l.owner) = LOWER(u.name)
-      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance')
-        AND l.stage = 'Untouched' AND u.email IS NOT NULL AND u.email <> ''
-      GROUP BY u.name, u.email
-      HAVING COUNT(l.id) > 0;
-    `)
-    for (const row of r.rows) {
-      sendSystemMailAlert(
-        row.email,
-        `[CCRM] ${row.untouched} untouched lead(s) awaiting your follow-up`,
-        `Good morning ${row.name},\n\nYou have ${row.untouched} untouched lead(s) in CCRM that need your attention today.\n\nPlease log in and start following up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`
-      )
+    // Per-tenant: scope counts to each tenant and send with that tenant's SMTP
+    const tenants = await pool.query("SELECT id FROM tenants WHERE status = 'Active';").catch(() => ({ rows: [{ id: 1 }] }))
+    for (const t of tenants.rows) {
+      const r = await pool.query(`
+        SELECT u.name, u.email, COUNT(l.id)::int AS untouched
+        FROM users u
+        JOIN leads l ON LOWER(l.owner) = LOWER(u.name) AND l.tenant_id = u.tenant_id
+        WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance')
+          AND l.stage = 'Untouched' AND u.email IS NOT NULL AND u.email <> ''
+          AND u.tenant_id = $1
+        GROUP BY u.name, u.email
+        HAVING COUNT(l.id) > 0;
+      `, [t.id])
+      for (const row of r.rows) {
+        sendSystemMailAlert(
+          row.email,
+          `[CCRM] ${row.untouched} untouched lead(s) awaiting your follow-up`,
+          `Good morning ${row.name},\n\nYou have ${row.untouched} untouched lead(s) in CCRM that need your attention today.\n\nPlease log in and start following up:\nhttps://crm.cutmap.ac.in/leads\n\nBest regards,\nCCRM Admissions System`,
+          t.id
+        )
+      }
+      totalSent += r.rows.length
     }
-    console.log(`[Morning Untouched] Reminders sent to ${r.rows.length} counsellor(s)`)
-    return r.rows.length
+    console.log(`[Morning Untouched] Reminders sent to ${totalSent} counsellor(s)`)
+    return totalSent
   } catch (e) {
     console.error('[Morning Untouched]', e.message)
     return 0
@@ -6242,6 +6544,7 @@ let cronJobRunning = false  // Prevent duplicate execution
 
 async function startServer() {
   await initDb()
+  await initTenancy()   // multi-tenant foundation (Phase 1)
 
   // Schedule daily cron jobs at 3:00 AM IST
   cron.schedule('0 3 * * *', async () => {
@@ -6274,14 +6577,18 @@ async function startServer() {
   let sheetsSyncRunning = false
   cron.schedule('*/5 * * * *', async () => {
     if (sheetsSyncRunning) return
-    const sheetId = await getIntegrationSetting('sheets_spreadsheet_id')
-    const apiKey  = await getIntegrationSetting('sheets_api_key')
-    if (!sheetId || !apiKey) return   // not configured — skip silently
     sheetsSyncRunning = true
     try {
-      const r = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true })
-      if (r.error) console.error('[Sheets Cron]', r.error)
-      else if (r.synced) console.log(`[Sheets Cron] ${r.synced} new lead(s) imported & assigned, ${r.skipped} skipped`)
+      // Per-tenant: each active tenant pulls from its own configured sheet
+      const tenants = await pool.query("SELECT id FROM tenants WHERE status = 'Active';").catch(() => ({ rows: [{ id: 1 }] }))
+      for (const t of tenants.rows) {
+        const sheetId = await getIntegrationSetting('sheets_spreadsheet_id', t.id)
+        const apiKey  = await getIntegrationSetting('sheets_api_key', t.id)
+        if (!sheetId || !apiKey) continue   // not configured for this tenant — skip
+        const r = await syncGoogleSheet({ sheetId, apiKey, autoAssign: true, tenantId: t.id })
+        if (r.error) console.error(`[Sheets Cron] tenant ${t.id}:`, r.error)
+        else if (r.synced) console.log(`[Sheets Cron] tenant ${t.id}: ${r.synced} new lead(s) imported & assigned, ${r.skipped} skipped`)
+      }
     } catch (e) {
       console.error('[Sheets Cron]', e.message)
     } finally {
