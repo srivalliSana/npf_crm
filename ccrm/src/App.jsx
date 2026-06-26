@@ -54,7 +54,9 @@ function AuthGuard() {
 function RoleGuard({ roles }) {
   const { currentUser } = useCcrm()
   if (!currentUser) return <Navigate to="/login" replace />
-  if (roles && !roles.includes(currentUser.role)) return <Navigate to="/leads" replace />
+  // Super / platform admins have full access regardless of their base role
+  const privileged = currentUser.isSuperAdmin || currentUser.isPlatformAdmin
+  if (roles && !privileged && !roles.includes(currentUser.role)) return <Navigate to="/leads" replace />
   return <Outlet />
 }
 
