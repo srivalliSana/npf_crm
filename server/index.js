@@ -29,20 +29,6 @@ const app = express()
 const PORT = process.env.PORT || 5000
 const JWT_SECRET = process.env.JWT_SECRET || 'ccrm-jwt-secret-key-2026'
 
-// Free/public email providers can NEVER be a tenant login domain — allowing one would
-// let anyone in the world self-register. Logins must be organization-specific domains.
-const PUBLIC_EMAIL_DOMAINS = new Set([
-  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.co.in', 'yahoo.in', 'ymail.com',
-  'outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'icloud.com', 'me.com',
-  'aol.com', 'proton.me', 'protonmail.com', 'rediffmail.com', 'zoho.com', 'zohomail.com',
-  'gmx.com', 'mail.com', 'yandex.com'
-])
-const isPublicEmailDomain = (d) => PUBLIC_EMAIL_DOMAINS.has(String(d || '').trim().toLowerCase())
-const publicDomainsIn = (list) => {
-  const arr = Array.isArray(list) ? list : String(list || '').split(',')
-  return arr.map(s => s.trim().toLowerCase()).filter(d => d && isPublicEmailDomain(d))
-}
-
 // Disable Express ETags globally — hashed asset filenames handle cache-busting
 app.set('etag', false)
 
@@ -633,9 +619,6 @@ app.post('/api/auth/google', async (req, res) => {
       // New Google user — route to the tenant whose allowed_domains include this email's
       // domain (each tenant controls which domains may self-register via Google).
       const domain = (email.split('@')[1] || '').toLowerCase()
-      if (isPublicEmailDomain(domain)) {
-        return res.status(403).json({ error: 'Public email domains (e.g. gmail.com) are not allowed. Please sign in with your organization email.' })
-      }
       const tRes = await pool.query(
         "SELECT id FROM tenants WHERE status = 'Active' AND (',' || lower(replace(allowed_domains, ' ', '')) || ',') LIKE ('%,' || $1 || ',%') ORDER BY id LIMIT 1;",
         [domain]
@@ -3360,10 +3343,6 @@ app.put('/api/tenant/config', authenticateToken, async (req, res) => {
   if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
   const { branding, entities, stages, allowedDomains, name } = req.body
   try {
-    if (allowedDomains !== undefined) {
-      const bad = publicDomainsIn(allowedDomains)
-      if (bad.length) return res.status(400).json({ error: `Public email domains can't be login domains: ${bad.join(', ')}. Use your organization's own domain.` })
-    }
     const sets = [], params = []
     if (branding !== undefined)       { params.push(JSON.stringify(branding)); sets.push(`branding = $${params.length}::jsonb`) }
     if (entities !== undefined)       { params.push(JSON.stringify(entities)); sets.push(`entities = $${params.length}::jsonb`) }
@@ -3409,8 +3388,6 @@ app.post('/api/platform/tenants', platformAdminOnly, async (req, res) => {
   if (!name || !slug || !adminEmail) return res.status(400).json({ error: 'name, slug and adminEmail are required.' })
   const cleanSlug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '')
   if (!cleanSlug) return res.status(400).json({ error: 'slug must be alphanumeric.' })
-  const badDomains = publicDomainsIn(allowedDomains)
-  if (badDomains.length) return res.status(400).json({ error: `Public email domains can't be login domains: ${badDomains.join(', ')}. Use the organization's own domain.` })
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
