@@ -3139,8 +3139,8 @@ app.post('/api/users/:id/superadmin', authenticateToken, async (req, res) => {
   const { id } = req.params
   const { isSuperAdmin } = req.body
   try {
-    const meRes = await pool.query('SELECT is_superadmin FROM users WHERE (id = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [req.user?.id || 0, req.user?.email || '', req.tenantId])
-    if (!meRes.rows[0]?.is_superadmin) return res.status(403).json({ error: 'Only a Super Admin can change Super Admin status.' })
+    const meRes = await pool.query('SELECT is_superadmin, is_platform_admin FROM users WHERE (id = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [req.user?.id || 0, req.user?.email || '', req.tenantId])
+    if (!meRes.rows[0]?.is_superadmin && !meRes.rows[0]?.is_platform_admin) return res.status(403).json({ error: 'Only a Super Admin can change Super Admin status.' })
     const r = await pool.query(
       'UPDATE users SET is_superadmin = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, name, role, is_superadmin AS "isSuperAdmin";',
       [!!isSuperAdmin, id, req.tenantId]

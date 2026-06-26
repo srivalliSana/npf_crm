@@ -460,7 +460,7 @@ export default function UserManagement({ currentUser }) {
                   const rc   = ROLE_COLORS[u.role] || ROLE_COLORS.Counselor
                   const self = u.email === currentUser?.email
                   const protectedTarget = u.role === 'Admin' || u.isSuperAdmin   // only a Super Admin may delete these
-                  const iAmSuper = !!currentUser?.isSuperAdmin
+                  const iAmSuper = !!currentUser?.isSuperAdmin || !!currentUser?.isPlatformAdmin
                   return (
                     <tr key={u.id} className={`hover:bg-gray-50 transition-colors ${self ? 'bg-primary-50/30' : ''}`}>
                       <td className="table-td">
@@ -484,8 +484,9 @@ export default function UserManagement({ currentUser }) {
                       <td className="table-td text-gray-600 text-xs">{u.email}</td>
                       <td className="table-td text-gray-600 text-xs">{u.mobile || <span className="text-gray-300">—</span>}</td>
                       <td className="table-td">
-                        <span className={`badge ${rc.bg} ${rc.text}`}>{u.role}</span>
-                        {u.isSuperAdmin && <span className="ml-1 badge bg-amber-100 text-amber-800 text-[9px] font-bold" title="Super Admin">SUPER</span>}
+                        {u.isSuperAdmin
+                          ? <span className="badge bg-amber-100 text-amber-800 font-bold" title="Super Admin">Super Admin</span>
+                          : <span className={`badge ${rc.bg} ${rc.text}`}>{u.role}</span>}
                       </td>
                       <td className="table-td text-gray-600">{u.team}</td>
                       <td className="table-td">
