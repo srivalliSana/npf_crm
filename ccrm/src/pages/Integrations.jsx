@@ -547,7 +547,7 @@ export default function Integrations() {
 
   // Load integration settings from backend on mount
   useEffect(() => {
-    fetch('/api/integration-settings')
+    fetch('/api/integration-settings', { headers: { Authorization: `Bearer ${localStorage.getItem('ccrm_token') || ''}` } })
       .then(r => r.json())
       .then(data => { setSavedSettings(data); setLoadingSettings(false) })
       .catch(() => setLoadingSettings(false))
@@ -620,7 +620,7 @@ export default function Integrations() {
     try {
       if (integ.id === 'smtp') {
         // Real SMTP verification via backend
-        const res = await fetch('/api/integration-settings/test-smtp', { method: 'POST' })
+        const res = await fetch('/api/integration-settings/test-smtp', { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('ccrm_token') || ''}` } })
         const data = await res.json()
         if (data.ok) showToast(`✓ ${data.message}`, 'success')
         else         showToast(`✗ ${data.error}`, 'error')
@@ -676,7 +676,7 @@ export default function Integrations() {
     try {
       const res = await fetch('/api/integrations/sheets-sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ccrm_token') || ''}` },
         body: JSON.stringify({ sheetId, apiKey })
       })
       const data = await res.json()

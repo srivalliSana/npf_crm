@@ -560,7 +560,7 @@ export default function LeadManager() {
     formData.append('assignMode', assignMode)
     if (assignMode === 'specific') formData.append('assignedTo', assignedTo || '')
     try {
-      const res = await fetch('/api/leads/bulk-upload-mapped', { method: 'POST', body: formData })
+      const res = await fetch('/api/leads/bulk-upload-mapped', { method: 'POST', body: formData, headers: { Authorization: `Bearer ${localStorage.getItem('ccrm_token') || ''}` } })
       if (res.ok) {
         const data = await res.json()
         setUploadResult(data)
