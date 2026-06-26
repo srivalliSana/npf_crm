@@ -135,11 +135,6 @@ export default function Login() {
     e.preventDefault()
     if (!email || !password)              { setError('Please enter your email and password.'); return }
     if (!email.includes('@'))             { setError('Please enter a valid email address.'); return }
-    const domain = getEmailDomain(email)
-    if (!ALLOWED_DOMAINS.includes(domain)) {
-      setError(`Access restricted to ${ALLOWED_DOMAINS.join(' / ')} accounts only.`)
-      return
-    }
     setError('')
     setLoading(true)
     try {
@@ -164,13 +159,9 @@ export default function Login() {
         })
         const profile   = await profileRes.json()
         const userEmail = profile.email || ''
-        const domain    = getEmailDomain(userEmail)
 
-        if (!ALLOWED_DOMAINS.includes(domain)) {
-          setError(`Access restricted. Only ${ALLOWED_DOMAINS.join(' / ')} accounts are allowed. You signed in as ${userEmail}.`)
-          setGoogleLoading(false); return
-        }
-
+        // Domain authorization is enforced server-side: existing users are always allowed,
+        // and new users are routed to the tenant whose allowed_domains match (else rejected).
         // Step 2: upsert user in DB + get back a proper JWT + full user record
         const authRes = await fetch('/api/auth/google', {
           method:  'POST',
