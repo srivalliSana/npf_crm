@@ -66,6 +66,7 @@ export function CcrmProvider({ children }) {
   const [documents, setDocuments] = useState([])
   const [events, setEvents] = useState([])
   const [users, setUsers] = useState([])
+  const [tenantConfig, setTenantConfig] = useState(null)   // per-tenant branding/entities/stages
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('ccrm_current_user')
@@ -253,8 +254,23 @@ export function CcrmProvider({ children }) {
     }
   }
 
+  // Per-tenant config (branding / entities / stages) — drives the UI's labels & nav
+  const fetchTenantConfig = async () => {
+    const token = localStorage.getItem('ccrm_token')
+    if (!token) return
+    try {
+      const r = await fetch('/api/tenant/config', { headers: { 'Authorization': `Bearer ${token}` } })
+      if (r.ok) {
+        const cfg = await r.json()
+        setTenantConfig(cfg)
+        if (cfg?.branding?.appTitle) document.title = cfg.branding.appTitle
+      }
+    } catch {}
+  }
+
   useEffect(() => {
     fetchAllData()
+    fetchTenantConfig()
   }, [])
 
   // Poll notifications every 30 seconds when user is logged in
@@ -270,6 +286,7 @@ export function CcrmProvider({ children }) {
   useEffect(() => {
     if (!currentUser) return
     fetchNotifications()
+    fetchTenantConfig()   // ensures config loads after Google login too
     const interval = setInterval(fetchNotifications, 30000)
     return () => clearInterval(interval)
   }, [currentUser])
@@ -346,6 +363,7 @@ export function CcrmProvider({ children }) {
         setCurrentUser(data.user)
         showToast(`Welcome back, ${data.user.name}!`, 'success')
         fetchAllData()
+        fetchTenantConfig()
         return { success: true, user: data.user }
       } else {
         const err = await res.json()
@@ -1300,6 +1318,7 @@ export function CcrmProvider({ children }) {
   return (
     <CcrmContext.Provider value={{
       leads, setLeads, addLead, updateLead, deleteLead,
+      tenantConfig, fetchTenantConfig,
       fetchAllData, refreshCounselors, fetchLeadsPage, loading, leadsTotal,
       applications, setApplications, addApplication, updateApplication, deleteApplication,
       counselors, setCounselors,

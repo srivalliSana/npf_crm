@@ -745,3 +745,116 @@ export async function initDb() {
     client.release()
   }
 }
+
+// ─── Multi-tenant foundation (Phase 1) ────────────────────────────────────────
+// Runs independently of initDb() so an unrelated migration abort can't block it.
+// Additive + idempotent: every data table gets tenant_id DEFAULT 1 (Centurion),
+// so existing single-tenant behaviour is unchanged until queries are scoped (Phase 2).
+const TENANT_TABLES = [
+  'users', 'leads', 'applications', 'payments', 'documents', 'notifications',
+  'integration_settings', 'lead_transfers', 'tasks', 'events', 'campaigns',
+  'rcs_templates', 'rcs_messages', 'upload_logs', 'lead_assignment_counter',
+  'esse_leads', 'ftl_leads', 'gtib_leads', 'gttech_leads', 'social_comments',
+  'drip_sequences', 'drip_enrollments', 'email_campaigns', 'calls',
+  'call_logs', 'whatsapp_logs', 'email_logs', 'sms_logs', 'queries', 'teams'
+]
+
+export async function initTenancy() {
+  const client = await pool.connect()
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tenants (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        slug VARCHAR(80) UNIQUE,
+        status VARCHAR(20) DEFAULT 'Active',
+        plan VARCHAR(40) DEFAULT 'standard',
+        allowed_domains TEXT DEFAULT '',
+        branding JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `)
+    // Per-tenant config (Phase 3 de-hardcode): branding / entities / lead stages
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS entities JSONB DEFAULT '[]';`).catch(() => {})
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stages JSONB DEFAULT '[]';`).catch(() => {})
+
+    // Default tenant = Centurion (id 1). Existing rows backfill to it via DEFAULT 1.
+    await client.query(`INSERT INTO tenants (id, name, slug, allowed_domains)
+      VALUES (1, 'Centurion', 'centurion', 'cutm.ac.in,cutmap.ac.in')
+      ON CONFLICT (id) DO NOTHING;`)
+    await client.query(`SELECT setval(pg_get_serial_sequence('tenants','id'),
+      GREATEST((SELECT MAX(id) FROM tenants), 1));`).catch(() => {})
+
+    // Seed Centurion's existing branding/entities/stages (only if not yet set) so its
+    // app looks/behaves exactly as today. New tenants get generic defaults via the API.
+    const CENTURION_BRANDING = {
+      name: 'Centurion', shortName: 'CCRM', logoText: 'C',
+      appTitle: 'CCRM Admissions', primaryColor: '#4f46e5', tagline: 'Admissions'
+    }
+    const CENTURION_ENTITIES = [
+      { code: 'CUTM',   label: 'CUTM',   kind: 'main' },
+      { code: 'CUTMAP', label: 'CUTMAP', kind: 'main' },
+      { code: 'FTL',    label: 'FTL',    kind: 'gt'   },
+      { code: 'GTIB',   label: 'GTIB',   kind: 'gt'   },
+      { code: 'GTTECH', label: 'GTTECH', kind: 'gt'   },
+      { code: 'ESSE',   label: 'ESSE',   kind: 'gt'   }
+    ]
+    const CENTURION_STAGES = ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success']
+    await client.query(
+      `UPDATE tenants SET
+         branding = CASE WHEN branding = '{}'::jsonb OR branding IS NULL THEN $1::jsonb ELSE branding END,
+         entities = CASE WHEN entities = '[]'::jsonb OR entities IS NULL THEN $2::jsonb ELSE entities END,
+         stages   = CASE WHEN stages   = '[]'::jsonb OR stages   IS NULL THEN $3::jsonb ELSE stages   END
+       WHERE id = 1;`,
+      [JSON.stringify(CENTURION_BRANDING), JSON.stringify(CENTURION_ENTITIES), JSON.stringify(CENTURION_STAGES)]
+    ).catch(() => {})
+
+    for (const t of TENANT_TABLES) {
+      await client.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;`).catch(() => {})
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_${t}_tenant ON ${t} (tenant_id);`).catch(() => {})
+    }
+
+    // integration_settings: key was globally UNIQUE — make it per-tenant (tenant_id, key)
+    await client.query(`ALTER TABLE integration_settings DROP CONSTRAINT IF EXISTS integration_settings_key_key;`).catch(() => {})
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_intset_tenant_key ON integration_settings (tenant_id, key);`).catch(() => {})
+
+    // Platform super-admin (above per-tenant admins) — can create/suspend tenants
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_platform_admin BOOLEAN DEFAULT FALSE;`).catch(() => {})
+    // Designate the product owner; if absent, fall back to the oldest tenant-1 admin
+    await client.query(`UPDATE users SET is_platform_admin = TRUE WHERE LOWER(email) = 'tokalyankv@gmail.com';`).catch(() => {})
+    await client.query(`
+      UPDATE users SET is_platform_admin = TRUE
+      WHERE id = (SELECT id FROM users WHERE tenant_id = 1 AND role = 'Admin' ORDER BY id ASC LIMIT 1)
+        AND NOT EXISTS (SELECT 1 FROM users WHERE is_platform_admin = TRUE);
+    `).catch(() => {})
+    // A platform admin is also a (tenant) super admin — full powers, incl. promoting others
+    await client.query(`UPDATE users SET is_superadmin = TRUE WHERE is_platform_admin = TRUE;`).catch(() => {})
+
+    // Safety net for fresh DBs: initDb may abort before these user-column migrations run,
+    // which breaks onboarding (e.g. missing `entities`). Re-assert them here (idempotent).
+    for (const col of [
+      "entities TEXT DEFAULT 'CUTM'",
+      'exclude_from_assignment BOOLEAN DEFAULT FALSE',
+      'is_superadmin BOOLEAN DEFAULT FALSE',
+      "mobile VARCHAR(50) DEFAULT ''",
+      "mobile_number VARCHAR(50) DEFAULT ''",
+      "reports_to VARCHAR(150) DEFAULT ''",
+      "picture TEXT DEFAULT ''",
+      "last_login VARCHAR(100) DEFAULT ''"
+    ]) {
+      await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col};`).catch(() => {})
+    }
+
+    // Dashboard/report performance: index the owner↔name normalised join + common aggregates
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_leads_owner_norm ON leads (LOWER(regexp_replace(owner, '[^a-zA-Z0-9]', '', 'g')));`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_users_name_norm ON users (LOWER(regexp_replace(name, '[^a-zA-Z0-9]', '', 'g')));`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_leads_tenant_stage ON leads (tenant_id, stage);`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_leads_tenant_owner ON leads (tenant_id, owner);`).catch(() => {})
+
+    console.log('--- Multi-tenant foundation ready (tenants + tenant_id columns) ---')
+  } catch (err) {
+    console.error('initTenancy failed:', err.message)
+  } finally {
+    client.release()
+  }
+}
