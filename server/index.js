@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import crypto from 'crypto'
 import XLSXPkg from 'xlsx'
 const XLSX = XLSXPkg.default ?? XLSXPkg
 import { fileURLToPath } from 'url'
@@ -47,11 +48,12 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 // also sets req.tenantId — this just guarantees it exists everywhere.
 app.use((req, _res, next) => {
   let tid = 1
+  req.authValid = false
   try {
     const token = (req.headers['authorization'] || '').split(' ')[1]
     if (token) {
       const decoded = jwt.verify(token, JWT_SECRET)
-      if (decoded && decoded.tenant_id) tid = decoded.tenant_id
+      if (decoded) { req.authValid = true; if (decoded.tenant_id) tid = decoded.tenant_id }
     }
   } catch { /* invalid/expired token → default tenant */ }
   req.tenantId = tid
@@ -78,6 +80,23 @@ if (_rlPrune.unref) _rlPrune.unref()
 // Brute-force protection on auth; generous cap on inbound webhooks
 app.use('/api/auth', rateLimit({ windowMs: 60000, max: 30 }))
 app.use('/api/webhooks', rateLimit({ windowMs: 60000, max: 300 }))
+
+// ── Global auth gate: every /api route needs a valid JWT except this public allowlist
+const PUBLIC_API = [
+  /^\/api\/auth\/login$/,
+  /^\/api\/auth\/google$/,
+  /^\/api\/webhooks\//,          // all inbound webhooks (Meta, Google, GT forms, rcssms…)
+  /^\/api\/public\//,            // public inquiry form
+  /^\/api\/student\//,           // student portal login/status
+  /^\/api\/tenant\/public$/,     // login/landing branding
+  /^\/api\/calls\/webhook$/,     // telephony callback
+]
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next()          // static / SPA assets
+  if (PUBLIC_API.some(re => re.test(req.path))) return next()
+  if (!req.authValid) return res.status(401).json({ error: 'Authentication required.' })
+  next()
+})
 
 // Setup Static and Upload Folders
 const uploadDirs = [
@@ -470,7 +489,7 @@ async function createNotification(userEmail, title, text, type = 'info', leadId 
 async function getIntegrationSetting(key, tenantId = 1) {
   try {
     const r = await pool.query('SELECT value FROM integration_settings WHERE key = $1 AND tenant_id = $2;', [key, tenantId])
-    return r.rows[0]?.value || null
+    return decryptSecret(r.rows[0]?.value) || null
   } catch { return null }
 }
 
@@ -3219,6 +3238,26 @@ app.put('/api/notifications', async (req, res) => {
 const SETTINGS_MASK = '••••••'
 const isSecretKey = (k) => /(pass|secret|token|api_key|access_key|salt|hash)/i.test(k) || /_key$/i.test(k)
 
+// Secrets-at-rest encryption (opt-in via SETTINGS_ENC_KEY env). Backward-compatible:
+// legacy plaintext values still read fine; new secret writes are AES-256-GCM encrypted.
+const _encKey = process.env.SETTINGS_ENC_KEY ? crypto.scryptSync(process.env.SETTINGS_ENC_KEY, 'ccrm-settings', 32) : null
+function encryptSecret(plain) {
+  if (!_encKey || plain == null || plain === '') return plain
+  const iv = crypto.randomBytes(12)
+  const c = crypto.createCipheriv('aes-256-gcm', _encKey, iv)
+  const enc = Buffer.concat([c.update(String(plain), 'utf8'), c.final()])
+  return 'enc:v1:' + Buffer.concat([iv, c.getAuthTag(), enc]).toString('base64')
+}
+function decryptSecret(stored) {
+  if (!_encKey || typeof stored !== 'string' || !stored.startsWith('enc:v1:')) return stored
+  try {
+    const raw = Buffer.from(stored.slice(7), 'base64')
+    const d = crypto.createDecipheriv('aes-256-gcm', _encKey, raw.subarray(0, 12))
+    d.setAuthTag(raw.subarray(12, 28))
+    return Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString('utf8')
+  } catch { return stored }
+}
+
 app.get('/api/integration-settings', async (req, res) => {
   try {
     const r = await pool.query('SELECT key, value FROM integration_settings WHERE tenant_id = $1 ORDER BY key;', [req.tenantId])
@@ -3243,9 +3282,10 @@ app.post('/api/integration-settings', authenticateToken, async (req, res) => {
       const v = String(value ?? '').trim()               // trim stray copy-paste whitespace
       if (v === SETTINGS_MASK) continue                  // unchanged masked secret — keep existing
       if (isSecretKey(key) && v === '') continue         // never blank-out a secret
+      const stored = isSecretKey(key) ? encryptSecret(v) : v   // encrypt secrets at rest (if key set)
       await pool.query(
         'INSERT INTO integration_settings (key, value, updated_at, tenant_id) VALUES ($1, $2, NOW(), $3) ON CONFLICT (tenant_id, key) DO UPDATE SET value = $2, updated_at = NOW();',
-        [key.substring(0, 100), v, req.tenantId]
+        [key.substring(0, 100), stored, req.tenantId]
       )
       saved++
     }
