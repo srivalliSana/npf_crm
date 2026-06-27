@@ -85,7 +85,8 @@ export default function Settings() {
   }
   useEffect(() => {
     if (activeSection === 'integrations') {
-      fetch('/api/integration-settings')
+      const token = localStorage.getItem('ccrm_token')
+      fetch('/api/integration-settings', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
         .then(data => setIntegSettings(data))
         .catch(() => {})
@@ -125,7 +126,8 @@ export default function Settings() {
   })
   useEffect(() => {
     if (currentUser?.role !== 'Admin') return  // settings store holds secrets — Admins only
-    fetch('/api/integration-settings')
+    const token = localStorage.getItem('ccrm_token')
+    fetch('/api/integration-settings', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => setOrgForm(prev => {
         const next = { ...prev }

@@ -44,7 +44,8 @@ export default function IntegrationStatusWidget() {
 
   const refresh = () => {
     setLoading(true)
-    fetch('/api/integration-settings')
+    const token = localStorage.getItem('ccrm_token')
+    fetch('/api/integration-settings', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : {})
       .then(d => setSettings(d || {}))
       .catch(() => {})

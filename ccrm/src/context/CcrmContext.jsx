@@ -1104,7 +1104,8 @@ export function CcrmProvider({ children }) {
   const [rcsTemplates, setRcsTemplates] = useState([])
   const fetchRcsTemplates = async () => {
     try {
-      const res = await fetch('/api/rcs/templates')
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/rcs/templates', { headers: { Authorization: `Bearer ${token}` } })
       if (res.ok) {
         const data = await res.json()
         setRcsTemplates(Array.isArray(data) ? data : [])
