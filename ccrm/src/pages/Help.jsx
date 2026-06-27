@@ -54,7 +54,7 @@ const SECTIONS = [
     id: 'integrations', title: 'Integrations & Setup', icon: Settings,
     items: [
       { q: 'Setting up an integration', a: 'Integrations page (Admin only) → click any card → Edit Config → paste API keys → Save. Test Connection button verifies credentials live for SMTP.' },
-      { q: 'What integrations exist?',  a: 'Meta (Facebook/Instagram) Ads, Google Ads, LinkedIn, WhatsApp Business, RCS (5 providers), SMS Gateway (7 providers), Razorpay, PayU, Ameyo/Exotel telephony, Gmail/SMTP, Google Sheets/Analytics.' },
+      { q: 'What integrations exist?',  a: 'Meta (Facebook/Instagram) Ads, Google Ads, LinkedIn, WhatsApp Business, RCS (5 providers), SMS Gateway (7 providers), Razorpay, PayU, EasyGoIVR telephony, Gmail/SMTP, Google Sheets/Analytics.' },
       { q: 'Where do I see live health?', a: 'Dashboard → Integration Health widget (red/yellow/green per integration). Admin/Manager also see Server Health + Security & User Access widgets.' },
     ]
   },

@@ -10,17 +10,7 @@ import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
 import LeadJourney from '../components/LeadJourney'
 
-async function initiateAmeyoCall(mobile) {
-  // Always call our backend — avoids CORS and handles Exotel/Ameyo detection server-side
-  const res = await fetch('/api/ameyo/click2call', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone: mobile })
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'Call failed')
-  return data
-}
+// Ameyo calls removed — use EasyGoIVR via initiateCall() from context
 
 const APP_STAGES = [
   'Unverified',
@@ -142,10 +132,8 @@ export default function ApplicationDetails() {
   const lastActive = record.lastActive || associatedLead?.lastActive || 'Today'
 
   const [activeTab, setActiveTab] = useState('Lead Details')
-  const [ameyoCalling, setAmeyoCalling]   = useState(false)
-  const [ameyoReady, setAmeyoReady]       = useState(null)
-  const [ameyoCfg, setAmeyoCfg]           = useState(null)
-  const [easyGoReady, setEasyGoReady]     = useState(null)
+  const [callInitiating, setCallInitiating] = useState(false)
+  const [easyGoReady, setEasyGoReady]       = useState(null)
   const [showRcsModal, setShowRcsModal]   = useState(false)
 
   // Payment modal state
@@ -260,18 +248,11 @@ export default function ApplicationDetails() {
     const token = localStorage.getItem('ccrm_token')
     fetch('/api/integration-settings', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
       .then(cfg => {
-        setAmeyoCfg(cfg)
-        const isExotel = (cfg.ameyo_api_url || '').toLowerCase().includes('exotel')
-        const ready = isExotel
-          ? !!(cfg.ameyo_api_url && cfg.ameyo_username && cfg.ameyo_password && cfg.ameyo_virtual_number && cfg.ameyo_agent_number)
-          : !!(cfg.ameyo_api_url && cfg.ameyo_username && cfg.ameyo_password)
-        setAmeyoReady(ready)
         // Check EasyGoIVR configuration
         const easyGoConfigured = !!(cfg.easygo_email && cfg.easygo_password_hash && cfg.easygo_did)
         setEasyGoReady(easyGoConfigured)
       })
       .catch(() => {
-        setAmeyoReady(false)
         setEasyGoReady(false)
       })
   }, [])
@@ -716,81 +697,37 @@ export default function ApplicationDetails() {
                     className="text-fuchsia-500 hover:text-fuchsia-700" title="Send RCS message">
                     <Sparkles size={14} />
                   </button>
-                  {/* Click-to-Call */}
-                  {ameyoReady === true || easyGoReady === true ? (
+                  {/* Click-to-Call (EasyGoIVR) */}
+                  {easyGoReady === true ? (
                     <button
-                      disabled={ameyoCalling}
+                      disabled={callInitiating}
                       onClick={async () => {
-                        setAmeyoCalling(true)
+                        setCallInitiating(true)
                         try {
-                          // Prefer EasyGoIVR if configured, else use Ameyo
-                          if (easyGoReady === true) {
-                            // Get counselor's mobile number
-                            let counselorMobile = currentUser?.mobile_number
-                            if (!counselorMobile) {
-                              // Fetch from profile if not in currentUser
-                              const token = localStorage.getItem('ccrm_token')
-                              const res = await fetch(`/api/users/${currentUser?.id}/profile`, {
-                                headers: { 'Authorization': `Bearer ${token}` }
-                              })
-                              if (res.ok) {
-                                const userData = await res.json()
-                                counselorMobile = userData.mobile_number
-                              }
+                          let counselorMobile = currentUser?.mobile_number
+                          if (!counselorMobile) {
+                            const token = localStorage.getItem('ccrm_token')
+                            const res = await fetch(`/api/users/${currentUser?.id}/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
+                            if (res.ok) {
+                              const userData = await res.json()
+                              counselorMobile = userData.mobile_number
                             }
-
-                            if (!counselorMobile) {
-                              return showToast('Please set your mobile number in Profile Settings first.', 'error')
-                            }
-
-                            const data = await initiateCall(associatedLead?.id || associatedApp?.lead_id, studentMobile, counselorMobile)
-                            if (data?.success) {
-                              showToast(`Call initiated via EasyGoIVR ✓`, 'success')
-                            }
-                          } else {
-                            const data = await initiateAmeyoCall(studentMobile)
-                            showToast(`Call initiated via ${data.provider === 'exotel' ? 'Exotel' : 'Ameyo'} ✓`, 'success')
                           }
+                          if (!counselorMobile) return showToast('Please set your mobile number in Profile Settings.', 'error')
+                          const data = await initiateCall(associatedLead?.id || associatedApp?.lead_id, studentMobile, counselorMobile)
+                          if (data?.success) showToast('Call initiated ✓', 'success')
                         } catch (e) {
                           showToast(e.message || 'Call failed.', 'error')
                         }
-                        setAmeyoCalling(false)
+                        setCallInitiating(false)
                       }}
                       className="text-violet-500 hover:text-violet-700 disabled:opacity-50"
-                      title="Click-to-Call"
+                      title="Click-to-Call (EasyGoIVR)"
                     >
-                      {ameyoCalling
-                        ? <span className="animate-spin inline-block w-3.5 h-3.5 border border-violet-400 border-t-violet-700 rounded-full" />
-                        : <PhoneCall size={14} />}
-                    </button>
-                  ) : ameyoCfg?.ameyo_api_url && ameyoReady === false ? (
-                    // Telephony partially configured — show warning that links to settings
-                    <button
-                      onClick={() => {
-                        const isExotel = (ameyoCfg.ameyo_api_url || '').toLowerCase().includes('exotel')
-                        const missing = []
-                        if (!ameyoCfg.ameyo_virtual_number) missing.push('Virtual Number')
-                        if (!ameyoCfg.ameyo_agent_number)   missing.push('Agent Number')
-                        if (!ameyoCfg.ameyo_password)        missing.push('Auth Token/Password')
-                        showToast(`Telephony incomplete — missing: ${missing.join(', ')}. Go to Integrations → Telephony to configure.`, 'warning')
-                        navigate('/integrations')
-                      }}
-                      className="text-yellow-500 hover:text-yellow-700"
-                      title="Telephony not fully configured — click to configure"
-                    >
-                      <PhoneCall size={14} />
+                      {callInitiating ? <span className="animate-spin inline-block w-3.5 h-3.5 border border-violet-400 border-t-violet-700 rounded-full" /> : <PhoneCall size={14} />}
                     </button>
                   ) : (
-                    // No telephony configured — show disabled button with tooltip
-                    <button
-                      disabled
-                      onClick={() => {
-                        showToast('Telephony not configured. Go to Integration Settings to configure EasyGoIVR.', 'warning')
-                        navigate('/integration-settings')
-                      }}
-                      className="text-gray-400 hover:text-gray-500 cursor-not-allowed disabled:opacity-50"
-                      title="Telephony not configured — click to configure"
-                    >
+                    <button disabled className="text-gray-400 cursor-not-allowed disabled:opacity-50" title="EasyGoIVR not configured">
                       <PhoneCall size={14} />
                     </button>
                   )}
