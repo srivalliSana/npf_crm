@@ -842,7 +842,7 @@ app.get('/api/leads/:id(\\d+)', authenticateToken, async (req, res) => {
 // === SEPARATE ENDPOINTS FOR WEBSITE FORMS ===
 
 // GET /api/gttech-leads — GTTECH inquiry leads
-app.get('/api/gttech-leads', async (req, res) => {
+app.get('/api/gttech-leads', authenticateToken, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1)
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
@@ -890,7 +890,7 @@ app.get('/api/gttech-leads', async (req, res) => {
 })
 
 // GET /api/ftl-leads — FTL inquiry leads
-app.get('/api/ftl-leads', async (req, res) => {
+app.get('/api/ftl-leads', authenticateToken, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1)
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
@@ -938,7 +938,7 @@ app.get('/api/ftl-leads', async (req, res) => {
 })
 
 // GET /api/gtib-leads — GTIB inquiry leads
-app.get('/api/gtib-leads', async (req, res) => {
+app.get('/api/gtib-leads', authenticateToken, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1)
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
@@ -986,7 +986,7 @@ app.get('/api/gtib-leads', async (req, res) => {
 })
 
 // GET /api/esse-leads — ESSE inquiry leads
-app.get('/api/esse-leads', async (req, res) => {
+app.get('/api/esse-leads', authenticateToken, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1)
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
