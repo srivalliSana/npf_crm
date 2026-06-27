@@ -777,6 +777,8 @@ export async function initTenancy() {
     // Per-tenant config (Phase 3 de-hardcode): branding / entities / lead stages
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS entities JSONB DEFAULT '[]';`).catch(() => {})
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stages JSONB DEFAULT '[]';`).catch(() => {})
+    // Custom domain per tenant (Phase 4: subdomain/custom-domain routing)
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255) UNIQUE NULL;`).catch(() => {})
 
     // Default tenant = Centurion (id 1). Existing rows backfill to it via DEFAULT 1.
     await client.query(`INSERT INTO tenants (id, name, slug, allowed_domains)
