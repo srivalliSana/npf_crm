@@ -16,7 +16,7 @@ const INTEGRATIONS = [
   { id: 'rcs',          name: 'RCS Messaging',       icon: MessageCircle,color: 'text-pink-600',   keys: ['rcs_api_key','rcs_provider'] },
   { id: 'razorpay',     name: 'Razorpay',            icon: CreditCard,   color: 'text-indigo-600', keys: ['razorpay_key_id','razorpay_key_secret'] },
   { id: 'payu',         name: 'PayU',                icon: Wallet,       color: 'text-teal-600',   keys: ['payu_merchant_key','payu_merchant_salt'] },
-  { id: 'ameyo',        name: 'Telephony',           icon: PhoneCall,    color: 'text-violet-600', keys: ['ameyo_api_url','ameyo_username'] },
+  { id: 'easygo',       name: 'EasyGoIVR',           icon: PhoneCall,    color: 'text-violet-600', keys: ['easygo_email','easygo_password_hash','easygo_did'] },
   { id: 'smtp',         name: 'Gmail / SMTP',        icon: Mail,         color: 'text-purple-600', keys: ['smtp_host','smtp_user','smtp_pass'] },
   { id: 'googlesheets', name: 'Google Sheets',       icon: BarChart2,    color: 'text-emerald-600',keys: ['sheets_spreadsheet_id'] },
   { id: 'ga4',          name: 'Google Analytics',    icon: Globe,        color: 'text-yellow-600', keys: ['ga4_measurement_id'] },

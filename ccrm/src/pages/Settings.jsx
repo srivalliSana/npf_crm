@@ -24,7 +24,6 @@ const INTEG_STATUS_KEYS = {
   whatsapp:        ['whatsapp_access_token'],
   razorpay:        ['razorpay_key_id'],
   payu:            ['payu_merchant_key'],
-  ameyo:           ['ameyo_api_url'],
   smtp:            ['smtp_host', 'smtp_user'],
 }
 
@@ -35,7 +34,6 @@ const INTEG_META = [
   { id: 'whatsapp',  name: 'WhatsApp Business',   Icon: MessageCircle,color: 'text-green-600',  bg: 'bg-green-50',  desc: 'Automated WhatsApp communication' },
   { id: 'razorpay',  name: 'Razorpay',            Icon: CreditCard,   color: 'text-indigo-600', bg: 'bg-indigo-50', desc: 'Online payment gateway' },
   { id: 'payu',      name: 'PayU',                Icon: Wallet,       color: 'text-teal-600',   bg: 'bg-teal-50',   desc: 'Alternative payment gateway' },
-  { id: 'ameyo',     name: 'Ameyo (Telephony)',   Icon: PhoneCall,    color: 'text-violet-600', bg: 'bg-violet-50', desc: 'Cloud telephony & call recording' },
   { id: 'smtp',      name: 'Gmail / SMTP Email',  Icon: Mail,         color: 'text-purple-600', bg: 'bg-purple-50', desc: 'Email communication & alerts' },
 ]
 

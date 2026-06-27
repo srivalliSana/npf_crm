@@ -1510,92 +1510,7 @@ app.put('/api/applications/:id', async (req, res) => {
   }
 })
 
-// --- TELEPHONY CLICK-TO-CALL (Exotel + Ameyo) ---
-app.post('/api/ameyo/click2call', async (req, res) => {
-  const { phone, agentNumber } = req.body
-  if (!phone) return res.status(400).json({ error: 'Phone number required.' })
-
-  try {
-    const apiUrl         = await getIntegrationSetting('ameyo_api_url')
-    const username       = await getIntegrationSetting('ameyo_username')
-    const password       = await getIntegrationSetting('ameyo_password')
-    const virtualNumber  = await getIntegrationSetting('ameyo_virtual_number')
-    const agentNum       = agentNumber || await getIntegrationSetting('ameyo_agent_number')
-    const campaignId     = await getIntegrationSetting('ameyo_campaign_id')
-
-    if (!apiUrl || !username || !password) {
-      return res.status(400).json({ error: 'Telephony not configured. Set API URL, Account SID/username, and Auth Token/password in Integrations → Telephony.' })
-    }
-
-    const customerMobile = phone.replace(/\D/g, '').slice(-10)
-    const isExotel = apiUrl.toLowerCase().includes('exotel')
-
-    let callRes, callData
-
-    if (isExotel) {
-      // ── Exotel Click-to-Call ────────────────────────────────────────────────
-      // POST https://api.exotel.com/v1/Accounts/{SID}/Calls/connect.json
-      // Auth: Basic base64(SID:AuthToken)
-      // Body (form): From=<agent_number>&To=<customer>&CallerId=<virtual_number>
-      if (!virtualNumber) {
-        return res.status(400).json({ error: 'Exotel Virtual Number not configured. Add it in Integrations → Telephony → Virtual Number.' })
-      }
-      if (!agentNum) {
-        return res.status(400).json({ error: 'Agent Number not configured. Add the counselor\'s mobile in Integrations → Telephony → Agent Number.' })
-      }
-
-      const exotelUrl = `https://api.exotel.com/v1/Accounts/${username}/Calls/connect.json`
-      const basicAuth = Buffer.from(`${username}:${password}`).toString('base64')
-
-      const body = new URLSearchParams({
-        From:     agentNum.replace(/\D/g, '').slice(-10),
-        To:       customerMobile,
-        CallerId: virtualNumber.replace(/\D/g, '').slice(-10),
-      })
-
-      callRes  = await fetch(exotelUrl, {
-        method:  'POST',
-        headers: { 'Authorization': `Basic ${basicAuth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body:    body.toString()
-      })
-      const text = await callRes.text()
-      try { callData = JSON.parse(text) } catch { callData = { raw: text } }
-
-      if (!callRes.ok) {
-        console.error('[Exotel click2call] HTTP', callRes.status, callData)
-        return res.status(502).json({ error: callData?.RestException?.Message || callData.raw || `Exotel error ${callRes.status}`, details: callData })
-      }
-
-      console.log(`[Exotel] Call: agent ${agentNum} → customer ${customerMobile} via ${virtualNumber}`)
-      return res.json({ success: true, provider: 'exotel', phone: customerMobile, response: callData })
-
-    } else {
-      // ── Ameyo Click-to-Call ─────────────────────────────────────────────────
-      // GET {apiUrl}/rest/api/agent/click2call?userId=X&password=Y&phone=Z&cmpId=W
-      const url = new URL(`${apiUrl.replace(/\/$/, '')}/rest/api/agent/click2call`)
-      url.searchParams.set('userId',   username)
-      url.searchParams.set('password', password)
-      url.searchParams.set('phone',    `91${customerMobile}`)
-      if (campaignId) url.searchParams.set('cmpId', campaignId)
-
-      callRes  = await fetch(url.toString(), { method: 'GET' })
-      const text = await callRes.text()
-      try { callData = JSON.parse(text) } catch { callData = { raw: text } }
-
-      if (!callRes.ok || (callData.status && String(callData.status).toLowerCase().includes('error'))) {
-        console.error('[Ameyo click2call] Error:', callData)
-        return res.status(502).json({ error: callData.message || callData.raw || 'Ameyo returned an error.', details: callData })
-      }
-
-      console.log(`[Ameyo] Call initiated to 91${customerMobile}`)
-      return res.json({ success: true, provider: 'ameyo', phone: customerMobile, response: callData })
-    }
-
-  } catch (err) {
-    console.error('[click2call]', err.message)
-    res.status(500).json({ error: `Telephony server unreachable: ${err.message}` })
-  }
-})
+// Ameyo endpoint removed (use /api/calls/initiate for EasyGoIVR instead)
 
 // ── ADMISSION DETAILS — save full KYC + academic info before payment ──────
 app.put('/api/applications/:id/admission-details', async (req, res) => {
@@ -2730,7 +2645,7 @@ app.get('/api/admin/security-overview', async (req, res) => {
     checks.push({ label: 'WhatsApp API',   ok: !!settings.whatsapp_access_token })
     checks.push({ label: 'SMS Gateway',    ok: !!settings.sms_api_key })
     checks.push({ label: 'Payment Gateway',ok: !!(settings.razorpay_key_id || settings.payu_merchant_key) })
-    checks.push({ label: 'Telephony',      ok: !!(settings.ameyo_api_url && settings.ameyo_username) })
+    checks.push({ label: 'Telephony (EasyGoIVR)', ok: !!(settings.easygo_email && settings.easygo_password_hash && settings.easygo_did) })
 
     res.json({
       userStats: userStats.rows[0],
