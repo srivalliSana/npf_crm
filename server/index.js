@@ -43,19 +43,35 @@ app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
 // ── Multi-tenant: resolve req.tenantId on every request (non-blocking) ──────────
-// Reads the JWT if present (Authorization: Bearer); falls back to Centurion (1) so
-// legacy/open endpoints keep working during the SaaS migration. authenticateToken
-// also sets req.tenantId — this just guarantees it exists everywhere.
-app.use((req, _res, next) => {
+// Priority: 1) custom domain → tenant_id  2) JWT tenant_id  3) default to Centurion (1)
+app.use(async (req, _res, next) => {
   let tid = 1
   req.authValid = false
   try {
+    const hostname = req.hostname || ''
+    // Check if hostname matches a tenant's custom_domain
+    if (hostname && hostname !== 'localhost' && !hostname.startsWith('127.')) {
+      try {
+        const domainRes = await pool.query(
+          'SELECT id FROM tenants WHERE custom_domain = $1 LIMIT 1',
+          [hostname]
+        )
+        if (domainRes.rows.length > 0) {
+          tid = domainRes.rows[0].id
+        }
+      } catch { /* domain lookup failed, fall through to JWT */ }
+    }
+    // Check JWT (can override domain if explicitly set in token)
     const token = (req.headers['authorization'] || '').split(' ')[1]
     if (token) {
       const decoded = jwt.verify(token, JWT_SECRET)
-      if (decoded) { req.authValid = true; if (decoded.tenant_id) tid = decoded.tenant_id }
+      if (decoded) {
+        req.authValid = true
+        // JWT tenant_id takes precedence over domain (user logged into specific tenant)
+        if (decoded.tenant_id) tid = decoded.tenant_id
+      }
     }
-  } catch { /* invalid/expired token → default tenant */ }
+  } catch { /* invalid/expired token → use domain or default */ }
   req.tenantId = tid
   next()
 })
@@ -3314,6 +3330,7 @@ function tenantConfigFromRow(t) {
   return {
     id: t.id, name: t.name, slug: t.slug, status: t.status, plan: t.plan,
     allowedDomains: (t.allowed_domains || '').split(',').map(s => s.trim()).filter(Boolean),
+    customDomain: t.custom_domain || null,
     branding, entities, stages
   }
 }
@@ -3341,13 +3358,14 @@ app.get('/api/tenant/public', async (req, res) => {
 // Update the current tenant's config (tenant Admin only)
 app.put('/api/tenant/config', authenticateToken, async (req, res) => {
   if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
-  const { branding, entities, stages, allowedDomains, name } = req.body
+  const { branding, entities, stages, allowedDomains, customDomain, name } = req.body
   try {
     const sets = [], params = []
     if (branding !== undefined)       { params.push(JSON.stringify(branding)); sets.push(`branding = $${params.length}::jsonb`) }
     if (entities !== undefined)       { params.push(JSON.stringify(entities)); sets.push(`entities = $${params.length}::jsonb`) }
     if (stages !== undefined)         { params.push(JSON.stringify(stages));   sets.push(`stages = $${params.length}::jsonb`) }
     if (allowedDomains !== undefined) { params.push(Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')); sets.push(`allowed_domains = $${params.length}`) }
+    if (customDomain !== undefined)   { params.push(customDomain || null); sets.push(`custom_domain = $${params.length}`) }
     if (name !== undefined)           { params.push(String(name)); sets.push(`name = $${params.length}`) }
     if (!sets.length) return res.json({ message: 'Nothing to update.' })
     params.push(req.tenantId)

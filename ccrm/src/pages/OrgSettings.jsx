@@ -7,6 +7,7 @@ export default function OrgSettings() {
   const [name, setName] = useState('')
   const [branding, setBranding] = useState({})
   const [domains, setDomains] = useState('')
+  const [customDomain, setCustomDomain] = useState('')
   const [stages, setStages] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -15,6 +16,7 @@ export default function OrgSettings() {
     setName(tenantConfig.name || '')
     setBranding(tenantConfig.branding || {})
     setDomains((tenantConfig.allowedDomains || []).join(', '))
+    setCustomDomain(tenantConfig.customDomain || '')
     setStages((tenantConfig.stages || []).join(', '))
   }, [tenantConfig])
 
@@ -29,6 +31,7 @@ export default function OrgSettings() {
           name,
           branding,
           allowedDomains: domains.split(',').map(s => s.trim()).filter(Boolean),
+          customDomain: customDomain.trim() || null,
           stages: stages.split(',').map(s => s.trim()).filter(Boolean),
         })
       })
@@ -60,6 +63,16 @@ export default function OrgSettings() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4 mt-4">
+        <div>
+          <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1 flex items-center gap-1">
+            <Globe size={12} /> Custom domain (optional)
+          </label>
+          <input value={customDomain} onChange={e => setCustomDomain(e.target.value)} placeholder="crm.acme.edu"
+            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400" />
+          <p className="text-[11px] text-gray-400 mt-1">
+            Your organization's domain. Users visiting this domain will automatically access your tenant. Point your DNS A record to the app server.
+          </p>
+        </div>
         <div>
           <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1 flex items-center gap-1">
             <Globe size={12} /> Allowed login domains
