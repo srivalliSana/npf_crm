@@ -356,7 +356,8 @@ function RcsTemplatesManager() {
   const load = async () => {
     setLoading(true)
     try {
-      const r = await fetch('/api/rcs/templates')
+      const token = localStorage.getItem('ccrm_token')
+      const r = await fetch('/api/rcs/templates', { headers: { Authorization: `Bearer ${token}` } })
       if (r.ok) setTemplates(await r.json())
     } catch {}
     setLoading(false)
@@ -369,8 +370,9 @@ function RcsTemplatesManager() {
     const variables = (form.variables || '')
       .split(',').map(v => v.trim()).filter(Boolean)
     try {
+      const token = localStorage.getItem('ccrm_token')
       const r = await fetch('/api/rcs/templates', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...form, variables })
       })
       if (r.ok) {
@@ -401,7 +403,8 @@ function RcsTemplatesManager() {
   }
   const del = async (id) => {
     if (!confirm('Delete this template?')) return
-    await fetch(`/api/rcs/templates/${id}`, { method: 'DELETE' })
+    const token = localStorage.getItem('ccrm_token')
+    await fetch(`/api/rcs/templates/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
     load()
   }
 

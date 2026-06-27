@@ -257,7 +257,8 @@ export default function ApplicationDetails() {
   }
 
   useEffect(() => {
-    fetch('/api/integration-settings').then(r => r.json())
+    const token = localStorage.getItem('ccrm_token')
+    fetch('/api/integration-settings', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
       .then(cfg => {
         setAmeyoCfg(cfg)
         const isExotel = (cfg.ameyo_api_url || '').toLowerCase().includes('exotel')
