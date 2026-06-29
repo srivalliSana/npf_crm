@@ -77,7 +77,9 @@ export default function WebsiteLeads({ website }) {
       if (currentUser?.role) qs.set('requesterRole', currentUser.role)
       if (currentUser?.name) qs.set('requesterName', currentUser.name)
 
-      const res = await fetch(`${apiEndpoint}?${qs.toString()}`)
+      const token = localStorage.getItem('ccrm_token')
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+      const res = await fetch(`${apiEndpoint}?${qs.toString()}`, { headers })
       if (!res.ok) throw new Error('Failed to load leads')
       const data = await res.json()
       setLeads(data.rows || [])
