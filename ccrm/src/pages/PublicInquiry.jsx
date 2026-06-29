@@ -100,7 +100,12 @@ export default function PublicInquiry() {
     if (Object.keys(errs).length > 0) return
     setLoading(true)
     try {
-      const res = await fetch('/api/public/inquiry', {
+      // Extract tenant slug from hostname (e.g., crm.cutm.ac.in → cutm)
+      const hostname = window.location.hostname
+      const parts = hostname.split('.')
+      const tenantSlug = parts.length > 1 && parts[0] === 'crm' ? parts[1] : parts[0]
+
+      const res = await fetch(`/api/public/inquiry/${encodeURIComponent(tenantSlug)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, source: form.source || 'Website' })
