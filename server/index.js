@@ -1255,7 +1255,7 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
   }
 })
 
-app.put('/api/leads/:id', async (req, res) => {
+app.put('/api/leads/:id', authenticateToken, async (req, res) => {
   const { id } = req.params
   const { name, email, mobile, state, city, course, source, owner, score, stage, stageColor, not_interested_reason, leadDetails } = req.body
   try {
@@ -4313,7 +4313,7 @@ function calculateLeadScore({ source, stage, mobile, email, course, state }) {
   return Math.min(score, 100)
 }
 
-app.post('/api/leads/recalculate-score/:id', async (req, res) => {
+app.post('/api/leads/recalculate-score/:id', authenticateToken, async (req, res) => {
   const { id } = req.params
   try {
     const r = await pool.query('SELECT * FROM leads WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
@@ -4328,7 +4328,7 @@ app.post('/api/leads/recalculate-score/:id', async (req, res) => {
 })
 
 // --- FEATURE 5: WHATSAPP BULK MESSAGING ---
-app.post('/api/leads/bulk-whatsapp', async (req, res) => {
+app.post('/api/leads/bulk-whatsapp', authenticateToken, async (req, res) => {
   const { leadIds, message, templateName, sentBy } = req.body
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
@@ -4472,7 +4472,7 @@ async function sendSmsViaProvider({ provider, apiKey, apiSid, senderId, fromNumb
   }
 }
 
-app.post('/api/leads/bulk-sms', async (req, res) => {
+app.post('/api/leads/bulk-sms', authenticateToken, async (req, res) => {
   const { leadIds, message } = req.body
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
@@ -4827,7 +4827,7 @@ app.post('/api/webhooks/rcssms-dlr', async (req, res) => {
   }
 })
 
-app.post('/api/leads/bulk-rcs', async (req, res) => {
+app.post('/api/leads/bulk-rcs', authenticateToken, async (req, res) => {
   const { leadIds, message, templateId: requestedTemplateId, rcsType: requestedRcsType } = req.body
   if (!leadIds?.length || !message) return res.status(400).json({ error: 'Lead IDs and message required.' })
 
