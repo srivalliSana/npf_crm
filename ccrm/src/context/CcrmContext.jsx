@@ -505,9 +505,12 @@ export function CcrmProvider({ children }) {
 
   const updateLead = async (id, data) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch(`/api/leads/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(data)
       })
       if (res.ok) {
@@ -524,9 +527,12 @@ export function CcrmProvider({ children }) {
 
   const deleteLead = async (id) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch(`/api/leads/${id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           requesterRole: currentUser?.role || '',
           requesterName: currentUser?.name || ''
@@ -986,9 +992,12 @@ export function CcrmProvider({ children }) {
   // Feature 5: Bulk WhatsApp
   const sendBulkWhatsApp = async (leadIds, message, templateName) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch('/api/leads/bulk-whatsapp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ leadIds, message, templateName, sentBy: currentUser?.name || 'Unknown' })
       })
       const data = await res.json()
@@ -1007,9 +1016,12 @@ export function CcrmProvider({ children }) {
 
   const sendBulkSMS = async (leadIds, message) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch('/api/leads/bulk-sms', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ leadIds, message })
       })
       if (res.ok) {
@@ -1025,9 +1037,12 @@ export function CcrmProvider({ children }) {
   // Send RCS (rich card / text) via configured provider
   const sendBulkRCS = async (leadIds, message, opts = {}) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch('/api/leads/bulk-rcs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ leadIds, message, templateId: opts.templateId, rcsType: opts.rcsType })
       })
       if (res.ok) {
