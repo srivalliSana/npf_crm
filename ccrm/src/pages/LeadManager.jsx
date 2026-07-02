@@ -529,7 +529,9 @@ export default function LeadManager() {
     const formData = new FormData()
     formData.append('file', file)
     try {
-      const res = await fetch('/api/leads/preview-upload', { method: 'POST', body: formData })
+      const token = localStorage.getItem('ccrm_token')
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+      const res = await fetch('/api/leads/preview-upload', { method: 'POST', body: formData, headers })
       if (res.ok) {
         const data = await res.json()
         setPreviewData(data)

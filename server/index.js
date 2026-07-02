@@ -5169,7 +5169,7 @@ app.post('/api/payments/generate-link', async (req, res) => {
 })
 
 // --- FEATURE 12 & 13: EXCEL PREVIEW / COLUMN MAPPER + DUPLICATE DETECTION ---
-app.post('/api/leads/preview-upload', (req, res, next) => {
+app.post('/api/leads/preview-upload', authenticateToken, (req, res, next) => {
   uploadBulk.single('file')(req, res, (err) => {
     if (err) {
       console.error('[Preview Upload] Multer error:', err.message)
@@ -5239,7 +5239,7 @@ app.post('/api/leads/preview-upload', (req, res, next) => {
 })
 
 // Enhanced bulk upload with column mapping + skip/update duplicates
-app.post('/api/leads/bulk-upload-mapped', (req, res, next) => {
+app.post('/api/leads/bulk-upload-mapped', authenticateToken, (req, res, next) => {
   uploadBulk.single('file')(req, res, (err) => {
     if (err) {
       console.error('[Bulk Upload] Multer error:', err.message)
