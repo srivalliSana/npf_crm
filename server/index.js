@@ -2332,9 +2332,14 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
           COUNT(*)::int AS "totalLeads",
           SUM(CASE WHEN owner IS NULL OR owner = '' OR owner = 'Unassigned' THEN 1 ELSE 0 END)::int AS unassigned,
           SUM(CASE WHEN stage='Untouched'      THEN 1 ELSE 0 END)::int AS untouched,
+          SUM(CASE WHEN stage='Contacted'      THEN 1 ELSE 0 END)::int AS contacted,
           SUM(CASE WHEN stage='Follow Up'      THEN 1 ELSE 0 END)::int AS "followUp",
           SUM(CASE WHEN stage='Interested'     THEN 1 ELSE 0 END)::int AS interested,
-          SUM(CASE WHEN stage='Not Interested' THEN 1 ELSE 0 END)::int AS "notInterested"
+          SUM(CASE WHEN stage='Qualified Leads' THEN 1 ELSE 0 END)::int AS qualified,
+          SUM(CASE WHEN stage='Process for Payment' THEN 1 ELSE 0 END)::int AS "processForPayment",
+          SUM(CASE WHEN stage='Payment Success' THEN 1 ELSE 0 END)::int AS "paymentSuccess",
+          SUM(CASE WHEN stage='Not Interested' THEN 1 ELSE 0 END)::int AS "notInterested",
+          SUM(CASE WHEN stage='Converted'      THEN 1 ELSE 0 END)::int AS converted
         FROM leads l ${ownerWhere};`, params),
       pool.query('SELECT COUNT(*)::int AS c FROM applications WHERE tenant_id = $1;', tp),
       pool.query("SELECT COUNT(*)::int AS c FROM applications WHERE stage IN ('Enrolment','Enrolments') AND tenant_id = $1;", tp),

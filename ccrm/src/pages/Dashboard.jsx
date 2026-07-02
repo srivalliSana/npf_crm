@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
-import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, X, Download } from 'lucide-react'
+import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, X, Download, CreditCard, Trophy } from 'lucide-react'
 import { stageLabel } from '../stageLabel'
 
 // Lead stages shown in the summary table (funnel order)
@@ -64,9 +64,14 @@ export default function Dashboard() {
     { label: 'Total Leads',     value: ((kpi?.totalLeads || 0)).toLocaleString(),           icon: Users,       light: 'bg-blue-50',   text: 'text-blue-600' },
     { label: 'Unassigned',      value: ((kpi?.unassigned ?? 0)).toLocaleString(),           icon: Users,       light: 'bg-purple-50', text: 'text-purple-600' },
     { label: 'Untouched',       value: ((kpi?.untouched ?? 0)).toLocaleString(),            icon: Users,       light: 'bg-orange-50', text: 'text-orange-600' },
+    { label: 'Contacted',       value: ((kpi?.contacted ?? 0)).toLocaleString(),            icon: Users,       light: 'bg-blue-50',   text: 'text-blue-600' },
     { label: 'Interested',      value: ((kpi?.interested ?? 0)).toLocaleString(),           icon: FileText,    light: 'bg-green-50',  text: 'text-green-600' },
     { label: 'Further Talk/Follow Up',       value: ((kpi?.followUp ?? 0)).toLocaleString(),             icon: TrendingUp,  light: 'bg-yellow-50', text: 'text-yellow-600' },
+    { label: 'Qualified Leads', value: ((kpi?.qualified ?? 0)).toLocaleString(),            icon: CheckCircle, light: 'bg-indigo-50', text: 'text-indigo-600' },
+    { label: 'Process for Payment', value: ((kpi?.processForPayment ?? 0)).toLocaleString(), icon: CreditCard, light: 'bg-pink-50', text: 'text-pink-600' },
+    { label: 'Payment Success', value: ((kpi?.paymentSuccess ?? 0)).toLocaleString(),       icon: CheckCircle, light: 'bg-emerald-50', text: 'text-emerald-600' },
     { label: 'Not Interested',  value: ((kpi?.notInterested ?? 0)).toLocaleString(),        icon: CheckCircle, light: 'bg-red-50',    text: 'text-red-600' },
+    { label: 'Converted',       value: ((kpi?.converted ?? 0)).toLocaleString(),            icon: Trophy,      light: 'bg-amber-50',  text: 'text-amber-600' },
     ...(isAdmin ? [{ label: 'Revenue Collected', value: `₹${(((stats?.revenue ?? 0))/100000).toFixed(1)}L`, icon: CheckCircle, light: 'bg-emerald-50', text: 'text-emerald-600' }] : []),
   ]
 
