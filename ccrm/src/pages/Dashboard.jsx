@@ -225,6 +225,23 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Leads by Source (admin/manager) */}
+      {!isCounselor && Array.isArray(stats?.bySource) && stats.bySource.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+          <div className="px-5 py-3 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-800 text-sm">Leads by Source</h2>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {stats.bySource.map(src => (
+              <div key={src.source} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50">
+                <span className="text-gray-700 text-sm font-medium">{src.source}</span>
+                <span className="text-gray-900 font-semibold text-sm">{(src.leads || 0).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stage Summary — counsellor (rows) × stage (columns) matrix (admin/manager) */}
       {!isCounselor && Array.isArray(stats?.byCounsellorStages) && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

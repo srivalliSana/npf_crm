@@ -2326,7 +2326,7 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
     const tp = [req.tenantId]
 
     // All independent aggregates run concurrently (was ~4s sequential → ~slowest query)
-    const [kpi, appTotal, enrolTotal, revTotal, perCounsellor, domainRes, matrixRes] = await Promise.all([
+    const [kpi, appTotal, enrolTotal, revTotal, perCounsellor, domainRes, matrixRes, sourceRes] = await Promise.all([
       pool.query(`
         SELECT
           COUNT(*)::int AS "totalLeads",
@@ -2379,6 +2379,9 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
         JOIN leads l ON LOWER(regexp_replace(l.owner,'[^a-zA-Z0-9]','','g')) = LOWER(regexp_replace(u.name,'[^a-zA-Z0-9]','','g')) AND l.tenant_id = u.tenant_id
         WHERE u.status = 'Active' AND u.role IN ('Counselor','Manager') ${userScope}
         GROUP BY u.name, u.email, l.stage;`, userParams),
+      pool.query(`
+        SELECT COALESCE(NULLIF(source,''),'Unknown') AS source, COUNT(*)::int AS leads
+        FROM leads l ${ownerWhere} GROUP BY 1 ORDER BY leads DESC LIMIT 12;`, params),
     ])
 
     const byCounsellor = perCounsellor.rows.map(r => ({
@@ -2440,6 +2443,7 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
       byDomain,
       byCounsellorStages,
       gtEntities,
+      bySource: sourceRes.rows,
     }
     dashboardCache.set(cacheKey, { ts: Date.now(), data: payload })
     res.json(payload)
