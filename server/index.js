@@ -1033,6 +1033,65 @@ app.get('/api/esse-leads', authenticateToken, async (req, res) => {
   }
 })
 
+// --- AUTO-ASSIGN unassigned leads (Admin only) ---
+app.post('/api/bulk-assign-unassigned', authenticateToken, async (req, res) => {
+  try {
+    if (!['Admin', 'Manager'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Admin/Manager only.' })
+    }
+
+    const { includeGT = true, includeRegular = true } = req.body
+    const results = {}
+
+    // Auto-assign regular leads
+    if (includeRegular) {
+      const unassigned = await pool.query(
+        `SELECT id FROM leads WHERE (owner IS NULL OR owner = '' OR owner = 'Unassigned') AND tenant_id = $1;`,
+        [req.tenantId]
+      )
+
+      let assigned = 0
+      for (const lead of unassigned.rows) {
+        const counselor = await getNextAssignee(req.tenantId)
+        if (counselor && counselor !== 'Unassigned') {
+          await pool.query(`UPDATE leads SET owner = $1 WHERE id = $2 AND tenant_id = $3;`, [counselor, lead.id, req.tenantId])
+          assigned++
+        }
+      }
+
+      results['Regular Leads'] = { total: unassigned.rows.length, assigned }
+    }
+
+    // Auto-assign GT entity leads
+    if (includeGT) {
+      const entities = ['GTIB', 'FTL', 'GTTECH', 'ESSE']
+      for (const entity of entities) {
+        const table = `${entity.toLowerCase()}_leads`
+        const unassigned = await pool.query(
+          `SELECT id FROM ${table} WHERE (owner IS NULL OR owner = '' OR owner = 'Unassigned') AND tenant_id = $1;`,
+          [req.tenantId]
+        )
+
+        let assigned = 0
+        for (const lead of unassigned.rows) {
+          const counselor = await getNextAssignee(req.tenantId)
+          if (counselor && counselor !== 'Unassigned') {
+            await pool.query(`UPDATE ${table} SET owner = $1 WHERE id = $2 AND tenant_id = $3;`, [counselor, lead.id, req.tenantId])
+            assigned++
+          }
+        }
+
+        results[entity] = { total: unassigned.rows.length, assigned }
+      }
+    }
+
+    res.json({ success: true, results })
+  } catch (err) {
+    console.error('[Bulk Assign]', err.message)
+    res.status(500).json({ error: 'Auto-assign failed.' })
+  }
+})
+
 // --- BULK IMPORT for GT website leads (FTL / GTIB / GTTECH / ESSE) ---
 app.post('/api/website-leads/import', authenticateToken, uploadDoc.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' })

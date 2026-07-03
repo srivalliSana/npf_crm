@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react'
-import { Building2, Save, Globe } from 'lucide-react'
+import { Building2, Save, Globe, Users, Zap } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
 export default function OrgSettings() {
-  const { tenantConfig, fetchTenantConfig, showToast } = useCcrm()
+  const { tenantConfig, fetchTenantConfig, showToast, currentUser } = useCcrm()
   const [name, setName] = useState('')
   const [branding, setBranding] = useState({})
   const [domains, setDomains] = useState('')
   const [customDomain, setCustomDomain] = useState('')
   const [stages, setStages] = useState('')
   const [saving, setSaving] = useState(false)
+  const [assigning, setAssigning] = useState(false)
 
   useEffect(() => {
     if (!tenantConfig) return
@@ -43,6 +44,34 @@ export default function OrgSettings() {
   }
 
   const B = (k, v) => setBranding(b => ({ ...b, [k]: v }))
+
+  const handleAutoAssign = async (type) => {
+    setAssigning(true)
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/bulk-assign-unassigned', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          includeRegular: type === 'all' || type === 'regular',
+          includeGT: type === 'all' || type === 'gt'
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        const total = Object.values(data.results).reduce((sum, r) => sum + r.assigned, 0)
+        showToast(`Auto-assigned ${total} unassigned leads.`, 'success')
+      } else {
+        showToast(data.error || 'Auto-assign failed.', 'error')
+      }
+    } catch (e) {
+      showToast(e.message || 'Auto-assign failed.', 'error')
+    } finally {
+      setAssigning(false)
+    }
+  }
+
+  const isAdmin = ['Admin', 'Manager'].includes(currentUser?.role)
 
   return (
     <div className="p-6 max-w-2xl">
@@ -90,6 +119,48 @@ export default function OrgSettings() {
           <p className="text-[11px] text-gray-400 mt-1">Comma-separated, in funnel order.</p>
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mt-4">
+          <h2 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <Users size={16} className="text-primary-600" /> Lead Assignment
+          </h2>
+          <div className="space-y-3">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm font-medium text-gray-800 mb-2">Regular Leads (CUTM, CUTMAP)</p>
+              <p className="text-sm text-gray-600 mb-3">
+                Auto-assign all unassigned regular leads to active counselors using round-robin.
+              </p>
+              <button onClick={() => handleAutoAssign('regular')} disabled={assigning}
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                <Zap size={14} /> {assigning ? 'Auto-assigning…' : 'Auto-assign Regular Leads'}
+              </button>
+            </div>
+
+            <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+              <p className="text-sm font-medium text-gray-800 mb-2">GT Entity Leads (GTIB, FTL, GTTECH, ESSE)</p>
+              <p className="text-sm text-gray-600 mb-3">
+                Auto-assign all unassigned GT entity leads to active counselors using round-robin.
+              </p>
+              <button onClick={() => handleAutoAssign('gt')} disabled={assigning}
+                className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                <Zap size={14} /> {assigning ? 'Auto-assigning…' : 'Auto-assign GT Leads'}
+              </button>
+            </div>
+
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm font-medium text-gray-800 mb-2">All Leads (CUTM, CUTMAP, GT)</p>
+              <p className="text-sm text-gray-600 mb-3">
+                Auto-assign all unassigned leads (regular + GT) to active counselors.
+              </p>
+              <button onClick={() => handleAutoAssign('all')} disabled={assigning}
+                className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                <Zap size={14} /> {assigning ? 'Auto-assigning…' : 'Auto-assign All Leads'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <button onClick={save} disabled={saving}
         className="mt-5 inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg px-5 py-2 text-sm disabled:opacity-50">
