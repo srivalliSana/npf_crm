@@ -5292,10 +5292,14 @@ app.post('/api/leads/bulk-upload-mapped', authenticateToken, (req, res, next) =>
       ? (uploaderName || '')
       : (assignMode === 'specific' && assignedTo ? assignedTo : '')
 
-    const getNextOwner = () => {
+    const getNextOwner = async () => {
       // Counsellor uploading → their leads; admin "specific" → chosen counselor.
       if (explicitAssignee) return explicitAssignee
-      // Otherwise (admin round-robin/default) → stay Unassigned (no auto-assign).
+      // Admin round-robin → auto-assign to next counselor
+      if (assignMode === 'round_robin') {
+        return await getNextAssignee(req.tenantId)
+      }
+      // Default → stay Unassigned
       return 'Unassigned'
     }
     // Keep the original anonymous fn signature for backward compat below
@@ -5345,17 +5349,17 @@ app.post('/api/leads/bulk-upload-mapped', authenticateToken, (req, res, next) =>
         const socialList = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram', 'social media']
         const sourceType = (upperSrc === 'SM' || socialList.includes(source.toLowerCase())) ? 'sm' : 'ai'
         const score  = calculateLeadScore({ source, stage: 'Untouched', mobile, email, course })
-        const owner  = getNextOwner()
+        const owner  = await getNextOwner()
         assignmentCounts[owner] = (assignmentCounts[owner] || 0) + 1
 
-        const dup = await client.query('SELECT id, name, mobile, email FROM leads WHERE mobile = $1 OR LOWER(email) = LOWER($2) LIMIT 1;', [mobile, email])
+        const dup = await client.query('SELECT id, name, mobile, email FROM leads WHERE (mobile = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [mobile, email, req.tenantId])
         if (dup.rows.length > 0) {
           if (dupHandling === 'skip') {
             // "Specific Counsellor" (or a counselor self-upload) promises to assign
             // ALL rows in this file to that person — so reassign the matched lead's
             // owner even under Skip (owner only; don't touch other fields).
             if (explicitAssignee) {
-              await client.query('UPDATE leads SET owner=$1 WHERE id=$2;', [explicitAssignee, dup.rows[0].id])
+              await client.query('UPDATE leads SET owner=$1 WHERE id=$2 AND tenant_id=$3;', [explicitAssignee, dup.rows[0].id, req.tenantId])
               updated++
               continue
             }
@@ -5370,22 +5374,22 @@ app.post('/api/leads/bulk-upload-mapped', authenticateToken, (req, res, next) =>
           if (dupHandling === 'update') {
             if (explicitAssignee) {
               // Counselor self-claim, or admin's chosen counselor → reassign the matched lead
-              await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5, owner=$6 WHERE id=$7;',
-                [name, course, source, score, sourceType, explicitAssignee, dup.rows[0].id])
+              await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5, owner=$6 WHERE id=$7 AND tenant_id=$8;',
+                [name, course, source, score, sourceType, explicitAssignee, dup.rows[0].id, req.tenantId])
             } else {
               // Admin round-robin/default → update fields but keep existing owner (don't unassign)
-              await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5 WHERE id=$6;',
-                [name, course, source, score, sourceType, dup.rows[0].id])
+              await client.query('UPDATE leads SET name=$1, course=$2, source=$3, score=$4, source_type=$5 WHERE id=$6 AND tenant_id=$7;',
+                [name, course, source, score, sourceType, dup.rows[0].id, req.tenantId])
             }
             updated++; continue
           }
         }
         const leadSource = isCounselor ? 'counselor_upload' : (source?.toLowerCase().includes('facebook') ? 'facebook' : 'form')
         await client.query(`
-          INSERT INTO leads (name, email, mobile, state, city, course, source, source_type, owner, reg_date, score, stage, stage_color, lead_source)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Untouched','red',$12);
+          INSERT INTO leads (name, email, mobile, state, city, course, source, source_type, owner, reg_date, score, stage, stage_color, lead_source, tenant_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Untouched','red',$12,$13);
         `, [name, email, mobile, state, city, course, source, sourceType, owner,
-            new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource])
+            new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, req.tenantId])
         imported++
       }
       await client.query('COMMIT')
