@@ -5156,12 +5156,10 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
       return res.status(200).json({ message: 'Your inquiry was already received. Our team will contact you shortly.', duplicate: true })
     }
 
-    // Landing-page leads: social-media sources auto-assign (round-robin); others stay unassigned
+    // Auto-assign all new leads via round-robin to active counselors
     const score = calculateLeadScore({ source: source || 'Website', stage: 'Untouched', mobile, email, course })
-    const socialMediaSources = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram']
-    const isFromSocialMedia = source && socialMediaSources.some(sm => source.toLowerCase().includes(sm))
     const leadSource = source?.toLowerCase().includes('facebook') ? 'facebook' : 'form'
-    const owner = isFromSocialMedia ? await getNextAssignee(tenantId) : 'Unassigned'
+    const owner = await getNextAssignee(tenantId)
     const insertRes = await pool.query(`
       INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, tenant_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $11, $8, $9, 'Untouched', 'red', $10, $12)
@@ -6619,6 +6617,44 @@ async function startServer() {
       res.json({ status: 'Email and backup triggered successfully' })
     } catch (e) {
       res.status(500).json({ error: e.message })
+    }
+  })
+
+  // --- SCHEDULED AUTO-ASSIGN: Every hour, assign all unassigned leads (regular + GT) ---
+  cron.schedule('0 * * * *', async () => {
+    try {
+      const tenants = await pool.query('SELECT id FROM tenants')
+      for (const { id: tenantId } of tenants.rows) {
+        // Auto-assign regular leads
+        const unassigned = await pool.query(
+          'SELECT id FROM leads WHERE (owner IS NULL OR owner = \'\' OR owner = \'Unassigned\') AND tenant_id = $1',
+          [tenantId]
+        )
+        for (const { id } of unassigned.rows) {
+          const counselor = await getNextAssignee(tenantId)
+          if (counselor && counselor !== 'Unassigned') {
+            await pool.query('UPDATE leads SET owner = $1 WHERE id = $2 AND tenant_id = $3', [counselor, id, tenantId])
+          }
+        }
+
+        // Auto-assign GT entity leads
+        for (const entity of ['GTIB', 'FTL', 'GTTECH', 'ESSE']) {
+          const table = `${entity.toLowerCase()}_leads`
+          const gtUnassigned = await pool.query(
+            `SELECT id FROM ${table} WHERE (owner IS NULL OR owner = '' OR owner = 'Unassigned') AND tenant_id = $1`,
+            [tenantId]
+          )
+          for (const { id } of gtUnassigned.rows) {
+            const counselor = await getNextAssignee(tenantId)
+            if (counselor && counselor !== 'Unassigned') {
+              await pool.query(`UPDATE ${table} SET owner = $1 WHERE id = $2 AND tenant_id = $3`, [counselor, id, tenantId])
+            }
+          }
+        }
+      }
+      console.log(`[Cron] Auto-assigned unassigned leads at ${new Date().toISOString()}`)
+    } catch (err) {
+      console.error('[Cron Auto-Assign]', err.message)
     }
   })
 
