@@ -181,43 +181,68 @@ export default function WebsiteLeads({ website }) {
     }
   }
 
-  const handleExport = () => {
-    let csvHeaders, csvRows
+  const handleExport = async () => {
+    try {
+      setLoading(true)
+      const qs = new URLSearchParams()
+      qs.set('limit', '9999')
+      if (search) qs.set('search', search)
 
-    if (website === 'gttech') {
-      csvHeaders = ['ID', 'Full Name', 'Organization', 'Designation', 'Industry', 'Interested In', 'Email', 'Phone', 'Status', 'Created']
-      csvRows = leads.map(lead => [
-        lead.id,
-        lead.full_name,
-        lead.organization_name || '',
-        lead.designation || '',
-        lead.industry_sector || '',
-        Array.isArray(lead.interested_in) ? lead.interested_in.join('; ') : '',
-        lead.email || '',
-        lead.phone || '',
-        lead.status,
-        lead.created_at
-      ])
-    } else {
-      csvHeaders = ['ID', 'Name', 'Email', 'Phone', 'Looking For', 'Status', 'Created']
-      csvRows = leads.map(lead => [
-        lead.id,
-        lead.name,
-        lead.email_id || '',
-        lead.phone || '',
-        lead.looking_for || '',
-        lead.status,
-        lead.created_at
-      ])
+      const token = localStorage.getItem('ccrm_token')
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+      const apiEndpoint = `/api/${website}-leads`
+      const res = await fetch(`${apiEndpoint}?${qs.toString()}`, { headers })
+
+      if (!res.ok) {
+        alert('Failed to export. Please try again.')
+        return
+      }
+
+      const data = await res.json()
+      const allLeads = data.rows || []
+
+      let csvHeaders, csvRows
+
+      if (website === 'gttech') {
+        csvHeaders = ['ID', 'Full Name', 'Organization', 'Designation', 'Industry', 'Interested In', 'Email', 'Phone', 'Status', 'Created']
+        csvRows = allLeads.map(lead => [
+          lead.id,
+          lead.full_name,
+          lead.organization_name || '',
+          lead.designation || '',
+          lead.industry_sector || '',
+          Array.isArray(lead.interested_in) ? lead.interested_in.join('; ') : '',
+          lead.email || '',
+          lead.phone || '',
+          lead.status,
+          lead.created_at
+        ])
+      } else {
+        csvHeaders = ['ID', 'Name', 'Email', 'Phone', 'Looking For', 'Status', 'Created']
+        csvRows = allLeads.map(lead => [
+          lead.id,
+          lead.name,
+          lead.email_id || '',
+          lead.phone || '',
+          lead.looking_for || '',
+          lead.status,
+          lead.created_at
+        ])
+      }
+
+      const csv = [csvHeaders.join(','), ...csvRows.map(row => row.map(v => `"${v}"`).join(','))].join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${website}-leads-${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      alert('Export failed: ' + err.message)
+    } finally {
+      setLoading(false)
     }
-
-    const csv = [csvHeaders.join(','), ...csvRows.map(row => row.map(v => `"${v}"`).join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${website}-leads-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
   }
 
   const handleImport = async (e) => {
