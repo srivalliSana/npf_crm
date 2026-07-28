@@ -837,10 +837,17 @@ export async function initTenancy() {
     await client.query(`ALTER TABLE integration_settings DROP CONSTRAINT IF EXISTS integration_settings_key_key;`).catch(() => {})
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_intset_tenant_key ON integration_settings (tenant_id, key);`).catch(() => {})
 
+    // users.email was globally UNIQUE — make it per-tenant (tenant_id, email), so the
+    // same email can have separate, independent accounts in different tenants.
+    await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;`).catch(() => {})
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_users_tenant_email ON users (tenant_id, LOWER(email));`).catch(() => {})
+
     // Platform super-admin (above per-tenant admins) — can create/suspend tenants
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_platform_admin BOOLEAN DEFAULT FALSE;`).catch(() => {})
-    // Designate the product owner; if absent, fall back to the oldest tenant-1 admin
-    await client.query(`UPDATE users SET is_platform_admin = TRUE WHERE LOWER(email) = 'tokalyankv@gmail.com';`).catch(() => {})
+    // Designate the product owner; if absent, fall back to the oldest tenant-1 admin.
+    // Scoped to tenant 1 — now that email isn't globally unique, an unrelated same-email
+    // account created later in another tenant must never inherit this via LOWER(email) alone.
+    await client.query(`UPDATE users SET is_platform_admin = TRUE WHERE LOWER(email) = 'tokalyankv@gmail.com' AND tenant_id = 1;`).catch(() => {})
     await client.query(`
       UPDATE users SET is_platform_admin = TRUE
       WHERE id = (SELECT id FROM users WHERE tenant_id = 1 AND role = 'Admin' ORDER BY id ASC LIMIT 1)

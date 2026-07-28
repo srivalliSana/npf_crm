@@ -559,7 +559,24 @@ async function alertCounselor(assigneeName, leadName, course, source, leadId, te
 app.post('/api/auth/login', async (req, res) => {
   const { email, password, tenantSlug } = req.body
   try {
-    const userRes = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1);', [email])
+    // Email is unique per tenant, not globally — resolve which tenant this
+    // URL belongs to (defaults to Centurion when no slug) and look up the
+    // account within that tenant specifically, so the same email can have
+    // a fully separate account in a different tenant.
+    const lookupTenantId = await resolveSlugTenant(tenantSlug)
+    let userRes = await pool.query(
+      'SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2;',
+      [email, lookupTenantId]
+    )
+    if (userRes.rows.length === 0 && tenantSlug) {
+      // No account in *this* tenant — but a platform admin's own account
+      // (whichever tenant it actually belongs to) may still sign in through
+      // any tenant's URL, so they can reach every tenant's portal.
+      userRes = await pool.query(
+        'SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND is_platform_admin = TRUE LIMIT 1;',
+        [email]
+      )
+    }
     if (userRes.rows.length === 0) {
       return res.status(400).json({ error: 'Invalid email or password.' })
     }
@@ -575,18 +592,6 @@ app.post('/api/auth/login', async (req, res) => {
     const tStat = await pool.query('SELECT status FROM tenants WHERE id = $1;', [user.tenant_id || 1])
     if (tStat.rows[0] && tStat.rows[0].status !== 'Active') {
       return res.status(403).json({ error: 'This organization is suspended. Please contact support.' })
-    }
-
-    // Logging in via a specific tenant's URL (e.g. /cuedu/login) must land in
-    // THAT tenant, never silently succeed into a different one the account
-    // actually belongs to. Platform admins are exempt — they legitimately
-    // need to reach any tenant's portal; this doesn't change what data they
-    // can see, only whether the login itself is allowed through this URL.
-    if (tenantSlug && !user.is_platform_admin) {
-      const slugTenantId = await resolveSlugTenantStrict(tenantSlug)
-      if (slugTenantId && slugTenantId !== (user.tenant_id || 1)) {
-        return res.status(403).json({ error: "This account isn't part of this organization. Use your own sign-in link." })
-      }
     }
 
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
@@ -623,12 +628,25 @@ app.post('/api/auth/google', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Email required.' })
   try {
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
-    // Resolve once — used both to scope new-signup domain matching and to
-    // reject an existing user logging in through a different tenant's URL.
-    const slugTenantId = await resolveSlugTenantStrict(tenantSlug)
+    // Email is unique per tenant, not globally — resolve which tenant this
+    // URL belongs to (defaults to Centurion when no slug) and look up/create
+    // the account within that tenant specifically, so the same email can
+    // have a fully separate account in a different tenant.
+    const lookupTenantId = await resolveSlugTenant(tenantSlug)
 
-    // Check if user already exists
-    const existing = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1);', [email])
+    let existing = await pool.query(
+      'SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2;',
+      [email, lookupTenantId]
+    )
+    if (existing.rows.length === 0 && tenantSlug) {
+      // No account in *this* tenant — but a platform admin's own account
+      // (whichever tenant it actually belongs to) may still sign in through
+      // any tenant's URL, so they can reach every tenant's portal.
+      existing = await pool.query(
+        'SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND is_platform_admin = TRUE LIMIT 1;',
+        [email]
+      )
+    }
 
     let user
     if (existing.rows.length > 0) {
@@ -641,30 +659,20 @@ app.post('/api/auth/google', async (req, res) => {
       if (tStat.rows[0] && tStat.rows[0].status !== 'Active') {
         return res.status(403).json({ error: 'This organization is suspended. Please contact support.' })
       }
-      // Same cross-tenant login guard as password login (platform admins exempt).
-      if (slugTenantId && !u.is_platform_admin && slugTenantId !== (u.tenant_id || 1)) {
-        return res.status(403).json({ error: "This account isn't part of this organization. Use your own sign-in link." })
-      }
       await pool.query(
         'UPDATE users SET last_login = $1, picture = COALESCE(NULLIF($2,\'\'), picture) WHERE id = $3;',
         [lastLoginStr, picture || '', u.id]
       )
       user = { ...u, last_login: lastLoginStr, picture: picture || u.picture }
     } else {
-      // New Google user — route to the tenant whose allowed_domains include this email's
-      // domain (each tenant controls which domains may self-register via Google). When
-      // signing up through a specific tenant's URL, scope the match to THAT tenant only —
-      // otherwise a domain shared across tenants could silently resolve to a different one.
+      // New Google user for THIS tenant specifically (even if the same email
+      // already has an account in a different tenant) — only routed in if
+      // this tenant's own allowed_domains include the email's domain.
       const domain = (email.split('@')[1] || '').toLowerCase()
-      const tRes = slugTenantId
-        ? await pool.query(
-            "SELECT id FROM tenants WHERE id = $1 AND status = 'Active' AND (',' || lower(replace(allowed_domains, ' ', '')) || ',') LIKE ('%,' || $2 || ',%') LIMIT 1;",
-            [slugTenantId, domain]
-          )
-        : await pool.query(
-            "SELECT id FROM tenants WHERE status = 'Active' AND (',' || lower(replace(allowed_domains, ' ', '')) || ',') LIKE ('%,' || $1 || ',%') ORDER BY id LIMIT 1;",
-            [domain]
-          )
+      const tRes = await pool.query(
+        "SELECT id FROM tenants WHERE id = $1 AND status = 'Active' AND (',' || lower(replace(allowed_domains, ' ', '')) || ',') LIKE ('%,' || $2 || ',%') LIMIT 1;",
+        [lookupTenantId, domain]
+      )
       const newTenantId = tRes.rows[0]?.id
       if (!newTenantId) {
         return res.status(403).json({ error: 'Your email domain is not authorized to sign in. Contact your administrator.' })
@@ -709,20 +717,25 @@ app.post('/api/auth/google', async (req, res) => {
 })
 
 // --- FORGOT PASSWORD (OTP-based reset) ---
-const otpStore = {} // { email: { otp, expires } } — in-memory for simplicity
+const otpStore = {} // { "tenantId:email": { otp, expires } } — in-memory for simplicity
 
 app.post('/api/auth/forgot-password', async (req, res) => {
-  const { email } = req.body
+  const { email, tenantSlug } = req.body
   if (!email) return res.status(400).json({ error: 'Email is required.' })
   try {
-    const userRes = await pool.query('SELECT id, name FROM users WHERE LOWER(email) = LOWER($1);', [email])
+    // Email is unique per tenant, not globally — scope the lookup (and the
+    // OTP itself) to this URL's tenant, so a same-email account elsewhere
+    // is never affected.
+    const lookupTenantId = await resolveSlugTenant(tenantSlug)
+    const otpKey = `${lookupTenantId}:${email.toLowerCase()}`
+    const userRes = await pool.query('SELECT id, name FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2;', [email, lookupTenantId])
     if (userRes.rows.length === 0) {
       // Return success even if not found (security: don't reveal account existence)
       return res.json({ message: 'If the email exists, a reset OTP has been sent.' })
     }
     const user = userRes.rows[0]
     const otp = Math.floor(100000 + Math.random() * 900000).toString()
-    otpStore[email.toLowerCase()] = { otp, expires: Date.now() + 10 * 60 * 1000 } // 10 min
+    otpStore[otpKey] = { otp, expires: Date.now() + 10 * 60 * 1000 } // 10 min
 
     // Send OTP via SMTP mail
     sendSystemMailAlert(
@@ -739,14 +752,16 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 })
 
 app.post('/api/auth/reset-password', async (req, res) => {
-  const { email, otp, newPassword } = req.body
+  const { email, otp, newPassword, tenantSlug } = req.body
   if (!email || !otp || !newPassword) return res.status(400).json({ error: 'All fields required.' })
   if (newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' })
 
-  const stored = otpStore[email.toLowerCase()]
+  const lookupTenantId = await resolveSlugTenant(tenantSlug)
+  const otpKey = `${lookupTenantId}:${email.toLowerCase()}`
+  const stored = otpStore[otpKey]
   if (!stored) return res.status(400).json({ error: 'No OTP requested for this email.' })
   if (Date.now() > stored.expires) {
-    delete otpStore[email.toLowerCase()]
+    delete otpStore[otpKey]
     return res.status(400).json({ error: 'OTP has expired. Please request a new one.' })
   }
   if (stored.otp !== otp.trim()) {
@@ -754,9 +769,9 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 
   try {
-    const updateRes = await pool.query('UPDATE users SET password = $1 WHERE LOWER(email) = LOWER($2) RETURNING id;', [newPassword, email])
+    const updateRes = await pool.query('UPDATE users SET password = $1 WHERE LOWER(email) = LOWER($2) AND tenant_id = $3 RETURNING id;', [newPassword, email, lookupTenantId])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Account not found.' })
-    delete otpStore[email.toLowerCase()]
+    delete otpStore[otpKey]
     res.json({ message: 'Password reset successfully. You can now log in.' })
   } catch (err) {
     console.error(err)
@@ -2766,6 +2781,12 @@ app.get('/api/users', authenticateToken, async (req, res) => {
 app.post('/api/users', async (req, res) => {
   const { name, email, password, role, team, status, mobile, reportsTo } = req.body
   try {
+    // Email is unique per tenant, not globally — the same email is fine as a
+    // different tenant's user, but must be rejected within this tenant.
+    const dup = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2;', [email, req.tenantId])
+    if (dup.rows.length) {
+      return res.status(409).json({ error: 'A user with this email already exists in your organization.' })
+    }
     const insertRes = await pool.query(`
       INSERT INTO users (name, email, password, role, team, status, mobile, reports_to, tenant_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -2774,6 +2795,9 @@ app.post('/api/users', async (req, res) => {
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     console.error(err)
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'A user with this email already exists in your organization.' })
+    }
     res.status(500).json({ error: 'Failed to create user account.' })
   }
 })
@@ -3101,8 +3125,8 @@ app.post('/api/users/bulk-upload', (req, res, next) => {
       if (!name)  { errors.push(`Row ${rowNum}: Name is required.`);  skipped++; continue }
       if (!email || !email.includes('@')) { errors.push(`Row ${rowNum}: Valid email required.`); skipped++; continue }
 
-      // Skip if email already exists
-      const exists = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1;', [email])
+      // Skip if email already exists in this tenant (a different tenant may legitimately have it)
+      const exists = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1 AND tenant_id = $2;', [email, req.tenantId])
       if (exists.rows.length > 0) { skipped++; continue }
 
       try {
@@ -3437,8 +3461,8 @@ app.post('/api/platform/tenants', platformAdminOnly, async (req, res) => {
     await client.query('BEGIN')
     const dupSlug = await client.query('SELECT id FROM tenants WHERE slug = $1;', [cleanSlug])
     if (dupSlug.rows.length) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'That slug is already taken.' }) }
-    const dupEmail = await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1);', [adminEmail])
-    if (dupEmail.rows.length) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'That admin email already exists.' }) }
+    // No email-duplicate check here — email is unique per tenant, not globally,
+    // so reusing an email as a different tenant's first admin is expected.
 
     const tRes = await client.query(
       `INSERT INTO tenants (name, slug, allowed_domains, status, plan, branding, entities, stages)
@@ -4111,18 +4135,6 @@ async function resolveSlugTenant(slug) {
     const r = await pool.query("SELECT id FROM tenants WHERE slug = $1 AND status = 'Active' LIMIT 1;", [slug])
     return r.rows[0]?.id || 1
   } catch { return 1 }
-}
-
-// Strict variant for auth (login/signup): returns null — never defaults to
-// Centurion (1) — when the slug is empty or doesn't match a real, active
-// tenant, so a bogus/typo'd slug is never mistakenly compared against
-// Centurion's tenant id in a login-mismatch check.
-async function resolveSlugTenantStrict(slug) {
-  if (!slug) return null
-  try {
-    const r = await pool.query("SELECT id FROM tenants WHERE slug = $1 AND status = 'Active' LIMIT 1;", [slug])
-    return r.rows[0]?.id || null
-  } catch { return null }
 }
 
 // Optional :tenantSlug → base path stays Centurion; /…/<slug> routes to that tenant.

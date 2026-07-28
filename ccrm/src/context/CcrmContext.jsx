@@ -404,22 +404,25 @@ export function CcrmProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData)
       })
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        const newUser = await res.json()
-        setUsers(prev => [newUser, ...prev])
+        setUsers(prev => [data, ...prev])
         showToast(`User ${userData.name} created successfully.`, 'success')
-        return
+        return { success: true, user: data }
       }
-    } catch {}
-
-    const nextId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1
-    const newUser = {
-      ...userData,
-      id: nextId,
-      lastLogin: '—'
+      // Server was reached and explicitly rejected this (e.g. duplicate email
+      // within this tenant) — surface the real reason, don't fake success.
+      showToast(data.error || 'Failed to create user account.', 'error')
+      return { success: false, error: data.error }
+    } catch {
+      // Genuine network/offline failure — fall back to optimistic local state,
+      // consistent with the rest of this app's offline handling.
+      const nextId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1
+      const newUser = { ...userData, id: nextId, lastLogin: '—' }
+      setUsers(prev => [...prev, newUser])
+      showToast(`User ${userData.name} created successfully.`, 'success')
+      return { success: true, user: newUser }
     }
-    setUsers(prev => [...prev, newUser])
-    showToast(`User ${userData.name} created successfully.`, 'success')
   }
 
   const updateUser = async (id, data) => {
