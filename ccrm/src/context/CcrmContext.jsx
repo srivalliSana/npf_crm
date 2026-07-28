@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { getUrlTenantSlug } from '../tenantSlug'
 import {
   LEADS,
   APPLICATIONS,
@@ -35,8 +36,12 @@ if (typeof window !== 'undefined' && !window.__ccrmFetchPatched) {
         if (msg.includes('invalid or expired token')) {
           localStorage.removeItem('ccrm_token')
           localStorage.removeItem('ccrm_current_user')
-          if (!window.location.pathname.startsWith('/login')) {
-            window.location.href = '/login'
+          // Bounce back to this tenant's own login (basename-prefixed for
+          // non-default tenants), not Centurion's plain /login.
+          const slug = getUrlTenantSlug()
+          const loginPath = slug ? `/${slug}/login` : '/login'
+          if (!window.location.pathname.startsWith(loginPath)) {
+            window.location.href = loginPath
           }
         }
       } catch { /* non-JSON body — ignore */ }
@@ -67,6 +72,7 @@ export function CcrmProvider({ children }) {
   const [events, setEvents] = useState([])
   const [users, setUsers] = useState([])
   const [tenantConfig, setTenantConfig] = useState(null)   // per-tenant branding/entities/stages
+  const [tenantSlug] = useState(getUrlTenantSlug)           // non-default tenant's URL prefix (null for Centurion)
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('ccrm_current_user')
@@ -355,7 +361,7 @@ export function CcrmProvider({ children }) {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, tenantSlug })
       })
       if (res.ok) {
         const data = await res.json()
@@ -1334,7 +1340,7 @@ export function CcrmProvider({ children }) {
   return (
     <CcrmContext.Provider value={{
       leads, setLeads, addLead, updateLead, deleteLead,
-      tenantConfig, fetchTenantConfig,
+      tenantConfig, fetchTenantConfig, tenantSlug,
       fetchAllData, refreshCounselors, fetchLeadsPage, loading, leadsTotal,
       applications, setApplications, addApplication, updateApplication, deleteApplication,
       counselors, setCounselors,
