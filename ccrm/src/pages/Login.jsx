@@ -108,7 +108,7 @@ export default function Login() {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: fpEmail })
+        body: JSON.stringify({ email: fpEmail, tenantSlug })
       })
       const data = await res.json()
       if (!res.ok) setFpError(data.error || 'Failed to send OTP.')
@@ -131,7 +131,7 @@ export default function Login() {
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: fpEmail, otp: fpOtp, newPassword: fpNewPw })
+        body: JSON.stringify({ email: fpEmail, otp: fpOtp, newPassword: fpNewPw, tenantSlug })
       })
       const data = await res.json()
       if (!res.ok) setFpError(data.error || 'Failed to reset password.')

@@ -247,7 +247,7 @@ export default function UserManagement({ currentUser }) {
   }
 
   // ── Save (create or update) ────────────────────────────────────────────────
-  function handleSave() {
+  async function handleSave() {
     if (!form.name.trim())  { setFormError('Full name is required.'); return }
     if (!form.email.trim()) { setFormError('Email is required.'); return }
     if (!form.email.includes('@')) { setFormError('Enter a valid email address.'); return }
@@ -264,8 +264,9 @@ export default function UserManagement({ currentUser }) {
         reportsTo: form.reportsTo,
         entities: form.entities
       })
+      setShowModal(false)
     } else {
-      addUser({
+      const result = await addUser({
         name: form.name,
         email: form.email,
         mobile: form.mobile,
@@ -276,8 +277,9 @@ export default function UserManagement({ currentUser }) {
         reportsTo: form.reportsTo,
         entities: form.entities
       })
+      if (result?.success === false) { setFormError(result.error || 'Failed to create user account.'); return }
+      setShowModal(false)
     }
-    setShowModal(false)
   }
 
   // ── Delete ─────────────────────────────────────────────────────────────────
