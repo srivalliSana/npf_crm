@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { useCcrm } from './context/CcrmContext'
+import { getUrlTenantSlug } from './tenantSlug'
 import Login from './pages/Login'
 import Layout from './components/Layout'
 import LeadManager from './pages/LeadManager'
@@ -62,9 +63,14 @@ function RoleGuard({ roles }) {
 
 export default function App() {
   const { currentUser } = useCcrm()
+  // Non-reserved first URL segment (e.g. /cuedu/...) becomes the router's
+  // basename, so every route below stays prefixed for that tenant without
+  // any per-route changes. Centurion's plain URLs (no matching segment) get
+  // basename=undefined — identical to today's behavior.
+  const tenantSlug = getUrlTenantSlug()
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={tenantSlug ? `/${tenantSlug}` : undefined}>
       <Routes>
         {/* All routes nested under the root path */}
         <Route path="/">
@@ -79,7 +85,10 @@ export default function App() {
           <Route path="student-portal" element={<StudentPortal />} />
           <Route path="student"        element={<StudentPortal />} />
 
-          {/* ── Login — redirect inside if already authenticated ── */}
+          {/* ── Login — redirect inside if already authenticated ──
+              basename (set above from the URL) already handles the tenant
+              prefix, so this plain route matches both /login and
+              /<slug>/login — no separate route needed for the slug case. ── */}
           <Route
             path="login"
             element={currentUser ? <Navigate to="/leads" replace /> : <Login />}

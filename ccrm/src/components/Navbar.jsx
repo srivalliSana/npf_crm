@@ -21,7 +21,8 @@ function initials(name = '') {
 
 export default function Navbar({ onToggleSidebar, onLogout, user }) {
   const navigate = useNavigate()
-  const { notifications, markNotificationRead, markAllNotificationsRead } = useCcrm()
+  const { notifications, markNotificationRead, markAllNotificationsRead, tenantConfig } = useCcrm()
+  const orgName = tenantConfig?.name || 'Centurion University of Technology and Management'
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile]             = useState(false)
   const [showMioAI, setShowMioAI]                 = useState(false)
@@ -49,7 +50,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user }) {
           </button>
           <div className="hidden sm:flex items-center gap-1">
             <span className="text-primary-500 font-extrabold text-lg tracking-tight">CCRM</span>
-            <span className="text-gray-400 text-xs ml-1">| Centurion University</span>
+            <span className="text-gray-400 text-xs ml-1">| {orgName}</span>
             <span
               title={`Version ${APP_VERSION} · Released ${APP_RELEASED}`}
               className="ml-2 text-[10px] font-mono font-bold bg-primary-50 text-primary-600 border border-primary-100 px-1.5 py-0.5 rounded cursor-help"
@@ -62,7 +63,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user }) {
         {/* Center – University name */}
         <div className="flex-1 flex justify-center px-2 min-w-0">
           <span className="hidden md:block text-sm font-semibold text-gray-700 tracking-tight truncate text-center">
-            Centurion University of Technology and Management
+            {orgName}
           </span>
         </div>
 

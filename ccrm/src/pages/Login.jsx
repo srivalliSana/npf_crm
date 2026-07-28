@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useGoogleLogin } from '@react-oauth/google'
 import {
   Eye, EyeOff, AlertCircle, ShieldCheck, X, CheckCircle2, Mail,
@@ -6,12 +6,13 @@ import {
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 
-// ── Env config ─────────────────────────────────────────────────────────────────
+// ── Env config (default/Centurion branding — used when no :tenantSlug is in the URL) ──
 const ALLOWED_DOMAINS  = (import.meta.env.VITE_ALLOWED_DOMAINS || 'cutm.ac.in,cutmap.ac.in')
                            .split(',').map(d => d.trim().toLowerCase())
 const MIN_PASSWORD_LEN = Number(import.meta.env.VITE_MIN_PASSWORD_LENGTH) || 6
 const SUPPORT_EMAIL    = import.meta.env.VITE_SUPPORT_EMAIL || 'it-support@cutm.ac.in'
 const ORG_NAME         = import.meta.env.VITE_ORG_NAME || 'Centurion University of Technology and Management'
+const DEFAULT_LOGO_URL = 'https://cutmap.ac.in/wp-content/themes/centurion/images/logo.svg'
 
 const rawClientId      = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 const isGoogleConfigured = rawClientId && rawClientId !== 'YOUR_GOOGLE_CLIENT_ID_HERE'
@@ -54,7 +55,25 @@ function GoogleIcon({ greyed = false }) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Login() {
-  const { handleLogin, setCurrentUser, fetchAllData, users, showToast } = useCcrm()
+  const { handleLogin, setCurrentUser, fetchAllData, users, showToast, tenantSlug } = useCcrm()
+
+  // Per-tenant branding for /<tenantSlug>/login — fetched from the public tenant
+  // config endpoint (no auth needed). Plain /login (no slug) keeps today's
+  // hardcoded Centurion look untouched.
+  const [tenantBranding, setTenantBranding] = useState(null)
+  useEffect(() => {
+    if (!tenantSlug) return
+    fetch(`/api/tenant/public?slug=${encodeURIComponent(tenantSlug)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setTenantBranding(data) })
+      .catch(() => {})
+  }, [tenantSlug])
+
+  const brand           = tenantBranding?.branding || {}
+  const orgName         = tenantBranding?.name || ORG_NAME
+  const logoUrl         = brand.logoUrl || (tenantSlug ? null : DEFAULT_LOGO_URL)
+  const logoInitial     = (brand.logoText || brand.shortName || orgName || 'C').charAt(0).toUpperCase()
+  const allowedDomains  = tenantBranding?.allowedDomains?.length ? tenantBranding.allowedDomains : ALLOWED_DOMAINS
 
   // Login state
   const [email, setEmail]                 = useState('')
@@ -160,8 +179,11 @@ export default function Login() {
         const profile   = await profileRes.json()
         const userEmail = profile.email || ''
 
-        // Domain authorization is enforced server-side: existing users are always allowed,
-        // and new users are routed to the tenant whose allowed_domains match (else rejected).
+        // Domain authorization is enforced server-side: existing users are always allowed
+        // (but rejected if they don't belong to this URL's tenant), and new users are
+        // routed to the tenant whose allowed_domains match — scoped to this URL's tenant
+        // when a slug is present, so a domain shared across tenants never resolves to
+        // the wrong one.
         // Step 2: upsert user in DB + get back a proper JWT + full user record
         const authRes = await fetch('/api/auth/google', {
           method:  'POST',
@@ -169,7 +191,8 @@ export default function Login() {
           body:    JSON.stringify({
             email:   userEmail,
             name:    profile.name   || userEmail.split('@')[0],
-            picture: profile.picture || ''
+            picture: profile.picture || '',
+            tenantSlug
           })
         })
         const data = await authRes.json()
@@ -217,11 +240,17 @@ export default function Login() {
         <div className="relative z-10 flex flex-col h-full p-12">
           {/* Logo */}
           <div className="flex items-center gap-4">
-            <img
-              src="https://cutmap.ac.in/wp-content/themes/centurion/images/logo.svg"
-              alt="Centurion University"
-              className="h-10 w-auto brightness-0 invert"
-            />
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={orgName}
+                className="h-10 w-auto brightness-0 invert"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-lg bg-white/15 flex items-center justify-center text-white font-extrabold text-lg flex-shrink-0">
+                {logoInitial}
+              </div>
+            )}
             <div className="h-8 w-px bg-white/20" />
             <div>
               <div className="text-white font-extrabold text-base tracking-tight">CCRM</div>
@@ -276,12 +305,12 @@ export default function Login() {
               <span className="text-white text-xs font-semibold">Restricted Access</span>
             </div>
             <p className="text-blue-300 text-xs leading-relaxed">
-              Login is limited to official <strong className="text-white">{ALLOWED_DOMAINS.join(' / ')}</strong> accounts.
+              Login is limited to official <strong className="text-white">{allowedDomains.join(' / ')}</strong> accounts.
               Contact <a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-200 underline">{SUPPORT_EMAIL}</a> for access.
             </p>
           </div>
 
-          <p className="text-blue-500 text-xs mt-6">© {new Date().getFullYear()} {ORG_NAME}</p>
+          <p className="text-blue-500 text-xs mt-6">© {new Date().getFullYear()} {orgName}</p>
         </div>
       </div>
 
@@ -296,11 +325,17 @@ export default function Login() {
         <div className="relative w-full max-w-[420px]">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-10">
-            <img
-              src="https://cutmap.ac.in/wp-content/themes/centurion/images/logo.svg"
-              alt="Centurion University"
-              className="h-9 w-auto"
-            />
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={orgName}
+                className="h-9 w-auto"
+              />
+            ) : (
+              <div className="h-9 w-9 rounded-lg bg-primary-500 flex items-center justify-center text-white font-extrabold text-base flex-shrink-0">
+                {logoInitial}
+              </div>
+            )}
             <div className="h-7 w-px bg-gray-200" />
             <div className="text-gray-700 font-bold text-base">CCRM Portal</div>
           </div>
@@ -352,7 +387,7 @@ export default function Login() {
 
           {/* Email/password login removed — sign-in is via Google only */}
           <p className="text-center text-xs text-gray-400 mt-2">
-            Use your official <strong>{ALLOWED_DOMAINS.join(' / ')}</strong> Google account to sign in.
+            Use your official <strong>{allowedDomains.join(' / ')}</strong> Google account to sign in.
           </p>
 
           {/* Footer links */}
@@ -365,7 +400,7 @@ export default function Login() {
               <a href="/apply" className="hover:text-primary-500 transition-colors">Public Inquiry Form</a>
             </div>
             <p className="text-[11px] text-gray-400">
-              © {new Date().getFullYear()} {ORG_NAME}
+              © {new Date().getFullYear()} {orgName}
             </p>
           </div>
         </div>
@@ -447,7 +482,7 @@ export default function Login() {
                         type="email"
                         value={fpEmail}
                         onChange={e => setFpEmail(e.target.value)}
-                        placeholder={`you@${ALLOWED_DOMAINS[0]}`}
+                        placeholder={`you@${allowedDomains[0]}`}
                         className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition"
                         required autoFocus
                       />

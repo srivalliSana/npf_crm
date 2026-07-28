@@ -557,24 +557,36 @@ async function alertCounselor(assigneeName, leadName, course, source, leadId, te
 
 // --- AUTH ROUTERS ---
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body
+  const { email, password, tenantSlug } = req.body
   try {
     const userRes = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1);', [email])
     if (userRes.rows.length === 0) {
       return res.status(400).json({ error: 'Invalid email or password.' })
     }
-    
+
     const user = userRes.rows[0]
     if (user.password !== password) {
       return res.status(400).json({ error: 'Invalid email or password.' })
     }
-    
+
     if (user.status !== 'Active') {
       return res.status(403).json({ error: 'Account is inactive. Please contact administrator.' })
     }
     const tStat = await pool.query('SELECT status FROM tenants WHERE id = $1;', [user.tenant_id || 1])
     if (tStat.rows[0] && tStat.rows[0].status !== 'Active') {
       return res.status(403).json({ error: 'This organization is suspended. Please contact support.' })
+    }
+
+    // Logging in via a specific tenant's URL (e.g. /cuedu/login) must land in
+    // THAT tenant, never silently succeed into a different one the account
+    // actually belongs to. Platform admins are exempt — they legitimately
+    // need to reach any tenant's portal; this doesn't change what data they
+    // can see, only whether the login itself is allowed through this URL.
+    if (tenantSlug && !user.is_platform_admin) {
+      const slugTenantId = await resolveSlugTenantStrict(tenantSlug)
+      if (slugTenantId && slugTenantId !== (user.tenant_id || 1)) {
+        return res.status(403).json({ error: "This account isn't part of this organization. Use your own sign-in link." })
+      }
     }
 
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
@@ -607,10 +619,13 @@ app.post('/api/auth/login', async (req, res) => {
 
 // --- GOOGLE OAUTH SIGN-IN / UPSERT ---
 app.post('/api/auth/google', async (req, res) => {
-  const { email, name, picture } = req.body
+  const { email, name, picture, tenantSlug } = req.body
   if (!email) return res.status(400).json({ error: 'Email required.' })
   try {
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
+    // Resolve once — used both to scope new-signup domain matching and to
+    // reject an existing user logging in through a different tenant's URL.
+    const slugTenantId = await resolveSlugTenantStrict(tenantSlug)
 
     // Check if user already exists
     const existing = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1);', [email])
@@ -626,6 +641,10 @@ app.post('/api/auth/google', async (req, res) => {
       if (tStat.rows[0] && tStat.rows[0].status !== 'Active') {
         return res.status(403).json({ error: 'This organization is suspended. Please contact support.' })
       }
+      // Same cross-tenant login guard as password login (platform admins exempt).
+      if (slugTenantId && !u.is_platform_admin && slugTenantId !== (u.tenant_id || 1)) {
+        return res.status(403).json({ error: "This account isn't part of this organization. Use your own sign-in link." })
+      }
       await pool.query(
         'UPDATE users SET last_login = $1, picture = COALESCE(NULLIF($2,\'\'), picture) WHERE id = $3;',
         [lastLoginStr, picture || '', u.id]
@@ -633,12 +652,19 @@ app.post('/api/auth/google', async (req, res) => {
       user = { ...u, last_login: lastLoginStr, picture: picture || u.picture }
     } else {
       // New Google user — route to the tenant whose allowed_domains include this email's
-      // domain (each tenant controls which domains may self-register via Google).
+      // domain (each tenant controls which domains may self-register via Google). When
+      // signing up through a specific tenant's URL, scope the match to THAT tenant only —
+      // otherwise a domain shared across tenants could silently resolve to a different one.
       const domain = (email.split('@')[1] || '').toLowerCase()
-      const tRes = await pool.query(
-        "SELECT id FROM tenants WHERE status = 'Active' AND (',' || lower(replace(allowed_domains, ' ', '')) || ',') LIKE ('%,' || $1 || ',%') ORDER BY id LIMIT 1;",
-        [domain]
-      )
+      const tRes = slugTenantId
+        ? await pool.query(
+            "SELECT id FROM tenants WHERE id = $1 AND status = 'Active' AND (',' || lower(replace(allowed_domains, ' ', '')) || ',') LIKE ('%,' || $2 || ',%') LIMIT 1;",
+            [slugTenantId, domain]
+          )
+        : await pool.query(
+            "SELECT id FROM tenants WHERE status = 'Active' AND (',' || lower(replace(allowed_domains, ' ', '')) || ',') LIKE ('%,' || $1 || ',%') ORDER BY id LIMIT 1;",
+            [domain]
+          )
       const newTenantId = tRes.rows[0]?.id
       if (!newTenantId) {
         return res.status(403).json({ error: 'Your email domain is not authorized to sign in. Contact your administrator.' })
@@ -3384,11 +3410,28 @@ app.get('/api/platform/tenants', platformAdminOnly, async (req, res) => {
 })
 
 // Create a tenant + its first admin (one click)
+// Mirrors ccrm/src/tenantSlug.js's RESERVED_SLUGS — every top-level frontend
+// route path. A tenant slug matching one of these would collide with a real
+// app route once used as a React Router basename, so it's rejected here.
+const RESERVED_TENANT_SLUGS = [
+  'login', 'apply', 'student-portal', 'student', 'leads', 'call-outcomes',
+  'websites-dashboard', 'ftl-leads', 'gtib-leads', 'gttech-leads', 'esse-leads',
+  'applications', 'dashboard', 'platform-tenants', 'reports', 'productivity',
+  'analytics', 'logs', 'call-activity', 'workbook-import', 'social-comments',
+  'server-health', 'security', 'org-settings', 'campaigns', 'tasks',
+  'payments', 'documents', 'calendar', 'settings', 'integrations',
+  'integration-settings', 'leaderboard', 'email-campaigns', 'drip-workflows',
+  'comms-report', 'help', 'profile', 'transfer-approvals', 'users', 'api',
+]
+
 app.post('/api/platform/tenants', platformAdminOnly, async (req, res) => {
   const { name, slug, adminName, adminEmail, adminPassword, allowedDomains } = req.body
   if (!name || !slug || !adminEmail) return res.status(400).json({ error: 'name, slug and adminEmail are required.' })
   const cleanSlug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '')
   if (!cleanSlug) return res.status(400).json({ error: 'slug must be alphanumeric.' })
+  if (RESERVED_TENANT_SLUGS.includes(cleanSlug)) {
+    return res.status(400).json({ error: `"${cleanSlug}" is a reserved word and can't be used as a tenant slug.` })
+  }
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -4068,6 +4111,18 @@ async function resolveSlugTenant(slug) {
     const r = await pool.query("SELECT id FROM tenants WHERE slug = $1 AND status = 'Active' LIMIT 1;", [slug])
     return r.rows[0]?.id || 1
   } catch { return 1 }
+}
+
+// Strict variant for auth (login/signup): returns null — never defaults to
+// Centurion (1) — when the slug is empty or doesn't match a real, active
+// tenant, so a bogus/typo'd slug is never mistakenly compared against
+// Centurion's tenant id in a login-mismatch check.
+async function resolveSlugTenantStrict(slug) {
+  if (!slug) return null
+  try {
+    const r = await pool.query("SELECT id FROM tenants WHERE slug = $1 AND status = 'Active' LIMIT 1;", [slug])
+    return r.rows[0]?.id || null
+  } catch { return null }
 }
 
 // Optional :tenantSlug → base path stays Centurion; /…/<slug> routes to that tenant.

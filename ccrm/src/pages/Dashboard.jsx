@@ -3,11 +3,17 @@ import { useCcrm } from '../context/CcrmContext'
 import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, X, Download, CreditCard, Trophy } from 'lucide-react'
 import { stageLabel } from '../stageLabel'
 
-// Lead stages shown in the summary table (funnel order)
-const ALL_STAGES = ['Untouched', 'Contacted', 'Invalid Number', 'No Response', 'Follow Up', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success', 'Not Interested']
+// Default lead stages shown in the summary table (funnel order) — used as a
+// fallback until the tenant's own stage config loads, or for tenants that
+// haven't customized their stage pipeline.
+const DEFAULT_STAGES = ['Untouched', 'Contacted', 'Invalid Number', 'No Response', 'Follow Up', 'Interested', 'Campus Visit Scheduled', 'Campus Visit Completed', 'Process for Payment', 'Payment Success', 'Not Interested']
 
 export default function Dashboard() {
-  const { currentUser } = useCcrm()
+  const { currentUser, tenantConfig } = useCcrm()
+  const ALL_STAGES = (Array.isArray(tenantConfig?.stages) && tenantConfig.stages.length) ? tenantConfig.stages : DEFAULT_STAGES
+  // CUTM/CUTMAP domain split is Centurion-specific (email-domain based); only
+  // show it for tenants whose entity config actually defines those brands.
+  const hasCutmCutmap = (tenantConfig?.entities || []).some(e => e.kind === 'main' && ['CUTM', 'CUTMAP'].includes(e.code))
   const [stats, setStats] = useState(null)
   const [statsLoading, setStatsLoading] = useState(true)
   const [summaryStage, setSummaryStage] = useState('All')
@@ -173,8 +179,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* CUTM vs CUTMAP split (admin/manager) */}
-      {!isCounselor && stats?.byDomain && (
+      {/* CUTM vs CUTMAP split (admin/manager) — Centurion-specific, hidden for other tenants */}
+      {!isCounselor && hasCutmCutmap && stats?.byDomain && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {[
             { key: 'cutm',   label: 'CUTM',   data: cutm,   accent: 'from-blue-500 to-blue-600' },
@@ -209,7 +215,7 @@ export default function Dashboard() {
       )}
 
       {/* Reconciliation — CUTM + CUTMAP + Unassigned/Other = Total Leads */}
-      {!isCounselor && stats?.byDomain && (
+      {!isCounselor && hasCutmCutmap && stats?.byDomain && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 mb-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm">
           <span className="font-bold text-gray-900">{(kpi?.totalLeads || 0).toLocaleString()}</span>
           <span className="text-gray-400 text-xs">Total</span>

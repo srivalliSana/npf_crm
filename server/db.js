@@ -801,7 +801,7 @@ export async function initTenancy() {
       { code: 'GTTECH', label: 'GTTECH', kind: 'gt'   },
       { code: 'ESSE',   label: 'ESSE',   kind: 'gt'   }
     ]
-    const CENTURION_STAGES = ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success']
+    const CENTURION_STAGES = ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success','Not Interested']
     await client.query(
       `UPDATE tenants SET
          branding = CASE WHEN branding = '{}'::jsonb OR branding IS NULL THEN $1::jsonb ELSE branding END,
@@ -810,6 +810,23 @@ export async function initTenancy() {
        WHERE id = 1;`,
       [JSON.stringify(CENTURION_BRANDING), JSON.stringify(CENTURION_ENTITIES), JSON.stringify(CENTURION_STAGES)]
     ).catch(() => {})
+    // Backfill: tenant 1 was originally seeded without 'Not Interested' in its stages
+    // list, even though it's a real stage used across the app (Dashboard KPI card,
+    // LeadManager's notInterestedReason field). Add it if an existing row is missing it,
+    // so de-hardcoding Dashboard.jsx to read tenantConfig.stages doesn't drop a column
+    // that's already in production use.
+    await client.query(`
+      UPDATE tenants SET stages = stages || '["Not Interested"]'::jsonb
+      WHERE id = 1 AND NOT (stages @> '["Not Interested"]'::jsonb);
+    `).catch(() => {})
+    // Backfill: tenant 1's `name` was seeded as the short 'Centurion', but the
+    // Navbar/Login previously showed the full official name as a hardcoded string.
+    // Now that those read tenantConfig.name, set it once (only if still the
+    // untouched seed value, so a since-customized name is never overwritten).
+    await client.query(`
+      UPDATE tenants SET name = 'Centurion University of Technology and Management'
+      WHERE id = 1 AND name = 'Centurion';
+    `).catch(() => {})
 
     for (const t of TENANT_TABLES) {
       await client.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;`).catch(() => {})
