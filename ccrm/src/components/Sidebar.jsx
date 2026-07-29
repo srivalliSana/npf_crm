@@ -52,12 +52,11 @@ const NAV_ITEMS = [
   { icon: HelpCircle,      label: 'Help',          to: '/help',             roles: null },
 ]
 
-export default function Sidebar({ onLogout, user }) {
+export default function Sidebar({ onLogout, user, expanded = true }) {
   const navigate = useNavigate()
   const { tenantConfig } = useCcrm()
   const userRole = user?.role || 'Counselor'
   const isSuper = !!user?.isSuperAdmin   // Super Admin bypasses entity gating, sees all
-  const expanded = true
   const [openSubmenu, setOpenSubmenu] = useState(null)
 
   // Entity model from per-tenant config (falls back to Centurion's CUTM/GT layout)
@@ -91,26 +90,26 @@ export default function Sidebar({ onLogout, user }) {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-primary-500 flex flex-col z-50 shadow-lg w-56`}
+      className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-200 flex flex-col z-50 transition-[width] duration-200 ${expanded ? 'w-56' : 'w-16'}`}
     >
       {/* Logo */}
       <div
-        className="w-full flex items-center gap-3 px-4 h-16 cursor-pointer border-b border-primary-600 overflow-hidden"
+        className="w-full flex items-center gap-3 px-4 h-16 cursor-pointer border-b border-gray-100 overflow-hidden flex-shrink-0"
         onClick={() => navigate('/dashboard')}
       >
-        <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow flex-shrink-0 overflow-hidden">
+        <div className="w-9 h-9 rounded-xl bg-primary-500 flex items-center justify-center shadow-soft flex-shrink-0 overflow-hidden">
           {brand.logoUrl
             ? <img src={brand.logoUrl} alt="logo" className="w-full h-full object-contain" />
-            : <span className="text-primary-500 font-extrabold text-xl leading-none">{brand.logoText || 'C'}</span>}
+            : <span className="text-white font-extrabold text-xl leading-none">{brand.logoText || 'C'}</span>}
         </div>
         <div className={`overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="text-white font-extrabold text-sm leading-tight whitespace-nowrap">{brand.shortName || 'CCRM'}</div>
-          <div className="text-primary-200 text-[10px] leading-tight whitespace-nowrap">{brand.tagline || 'Admissions'}</div>
+          <div className="text-gray-900 font-extrabold text-sm leading-tight whitespace-nowrap">{brand.shortName || 'CCRM'}</div>
+          <div className="text-gray-400 text-[10px] leading-tight whitespace-nowrap">{brand.tagline || 'Admissions'}</div>
         </div>
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 flex flex-col w-full mt-1 overflow-y-auto scrollbar-hide">
+      <nav className="flex-1 flex flex-col w-full mt-2 overflow-y-auto scrollbar-hide">
         {visibleItems.map((item) => {
           const { icon: Icon, label, to, submenu } = item
 
@@ -125,7 +124,7 @@ export default function Sidebar({ onLogout, user }) {
                 }
                 title={!expanded ? label : undefined}
               >
-                <Icon size={20} strokeWidth={1.8} className="flex-shrink-0" />
+                <Icon size={18} strokeWidth={1.8} className="flex-shrink-0" />
                 <span className={`text-[13px] font-medium whitespace-nowrap overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0 w-0'}`}>
                   {label}
                 </span>
@@ -139,26 +138,26 @@ export default function Sidebar({ onLogout, user }) {
             <div key={label} className="flex flex-col">
               <button
                 onClick={() => setOpenSubmenu(isOpen ? null : label)}
-                className="flex items-center gap-3 px-4 py-2 text-white hover:bg-primary-600 transition-colors rounded-lg mx-2 mb-1"
+                className="flex items-center gap-3 px-4 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors rounded-lg mx-2 mb-1 w-[calc(100%-1rem)]"
               >
-                <Icon size={20} strokeWidth={1.8} className="flex-shrink-0" />
+                <Icon size={18} strokeWidth={1.8} className="flex-shrink-0" />
                 <span className="text-[13px] font-medium whitespace-nowrap flex-1 text-left">
                   {label}
                 </span>
                 <ChevronDown
-                  size={16}
-                  className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                  size={14}
+                  className={`transition-transform text-gray-400 ${isOpen ? 'rotate-180' : ''}`}
                 />
               </button>
               {isOpen && (
-                <div className="bg-primary-600 bg-opacity-50 rounded-lg mx-2 mb-2 overflow-hidden">
+                <div className="bg-gray-50 rounded-lg mx-2 mb-2 overflow-hidden py-1">
                   {submenu.map(({ label: subLabel, to: subTo }) => (
                     <NavLink
                       key={subTo}
                       to={subTo}
                       className={({ isActive }) =>
-                        `block px-4 py-2 text-[13px] text-white hover:bg-primary-700 transition-colors ${
-                          isActive ? 'bg-primary-700 font-medium' : ''
+                        `block px-4 py-2 ml-6 mr-2 rounded-lg text-[13px] text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors ${
+                          isActive ? 'bg-primary-50 text-primary-700 font-semibold' : ''
                         }`
                       }
                     >
@@ -172,7 +171,7 @@ export default function Sidebar({ onLogout, user }) {
         })}
 
         {/* Divider + Inquiry */}
-        <div className="mx-4 h-px bg-primary-400 my-1" />
+        <div className="mx-4 h-px bg-gray-100 my-2" />
         <a
           href="/apply"
           target="_blank"
@@ -180,7 +179,7 @@ export default function Sidebar({ onLogout, user }) {
           className="sidebar-icon"
           title={!expanded ? 'Public Inquiry Form' : undefined}
         >
-          <Globe size={20} strokeWidth={1.8} className="flex-shrink-0" />
+          <Globe size={18} strokeWidth={1.8} className="flex-shrink-0" />
           <span className={`text-[13px] font-medium whitespace-nowrap overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0 w-0'}`}>
             Inquiry
           </span>
@@ -190,17 +189,17 @@ export default function Sidebar({ onLogout, user }) {
       {/* Logout */}
       <button
         onClick={onLogout}
-        className="sidebar-icon mb-2 border-t border-primary-600 w-full"
+        className="sidebar-icon mb-2 mt-1 border-t border-gray-100 pt-3.5 !text-gray-500 hover:!text-danger-600 hover:!bg-danger-50 w-[calc(100%-1rem)]"
         title={!expanded ? 'Logout' : undefined}
       >
-        <LogOut size={20} strokeWidth={1.8} className="flex-shrink-0" />
+        <LogOut size={18} strokeWidth={1.8} className="flex-shrink-0" />
         <span className={`text-[13px] font-medium whitespace-nowrap overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0 w-0'}`}>
           Logout
         </span>
       </button>
 
       {/* App version — single source: src/version.js */}
-      <div className="text-center text-[10px] text-primary-300 pb-2 select-none">
+      <div className="text-center text-[10px] text-gray-300 pb-2 select-none">
         v{APP_VERSION}
       </div>
     </aside>

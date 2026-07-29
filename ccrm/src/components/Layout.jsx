@@ -30,9 +30,9 @@ export default function Layout({ onLogout, user }) {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <Sidebar onLogout={onLogout} user={user} />
-      <Navbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} onLogout={onLogout} user={user} />
-      <main className="ml-56 pt-14 pb-24 min-h-screen">
+      <Sidebar onLogout={onLogout} user={user} expanded={sidebarOpen} />
+      <Navbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} onLogout={onLogout} user={user} expanded={sidebarOpen} />
+      <main className={`${sidebarOpen ? 'ml-56' : 'ml-16'} pt-14 pb-24 min-h-screen transition-[margin] duration-200`}>
         <Outlet />
       </main>
       <IdleLogout />
