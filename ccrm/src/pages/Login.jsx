@@ -5,6 +5,9 @@ import {
   Lock, ArrowRight, Users, BarChart3, Zap
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
+import Modal from '../components/ui/Modal'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
 
 // ── Env config (default/Centurion branding — used when no :tenantSlug is in the URL) ──
 const ALLOWED_DOMAINS  = (import.meta.env.VITE_ALLOWED_DOMAINS || 'cutm.ac.in,cutmap.ac.in')
@@ -348,12 +351,12 @@ export default function Login() {
 
           {/* Error banner */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex gap-2.5 mb-5 text-sm text-red-700">
-              <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-red-500" />
+            <div className="bg-danger-50 border border-danger-200 rounded-xl px-4 py-3 flex gap-2.5 mb-5 text-sm text-danger-700">
+              <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-danger-500" />
               <div>
                 <p>{error}</p>
                 {error.includes('restricted') && (
-                  <p className="text-xs mt-1 text-red-500">
+                  <p className="text-xs mt-1 text-danger-500">
                     Need access? Email{' '}
                     <a href={`mailto:${SUPPORT_EMAIL}`} className="underline font-medium">{SUPPORT_EMAIL}</a>
                   </p>
@@ -407,170 +410,134 @@ export default function Login() {
       </div>
 
       {/* ════════════ FORGOT PASSWORD MODAL ════════════ */}
-      {showForgot && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-primary-100 flex items-center justify-center">
-                  <Mail size={16} className="text-primary-600" />
+      <Modal
+        open={showForgot}
+        onClose={closeForgot}
+        title="Reset Password"
+        subtitle="We'll send an OTP to your email"
+        size="md"
+      >
+        {/* Step indicator */}
+        {!fpSuccess && (
+          <div className="flex items-center gap-2 -mt-2 mb-5">
+            {['Enter Email', 'Verify & Reset'].map((label, i) => (
+              <React.Fragment key={label}>
+                <div className="flex items-center gap-2">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
+                    fpStep > i+1 ? 'bg-success-500 border-success-500 text-white' :
+                    fpStep === i+1 ? 'bg-primary-600 border-primary-600 text-white' :
+                    'bg-white border-gray-300 text-gray-400'
+                  }`}>
+                    {fpStep > i+1 ? '✓' : i+1}
+                  </div>
+                  <span className={`text-xs font-semibold ${fpStep === i+1 ? 'text-primary-600' : fpStep > i+1 ? 'text-success-600' : 'text-gray-400'}`}>
+                    {label}
+                  </span>
                 </div>
-                <div>
-                  <h2 className="text-base font-bold text-gray-900">Reset Password</h2>
-                  <p className="text-xs text-gray-500">We'll send an OTP to your email</p>
-                </div>
+                {i === 0 && <div className="flex-1 h-0.5 bg-gray-200 mx-1" />}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+
+        {fpSuccess ? (
+          <div className="text-center py-6 space-y-4">
+            <div className="w-16 h-16 rounded-full bg-success-100 flex items-center justify-center mx-auto">
+              <CheckCircle2 size={36} className="text-success-500" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 text-lg">Password Reset!</h3>
+              <p className="text-gray-500 text-sm mt-1">You can now log in with your new password.</p>
+            </div>
+            <Button onClick={closeForgot} className="px-8">Back to Login</Button>
+          </div>
+
+        ) : fpStep === 1 ? (
+          <form onSubmit={handleForgotSubmitEmail} className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Enter your official email. We'll send a 6-digit OTP to reset your password.
+            </p>
+            {fpError && (
+              <div className="bg-danger-50 border border-danger-200 text-danger-700 text-xs px-3 py-2.5 rounded-xl flex gap-2">
+                <AlertCircle size={14} className="flex-shrink-0 mt-0.5"/>
+                {fpError}
               </div>
-              <button onClick={closeForgot} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-lg transition">
-                <X size={18}/>
+            )}
+            <Input
+              label="Email Address"
+              type="email"
+              icon={Mail}
+              value={fpEmail}
+              onChange={e => setFpEmail(e.target.value)}
+              placeholder={`you@${allowedDomains[0]}`}
+              required autoFocus
+            />
+            <Button type="submit" loading={fpLoading} className="w-full">
+              {fpLoading ? 'Sending OTP...' : 'Send OTP to Email'}
+            </Button>
+          </form>
+
+        ) : (
+          <form onSubmit={handleForgotResetPassword} className="space-y-4">
+            <div className="bg-info-50 border border-info-200 text-info-700 text-xs px-3 py-2.5 rounded-xl">
+              OTP sent to <strong>{fpEmail}</strong>. Check your inbox and spam folder.
+            </div>
+            {fpError && (
+              <div className="bg-danger-50 border border-danger-200 text-danger-700 text-xs px-3 py-2.5 rounded-xl flex gap-2">
+                <AlertCircle size={14} className="flex-shrink-0 mt-0.5"/>
+                {fpError}
+              </div>
+            )}
+            <Input
+              label="Enter OTP"
+              type="text"
+              value={fpOtp}
+              onChange={e => setFpOtp(e.target.value.replace(/\D/g,'').slice(0,6))}
+              placeholder="6-digit OTP"
+              className="tracking-[0.4em] text-center font-bold text-lg"
+              maxLength={6} required autoFocus
+            />
+            <div className="relative">
+              <Input
+                label="New Password"
+                type={showFpPw ? 'text' : 'password'}
+                icon={Lock}
+                value={fpNewPw}
+                onChange={e => setFpNewPw(e.target.value)}
+                placeholder={`Min ${MIN_PASSWORD_LEN} characters`}
+                className="pr-11"
+                required
+              />
+              <button type="button" onClick={() => setShowFpPw(!showFpPw)}
+                className="absolute right-3.5 top-1/2 translate-y-1 text-gray-400 hover:text-gray-600">
+                {showFpPw ? <EyeOff size={16}/> : <Eye size={16}/>}
               </button>
             </div>
-
-            {/* Step indicator */}
-            <div className="flex items-center gap-2 px-6 py-3 bg-gray-50 border-b border-gray-100">
-              {['Enter Email', 'Verify & Reset'].map((label, i) => (
-                <React.Fragment key={label}>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                      fpStep > i+1 ? 'bg-green-500 border-green-500 text-white' :
-                      fpStep === i+1 ? 'bg-primary-600 border-primary-600 text-white' :
-                      'bg-white border-gray-300 text-gray-400'
-                    }`}>
-                      {fpStep > i+1 ? '✓' : i+1}
-                    </div>
-                    <span className={`text-xs font-semibold ${fpStep === i+1 ? 'text-primary-600' : fpStep > i+1 ? 'text-green-600' : 'text-gray-400'}`}>
-                      {label}
-                    </span>
-                  </div>
-                  {i === 0 && <div className="flex-1 h-0.5 bg-gray-200 mx-1" />}
-                </React.Fragment>
-              ))}
+            <Input
+              label="Confirm New Password"
+              type="password"
+              value={fpConfirmPw}
+              onChange={e => setFpConfirmPw(e.target.value)}
+              placeholder="Re-enter new password"
+              error={fpConfirmPw && fpNewPw !== fpConfirmPw ? 'Passwords do not match.' : ''}
+              required
+            />
+            <div className="flex gap-3 pt-1">
+              <Button type="button" variant="secondary" onClick={() => { setFpStep(1); setFpError('') }} className="flex-1">
+                ← Back
+              </Button>
+              <Button type="submit" loading={fpLoading} className="flex-1">
+                {fpLoading ? 'Resetting...' : 'Reset Password'}
+              </Button>
             </div>
-
-            <div className="p-6">
-              {fpSuccess ? (
-                <div className="text-center py-6 space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-                    <CheckCircle2 size={36} className="text-green-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">Password Reset!</h3>
-                    <p className="text-gray-500 text-sm mt-1">You can now log in with your new password.</p>
-                  </div>
-                  <button onClick={closeForgot}
-                    className="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-8 py-2.5 rounded-xl transition text-sm">
-                    Back to Login
-                  </button>
-                </div>
-
-              ) : fpStep === 1 ? (
-                <form onSubmit={handleForgotSubmitEmail} className="space-y-4">
-                  <p className="text-sm text-gray-600">
-                    Enter your official email. We'll send a 6-digit OTP to reset your password.
-                  </p>
-                  {fpError && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2.5 rounded-xl flex gap-2">
-                      <AlertCircle size={14} className="flex-shrink-0 mt-0.5"/>
-                      {fpError}
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email Address</label>
-                    <div className="relative">
-                      <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type="email"
-                        value={fpEmail}
-                        onChange={e => setFpEmail(e.target.value)}
-                        placeholder={`you@${allowedDomains[0]}`}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition"
-                        required autoFocus
-                      />
-                    </div>
-                  </div>
-                  <button type="submit" disabled={fpLoading}
-                    className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm">
-                    {fpLoading ? <><Spinner size={4}/> Sending OTP...</> : 'Send OTP to Email'}
-                  </button>
-                </form>
-
-              ) : (
-                <form onSubmit={handleForgotResetPassword} className="space-y-4">
-                  <div className="bg-blue-50 border border-blue-200 text-blue-700 text-xs px-3 py-2.5 rounded-xl">
-                    OTP sent to <strong>{fpEmail}</strong>. Check your inbox and spam folder.
-                  </div>
-                  {fpError && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2.5 rounded-xl flex gap-2">
-                      <AlertCircle size={14} className="flex-shrink-0 mt-0.5"/>
-                      {fpError}
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Enter OTP</label>
-                    <input
-                      type="text"
-                      value={fpOtp}
-                      onChange={e => setFpOtp(e.target.value.replace(/\D/g,'').slice(0,6))}
-                      placeholder="6-digit OTP"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm tracking-[0.4em] text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-primary-400 transition"
-                      maxLength={6} required autoFocus
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">New Password</label>
-                    <div className="relative">
-                      <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
-                      <input
-                        type={showFpPw ? 'text' : 'password'}
-                        value={fpNewPw}
-                        onChange={e => setFpNewPw(e.target.value)}
-                        placeholder={`Min ${MIN_PASSWORD_LEN} characters`}
-                        className="w-full pl-10 pr-11 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition"
-                        required
-                      />
-                      <button type="button" onClick={() => setShowFpPw(!showFpPw)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        {showFpPw ? <EyeOff size={16}/> : <Eye size={16}/>}
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Confirm New Password</label>
-                    <input
-                      type="password"
-                      value={fpConfirmPw}
-                      onChange={e => setFpConfirmPw(e.target.value)}
-                      placeholder="Re-enter new password"
-                      className={`w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition ${
-                        fpConfirmPw && fpNewPw !== fpConfirmPw ? 'border-red-400 bg-red-50' : 'border-gray-200'
-                      }`}
-                      required
-                    />
-                    {fpConfirmPw && fpNewPw !== fpConfirmPw && (
-                      <p className="text-xs text-red-500 mt-1">Passwords do not match.</p>
-                    )}
-                  </div>
-                  <div className="flex gap-3 pt-1">
-                    <button type="button" onClick={() => { setFpStep(1); setFpError('') }}
-                      className="flex-1 border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold py-3 rounded-xl transition text-sm">
-                      ← Back
-                    </button>
-                    <button type="submit" disabled={fpLoading}
-                      className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm">
-                      {fpLoading ? <><Spinner size={4}/> Resetting...</> : 'Reset Password'}
-                    </button>
-                  </div>
-                  <button type="button"
-                    onClick={() => { setFpStep(1); handleForgotSubmitEmail(null) }}
-                    className="w-full text-xs text-primary-500 hover:text-primary-700 text-center transition">
-                    Didn't receive OTP? Resend
-                  </button>
-                </form>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+            <button type="button"
+              onClick={() => { setFpStep(1); handleForgotSubmitEmail(null) }}
+              className="w-full text-xs text-primary-500 hover:text-primary-700 text-center transition">
+              Didn't receive OTP? Resend
+            </button>
+          </form>
+        )}
+      </Modal>
     </div>
   )
 }
