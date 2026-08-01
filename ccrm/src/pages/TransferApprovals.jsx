@@ -4,6 +4,8 @@ import { useCcrm } from '../context/CcrmContext'
 import {
   ArrowRightLeft, CheckCircle2, XCircle, Clock, RefreshCw, Users
 } from 'lucide-react'
+import PageContainer from '../components/PageContainer'
+import { Card, Button, EmptyState } from '../components/ui'
 
 const TABS = ['pending', 'approved', 'rejected']
 
@@ -47,25 +49,16 @@ export default function TransferApprovals() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <ArrowRightLeft size={22} className="text-primary-500" /> Lead Transfer Approvals
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">Approve or reject counsellor-requested lead transfers</p>
-        </div>
-        <button onClick={load} disabled={loading}
-          className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50">
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
-        </button>
-      </div>
-
+    <PageContainer
+      title={<span className="flex items-center gap-2"><ArrowRightLeft size={22} className="text-primary-500" /> Lead Transfer Approvals</span>}
+      description="Approve or reject counsellor-requested lead transfers"
+      action={<Button variant="secondary" size="sm" icon={RefreshCw} disabled={loading} onClick={load}>Refresh</Button>}
+    >
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 w-fit">
         {TABS.map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition capitalize ${tab === t ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition capitalize ${tab === t ? 'bg-white text-primary-600 shadow-soft' : 'text-gray-500 hover:text-gray-700'}`}>
             {t === 'pending' && '⏳ '}{t === 'approved' && '✓ '}{t === 'rejected' && '✗ '}{t}
           </button>
         ))}
@@ -74,14 +67,13 @@ export default function TransferApprovals() {
       {loading ? (
         <div className="text-center py-12 text-gray-400 text-sm">Loading...</div>
       ) : items.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <Users size={36} className="mx-auto text-gray-200 mb-3" />
-          <p className="text-sm text-gray-500 font-medium">No {tab} transfers</p>
-        </div>
+        <Card className="p-12">
+          <EmptyState icon={Users} title={`No ${tab} transfers`} />
+        </Card>
       ) : (
         <div className="space-y-3">
           {items.map(t => (
-            <div key={t.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <Card key={t.id} className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   {/* Lead */}
@@ -100,7 +92,7 @@ export default function TransferApprovals() {
                     <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md">
                       <strong>{t.fromOwner}</strong>
                     </span>
-                    <ArrowRightLeft size={14} className="text-blue-500" />
+                    <ArrowRightLeft size={14} className="text-info-500" />
                     <span className="text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded-md font-semibold">
                       {t.toOwner}
                     </span>
@@ -120,31 +112,29 @@ export default function TransferApprovals() {
                 {/* Actions */}
                 {tab === 'pending' && (
                   <div className="flex gap-2 flex-shrink-0">
-                    <button onClick={() => decide(t.id, 'approved')} disabled={acting === t.id}
-                      className="flex items-center gap-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-50">
-                      <CheckCircle2 size={12} /> Approve
-                    </button>
-                    <button onClick={() => decide(t.id, 'rejected')} disabled={acting === t.id}
-                      className="flex items-center gap-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-50">
-                      <XCircle size={12} /> Reject
-                    </button>
+                    <Button size="sm" className="!bg-success-500 hover:!bg-success-600" icon={CheckCircle2} disabled={acting === t.id} onClick={() => decide(t.id, 'approved')}>
+                      Approve
+                    </Button>
+                    <Button variant="destructive" size="sm" icon={XCircle} disabled={acting === t.id} onClick={() => decide(t.id, 'rejected')}>
+                      Reject
+                    </Button>
                   </div>
                 )}
                 {tab === 'approved' && (
-                  <span className="badge bg-green-100 text-green-700 text-xs font-bold flex items-center gap-1">
+                  <span className="badge bg-success-100 text-success-700 text-xs font-bold flex items-center gap-1">
                     <CheckCircle2 size={11} /> Approved
                   </span>
                 )}
                 {tab === 'rejected' && (
-                  <span className="badge bg-red-100 text-red-700 text-xs font-bold flex items-center gap-1">
+                  <span className="badge bg-danger-100 text-danger-700 text-xs font-bold flex items-center gap-1">
                     <XCircle size={11} /> Rejected
                   </span>
                 )}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }

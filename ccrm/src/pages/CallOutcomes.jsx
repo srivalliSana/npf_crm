@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react'
 import { PhoneCall, Upload, Download, CheckCircle2, RefreshCw, AlertCircle, FileSpreadsheet } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
+import PageContainer from '../components/PageContainer'
+import { Card, Button } from '../components/ui'
 
 // Status values accepted in the sheet (left) and the CRM stage they map to (right)
 const STATUS_MAP = [
@@ -69,21 +71,16 @@ export default function CallOutcomes() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <PhoneCall size={22} className="text-primary-500" /> Call Outcomes Upload
-        </h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Upload your day's call sheet. Existing leads are updated by mobile number; new numbers are added as fresh leads.
-        </p>
-      </div>
-
+    <PageContainer
+      title={<span className="flex items-center gap-2"><PhoneCall size={22} className="text-primary-500" /> Call Outcomes Upload</span>}
+      description="Upload your day's call sheet. Existing leads are updated by mobile number; new numbers are added as fresh leads."
+      className="max-w-3xl mx-auto"
+    >
       {/* Instructions */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
+      <div className="bg-info-50 border border-info-200 rounded-xl p-4 mb-5">
         <div className="flex items-start gap-3">
-          <AlertCircle size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-800 w-full">
+          <AlertCircle size={18} className="text-info-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-info-800 w-full">
             <p className="font-semibold mb-1">Required columns: <span className="font-mono">Name</span>, <span className="font-mono">Mobile/Phone</span>, <span className="font-mono">Status</span></p>
             <p className="mb-2">
               Optional: <span className="font-mono">Faculty/Staff who called</span> → becomes the lead's owner (this is how CUTM vs CUTMAP is decided automatically),
@@ -92,10 +89,10 @@ export default function CallOutcomes() {
             <p className="font-semibold mt-2 mb-1">Status → CRM stage:</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-1">
               {STATUS_MAP.map(([from, to]) => (
-                <div key={from} className="flex items-center gap-2 bg-white border border-blue-200 rounded px-2 py-1 text-xs">
+                <div key={from} className="flex items-center gap-2 bg-white border border-info-200 rounded px-2 py-1 text-xs">
                   <span className="font-medium text-gray-700">{from}</span>
-                  <span className="text-blue-400">→</span>
-                  <span className="text-blue-700 font-medium">{to}</span>
+                  <span className="text-info-400">→</span>
+                  <span className="text-info-700 font-medium">{to}</span>
                 </div>
               ))}
             </div>
@@ -104,7 +101,7 @@ export default function CallOutcomes() {
       </div>
 
       {/* Upload card */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-gray-800">Upload File</h2>
           <button onClick={downloadTemplate} className="flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700">
@@ -131,39 +128,40 @@ export default function CallOutcomes() {
           )}
         </div>
 
-        <button
-          onClick={handleUpload}
+        <Button
+          className="w-full mt-4"
+          size="lg"
+          icon={uploading ? RefreshCw : Upload}
           disabled={uploading || !file}
-          className="w-full mt-4 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 transition"
+          onClick={handleUpload}
         >
-          {uploading ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}
           {uploading ? 'Uploading...' : 'Upload Call Outcomes'}
-        </button>
-      </div>
+        </Button>
+      </Card>
 
       {/* Result */}
       {result && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mt-5">
+        <Card className="p-6 mt-5">
           <div className="flex items-center gap-2 mb-4">
-            <CheckCircle2 size={20} className="text-green-500" />
+            <CheckCircle2 size={20} className="text-success-500" />
             <h3 className="font-semibold text-gray-800">Upload Complete</h3>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-blue-50 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold text-blue-700">{result.updated}</p>
-              <p className="text-xs text-blue-600 mt-1">Updated</p>
+            <div className="bg-info-50 rounded-lg p-4 text-center">
+              <p className="text-2xl font-bold text-info-700">{result.updated}</p>
+              <p className="text-xs text-info-600 mt-1">Updated</p>
             </div>
-            <div className="bg-green-50 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold text-green-700">{result.created}</p>
-              <p className="text-xs text-green-600 mt-1">New leads</p>
+            <div className="bg-success-50 rounded-lg p-4 text-center">
+              <p className="text-2xl font-bold text-success-700">{result.created}</p>
+              <p className="text-xs text-success-600 mt-1">New leads</p>
             </div>
-            <div className="bg-amber-50 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold text-amber-600">{result.skipped}</p>
-              <p className="text-xs text-amber-600 mt-1">Skipped</p>
+            <div className="bg-warning-50 rounded-lg p-4 text-center">
+              <p className="text-2xl font-bold text-warning-600">{result.skipped}</p>
+              <p className="text-xs text-warning-600 mt-1">Skipped</p>
             </div>
           </div>
           {result.ownerFromFaculty && (
-            <p className="text-xs text-green-700 mt-3">✓ Leads assigned to the faculty in the "who called" column — CUTM/CUTMAP resolved automatically.</p>
+            <p className="text-xs text-success-700 mt-3">✓ Leads assigned to the faculty in the "who called" column — CUTM/CUTMAP resolved automatically.</p>
           )}
           {result.skipReasons?.length > 0 && (
             <div className="mt-4">
@@ -175,14 +173,14 @@ export default function CallOutcomes() {
           )}
           {result.warnings?.length > 0 && (
             <div className="mt-4">
-              <p className="text-xs font-bold text-amber-600 uppercase mb-2">Warnings</p>
-              <ul className="text-sm text-amber-700 space-y-1">
+              <p className="text-xs font-bold text-warning-600 uppercase mb-2">Warnings</p>
+              <ul className="text-sm text-warning-700 space-y-1">
                 {result.warnings.map((r, i) => <li key={i}>• {r}</li>)}
               </ul>
             </div>
           )}
-        </div>
+        </Card>
       )}
-    </div>
+    </PageContainer>
   )
 }

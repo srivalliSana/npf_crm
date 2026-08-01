@@ -9,6 +9,7 @@ import {
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
 import LeadJourney from '../components/LeadJourney'
+import { Modal, Button } from '../components/ui'
 
 // Ameyo calls removed — use EasyGoIVR via initiateCall() from context
 
@@ -643,7 +644,7 @@ export default function ApplicationDetails() {
         {/* Left panel */}
         <div className="w-full lg:w-72 flex-shrink-0 space-y-4">
           {/* Profile card */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="card p-5">
             {/* Avatar */}
             <div className="flex flex-col items-center text-center mb-4">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xl font-bold shadow-md mb-3 select-none">
@@ -913,7 +914,7 @@ export default function ApplicationDetails() {
           </div>
 
           {/* Assignment Details */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="card p-4">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Assignment Details</h3>
             <div className="space-y-3">
               <div>
@@ -951,7 +952,7 @@ export default function ApplicationDetails() {
           </div>
 
           {/* Important Dates */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="card p-4">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Important Dates</h3>
             <div className="space-y-3">
               <div>
@@ -976,7 +977,7 @@ export default function ApplicationDetails() {
         <div className="flex-1 min-w-0 space-y-4">
           {/* Progress — leads use the admission journey flowchart; applications keep the linear stepper */}
           {!isApp ? (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="card p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-gray-700">Lead Journey</h3>
                 <span className="text-xs text-gray-400 font-semibold">Current: <span className="text-primary-600">{activeCurrentStage}</span></span>
@@ -984,7 +985,7 @@ export default function ApplicationDetails() {
               <LeadJourney stage={activeCurrentStage} onSelect={(s) => handleStageClick(s)} />
             </div>
           ) : (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="card p-5">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold text-gray-700">Application Progress</h3>
               <span className="text-xs text-gray-400 font-semibold">Application Stage {stageIdx + 1} of {activeStages.length}</span>
@@ -1030,7 +1031,7 @@ export default function ApplicationDetails() {
           )}
 
           {/* Tabs */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="card p-0 overflow-hidden">
             <div className="flex border-b border-gray-200 overflow-x-auto bg-gray-50/50">
               {TABS.map(tab => (
                 <button
@@ -1326,10 +1327,7 @@ export default function ApplicationDetails() {
                   )}
 
                   {/* Add Event Modal inline */}
-                  {showAddEvent && (
-                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-                      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5 animate-scale-up">
-                        <h3 className="font-bold text-gray-900 mb-3 text-base">Schedule Call / Interview</h3>
+                  <Modal open={showAddEvent} onClose={() => setShowAddEvent(false)} title="Schedule Call / Interview" size="sm">
                         <form onSubmit={handleCreateEvent} className="space-y-3">
                           <div>
                             <label className="block text-xs font-semibold text-gray-500 mb-0.5">Event Title</label>
@@ -1404,9 +1402,7 @@ export default function ApplicationDetails() {
                             </button>
                           </div>
                         </form>
-                      </div>
-                    </div>
-                  )}
+                  </Modal>
                 </div>
               )}
 
@@ -1477,10 +1473,7 @@ export default function ApplicationDetails() {
                   )}
 
                   {/* Add Query Modal */}
-                  {showAddQuery && (
-                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-                      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5 animate-scale-up">
-                        <h3 className="font-bold text-gray-900 mb-3 text-base">Raise Support Ticket</h3>
+                  <Modal open={showAddQuery} onClose={() => setShowAddQuery(false)} title="Raise Support Ticket" size="sm">
                         <form onSubmit={handleCreateQuery} className="space-y-3">
                           <div>
                             <label className="block text-xs font-semibold text-gray-500 mb-0.5">Subject</label>
@@ -1534,15 +1527,10 @@ export default function ApplicationDetails() {
                             </button>
                           </div>
                         </form>
-                      </div>
-                    </div>
-                  )}
+                  </Modal>
 
                   {/* Reply Dialog */}
-                  {selectedQueryId && (
-                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-                      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5 animate-scale-up">
-                        <h3 className="font-bold text-gray-900 mb-2 text-sm">Send Response to Student</h3>
+                  <Modal open={!!selectedQueryId} onClose={() => setSelectedQueryId(null)} title="Send Response to Student" size="sm">
                         <form onSubmit={handleQueryReplySubmit} className="space-y-3">
                           <textarea
                             value={replyText}
@@ -1565,9 +1553,7 @@ export default function ApplicationDetails() {
                             </button>
                           </div>
                         </form>
-                      </div>
-                    </div>
-                  )}
+                  </Modal>
                 </div>
               )}
 
@@ -1619,19 +1605,23 @@ export default function ApplicationDetails() {
       </div>
     </div>
 
-    {/* ── Payment Modal (Online / Offline) ─────────────────────────────── */}
-    {/* Not Interested Modal */}
-    {showAdmissionForm && (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-yellow-50">
-            <div>
-              <h2 className="font-bold text-gray-900 text-base">📝 Admission Details</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Required before generating payment link · Application <strong>{associatedApp?.appNo}</strong></p>
-            </div>
-            <button onClick={() => setShowAdmissionForm(false)}><X size={20} className="text-gray-400" /></button>
-          </div>
-          <div className="p-6 overflow-y-auto space-y-5">
+    {/* ── Admission Details Modal ─────────────────────────────── */}
+    <Modal
+      open={showAdmissionForm}
+      onClose={() => setShowAdmissionForm(false)}
+      title="📝 Admission Details"
+      subtitle={<>Required before generating payment link · Application <strong>{associatedApp?.appNo}</strong></>}
+      size="2xl"
+      footer={(
+        <>
+          <Button variant="secondary" className="flex-1" onClick={() => setShowAdmissionForm(false)}>Cancel</Button>
+          <Button className="flex-1" icon={Save} loading={adSaving} onClick={handleSaveAdmissionDetails}>
+            {adSaving ? 'Saving...' : 'Save Admission Details'}
+          </Button>
+        </>
+      )}
+    >
+          <div className="space-y-5">
             {/* Student Info */}
             <div>
               <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">Student Information</p>
@@ -1741,28 +1731,20 @@ export default function ApplicationDetails() {
               </div>
             </div>
           </div>
+    </Modal>
 
-          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex gap-3 justify-end">
-            <button onClick={() => setShowAdmissionForm(false)} className="btn-secondary text-sm px-4 py-2">Cancel</button>
-            <button onClick={handleSaveAdmissionDetails} disabled={adSaving}
-              className="btn-primary text-sm px-5 py-2 flex items-center gap-2 disabled:opacity-50">
-              {adSaving ? <span className="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" /> : <Save size={14} />}
-              {adSaving ? 'Saving...' : 'Save Admission Details'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {showNiModal && (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2 text-red-600">
-              <X size={18} className="text-red-500" /> Mark Not Interested
-            </h2>
-            <button onClick={() => setShowNiModal(false)}><X size={18} className="text-gray-400" /></button>
-          </div>
+    {/* ── Not Interested Modal ─────────────────────────────── */}
+    <Modal
+      open={showNiModal}
+      onClose={() => setShowNiModal(false)}
+      title={<span className="flex items-center gap-2 text-danger-600"><X size={18} className="text-danger-500" /> Mark Not Interested</span>}
+      footer={(
+        <>
+          <Button variant="secondary" className="flex-1" onClick={() => setShowNiModal(false)}>Cancel</Button>
+          <Button variant="destructive" className="flex-1" onClick={handleMarkNotInterested}>Confirm Not Interested</Button>
+        </>
+      )}
+    >
           <p className="text-sm text-gray-500 mb-4">
             Mark <strong>{studentName}</strong> as Not Interested. Please select a reason.
           </p>
@@ -1771,7 +1753,7 @@ export default function ApplicationDetails() {
             <div className="grid grid-cols-2 gap-2 mb-3">
               {NI_REASONS.map(r => (
                 <button key={r} type="button" onClick={() => setNiReason(r)}
-                  className={`text-xs text-left px-3 py-2 rounded-lg border transition ${niReason === r ? 'border-red-500 bg-red-50 text-red-700 font-semibold' : 'border-gray-200 text-gray-600 hover:border-red-300'}`}>
+                  className={`text-xs text-left px-3 py-2 rounded-lg border transition ${niReason === r ? 'border-danger-500 bg-danger-50 text-danger-700 font-semibold' : 'border-gray-200 text-gray-600 hover:border-danger-300'}`}>
                   {r}
                 </button>
               ))}
@@ -1782,16 +1764,7 @@ export default function ApplicationDetails() {
                 className="input-field text-sm" />
             )}
           </div>
-          <div className="flex gap-3 mt-5">
-            <button onClick={() => setShowNiModal(false)} className="flex-1 btn-secondary text-sm py-2">Cancel</button>
-            <button onClick={handleMarkNotInterested}
-              className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-lg">
-              Confirm Not Interested
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
+    </Modal>
 
     {showRcsModal && (
       <RcsComposeModal
@@ -1800,16 +1773,14 @@ export default function ApplicationDetails() {
       />
     )}
 
-    {showPayModal && associatedApp && (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-900 flex items-center gap-2">
-              💳 Record Payment — <span className="font-mono text-primary-600 text-sm">{associatedApp.appNo}</span>
-            </h2>
-            <button onClick={() => setShowPayModal(false)}><X size={18} className="text-gray-400" /></button>
-          </div>
-
+    {/* ── Payment Modal (Online / Offline) ─────────────────────────────── */}
+    <Modal
+      open={showPayModal && !!associatedApp}
+      onClose={() => setShowPayModal(false)}
+      title={associatedApp ? <>💳 Record Payment — <span className="font-mono text-primary-600 text-sm">{associatedApp.appNo}</span></> : ''}
+    >
+        {associatedApp && (
+        <>
           {/* Mode tabs */}
           <div className="flex bg-gray-100 rounded-xl p-1 mb-5">
             {[{id:'online',label:'🌐 Online (Razorpay)'},{id:'offline',label:'🏦 Offline (UTR/Ref)'}].map(m => (
@@ -1822,7 +1793,7 @@ export default function ApplicationDetails() {
 
           {payMode === 'online' ? (
             <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+              <div className="bg-info-50 border border-info-200 rounded-xl p-4 text-sm text-info-700">
                 <p className="font-semibold mb-1">Online Payment via Razorpay</p>
                 <p className="text-xs leading-relaxed">Click "Generate Link" to create a Razorpay payment link. Share it with the student. Once they pay, the UTR will be auto-fetched and status updated.</p>
               </div>
@@ -1850,7 +1821,7 @@ export default function ApplicationDetails() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
+              <div className="bg-warning-50 border border-warning-200 rounded-xl p-4 text-sm text-warning-700">
                 <p className="font-semibold mb-1">Offline Payment</p>
                 <p className="text-xs leading-relaxed">Student/Counselor enters the UTR or bank reference number from the payment receipt. Status changes to "Payment Done" for accounts team approval.</p>
               </div>
@@ -1880,16 +1851,16 @@ export default function ApplicationDetails() {
                   } catch { showToast('Network error.', 'error') }
                   setPaySubmitting(false)
                 }}
-                className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2"
+                className="w-full bg-warning-500 hover:bg-warning-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2"
               >
                 {paySubmitting ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : '✓'}
                 Submit UTR — Mark Payment Done
               </button>
             </div>
           )}
-        </div>
-      </div>
-    )}
+        </>
+        )}
+    </Modal>
     </>
   )
 }
@@ -2054,7 +2025,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
           No documents uploaded yet. Use the upload box above ↑
         </div>
       ) : (
-        <div className="overflow-x-auto bg-white rounded-xl border border-gray-200">
+        <div className="overflow-x-auto card p-0">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
