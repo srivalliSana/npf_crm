@@ -11,6 +11,8 @@ import {
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
 import { stageLabel } from '../stageLabel'
+import PageContainer from '../components/PageContainer'
+import { Card, Table, Modal, Button } from '../components/ui'
 
 const STAGE_COLORS = {
   red:     { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-400' },
@@ -670,22 +672,13 @@ export default function LeadManager() {
   })()
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-900">Lead Manager</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={handleExport} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-            <Download size={14} /> Export
-          </button>
-          <button onClick={() => setShowBulkModal(true)} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-            <Upload size={14} /> Bulk Upload
-          </button>
-          <button onClick={() => navigate('/call-outcomes')} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-            <Phone size={14} /> Call Outcomes
-          </button>
+    <PageContainer
+      title="Lead Manager"
+      action={(
+        <>
+          <Button variant="secondary" size="sm" icon={Download} onClick={handleExport}>Export</Button>
+          <Button variant="secondary" size="sm" icon={Upload} onClick={() => setShowBulkModal(true)}>Bulk Upload</Button>
+          <Button variant="secondary" size="sm" icon={Phone} onClick={() => navigate('/call-outcomes')}>Call Outcomes</Button>
           {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
             <button onClick={() => { setShowRCSModal(true); setRcsCustomMsg(''); setRcsRecipientMode('filtered') }}
               className="flex items-center gap-1.5 text-sm text-pink-600 border border-pink-200 rounded-lg px-3 py-1.5 hover:bg-pink-50">
@@ -699,18 +692,14 @@ export default function LeadManager() {
             </button>
           )}
           {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
-            <button onClick={() => navigate('/workbook-import')} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-              <FileSpreadsheet size={14} /> Workbook Import
-            </button>
+            <Button variant="secondary" size="sm" icon={FileSpreadsheet} onClick={() => navigate('/workbook-import')}>Workbook Import</Button>
           )}
-          <button onClick={() => setShowAddModal(true)} className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5">
-            <Plus size={14} /> Add Lead
-          </button>
-        </div>
-      </div>
-
+          <Button size="sm" icon={Plus} onClick={() => setShowAddModal(true)}>Add Lead</Button>
+        </>
+      )}
+    >
       {/* Filter Tabs — Domain-based filtering */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 shadow-sm flex items-center gap-2 flex-wrap">
+      <Card className="p-3 mb-4 flex items-center gap-2 flex-wrap">
         {leadTabs.map(tab => (
           <button key={tab.id} onClick={() => {
             console.log(`[Tab Click] Clicked tab: ${tab.id}`)
@@ -721,10 +710,10 @@ export default function LeadManager() {
             {tab.label}
           </button>
         ))}
-      </div>
+      </Card>
 
       {/* Filter bar */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 shadow-sm">
+      <Card className="p-3 mb-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-48">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -754,34 +743,34 @@ export default function LeadManager() {
             <RefreshCw size={12} /> Reset
           </button>
         </div>
-      </div>
+      </Card>
 
       {/* Prominent Loading Banner */}
       {leadsLoading && (
-        <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg flex items-center gap-3 shadow-sm">
-          <RefreshCw size={20} className="text-blue-600 animate-spin flex-shrink-0" />
+        <div className="mb-4 p-4 bg-info-50 border-l-4 border-info-500 rounded-lg flex items-center gap-3 shadow-soft">
+          <RefreshCw size={20} className="text-info-600 animate-spin flex-shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-blue-900">Loading leads…</p>
-            <p className="text-xs text-blue-700">Please wait. Do not refresh or navigate away.</p>
+            <p className="text-sm font-semibold text-info-900">Loading leads…</p>
+            <p className="text-xs text-info-700">Please wait. Do not refresh or navigate away.</p>
           </div>
         </div>
       )}
 
       {/* No Results — Debug Hint */}
       {!leadsLoading && total === 0 && (
-        <div className="mb-4 p-4 bg-amber-50 border-l-4 border-amber-500 rounded-lg shadow-sm">
-          <p className="text-sm text-amber-900"><strong>No leads found.</strong></p>
-          <p className="text-xs text-amber-700 mt-2">
+        <div className="mb-4 p-4 bg-warning-50 border-l-4 border-warning-500 rounded-lg shadow-soft">
+          <p className="text-sm text-warning-900"><strong>No leads found.</strong></p>
+          <p className="text-xs text-warning-700 mt-2">
             <strong>Debug info:</strong> Logged as <code className="bg-white px-1 py-0.5 rounded">{currentUser?.name || 'Unknown'}</code> ({currentUser?.role || 'No role'})
           </p>
           {currentUser?.role === 'Counselor' && (
-            <p className="text-xs text-amber-700 mt-1">
+            <p className="text-xs text-warning-700 mt-1">
               💡 <strong>Counselor tip:</strong> You can only see leads assigned to you. If this count is 0, no leads are assigned to your name in the system.
               <br/>Try asking an admin to assign leads to you, or check the Lead Manager as Admin to see all leads.
             </p>
           )}
           {['Admin', 'Manager'].includes(currentUser?.role) && (
-            <p className="text-xs text-amber-700 mt-1">
+            <p className="text-xs text-warning-700 mt-1">
               💡 <strong>Admin/Manager tip:</strong> Your role allows seeing all leads. If count is still 0:
               <ol className="list-decimal list-inside mt-1 ml-1">
                 <li>Try clicking <strong>Reset</strong> to clear all filters</li>
@@ -794,7 +783,7 @@ export default function LeadManager() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <Card padding={false} className="overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-500">
@@ -1057,43 +1046,42 @@ export default function LeadManager() {
             <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage===totalPages} className="px-2 py-1 rounded hover:bg-gray-200 disabled:opacity-40 text-xs">Last »</button>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* ============ ADD LEAD MODAL ============ */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><Plus className="text-primary-500" size={20}/> Add New Lead</h2>
-              <button onClick={() => { setShowAddModal(false); setDupWarning(null) }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-
+      <Modal
+        open={showAddModal}
+        onClose={() => { setShowAddModal(false); setDupWarning(null) }}
+        title="Add New Lead"
+        size="lg"
+      >
+        <>
             {/* Duplicate Warning Banner */}
             {dupWarning && (
-              <div className="mx-6 mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+              <div className="mb-4 p-3 bg-warning-50 border border-warning-200 rounded-xl">
                 <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle size={16} className="text-yellow-600" />
-                  <span className="text-sm font-semibold text-yellow-800">Possible Duplicate Found</span>
+                  <AlertCircle size={16} className="text-warning-600" />
+                  <span className="text-sm font-semibold text-warning-800">Possible Duplicate Found</span>
                 </div>
                 {dupWarning.duplicates.slice(0, 2).map(d => (
-                  <div key={d.id} className="text-xs text-yellow-700 mb-1 bg-yellow-100 rounded px-2 py-1">
+                  <div key={d.id} className="text-xs text-warning-700 mb-1 bg-warning-100 rounded px-2 py-1">
                     {d.name} · {d.mobile} · {d.stage}
                   </div>
                 ))}
                 <div className="flex gap-2 mt-3">
                   <button onClick={() => { setDupWarning(null); setShowAddModal(false); navigate(`/leads/${dupWarning.duplicates[0].id}`) }}
-                    className="flex-1 text-xs border border-yellow-400 text-yellow-700 rounded-lg px-3 py-1.5 hover:bg-yellow-100">
+                    className="flex-1 text-xs border border-warning-400 text-warning-700 rounded-lg px-3 py-1.5 hover:bg-warning-100">
                     Open Existing Lead
                   </button>
                   <button onClick={(e) => handleCreateLead(e, true)} disabled={addLoading}
-                    className="flex-1 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-50">
+                    className="flex-1 text-xs bg-warning-500 hover:bg-warning-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-50">
                     {addLoading ? 'Saving...' : 'Save Anyway'}
                   </button>
                 </div>
               </div>
             )}
 
-            <form onSubmit={handleCreateLead} className="p-6 space-y-4">
+            <form onSubmit={handleCreateLead} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 {[
                   {key:'name',   label:'Student Name *',  type:'text',  placeholder:'Full name', required:true},
@@ -1175,20 +1163,30 @@ export default function LeadManager() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </>
+      </Modal>
 
       {/* ============ RCS DEDICATED MODAL ============ */}
-      {showRCSModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-                <span className="text-2xl">✨</span> RCS Business Messaging
-              </h2>
-              <button onClick={() => setShowRCSModal(false)}><X size={20} className="text-gray-400" /></button>
-            </div>
+        <Modal
+          open={showRCSModal}
+          onClose={() => setShowRCSModal(false)}
+          title={<span className="flex items-center gap-2"><span className="text-2xl">✨</span> RCS Business Messaging</span>}
+          footer={(
+            <>
+              <Button variant="secondary" className="flex-1" onClick={() => setShowRCSModal(false)}>Cancel</Button>
+              <Button
+                className="flex-1 !bg-pink-500 hover:!bg-pink-600"
+                loading={rcsSending}
+                disabled={!rcsTemplateId}
+                onClick={handleSendRCS}
+              >
+                {rcsSending
+                  ? 'Sending...'
+                  : `Send RCS to ${rcsRecipientMode === 'selected' ? selectedRows.length : Math.min(total, RCS_CAMPAIGN_CAP).toLocaleString()}`}
+              </Button>
+            </>
+          )}
+        >
             {/* Recipients selector */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Recipients</label>
@@ -1211,7 +1209,7 @@ export default function LeadManager() {
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Approved Template *</label>
               {rcsTemplates.length === 0 ? (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
+                <div className="bg-warning-50 border border-warning-200 rounded-xl p-3 text-xs text-warning-700">
                   ⚠️ No templates available. Go to <button onClick={() => navigate('/integrations')} className="font-semibold underline">Integrations</button> to add or wait for webhook approval.
                 </div>
               ) : (
@@ -1249,34 +1247,25 @@ export default function LeadManager() {
               />
               <p className="text-xs text-gray-400 mt-1">Variables: <code className="bg-gray-100 px-1 rounded">{'{name}'}</code></p>
             </div>
-
-            <div className="flex gap-3">
-              <button onClick={() => setShowRCSModal(false)} className="flex-1 btn-secondary text-sm py-2.5">Cancel</button>
-              <button onClick={handleSendRCS} disabled={rcsSending || !rcsTemplateId}
-                className="flex-1 bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
-                {rcsSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <span>✨</span>}
-                {rcsSending
-                  ? 'Sending...'
-                  : `Send RCS to ${rcsRecipientMode === 'selected' ? selectedRows.length : Math.min(total, RCS_CAMPAIGN_CAP).toLocaleString()}`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        </Modal>
 
       {/* ============ EMAIL COMPOSE MODAL ============ */}
-      {showEmailModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowEmailModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-                <Mail size={18} className="text-amber-500" /> Send Email
-              </h2>
-              <button onClick={() => setShowEmailModal(false)}><X size={20} className="text-gray-400" /></button>
-            </div>
+      <Modal
+        open={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        title={<span className="flex items-center gap-2"><Mail size={18} className="text-warning-500" /> Send Email</span>}
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setShowEmailModal(false)}>Cancel</Button>
+            <Button className="flex-1 !bg-warning-500 hover:!bg-warning-600" icon={Mail} loading={emailSending} onClick={handleSendEmail}>
+              {emailSending ? 'Sending...' : 'Send Email'}
+            </Button>
+          </>
+        )}
+      >
             <p className="text-sm text-gray-500 mb-4">
               {emailMode === 'single'
-                ? <>To <strong className="text-gray-800">{emailLead?.name}</strong> {emailLead?.email ? <span className="text-gray-500">&lt;{emailLead.email}&gt;</span> : <span className="text-red-500">(no email on file)</span>}</>
+                ? <>To <strong className="text-gray-800">{emailLead?.name}</strong> {emailLead?.email ? <span className="text-gray-500">&lt;{emailLead.email}&gt;</span> : <span className="text-danger-500">(no email on file)</span>}</>
                 : emailMode === 'filtered'
                   ? <>To <strong className="text-gray-800">all leads in current filter</strong> ({Math.min(total, RCS_CAMPAIGN_CAP).toLocaleString()})</>
                   : <>To <strong className="text-gray-800">{selectedRows.length} selected lead(s)</strong></>}
@@ -1286,38 +1275,31 @@ export default function LeadManager() {
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Subject *</label>
               <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)}
                 placeholder="e.g. Your CUTM admission — next steps"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-warning-400" />
             </div>
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Message *</label>
               <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={7}
                 placeholder="Hi {name}, ..."
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warning-400 resize-none" />
               <p className="text-xs text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> to personalise. Leads without an email are skipped.</p>
             </div>
-
-            <div className="flex gap-3">
-              <button onClick={() => setShowEmailModal(false)} className="flex-1 btn-secondary text-sm py-2.5">Cancel</button>
-              <button onClick={handleSendEmail} disabled={emailSending}
-                className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
-                {emailSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <Mail size={15} />}
-                {emailSending ? 'Sending...' : 'Send Email'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ============ WHATSAPP BULK MODAL ============ */}
-      {showWAModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-                <MessageSquare className="text-green-500" size={22} /> WhatsApp / SMS Outreach
-              </h2>
-              <button onClick={() => setShowWAModal(false)}><X size={20} className="text-gray-400" /></button>
-            </div>
+      <Modal
+        open={showWAModal}
+        onClose={() => setShowWAModal(false)}
+        title={<span className="flex items-center gap-2"><MessageSquare className="text-success-500" size={22} /> WhatsApp / SMS Outreach</span>}
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setShowWAModal(false)}>Cancel</Button>
+            <Button className="flex-1 !bg-success-500 hover:!bg-success-600" icon={MessageSquare} loading={waSending} onClick={handleSendWA}>
+              {waSending ? 'Sending...' : `Send to ${selectedRows.length} Leads`}
+            </Button>
+          </>
+        )}
+      >
             <p className="text-sm text-gray-500 mb-3">Sending to <strong className="text-gray-800">{selectedRows.length} leads</strong></p>
 
             {/* Channel toggles */}
@@ -1358,18 +1340,7 @@ export default function LeadManager() {
               />
               <p className="text-xs text-gray-400 mt-1">Variables: <code className="bg-gray-100 px-1 rounded">{'{name}'}</code></p>
             </div>
-
-            <div className="flex gap-3">
-              <button onClick={() => setShowWAModal(false)} className="flex-1 btn-secondary text-sm py-2.5">Cancel</button>
-              <button onClick={handleSendWA} disabled={waSending}
-                className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
-                {waSending ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <MessageSquare size={16} />}
-                {waSending ? 'Sending...' : `Send to ${selectedRows.length} Leads`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ============ RCS COMPOSE MODAL ============ */}
       {rcsLead && (
@@ -1377,16 +1348,23 @@ export default function LeadManager() {
       )}
 
       {/* ============ CALL LOG MODAL ============ */}
-      {callLead && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-900 flex items-center gap-2"><Phone size={18} className="text-blue-500" /> Log Call</h2>
-              <button onClick={() => setCallLead(null)}><X size={18} className="text-gray-400" /></button>
-            </div>
-            <div className="bg-blue-50 rounded-xl p-3 mb-4">
+      <Modal
+        open={!!callLead}
+        onClose={() => setCallLead(null)}
+        title="Log Call"
+        size="sm"
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setCallLead(null)}>Cancel</Button>
+            <Button className="flex-1" icon={Save} onClick={handleLogCall}>Save Call Log</Button>
+          </>
+        )}
+      >
+        {callLead && (
+          <>
+            <div className="bg-info-50 rounded-xl p-3 mb-4">
               <div className="font-semibold text-slate-800">{callLead.name}</div>
-              <div className="text-blue-600 font-mono text-lg font-bold flex items-center gap-2">
+              <div className="text-info-600 font-mono text-lg font-bold flex items-center gap-2">
                 <Phone size={16} /> {callLead.mobile}
               </div>
             </div>
@@ -1406,26 +1384,25 @@ export default function LeadManager() {
                 <textarea value={callNotes} onChange={e => setCallNotes(e.target.value)} rows={2} className="input-field text-sm resize-none" placeholder="Call notes..." />
               </div>
             </div>
-            <div className="flex gap-3 mt-4">
-              <button onClick={() => setCallLead(null)} className="flex-1 btn-secondary text-sm py-2">Cancel</button>
-              <button onClick={handleLogCall} className="flex-1 btn-primary text-sm py-2 flex items-center justify-center gap-2">
-                <Save size={15} /> Save Call Log
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* ============ NOT INTERESTED MODAL ============ */}
-      {niLead && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-900 flex items-center gap-2">
-                <X size={16} className="text-red-500" /> Not Interested
-              </h2>
-              <button onClick={() => setNiLead(null)}><X size={18} className="text-gray-400" /></button>
-            </div>
+      <Modal
+        open={!!niLead}
+        onClose={() => setNiLead(null)}
+        title="Not Interested"
+        size="sm"
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setNiLead(null)}>Cancel</Button>
+            <Button variant="destructive" className="flex-1" onClick={handleMarkNotInterested}>Confirm</Button>
+          </>
+        )}
+      >
+        {niLead && (
+          <>
             <p className="text-sm text-gray-500 mb-4">
               Mark <strong>{niLead.name}</strong> as Not Interested and record reason.
             </p>
@@ -1445,30 +1422,35 @@ export default function LeadManager() {
                 </div>
               )}
             </div>
-            <div className="flex gap-3 mt-4">
-              <button onClick={() => setNiLead(null)} className="flex-1 btn-secondary text-sm">Cancel</button>
-              <button onClick={handleMarkNotInterested}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* ============ TRANSFER LEAD MODAL ============ */}
-      {transferLead && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-900 flex items-center gap-2">
-                <ArrowRightLeft size={18} className="text-blue-500" /> Transfer Lead
-              </h2>
-              <button onClick={() => setTransferLead(null)}><X size={18} className="text-gray-400" /></button>
-            </div>
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-sm">
-              <p className="font-semibold text-blue-800">{transferLead.name}</p>
-              <p className="text-xs text-blue-600 mt-0.5">Currently with: <strong>{transferLead.owner || 'Unassigned'}</strong></p>
+      <Modal
+        open={!!transferLead}
+        onClose={() => setTransferLead(null)}
+        title="Transfer Lead"
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setTransferLead(null)}>Cancel</Button>
+            <Button
+              className="flex-1"
+              icon={ArrowRightLeft}
+              loading={transferLoading}
+              disabled={!transferTo}
+              onClick={handleSubmitTransfer}
+            >
+              {['Admin','Manager'].includes(currentUser?.role) ? 'Transfer Now' : 'Request Transfer'}
+            </Button>
+          </>
+        )}
+      >
+        {transferLead && (
+          <>
+            <div className="bg-info-50 border border-info-100 rounded-xl p-3 mb-4 text-sm">
+              <p className="font-semibold text-info-800">{transferLead.name}</p>
+              <p className="text-xs text-info-600 mt-0.5">Currently with: <strong>{transferLead.owner || 'Unassigned'}</strong></p>
             </div>
             <div className="space-y-3">
               <div>
@@ -1487,67 +1469,61 @@ export default function LeadManager() {
                   className="input-field text-sm resize-none" />
               </div>
               {!['Admin','Manager'].includes(currentUser?.role) && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700">
+                <div className="bg-warning-50 border border-warning-200 rounded-lg p-2.5 text-xs text-warning-700">
                   ⚠️ Your request will be sent to admin for approval before the transfer happens.
                 </div>
               )}
             </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setTransferLead(null)} className="flex-1 btn-secondary text-sm py-2">Cancel</button>
-              <button onClick={handleSubmitTransfer} disabled={transferLoading || !transferTo}
-                className="flex-1 btn-primary text-sm py-2 flex items-center justify-center gap-1.5 disabled:opacity-50">
-                {transferLoading ? <span className="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" /> : <ArrowRightLeft size={13} />}
-                {['Admin','Manager'].includes(currentUser?.role) ? 'Transfer Now' : 'Request Transfer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* ============ DELETE CONFIRM MODAL ============ */}
-      {deleteConfirm !== null && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
-            <div className="flex flex-col items-center text-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center"><Trash2 size={22} className="text-red-500" /></div>
-              <h3 className="font-bold text-gray-900 text-base">Delete Lead{deleteConfirm === 'bulk' ? 's' : ''}</h3>
-              <p className="text-sm text-gray-500">
-                {deleteConfirm === 'bulk' 
-                  ? `Delete ${selectedRows.length} selected lead${selectedRows.length !== 1 ? 's' : ''}? This cannot be undone.` 
-                  : 'Delete this lead permanently?'
-                }
-              </p>
-              {deleteConfirm === 'bulk' && selectedRows.length > 0 && (
-                <div className="max-h-40 overflow-y-auto w-full bg-gray-50 rounded-lg p-2 mt-2 text-left">
-                  <p className="text-xs font-semibold text-gray-600 mb-2">Leads to delete:</p>
-                  <ul className="space-y-1 text-xs text-gray-600">
-                    {selectedRows.slice(0, 10).map(id => {
-                      const lead = rows.find(l => l.id === id)
-                      return lead ? (
-                        <li key={id} className="truncate">
-                          • {lead.name} ({lead.mobile})
-                        </li>
-                      ) : null
-                    })}
-                    {selectedRows.length > 10 && (
-                      <li className="text-gray-400 italic">+ {selectedRows.length - 10} more...</li>
-                    )}
-                  </ul>
-                </div>
-              )}
+      <Modal
+        open={deleteConfirm !== null}
+        onClose={() => setDeleteConfirm(null)}
+        size="sm"
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" className="flex-1" onClick={confirmDelete}>Delete</Button>
+          </>
+        )}
+      >
+        <div className="flex flex-col items-center text-center gap-3 mb-2">
+          <div className="w-12 h-12 rounded-full bg-danger-100 flex items-center justify-center"><Trash2 size={22} className="text-danger-500" /></div>
+          <h3 className="font-bold text-gray-900 text-base">Delete Lead{deleteConfirm === 'bulk' ? 's' : ''}</h3>
+          <p className="text-sm text-gray-500">
+            {deleteConfirm === 'bulk'
+              ? `Delete ${selectedRows.length} selected lead${selectedRows.length !== 1 ? 's' : ''}? This cannot be undone.`
+              : 'Delete this lead permanently?'
+            }
+          </p>
+          {deleteConfirm === 'bulk' && selectedRows.length > 0 && (
+            <div className="max-h-40 overflow-y-auto w-full bg-gray-50 rounded-lg p-2 mt-2 text-left">
+              <p className="text-xs font-semibold text-gray-600 mb-2">Leads to delete:</p>
+              <ul className="space-y-1 text-xs text-gray-600">
+                {selectedRows.slice(0, 10).map(id => {
+                  const lead = rows.find(l => l.id === id)
+                  return lead ? (
+                    <li key={id} className="truncate">
+                      • {lead.name} ({lead.mobile})
+                    </li>
+                  ) : null
+                })}
+                {selectedRows.length > 10 && (
+                  <li className="text-gray-400 italic">+ {selectedRows.length - 10} more...</li>
+                )}
+              </ul>
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 btn-secondary py-2 text-sm">Cancel</button>
-              <button onClick={confirmDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 text-sm font-semibold rounded-lg">Delete</button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
+      </Modal>
 
       {/* ============ BULK UPLOAD MODAL (with smart column mapper) ============ */}
       {showBulkModal && (
-        <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-slide-in">
+          <div className="bg-white rounded-2xl shadow-dropdown w-full max-w-4xl overflow-hidden flex flex-col animate-scale-up">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-primary-50 rounded-lg text-primary-600"><FileSpreadsheet size={20} /></div>
@@ -1590,19 +1566,19 @@ export default function LeadManager() {
                     </label>
                   </div>
                   {/* Download Template */}
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div className="bg-success-50 border border-success-200 rounded-xl p-4 flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-semibold text-emerald-800 flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-success-800 flex items-center gap-1.5">
                         <Download size={14} /> Download CSV Template
                       </p>
-                      <p className="text-xs text-emerald-600 mt-0.5">
+                      <p className="text-xs text-success-600 mt-0.5">
                         <strong>Required:</strong> Name, Mobile, Source (AI or SM) ·
                         <strong> Optional:</strong> Email, State, City, Course (counsellor can fill later)
                       </p>
                     </div>
                     <button
                       onClick={handleDownloadTemplate}
-                      className="flex-shrink-0 flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 transition-colors font-medium"
+                      className="flex-shrink-0 flex items-center gap-1.5 text-sm bg-success-600 hover:bg-success-700 text-white rounded-lg px-4 py-2 transition-colors font-medium"
                     >
                       <Download size={14} /> Template
                     </button>
@@ -1626,13 +1602,13 @@ export default function LeadManager() {
                 <div className="space-y-5">
                   {/* Stats row */}
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
-                      <div className="text-xl font-bold text-blue-700">{previewData.totalRows.toLocaleString()}</div>
-                      <div className="text-xs text-blue-500">Total Rows</div>
+                    <div className="bg-info-50 border border-info-100 rounded-xl p-3 text-center">
+                      <div className="text-xl font-bold text-info-700">{previewData.totalRows.toLocaleString()}</div>
+                      <div className="text-xs text-info-500">Total Rows</div>
                     </div>
-                    <div className={`rounded-xl p-3 text-center border ${previewData.duplicateCount > 0 ? 'bg-yellow-50 border-yellow-100' : 'bg-green-50 border-green-100'}`}>
-                      <div className={`text-xl font-bold ${previewData.duplicateCount > 0 ? 'text-yellow-700' : 'text-green-700'}`}>{previewData.duplicateCount}</div>
-                      <div className={`text-xs ${previewData.duplicateCount > 0 ? 'text-yellow-500' : 'text-green-500'}`}>~Duplicates (~{previewData.estimatedDupRate}%)</div>
+                    <div className={`rounded-xl p-3 text-center border ${previewData.duplicateCount > 0 ? 'bg-warning-50 border-warning-100' : 'bg-success-50 border-success-100'}`}>
+                      <div className={`text-xl font-bold ${previewData.duplicateCount > 0 ? 'text-warning-700' : 'text-success-700'}`}>{previewData.duplicateCount}</div>
+                      <div className={`text-xs ${previewData.duplicateCount > 0 ? 'text-warning-500' : 'text-success-500'}`}>~Duplicates (~{previewData.estimatedDupRate}%)</div>
                     </div>
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
                       <div className="text-xl font-bold text-slate-700">{previewData.headers.length}</div>
@@ -1641,8 +1617,8 @@ export default function LeadManager() {
                   </div>
 
                   {/* Duplicate handling — always shown so user picks intentionally */}
-                  <div className={`rounded-xl p-4 border ${previewData.duplicateCount > 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-blue-50 border-blue-200'}`}>
-                    <p className={`text-sm font-semibold mb-2 ${previewData.duplicateCount > 0 ? 'text-yellow-800' : 'text-blue-800'}`}>
+                  <div className={`rounded-xl p-4 border ${previewData.duplicateCount > 0 ? 'bg-warning-50 border-warning-200' : 'bg-info-50 border-info-200'}`}>
+                    <p className={`text-sm font-semibold mb-2 ${previewData.duplicateCount > 0 ? 'text-warning-800' : 'text-info-800'}`}>
                       {previewData.duplicateCount > 0
                         ? `⚠️ ${previewData.duplicateCount} duplicate${previewData.duplicateCount === 1 ? '' : 's'} found in first 20 rows — what should we do?`
                         : '🔄 Duplicate Handling (applies when mobile/email already exists)'
@@ -1741,7 +1717,7 @@ export default function LeadManager() {
               {/* STEP 3: Importing */}
               {bulkStep === 3 && (
                 <div className="py-16 text-center">
-                  <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                  <div className="w-16 h-16 rounded-full bg-info-50 flex items-center justify-center mx-auto mb-4 animate-pulse">
                     <svg className="animate-spin h-8 w-8 text-primary-500" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -1755,20 +1731,20 @@ export default function LeadManager() {
               {/* STEP 4: Done */}
               {bulkStep === 4 && uploadResult && (
                 <div className="py-6 text-center space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto mb-2">
+                  <div className="w-16 h-16 rounded-full bg-success-50 text-success-500 flex items-center justify-center mx-auto mb-2">
                     <CheckCircle2 size={36} />
                   </div>
                   <h3 className="font-bold text-lg text-gray-800">Import Complete! 🎉</h3>
                   <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto">
-                    <div className="bg-green-50 rounded-xl p-3"><div className="text-xl font-bold text-green-700">{uploadResult.imported}</div><div className="text-xs text-green-500">Imported</div></div>
-                    <div className="bg-yellow-50 rounded-xl p-3"><div className="text-xl font-bold text-yellow-700">{uploadResult.skipped}</div><div className="text-xs text-yellow-500">Skipped</div></div>
-                    <div className="bg-blue-50 rounded-xl p-3"><div className="text-xl font-bold text-blue-700">{uploadResult.updated}</div><div className="text-xs text-blue-500">Updated</div></div>
+                    <div className="bg-success-50 rounded-xl p-3"><div className="text-xl font-bold text-success-700">{uploadResult.imported}</div><div className="text-xs text-success-500">Imported</div></div>
+                    <div className="bg-warning-50 rounded-xl p-3"><div className="text-xl font-bold text-warning-700">{uploadResult.skipped}</div><div className="text-xs text-warning-500">Skipped</div></div>
+                    <div className="bg-info-50 rounded-xl p-3"><div className="text-xl font-bold text-info-700">{uploadResult.updated}</div><div className="text-xs text-info-500">Updated</div></div>
                   </div>
 
                   {/* Hint when most rows skipped */}
                   {uploadResult.hint && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-left max-w-2xl mx-auto">
-                      <p className="text-sm text-yellow-800 whitespace-pre-line">{uploadResult.hint}</p>
+                    <div className="bg-warning-50 border border-warning-200 rounded-xl p-4 text-left max-w-2xl mx-auto">
+                      <p className="text-sm text-warning-800 whitespace-pre-line">{uploadResult.hint}</p>
                     </div>
                   )}
 
@@ -1802,6 +1778,6 @@ export default function LeadManager() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }

@@ -6,12 +6,14 @@ import {
   Upload, Download, FileSpreadsheet, Key, Activity, Clock, Copy,
   UserCheck, UserMinus, Crown,
 } from 'lucide-react'
+import PageContainer from '../components/PageContainer'
+import { Card, StatCard, Modal, Button } from '../components/ui'
 
 const ROLE_COLORS = {
-  Admin:     { bg: 'bg-red-100',    text: 'text-red-700'    },
-  Manager:   { bg: 'bg-purple-100', text: 'text-purple-700' },
-  Counselor: { bg: 'bg-blue-100',   text: 'text-blue-700'   },
-  Finance:   { bg: 'bg-green-100',  text: 'text-green-700'  },
+  Admin:     { bg: 'bg-danger-100',  text: 'text-danger-700' },
+  Manager:   { bg: 'bg-purple-100',  text: 'text-purple-700' },
+  Counselor: { bg: 'bg-info-100',    text: 'text-info-700'   },
+  Finance:   { bg: 'bg-success-100', text: 'text-success-700'},
 }
 
 const PERMISSIONS = {
@@ -319,68 +321,45 @@ export default function UserManagement({ currentUser }) {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">User Management</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Role-based access control, teams &amp; hierarchy management</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <PageContainer
+      title="User Management"
+      description="Role-based access control, teams &amp; hierarchy management"
+      action={(
+        <>
           <button
             onClick={() => setShowManageTR(true)}
             className="flex items-center gap-1.5 text-sm text-purple-600 border border-purple-200 bg-purple-50 hover:bg-purple-100 rounded-lg px-3 py-1.5"
           >
             <Shield size={14} /> Teams & Roles
           </button>
-          <button
-            onClick={() => setShowActivity(true)}
-            className="flex items-center gap-1.5 text-sm text-primary-600 border border-primary-200 bg-primary-50 hover:bg-primary-100 rounded-lg px-3 py-1.5"
-          >
-            <Activity size={14} /> Activity Log
-          </button>
-          <button
-            onClick={() => { setShowBulkModal(true); setBulkResult(null) }}
-            className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50"
-          >
-            <Upload size={14} /> Bulk Upload
-          </button>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5"
-          >
-            <Plus size={14} /> Add User
-          </button>
-        </div>
-      </div>
-
+          <Button variant="secondary" size="sm" icon={Activity} className="!text-primary-600 !border-primary-200 !bg-primary-50 hover:!bg-primary-100" onClick={() => setShowActivity(true)}>
+            Activity Log
+          </Button>
+          <Button variant="secondary" size="sm" icon={Upload} onClick={() => { setShowBulkModal(true); setBulkResult(null) }}>Bulk Upload</Button>
+          <Button size="sm" icon={Plus} onClick={openCreate}>Add User</Button>
+        </>
+      )}
+    >
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        {[
-          { label: 'Total Users', value: users.length, color: 'text-blue-600',   bg: 'bg-blue-50'   },
-          { label: 'Active',      value: active,       color: 'text-green-600',  bg: 'bg-green-50'  },
-          { label: 'Inactive',    value: inactive,     color: 'text-red-600',    bg: 'bg-red-50'    },
-          { label: 'Roles',       value: ROLES.length, color: 'text-purple-600', bg: 'bg-purple-50' },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
-          </div>
-        ))}
+        <StatCard icon={Users} label="Total Users" value={users.length} tone="info" />
+        <StatCard icon={CheckCircle} label="Active" value={active} tone="success" />
+        <StatCard icon={XCircle} label="Inactive" value={inactive} tone="danger" />
+        <StatCard icon={Shield} label="Roles" value={ROLES.length} tone="neutral" />
       </div>
 
       {/* Logged-in admin badge */}
       {currentUser && (
         <div className="mb-4 flex items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 w-fit">
-          <Shield size={13} className="text-red-500" />
+          <Shield size={13} className="text-danger-500" />
           Logged in as <strong className="text-gray-700">{currentUser.name}</strong>
-          <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium">{currentUser.role}</span>
+          <span className="bg-danger-100 text-danger-700 px-1.5 py-0.5 rounded font-medium">{currentUser.role}</span>
         </div>
       )}
 
       <div className="flex gap-4">
         {/* User table */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm">
+        <Card padding={false} className="flex-1">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-wrap">
               {tabs.map(t => (
@@ -406,11 +385,11 @@ export default function UserManagement({ currentUser }) {
               </span>
               <div className="flex gap-2">
                 <button onClick={() => bulkActivate('Active')}
-                  className="text-xs bg-green-500 hover:bg-green-600 text-white rounded-lg px-3 py-1 flex items-center gap-1">
+                  className="text-xs bg-success-500 hover:bg-success-600 text-white rounded-lg px-3 py-1 flex items-center gap-1">
                   <CheckCircle size={11} /> Activate
                 </button>
                 <button onClick={() => bulkActivate('Inactive')}
-                  className="text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg px-3 py-1 flex items-center gap-1">
+                  className="text-xs bg-danger-500 hover:bg-danger-600 text-white rounded-lg px-3 py-1 flex items-center gap-1">
                   <XCircle size={11} /> Deactivate
                 </button>
                 <div className="relative">
@@ -500,7 +479,7 @@ export default function UserManagement({ currentUser }) {
                       </td>
                       <td className="table-td text-gray-600 text-xs">{u.reportsTo || <span className="text-gray-300">—</span>}</td>
                       <td className="table-td">
-                        <span className={`badge ${u.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`badge ${u.status === 'Active' ? 'bg-success-100 text-success-700' : 'bg-gray-100 text-gray-600'}`}>
                           {u.status}
                         </span>
                       </td>
@@ -516,20 +495,20 @@ export default function UserManagement({ currentUser }) {
                             <Edit size={14} />
                           </button>
                           <button onClick={() => handleResetPassword(u)}
-                            className="p-1 rounded hover:bg-yellow-50 text-yellow-500" title="Reset password (email new temp)">
+                            className="p-1 rounded hover:bg-warning-50 text-warning-500" title="Reset password (email new temp)">
                             <Key size={14} />
                           </button>
                           <button
                             onClick={() => updateUser(u.id, { excludeFromAssignment: !u.excludeFromAssignment })}
                             title={u.excludeFromAssignment ? 'Excluded from auto-assign — click to include' : 'Receiving auto-assign — click to exclude'}
-                            className={`p-1 rounded ${u.excludeFromAssignment ? 'hover:bg-gray-100 text-gray-400' : 'hover:bg-green-50 text-green-500'}`}
+                            className={`p-1 rounded ${u.excludeFromAssignment ? 'hover:bg-gray-100 text-gray-400' : 'hover:bg-success-50 text-success-500'}`}
                           >
                             {u.excludeFromAssignment ? <UserMinus size={14} /> : <UserCheck size={14} />}
                           </button>
                           <button
                             onClick={() => toggleStatus(u)}
                             disabled={self}
-                            className={`p-1 rounded ${self ? 'opacity-30 cursor-not-allowed' : u.status === 'Active' ? 'hover:bg-red-50 text-red-500' : 'hover:bg-green-50 text-green-500'}`}
+                            className={`p-1 rounded ${self ? 'opacity-30 cursor-not-allowed' : u.status === 'Active' ? 'hover:bg-danger-50 text-danger-500' : 'hover:bg-success-50 text-success-500'}`}
                             title={u.status === 'Active' ? 'Deactivate' : 'Activate'}
                           >
                             {u.status === 'Active' ? <XCircle size={14} /> : <CheckCircle size={14} />}
@@ -564,7 +543,7 @@ export default function UserManagement({ currentUser }) {
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
 
         {/* Permissions panel */}
         {selectedUser && (
@@ -603,20 +582,21 @@ export default function UserManagement({ currentUser }) {
       </div>
 
       {/* ── Create / Edit Modal ──────────────────────────────────────────────── */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">
-                {editingUser ? 'Edit User' : 'Add New User'}
-              </h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={18} />
-              </button>
-            </div>
-
+      <Modal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        title={editingUser ? 'Edit User' : 'Add New User'}
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button className="flex-1" icon={Save} onClick={handleSave}>
+              {editingUser ? 'Save Changes' : 'Create User'}
+            </Button>
+          </>
+        )}
+      >
             {formError && (
-              <div className="mb-3 bg-red-50 border border-red-200 text-red-600 text-xs px-3 py-2 rounded-lg flex items-center gap-2">
+              <div className="mb-3 bg-danger-50 border border-danger-200 text-danger-600 text-xs px-3 py-2 rounded-lg flex items-center gap-2">
                 <AlertTriangle size={13} /> {formError}
               </div>
             )}
@@ -756,31 +736,17 @@ export default function UserManagement({ currentUser }) {
                 </div>
               )}
             </div>
-
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowModal(false)} className="flex-1 btn-secondary text-sm">
-                Cancel
-              </button>
-              <button onClick={handleSave} className="flex-1 btn-primary text-sm flex items-center justify-center gap-1.5">
-                <Save size={14} />
-                {editingUser ? 'Save Changes' : 'Create User'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ── Teams & Roles Manager Modal ─────────────────────────────────────── */}
-      {showManageTR && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-purple-50">
-              <h2 className="font-bold text-gray-900 flex items-center gap-2">
-                <Shield size={18} className="text-purple-600" /> Teams & Roles
-              </h2>
-              <button onClick={() => setShowManageTR(false)}><X size={18} className="text-gray-400" /></button>
-            </div>
-            <div className="overflow-y-auto p-6 space-y-6">
+      <Modal
+        open={showManageTR}
+        onClose={() => setShowManageTR(false)}
+        title={<span className="flex items-center gap-2"><Shield size={18} className="text-purple-600" /> Teams & Roles</span>}
+        size="2xl"
+        footer={<Button variant="secondary" className="ml-auto" onClick={() => setShowManageTR(false)}>Done</Button>}
+      >
+            <div className="space-y-6">
 
               {/* TEAMS */}
               <div>
@@ -808,7 +774,7 @@ export default function UserManagement({ currentUser }) {
                         <p className="text-[10px] text-gray-400">{t.memberCount || 0} member{t.memberCount === 1 ? '' : 's'}</p>
                       </div>
                       <button onClick={() => deleteTeam(t.id, t.name)}
-                        className="text-red-400 hover:text-red-600 p-1" title="Delete team">
+                        className="text-danger-400 hover:text-danger-600 p-1" title="Delete team">
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -838,18 +804,18 @@ export default function UserManagement({ currentUser }) {
 
                 <div className="space-y-1.5">
                   {rolesList.map(r => (
-                    <div key={r.id} className={`flex items-center justify-between border rounded-lg px-3 py-2 ${r.isSystem ? 'bg-blue-50/50 border-blue-100' : 'bg-gray-50 border-gray-200'}`}>
+                    <div key={r.id} className={`flex items-center justify-between border rounded-lg px-3 py-2 ${r.isSystem ? 'bg-info-50/50 border-info-100' : 'bg-gray-50 border-gray-200'}`}>
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium text-gray-800">{r.name}</p>
-                          {r.isSystem && <span className="badge bg-blue-100 text-blue-700 text-[9px] font-bold">SYSTEM</span>}
+                          {r.isSystem && <span className="badge bg-info-100 text-info-700 text-[9px] font-bold">SYSTEM</span>}
                           <span className="text-[10px] text-gray-400">· {r.memberCount || 0} user{r.memberCount === 1 ? '' : 's'}</span>
                         </div>
                         {r.description && <p className="text-[10px] text-gray-500 mt-0.5">{r.description}</p>}
                       </div>
                       {!r.isSystem && (
                         <button onClick={() => deleteRole(r.id, r.name)}
-                          className="text-red-400 hover:text-red-600 p-1" title="Delete role">
+                          className="text-danger-400 hover:text-danger-600 p-1" title="Delete role">
                           <Trash2 size={13} />
                         </button>
                       )}
@@ -858,36 +824,28 @@ export default function UserManagement({ currentUser }) {
                 </div>
               </div>
 
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
+              <div className="bg-info-50 border border-info-100 rounded-lg p-3 text-xs text-info-700">
                 💡 <strong>System roles</strong> (Admin / Manager / Counselor / Finance) cannot be deleted — they're wired into permission checks across the app. You can add custom roles for specialised positions.
               </div>
             </div>
-            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-end">
-              <button onClick={() => setShowManageTR(false)} className="btn-secondary text-sm px-4 py-2">Done</button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ── Reset Password Result Modal ─────────────────────────────────────── */}
-      {resetResult && resetForUser && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-900 flex items-center gap-2">
-                <Key size={18} className="text-yellow-500" /> Password Reset
-              </h2>
-              <button onClick={() => { setResetResult(null); setResetForUser(null) }}>
-                <X size={18} className="text-gray-400" />
-              </button>
-            </div>
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-sm">
-              <p className="font-semibold text-blue-800">{resetForUser.name}</p>
-              <p className="text-xs text-blue-600 mt-0.5">{resetForUser.email}</p>
+      <Modal
+        open={!!(resetResult && resetForUser)}
+        onClose={() => { setResetResult(null); setResetForUser(null) }}
+        title={<span className="flex items-center gap-2"><Key size={18} className="text-warning-500" /> Password Reset</span>}
+        footer={<Button className="flex-1" onClick={() => { setResetResult(null); setResetForUser(null) }}>Done</Button>}
+      >
+        {resetResult && resetForUser && (
+          <>
+            <div className="bg-info-50 border border-info-100 rounded-xl p-3 mb-4 text-sm">
+              <p className="font-semibold text-info-800">{resetForUser.name}</p>
+              <p className="text-xs text-info-600 mt-0.5">{resetForUser.email}</p>
             </div>
             <p className="text-xs text-gray-500 mb-2">Temporary password (shown only once):</p>
             <div className="flex items-center gap-2 mb-4">
-              <code className="flex-1 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 font-mono font-bold text-yellow-800 text-base text-center select-all">
+              <code className="flex-1 bg-warning-50 border border-warning-200 rounded-lg px-3 py-2 font-mono font-bold text-warning-800 text-base text-center select-all">
                 {resetResult.tempPassword}
               </code>
               <button onClick={() => {
@@ -897,19 +855,17 @@ export default function UserManagement({ currentUser }) {
                 <Copy size={14} />
               </button>
             </div>
-            <p className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg p-2 mb-4">
+            <p className="text-xs text-success-700 bg-success-50 border border-success-100 rounded-lg p-2">
               ✓ Also emailed to {resetResult.sentTo}
             </p>
-            <button onClick={() => { setResetResult(null); setResetForUser(null) }}
-              className="w-full btn-primary text-sm py-2">Done</button>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* ── Activity Log Modal ──────────────────────────────────────────────── */}
       {showActivity && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-2xl shadow-dropdown w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-scale-up">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-primary-50">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 <Activity size={18} className="text-primary-600" /> User Activity Log
@@ -938,10 +894,10 @@ export default function UserManagement({ currentUser }) {
                       </div>
                       <div className="flex flex-col items-end">
                         <span className={`badge text-[10px] font-bold ${
-                          u.role === 'Admin'     ? 'bg-red-100 text-red-700' :
+                          u.role === 'Admin'     ? 'bg-danger-100 text-danger-700' :
                           u.role === 'Manager'   ? 'bg-purple-100 text-purple-700' :
-                          u.role === 'Counselor' ? 'bg-blue-100 text-blue-700' :
-                                                   'bg-green-100 text-green-700'
+                          u.role === 'Counselor' ? 'bg-info-100 text-info-700' :
+                                                   'bg-success-100 text-success-700'
                         }`}>{u.role}</span>
                         <span className="text-[10px] text-gray-500 mt-1">{u.lastLogin}</span>
                       </div>
@@ -975,39 +931,32 @@ export default function UserManagement({ currentUser }) {
       )}
 
       {/* ── Bulk Upload Modal ───────────────────────────────────────────────── */}
-      {showBulkModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-primary-50 rounded-lg"><FileSpreadsheet size={18} className="text-primary-600" /></div>
-                <div>
-                  <h2 className="text-base font-bold text-gray-900">Bulk User Upload</h2>
-                  <p className="text-xs text-gray-500">Upload CSV or Excel — existing emails are skipped</p>
-                </div>
-              </div>
-              <button onClick={() => setShowBulkModal(false)}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
-            </div>
-
-            <div className="p-6 space-y-4">
+      <Modal
+        open={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        title="Bulk User Upload"
+        subtitle="Upload CSV or Excel — existing emails are skipped"
+        footer={<Button variant="secondary" className="ml-auto" onClick={() => setShowBulkModal(false)}>Close</Button>}
+      >
+            <div className="space-y-4">
               {/* Download template */}
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between gap-4">
+              <div className="bg-success-50 border border-success-200 rounded-xl p-4 flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-emerald-800 flex items-center gap-1.5">
+                  <p className="text-sm font-semibold text-success-800 flex items-center gap-1.5">
                     <Download size={14} /> Download CSV Template
                   </p>
-                  <p className="text-xs text-emerald-600 mt-0.5">
+                  <p className="text-xs text-success-600 mt-0.5">
                     Columns: Name, Email, Mobile, Role, Team, Password, Status
                   </p>
                 </div>
                 <button onClick={handleDownloadTemplate}
-                  className="flex-shrink-0 flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 transition-colors font-medium">
+                  className="flex-shrink-0 flex items-center gap-1.5 text-sm bg-success-600 hover:bg-success-700 text-white rounded-lg px-4 py-2 transition-colors font-medium">
                   <Download size={14} /> Template
                 </button>
               </div>
 
               {/* Roles & valid values note */}
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+              <div className="bg-info-50 border border-info-100 rounded-xl p-3 text-xs text-info-700 space-y-1">
                 <p className="font-semibold">Valid values:</p>
                 <p><strong>Role:</strong> Admin · Manager · Counselor · Finance (default: Counselor)</p>
                 <p><strong>Team:</strong> Management · Admissions · Sales · Marketing · Finance (default: Admissions)</p>
@@ -1045,24 +994,24 @@ export default function UserManagement({ currentUser }) {
               {bulkResult && (
                 <div className="space-y-3">
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-extrabold text-green-700">{bulkResult.inserted}</div>
-                      <div className="text-xs text-green-600">Created</div>
+                    <div className="bg-success-50 border border-success-100 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-extrabold text-success-700">{bulkResult.inserted}</div>
+                      <div className="text-xs text-success-600">Created</div>
                     </div>
-                    <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-extrabold text-yellow-700">{bulkResult.skipped}</div>
-                      <div className="text-xs text-yellow-600">Skipped</div>
+                    <div className="bg-warning-50 border border-warning-100 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-extrabold text-warning-700">{bulkResult.skipped}</div>
+                      <div className="text-xs text-warning-600">Skipped</div>
                     </div>
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-extrabold text-blue-700">{bulkResult.total}</div>
-                      <div className="text-xs text-blue-600">Total Rows</div>
+                    <div className="bg-info-50 border border-info-100 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-extrabold text-info-700">{bulkResult.total}</div>
+                      <div className="text-xs text-info-600">Total Rows</div>
                     </div>
                   </div>
                   {bulkResult.errors?.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-                      <p className="text-xs font-semibold text-red-700 mb-1">Row errors (first 10):</p>
+                    <div className="bg-danger-50 border border-danger-200 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-danger-700 mb-1">Row errors (first 10):</p>
                       {bulkResult.errors.map((e, i) => (
-                        <p key={i} className="text-xs text-red-600">{e}</p>
+                        <p key={i} className="text-xs text-danger-600">{e}</p>
                       ))}
                     </div>
                   )}
@@ -1073,38 +1022,32 @@ export default function UserManagement({ currentUser }) {
                 </div>
               )}
             </div>
-
-            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-end">
-              <button onClick={() => setShowBulkModal(false)} className="btn-secondary text-sm px-4 py-2">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ── Delete Confirm Modal ─────────────────────────────────────────────── */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trash2 size={22} className="text-red-500" />
+      <Modal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        size="sm"
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" className="flex-1" onClick={confirmDelete}>Delete</Button>
+          </>
+        )}
+      >
+        {deleteConfirm && (
+          <div className="text-center">
+            <div className="w-12 h-12 bg-danger-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={22} className="text-danger-500" />
             </div>
             <h3 className="text-base font-bold text-gray-900 mb-1">Delete User?</h3>
-            <p className="text-sm text-gray-500 mb-5">
+            <p className="text-sm text-gray-500">
               Are you sure you want to delete <strong>{deleteConfirm.name}</strong>? This action cannot be undone.
             </p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 btn-secondary text-sm">
-                Cancel
-              </button>
-              <button onClick={confirmDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
-                Delete
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </Modal>
+    </PageContainer>
   )
 }
