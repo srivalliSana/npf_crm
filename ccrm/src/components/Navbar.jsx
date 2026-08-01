@@ -53,7 +53,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
 
   return (
     <>
-      <header className={`fixed top-0 ${expanded ? 'left-56' : 'left-16'} right-0 h-14 bg-white/95 backdrop-blur-sm border-b border-gray-200 flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
+      <header className={`fixed top-0 ${expanded ? 'left-56' : 'left-16'} right-0 h-14 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-soft flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
         {/* Left — sidebar toggle + breadcrumb */}
         <div className="flex items-center gap-3 min-w-0">
           <button

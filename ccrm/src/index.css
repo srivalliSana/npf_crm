@@ -8,7 +8,7 @@
   }
   body {
     font-family: 'Inter', system-ui, sans-serif;
-    @apply bg-gray-50 text-gray-800;
+    @apply bg-canvas text-gray-800;
   }
 }
 
@@ -23,13 +23,13 @@
     @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition;
   }
   .table-th {
-    @apply px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200;
+    @apply px-4 py-3.5 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50/80 border-b border-gray-200;
   }
   .table-td {
-    @apply px-3 py-3 text-sm text-gray-700 border-b border-gray-100;
+    @apply px-4 py-3.5 text-sm text-gray-700 border-b border-gray-100;
   }
   .badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+    @apply inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold;
   }
   .badge-success { @apply badge bg-success-100 text-success-700; }
   .badge-warning { @apply badge bg-warning-100 text-warning-700; }
@@ -37,13 +37,13 @@
   .badge-info    { @apply badge bg-info-100 text-info-700; }
   .badge-neutral { @apply badge bg-gray-100 text-gray-700; }
   .card {
-    @apply bg-white rounded-xl border border-gray-200 shadow-soft;
+    @apply bg-white rounded-2xl border border-gray-100 shadow-card transition-shadow duration-200;
   }
   .sidebar-icon {
-    @apply flex flex-row items-center gap-3 w-[calc(100%-1rem)] mx-2 mb-0.5 px-3.5 py-2.5 rounded-lg text-gray-600 border-l-2 border-transparent hover:text-gray-900 hover:bg-gray-50 cursor-pointer transition-colors duration-150 relative;
+    @apply flex flex-row items-center gap-3 w-[calc(100%-1rem)] mx-2 mb-0.5 px-3.5 py-2.5 rounded-xl text-gray-600 border-l-[3px] border-transparent hover:text-gray-900 hover:bg-gray-50 cursor-pointer transition-colors duration-150 relative;
   }
   .sidebar-icon.active {
-    @apply text-primary-700 bg-primary-50 border-primary-500 font-semibold;
+    @apply text-primary-700 bg-primary-50 border-primary-500 font-bold;
   }
 }
 
