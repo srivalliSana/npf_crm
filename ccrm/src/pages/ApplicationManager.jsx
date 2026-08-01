@@ -6,6 +6,8 @@ import {
   X, Save, Trash2, Edit2, Mail, Eye, Link as LinkIcon, Copy
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
+import PageContainer from '../components/PageContainer'
+import { Card, Modal, Button } from '../components/ui'
 
 const EXAM_OPTIONS = [
   { label: 'All Programs',          courses: [],   year: 'all' }, // shows everything
@@ -217,16 +219,16 @@ export default function ApplicationManager() {
   }
 
   const formStatusBadge = (s) => s === 'Complete'
-    ? 'bg-green-100 text-green-700'
-    : 'bg-orange-100 text-orange-700'
+    ? 'bg-success-100 text-success-700'
+    : 'bg-warning-100 text-warning-700'
 
   const payStatusBadge = (s) => (s === 'Approved' || s === 'Payment Approved')
-    ? 'bg-green-100 text-green-700'
-    : s === 'Failed' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+    ? 'bg-success-100 text-success-700'
+    : s === 'Failed' ? 'bg-danger-100 text-danger-700' : 'bg-warning-100 text-warning-700'
 
   const payMethodBadge = (s) => {
     if (!s) return 'bg-gray-100 text-gray-500'
-    return s === 'Online' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+    return s === 'Online' ? 'bg-info-100 text-info-700' : 'bg-purple-100 text-purple-700'
   }
 
   const handleExport = () => {
@@ -294,70 +296,56 @@ export default function ApplicationManager() {
   const ownerOptions = Array.from(new Set(leads.map(l => l.owner))).filter(Boolean)
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-900">Application Manager</h1>
-          {/* Exam/Application-type selector */}
-          <div className="relative flex items-center gap-2">
-            <div className="relative">
-              <select
-                value={exam}
-                onChange={e => { setExam(e.target.value); setCurrentPage(1); }}
-                className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-primary-300 rounded-lg bg-primary-50 text-primary-700 font-medium focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer"
-              >
-                {EXAM_OPTIONS.map(o => {
-                  // "All Programs" → total count; other options → matching course count
-                  const cnt = o.year === 'all' || o.courses.length === 0
-                    ? applications.length
-                    : applications.filter(a =>
-                        o.courses.some(c =>
-                          a.course?.toLowerCase().includes(c.toLowerCase()) ||
-                          c.toLowerCase().includes(a.course?.toLowerCase() || '')
-                        )
-                      ).length
-                  return <option key={o.label} value={o.label}>{o.label} ({cnt})</option>
-                })}
-              </select>
-              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-500 pointer-events-none" />
-            </div>
-          </div>
-          {/* Quick views */}
-          <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-lg p-1">
-            {QUICK_VIEWS.map(v => (
-              <button
-                key={v}
-                onClick={() => { setQuickView(v); setCurrentPage(1); }}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  quickView === v ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
+    <PageContainer
+      title="Application Manager"
+      action={(
+        <>
+          <Button variant="secondary" size="sm" icon={Download} onClick={handleExport}>Export</Button>
+          <Button size="sm" icon={Plus} onClick={() => setShowAddModal(true)}>Add Application</Button>
+        </>
+      )}
+    >
+      {/* Exam/Application-type selector + quick views */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative">
+          <select
+            value={exam}
+            onChange={e => { setExam(e.target.value); setCurrentPage(1); }}
+            className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-primary-300 rounded-lg bg-primary-50 text-primary-700 font-medium focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer"
+          >
+            {EXAM_OPTIONS.map(o => {
+              // "All Programs" → total count; other options → matching course count
+              const cnt = o.year === 'all' || o.courses.length === 0
+                ? applications.length
+                : applications.filter(a =>
+                    o.courses.some(c =>
+                      a.course?.toLowerCase().includes(c.toLowerCase()) ||
+                      c.toLowerCase().includes(a.course?.toLowerCase() || '')
+                    )
+                  ).length
+              return <option key={o.label} value={o.label}>{o.label} ({cnt})</option>
+            })}
+          </select>
+          <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-500 pointer-events-none" />
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
-          >
-            <Download size={14} />
-            Export
-          </button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 transition-colors"
-          >
-            <Plus size={14} />
-            Add Application
-          </button>
+        {/* Quick views */}
+        <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-lg p-1">
+          {QUICK_VIEWS.map(v => (
+            <button
+              key={v}
+              onClick={() => { setQuickView(v); setCurrentPage(1); }}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                quickView === v ? 'bg-white text-primary-600 shadow-soft' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {v}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Filter bar */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 shadow-sm">
+      <Card className="p-3 mb-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-48">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -397,10 +385,10 @@ export default function ApplicationManager() {
             Reset
           </button>
         </div>
-      </div>
+      </Card>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <Card padding={false} className="overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
           <span className="text-xs text-gray-500">
             Showing <span className="font-semibold text-gray-700">{filtered.length}</span> applications
@@ -449,7 +437,7 @@ export default function ApplicationManager() {
                   </td>
                   {/* Application ID — highlighted */}
                   <td className="table-td">
-                    <span className="font-mono text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded select-all">
+                    <span className="font-mono text-xs font-bold text-success-700 bg-success-50 border border-success-200 px-2 py-0.5 rounded select-all">
                       {app.appNo}
                     </span>
                   </td>
@@ -477,7 +465,7 @@ export default function ApplicationManager() {
                   </td>
                   {/* Payment Status — yellow highlight for pending */}
                   <td className="table-td">
-                    <span className={`badge font-semibold ${payStatusBadge(app.payStatus)} ${app.payStatus === 'Payment Pending' ? 'ring-1 ring-yellow-400' : ''}`}>
+                    <span className={`badge font-semibold ${payStatusBadge(app.payStatus)} ${app.payStatus === 'Payment Pending' ? 'ring-1 ring-warning-400' : ''}`}>
                       {app.payStatus}
                     </span>
                   </td>
@@ -490,7 +478,7 @@ export default function ApplicationManager() {
                             e.stopPropagation()
                             setLinkApp(app); setLinkResult(null); setPayAmount('25000'); setPayMode('Online'); setOfflineUtr('')
                           }}
-                          className="p-1.5 rounded hover:bg-yellow-50 text-yellow-500 hover:text-yellow-600 border border-yellow-200"
+                          className="p-1.5 rounded hover:bg-warning-50 text-warning-500 hover:text-warning-600 border border-warning-200"
                           title="Generate Payment Link"
                         >
                           <LinkIcon size={14} />
@@ -579,19 +567,21 @@ export default function ApplicationManager() {
             </button>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Edit Application Modal */}
-      {editApp && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-              <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <Edit2 className="text-primary-500" size={18} /> Edit Application
-              </h2>
-              <button onClick={() => setEditApp(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-            <div className="p-6 space-y-4">
+      <Modal
+        open={!!editApp}
+        onClose={() => setEditApp(null)}
+        title={<span className="flex items-center gap-2"><Edit2 className="text-primary-500" size={18} /> Edit Application</span>}
+        size="lg"
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setEditApp(null)}>Cancel</Button>
+            <Button className="flex-1" icon={Save} loading={editSaving} onClick={handleSaveEdit}>Save Changes</Button>
+          </>
+        )}
+      >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
                   { key: 'name',   label: 'Student Name',    type: 'text'  },
@@ -642,33 +632,20 @@ export default function ApplicationManager() {
                   </select>
                 </div>
               </div>
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button onClick={() => setEditApp(null)} className="flex-1 btn-secondary py-2.5 text-sm">Cancel</button>
-                <button onClick={handleSaveEdit} disabled={editSaving} className="flex-1 btn-primary py-2.5 text-sm flex items-center justify-center gap-1.5 disabled:opacity-50">
-                  <Save size={15} /> {editSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Payment Link Modal */}
-      {linkApp && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50">
-              <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <LinkIcon size={18} className="text-yellow-500" /> Generate Payment Link
-              </h2>
-              <button onClick={() => { setLinkApp(null); setLinkResult(null) }}><X size={18} className="text-gray-400" /></button>
-            </div>
-
-            <div className="p-5 space-y-4">
+      <Modal
+        open={!!linkApp}
+        onClose={() => { setLinkApp(null); setLinkResult(null) }}
+        title={<span className="flex items-center gap-2"><LinkIcon size={18} className="text-warning-500" /> Generate Payment Link</span>}
+      >
+        {linkApp && (
+            <div className="space-y-4">
               {/* Student info */}
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                <p className="text-sm font-semibold text-blue-800">{linkApp.name}</p>
-                <p className="text-xs text-blue-600 mt-0.5">
+              <div className="bg-info-50 border border-info-100 rounded-xl p-3">
+                <p className="text-sm font-semibold text-info-800">{linkApp.name}</p>
+                <p className="text-xs text-info-600 mt-0.5">
                   App ID: <span className="font-mono font-bold">{linkApp.appNo}</span> · {linkApp.email} · {linkApp.mobile}
                 </p>
               </div>
@@ -710,34 +687,34 @@ export default function ApplicationManager() {
               ) : linkResult.mode === 'Online' && linkResult.paymentLink ? (
                 <>
                   {/* Razorpay link result */}
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
-                    <p className="text-sm font-semibold text-green-800 flex items-center gap-1.5">
-                      <span className="text-green-500">✓</span> Razorpay link created
+                  <div className="bg-success-50 border border-success-200 rounded-xl p-4 space-y-2">
+                    <p className="text-sm font-semibold text-success-800 flex items-center gap-1.5">
+                      <span className="text-success-500">✓</span> Razorpay link created
                     </p>
-                    <div className="bg-white border border-green-100 rounded-lg p-2 flex items-center gap-2">
+                    <div className="bg-white border border-success-100 rounded-lg p-2 flex items-center gap-2">
                       <code className="flex-1 text-xs text-gray-700 truncate">{linkResult.paymentLink}</code>
-                      <button onClick={() => handleCopy(linkResult.paymentLink)} className="p-1 hover:bg-green-100 rounded text-green-600">
+                      <button onClick={() => handleCopy(linkResult.paymentLink)} className="p-1 hover:bg-success-100 rounded text-success-600">
                         <Copy size={12} />
                       </button>
                     </div>
                     <a href={linkResult.paymentLink} target="_blank" rel="noopener noreferrer"
-                      className="block text-center text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg py-2 transition-colors font-medium">
+                      className="block text-center text-xs bg-success-600 hover:bg-success-700 text-white rounded-lg py-2 transition-colors font-medium">
                       Open Payment Page →
                     </a>
-                    <p className="text-[10px] text-green-700 text-center">UTR will be auto-fetched on successful payment.</p>
+                    <p className="text-[10px] text-success-700 text-center">UTR will be auto-fetched on successful payment.</p>
                   </div>
                   <a href={`https://wa.me/91${linkApp.mobile}?text=${encodeURIComponent(`Dear ${linkApp.name}, please complete your CUTM admission fee payment:\n${linkResult.paymentLink}\n\nApp ID: ${linkApp.appNo}`)}`}
                     target="_blank" rel="noopener noreferrer"
-                    className="w-full block text-center bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                    className="w-full block text-center bg-success-500 hover:bg-success-600 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
                     📱 Send via WhatsApp
                   </a>
                 </>
               ) : (
                 <>
                   {/* Offline UTR entry */}
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                    <p className="text-sm font-semibold text-amber-800 mb-2">📋 Enter Bank Reference</p>
-                    <p className="text-xs text-amber-700 mb-3">
+                  <div className="bg-warning-50 border border-warning-200 rounded-xl p-4">
+                    <p className="text-sm font-semibold text-warning-800 mb-2">📋 Enter Bank Reference</p>
+                    <p className="text-xs text-warning-700 mb-3">
                       Student paid via NEFT/IMPS/UPI/Cash. Enter the UTR or reference number from the bank/receipt.
                     </p>
                     <input type="text" value={offlineUtr} onChange={e => setOfflineUtr(e.target.value.toUpperCase())}
@@ -745,49 +722,43 @@ export default function ApplicationManager() {
                       className="w-full input-field text-sm font-mono" />
                   </div>
                   <button onClick={handleSubmitOfflineUtr}
-                    className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 text-sm rounded-lg">
+                    className="w-full bg-warning-600 hover:bg-warning-700 text-white font-semibold py-2.5 text-sm rounded-lg">
                     Save UTR → Mark as Payment Done
                   </button>
                   <p className="text-[10px] text-gray-400 text-center">Accounts team will approve to mark as Paid.</p>
                 </>
               )}
             </div>
-          </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Delete Confirm Modal */}
-      {deleteConfirm !== null && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
-            <div className="flex flex-col items-center text-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center"><Trash2 size={22} className="text-red-500" /></div>
-              <h3 className="font-bold text-gray-900 text-base">Delete Application</h3>
-              <p className="text-sm text-gray-500">This will permanently delete the application and cannot be undone.</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 btn-secondary py-2 text-sm">Cancel</button>
-              <button onClick={handleConfirmDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 text-sm font-semibold rounded-lg">Delete</button>
-            </div>
-          </div>
+      <Modal
+        open={deleteConfirm !== null}
+        onClose={() => setDeleteConfirm(null)}
+        size="sm"
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" className="flex-1" onClick={handleConfirmDelete}>Delete</Button>
+          </>
+        )}
+      >
+        <div className="flex flex-col items-center text-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-danger-100 flex items-center justify-center"><Trash2 size={22} className="text-danger-500" /></div>
+          <h3 className="font-bold text-gray-900 text-base">Delete Application</h3>
+          <p className="text-sm text-gray-500">This will permanently delete the application and cannot be undone.</p>
         </div>
-      )}
+      </Modal>
 
       {/* Add Application Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-scale-up">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Plus className="text-primary-500" size={20} />
-                Create Student Application
-              </h2>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleCreateApplication} className="p-6 space-y-4">
+      <Modal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title={<span className="flex items-center gap-2"><Plus className="text-primary-500" size={20} />Create Student Application</span>}
+        size="lg"
+      >
+            <form onSubmit={handleCreateApplication} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Link with Existing Lead (Optional)</label>
                 <select
@@ -917,9 +888,7 @@ export default function ApplicationManager() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-    </div>
+      </Modal>
+    </PageContainer>
   )
 }
