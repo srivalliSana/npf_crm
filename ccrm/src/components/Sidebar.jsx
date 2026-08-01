@@ -90,7 +90,7 @@ export default function Sidebar({ onLogout, user, expanded = true }) {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-200 flex flex-col z-50 transition-[width] duration-200 ${expanded ? 'w-56' : 'w-16'}`}
+      className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-100 shadow-soft flex flex-col z-50 transition-[width] duration-200 ${expanded ? 'w-56' : 'w-16'}`}
     >
       {/* Logo */}
       <div

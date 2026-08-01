@@ -1,9 +1,9 @@
 import React from 'react'
 
 const VARIANTS = {
-  primary:     'bg-primary-500 hover:bg-primary-600 text-white shadow-soft disabled:bg-primary-300',
-  secondary:   'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 disabled:text-gray-400',
-  destructive: 'bg-danger-500 hover:bg-danger-600 text-white shadow-soft disabled:bg-danger-300',
+  primary:     'bg-primary-500 hover:bg-primary-600 text-white shadow-card hover:shadow-cardHover disabled:bg-primary-300 disabled:shadow-none',
+  secondary:   'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 shadow-soft disabled:text-gray-400 disabled:shadow-none',
+  destructive: 'bg-danger-500 hover:bg-danger-600 text-white shadow-card hover:shadow-cardHover disabled:bg-danger-300 disabled:shadow-none',
   ghost:       'bg-transparent hover:bg-gray-100 text-gray-600 disabled:text-gray-300',
 }
 
@@ -30,7 +30,7 @@ export default function Button({
   return (
     <button
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center font-semibold rounded-lg transition-colors duration-150 disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-150 disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...rest}
     >
       {loading ? (

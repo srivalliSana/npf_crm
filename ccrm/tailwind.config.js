@@ -34,9 +34,10 @@ export default {
           800: '#b07318',
           900: '#986214',
         },
-        // Soft page background — never pure white (reduces strain)
+        // Soft page background — never pure white (reduces strain), and
+        // deliberately deep enough that white cards visibly "float" above it.
         canvas: {
-          DEFAULT: '#f5f8fc',   // gentle blue-tinted off-white
+          DEFAULT: '#eef1f7',
           warm:    '#fafbfd',
         },
         // Semantic colors — the single vocabulary Badge/StatCard/alerts build
@@ -50,9 +51,10 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        soft: '0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)',
-        card: '0 1px 3px 0 rgb(15 23 42 / 0.06), 0 4px 12px -2px rgb(15 23 42 / 0.06)',
-        dropdown: '0 4px 6px -2px rgb(15 23 42 / 0.05), 0 12px 24px -4px rgb(15 23 42 / 0.12)',
+        soft: '0 1px 3px 0 rgb(15 23 42 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.06)',
+        card: '0 2px 6px -2px rgb(15 23 42 / 0.08), 0 8px 24px -6px rgb(15 23 42 / 0.12)',
+        cardHover: '0 4px 10px -2px rgb(15 23 42 / 0.10), 0 12px 32px -6px rgb(15 23 42 / 0.16)',
+        dropdown: '0 8px 16px -4px rgb(15 23 42 / 0.10), 0 20px 40px -8px rgb(15 23 42 / 0.18)',
       },
     },
   },
