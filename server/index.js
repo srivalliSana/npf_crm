@@ -5375,12 +5375,16 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
     // Auto-assign all new leads via round-robin to active counselors
     const score = calculateLeadScore({ source: source || 'Website', stage: 'Untouched', mobile, email, course })
     const leadSource = source?.toLowerCase().includes('facebook') ? 'facebook' : 'form'
+    // Same social-vs-direct classification used everywhere else in the app —
+    // drives which prefix (CULDSM26 / CULDAI26) this lead's reference ID gets.
+    const socialList = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram', 'social media']
+    const sourceType = socialList.includes((source || '').toLowerCase()) ? 'sm' : 'ai'
     const owner = await getNextAssignee(tenantId)
     const insertRes = await pool.query(`
-      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, tenant_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $11, $8, $9, 'Untouched', 'red', $10, $12)
+      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, source_type, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $12, $8, $9, 'Untouched', 'red', $10, $11, $13)
       RETURNING id, name, email, course;
-    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, owner, tenantId])
+    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, sourceType, owner, tenantId])
 
     const pubLead = insertRes.rows[0]
     if (owner && owner !== 'Unassigned') {
@@ -5391,10 +5395,16 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
         [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned', tenantId])
     }
 
-    // CU EDU's integration needs the email echoed back; other tenants keep the original response shape.
+    // Same reference-ID format shown in the CRM's own Lead Manager table
+    // (e.g. CULDAI26000123), so external integrations can quote the same ID
+    // a counsellor sees on their side — the raw numeric `id` alone isn't
+    // recognizable to anyone looking at the CRM UI.
+    const leadIdFormatted = `${sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}${String(pubLead.id).padStart(4, '0')}`
+
+    // CU EDU's integration also needs the email echoed back; other tenants keep the original field set.
     const respLead = (req.params.tenantSlug || '').toLowerCase() === 'cuedu'
-      ? pubLead
-      : { id: pubLead.id, name: pubLead.name, course: pubLead.course }
+      ? { ...pubLead, leadId: leadIdFormatted }
+      : { id: pubLead.id, leadId: leadIdFormatted, name: pubLead.name, course: pubLead.course }
 
     res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: respLead })
   } catch (err) {
