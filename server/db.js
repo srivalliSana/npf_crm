@@ -796,6 +796,9 @@ export async function initTenancy() {
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stages JSONB DEFAULT '[]';`).catch(() => {})
     // Custom domain per tenant (Phase 4: subdomain/custom-domain routing)
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255) UNIQUE NULL;`).catch(() => {})
+    // Default leadId prefix for this tenant's public inquiry API (e.g. "CUEDU26").
+    // '' = fall back to the CULDAI26/CULDSM26 default computed per-lead.
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS lead_id_prefix VARCHAR(20) DEFAULT '';`).catch(() => {})
 
     // Default tenant = Centurion (id 1). Existing rows backfill to it via DEFAULT 1.
     await client.query(`INSERT INTO tenants (id, name, slug, allowed_domains)

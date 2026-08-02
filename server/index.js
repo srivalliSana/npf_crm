@@ -3438,6 +3438,7 @@ app.get('/api/platform/tenants', platformAdminOnly, async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT t.id, t.name, t.slug, t.status, t.plan, t.allowed_domains AS "allowedDomains", t.created_at AS "createdAt",
+             t.lead_id_prefix AS "leadIdPrefix",
              (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id = t.id) AS users,
              (SELECT COUNT(*)::int FROM leads l WHERE l.tenant_id = t.id) AS leads
       FROM tenants t ORDER BY t.id;
@@ -3500,7 +3501,7 @@ app.post('/api/platform/tenants', platformAdminOnly, async (req, res) => {
 
 // Suspend / activate / rename a tenant
 app.patch('/api/platform/tenants/:id', platformAdminOnly, async (req, res) => {
-  const { status, name, allowedDomains, plan } = req.body
+  const { status, name, allowedDomains, plan, leadIdPrefix } = req.body
   if (Number(req.params.id) === 1 && status && status !== 'Active') {
     return res.status(400).json({ error: 'The primary tenant cannot be suspended.' })
   }
@@ -3510,11 +3511,12 @@ app.patch('/api/platform/tenants/:id', platformAdminOnly, async (req, res) => {
     if (name !== undefined)           { params.push(name); sets.push(`name = $${params.length}`) }
     if (plan !== undefined)           { params.push(plan); sets.push(`plan = $${params.length}`) }
     if (allowedDomains !== undefined) { params.push(Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')); sets.push(`allowed_domains = $${params.length}`) }
+    if (leadIdPrefix !== undefined)   { params.push(String(leadIdPrefix || '').trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 20)); sets.push(`lead_id_prefix = $${params.length}`) }
     if (!sets.length) return res.json({ message: 'Nothing to update.' })
     params.push(req.params.id)
-    const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, slug, status, plan, allowed_domains AS "allowedDomains";`, params)
+    const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, slug, status, plan, allowed_domains AS "allowedDomains", lead_id_prefix AS "leadIdPrefix";`, params)
     if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found.' })
-    logAudit(req.user, 'tenant.update', { targetTenantId: req.params.id, targetType: 'tenant', targetId: req.params.id, details: { status, name, plan, allowedDomains } })
+    logAudit(req.user, 'tenant.update', { targetTenantId: req.params.id, targetType: 'tenant', targetId: req.params.id, details: { status, name, plan, allowedDomains, leadIdPrefix } })
     res.json(r.rows[0])
   } catch (e) { console.error('[platform/tenants PATCH]', e.message); res.status(500).json({ error: 'Failed to update tenant.' }) }
 })
@@ -5380,10 +5382,13 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
     const leadSource = source?.toLowerCase().includes('facebook') ? 'facebook' : 'form'
     // Same social-vs-direct classification used everywhere else in the app —
     // drives which default prefix (CULDSM26 / CULDAI26) this lead's reference
-    // ID gets, unless the caller supplied their own via `prefix`.
+    // ID gets, unless this tenant has its own configured prefix (set from the
+    // Edit Organization modal), or the caller passed one directly in `prefix`.
     const socialList = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram', 'social media']
     const sourceType = socialList.includes((source || '').toLowerCase()) ? 'sm' : 'ai'
-    const refPrefix = cleanPrefix || (sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26')
+    const tenantRow = await pool.query('SELECT lead_id_prefix FROM tenants WHERE id = $1;', [tenantId])
+    const tenantPrefix = tenantRow.rows[0]?.lead_id_prefix || ''
+    const refPrefix = cleanPrefix || tenantPrefix || (sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26')
     const owner = await getNextAssignee(tenantId)
     const insertRes = await pool.query(`
       INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, source_type, lead_ref_prefix, tenant_id)
