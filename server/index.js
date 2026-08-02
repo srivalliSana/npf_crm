@@ -5413,10 +5413,19 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
   }
 })
 
+// Shared-secret key for the lookup endpoint below — this route returns real
+// PII (name/email/phone/stage) given only a guessable identifier, so unlike
+// the create-inquiry endpoint it must not be left open. Override via the
+// LOOKUP_API_KEY env var in production; this value is only the dev fallback.
+const LOOKUP_API_KEY = process.env.LOOKUP_API_KEY || '6JJeV4blCJIfHzrVFBxpdkN3rtIGTTAU'
+
 // Look up a lead by mobile, email, or the formatted leadId (CULDAI26.../CULDSM26...)
 // — scoped to one tenant, so results only ever come from that tenant's own leads.
-// Pass exactly one of ?mobile=, ?email=, ?leadId=.
+// Pass exactly one of ?mobile=, ?email=, ?leadId=. Requires header: X-API-Key.
 app.get('/api/public/inquiry/:tenantSlug/lookup', async (req, res) => {
+  if (req.headers['x-api-key'] !== LOOKUP_API_KEY) {
+    return res.status(401).json({ error: 'Missing or invalid X-API-Key.' })
+  }
   const { mobile, email, leadId } = req.query
   if (!mobile && !email && !leadId) {
     return res.status(400).json({ error: 'Provide one of: mobile, email, leadId.' })
