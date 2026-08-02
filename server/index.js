@@ -5565,6 +5565,14 @@ app.post('/api/public/payments/:tenantSlug?/status', async (req, res) => {
     await pool.query('UPDATE applications SET pay_status = $1 WHERE app_no = $2 AND tenant_id = $3;', [normalizedStatus, app.app_no, tenantId])
 
     if (normalizedStatus === 'Paid') {
+      // Also flip the lead's own stage to "Payment Success" — this is what
+      // actually drives the badge/stage shown in Lead Manager, Lead Journey,
+      // and the Dashboard's Payment Success count; pay_status on the
+      // application alone doesn't touch any of those.
+      await pool.query(
+        `UPDATE leads SET stage = 'Payment Success', stage_color = 'emerald' WHERE mobile = $1 AND tenant_id = $2;`,
+        [mobile, tenantId]
+      )
       await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
         [`Payment received: ₹${amt.toLocaleString('en-IN')} — ${app.app_no} (${app.name})`, 'Just now', tenantId]).catch(() => {})
     }
