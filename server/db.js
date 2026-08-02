@@ -529,6 +529,22 @@ export async function initDb() {
       );
     `).catch(() => {})
 
+    // Platform-admin audit trail — every cross-tenant action (tenant edits,
+    // admin creation/promotion, impersonation) for later investigation.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS platform_audit_logs (
+        id SERIAL PRIMARY KEY,
+        actor_user_id    INTEGER,
+        actor_email      VARCHAR(255) DEFAULT '',
+        action           VARCHAR(100) NOT NULL,
+        target_tenant_id INTEGER,
+        target_type      VARCHAR(50)  DEFAULT '',
+        target_id        VARCHAR(100) DEFAULT '',
+        details          JSONB        DEFAULT '{}'::jsonb,
+        created_at       TIMESTAMP    DEFAULT NOW()
+      );
+    `).catch(() => {})
+
     console.log('Schema tables created successfully.')
 
     // --- SEED INITIAL MOCK DATA IF TABLES ARE EMPTY ---

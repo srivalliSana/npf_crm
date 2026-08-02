@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Building2, Plus, RefreshCw, Power, PowerOff, X, Copy, Check, Edit3, Save, User, KeyRound, UserPlus, ArrowUpCircle } from 'lucide-react'
+import { Building2, Plus, RefreshCw, Power, PowerOff, X, Copy, Check, Edit3, Save, User, KeyRound, UserPlus, ArrowUpCircle, Eye } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import { Modal, Button } from '../components/ui'
 
@@ -13,6 +13,7 @@ export default function PlatformTenants() {
   const [created, setCreated] = useState(null)   // { tenant, admin, tempPassword }
   const [copied, setCopied] = useState(false)
   const [form, setForm] = useState({ name: '', slug: '', adminName: '', adminEmail: '', adminPassword: '', allowedDomains: '' })
+  const [viewingId, setViewingId] = useState(null)   // tenant id currently loading "View Leads"
 
   // Edit tenant modal
   const [editTenant, setEditTenant]     = useState(null)   // tenant row being edited
@@ -186,6 +187,31 @@ export default function PlatformTenants() {
     } catch { showToast('Failed to update tenant.', 'error') }
   }
 
+  // "View Leads" — impersonate that tenant's admin so we can see and manage
+  // its real data. Stashes our own platform-admin session first so we can
+  // return to it (see the "Exit impersonation" banner in Navbar.jsx).
+  const viewAsAdmin = async (t) => {
+    setViewingId(t.id)
+    try {
+      const res = await fetch(`/api/platform/tenants/${t.id}/impersonate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token()}` }
+      })
+      const data = await res.json()
+      if (!res.ok) return showToast(data.error || 'Failed to view tenant.', 'error')
+
+      const ownToken = localStorage.getItem('ccrm_token')
+      const ownUser  = localStorage.getItem('ccrm_current_user')
+      if (ownToken && !localStorage.getItem('ccrm_impersonation_backup')) {
+        localStorage.setItem('ccrm_impersonation_backup', JSON.stringify({ token: ownToken, user: ownUser, tenantName: t.name }))
+      }
+      localStorage.setItem('ccrm_token', data.token)
+      localStorage.setItem('ccrm_current_user', JSON.stringify(data.user))
+      window.location.href = data.tenantSlug ? `/${data.tenantSlug}/leads` : '/leads'
+    } catch { showToast('Failed to view tenant.', 'error') }
+    finally { setViewingId(null) }
+  }
+
   const copyCreds = () => {
     if (!created) return
     navigator.clipboard.writeText(`URL: ${location.origin}\nEmail: ${created.admin.email}\nPassword: ${created.tempPassword}`)
@@ -244,12 +270,19 @@ export default function PlatformTenants() {
                   <span className={`text-xs font-medium px-2 py-0.5 rounded ${t.status === 'Active' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{t.status}</span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {t.id === 1 ? <span className="text-[11px] text-gray-300">primary</span> : (
-                    <button onClick={() => toggleStatus(t)}
-                      className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded border ${t.status === 'Active' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
-                      {t.status === 'Active' ? <><PowerOff size={12} /> Suspend</> : <><Power size={12} /> Activate</>}
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => viewAsAdmin(t)} disabled={viewingId === t.id || t.status !== 'Active'}
+                      title={t.status !== 'Active' ? 'Tenant is suspended' : `View ${t.name}'s leads as their admin`}
+                      className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-primary-200 text-primary-600 hover:bg-primary-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                      <Eye size={12} /> {viewingId === t.id ? 'Loading...' : 'View Leads'}
                     </button>
-                  )}
+                    {t.id === 1 ? <span className="text-[11px] text-gray-300">primary</span> : (
+                      <button onClick={() => toggleStatus(t)}
+                        className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded border ${t.status === 'Active' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
+                        {t.status === 'Active' ? <><PowerOff size={12} /> Suspend</> : <><Power size={12} /> Activate</>}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
