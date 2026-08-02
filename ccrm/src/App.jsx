@@ -69,7 +69,6 @@ export default function App() {
   // basename=undefined — identical to today's behavior.
   const tenantSlug = getUrlTenantSlug()
   const basename = tenantSlug ? `/${tenantSlug}` : undefined
-  console.log(`[App] pathname=${window.location.pathname} tenantSlug=${tenantSlug} basename=${basename}`)
 
   return (
     <BrowserRouter basename={basename}>
