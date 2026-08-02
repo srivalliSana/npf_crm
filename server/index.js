@@ -3538,6 +3538,45 @@ app.patch('/api/platform/tenants/:id/admins/:userId', platformAdminOnly, async (
   } catch (e) { console.error('[platform/tenants admin PATCH]', e.message); res.status(500).json({ error: 'Failed to update admin.' }) }
 })
 
+// Create a brand-new admin for an existing tenant (platform admin only)
+app.post('/api/platform/tenants/:id/admins', platformAdminOnly, async (req, res) => {
+  const { name, email, password } = req.body
+  if (!email) return res.status(400).json({ error: 'Email is required.' })
+  try {
+    const dup = await pool.query('SELECT id FROM users WHERE tenant_id = $1 AND LOWER(email) = LOWER($2);', [req.params.id, email])
+    if (dup.rows.length) return res.status(409).json({ error: 'That email is already used by another user in this tenant.' })
+    const r = await pool.query(
+      `INSERT INTO users (name, email, password, role, status, entities, is_superadmin, tenant_id)
+       VALUES ($1, $2, $3, 'Admin', 'Active', 'LEADS', FALSE, $4) RETURNING id, name, email;`,
+      [name || email.split('@')[0], email, password || 'ChangeMe@123', req.params.id]
+    )
+    res.status(201).json(r.rows[0])
+  } catch (e) { console.error('[platform/tenants admin POST]', e.message); res.status(500).json({ error: 'Failed to create admin.' }) }
+})
+
+// List every user in a tenant (platform admin only) — used to pick who to promote to Admin
+app.get('/api/platform/tenants/:id/users', platformAdminOnly, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, name, email, role FROM users WHERE tenant_id = $1 ORDER BY name;`,
+      [req.params.id]
+    )
+    res.json(r.rows)
+  } catch (e) { console.error('[platform/tenants users GET]', e.message); res.status(500).json({ error: 'Failed to load users.' }) }
+})
+
+// Promote an existing tenant user to Admin (platform admin only)
+app.post('/api/platform/tenants/:id/admins/:userId/promote', platformAdminOnly, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `UPDATE users SET role = 'Admin' WHERE id = $1 AND tenant_id = $2 RETURNING id, name, email;`,
+      [req.params.userId, req.params.id]
+    )
+    if (!r.rows[0]) return res.status(404).json({ error: 'User not found for this tenant.' })
+    res.json(r.rows[0])
+  } catch (e) { console.error('[platform/tenants promote POST]', e.message); res.status(500).json({ error: 'Failed to promote user.' }) }
+})
+
 // --- FILE UPLOAD ENDPOINTS ---
 app.post('/api/upload/avatar', uploadAvatar.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file uploaded.' })
