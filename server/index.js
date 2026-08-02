@@ -5483,6 +5483,82 @@ app.get('/api/public/inquiry/:tenantSlug/lookup', async (req, res) => {
   }
 })
 
+// Shared-secret key for the payment-status webhook below — this mutates real
+// payment/application records (can mark someone as Paid), so unlike the
+// create-inquiry endpoint it is never left open. Override via PAYMENT_API_KEY.
+const PAYMENT_API_KEY = process.env.PAYMENT_API_KEY || 'k8iCUeu-kLVMgaHXdxtpU7LzBIZICQUh'
+
+// Common external-gateway status strings -> this CRM's own vocabulary.
+// Unrecognized values are passed through as-is (still recorded, just not normalized).
+const PAY_STATUS_MAP = {
+  success: 'Paid', successful: 'Paid', completed: 'Paid', paid: 'Paid', captured: 'Paid', approved: 'Paid',
+  failed: 'Failed', failure: 'Failed', declined: 'Failed', cancelled: 'Failed', canceled: 'Failed',
+  pending: 'Payment Pending', initiated: 'Payment Pending', processing: 'Payment Pending', created: 'Payment Pending',
+}
+
+// Record/update a payment for an application found by mobile number, and
+// reflect its status onto the application's overall pay_status. Multiple
+// payments per application are supported by design (the `payments` table has
+// no uniqueness constraint on app_no) — each distinct paymentId is its own
+// row; resubmitting the same paymentId updates that row instead of
+// duplicating it (safe for webhook retries). Requires header: X-API-Key.
+app.post('/api/public/payments/:tenantSlug?/status', async (req, res) => {
+  if (req.headers['x-api-key'] !== PAYMENT_API_KEY) {
+    return res.status(401).json({ error: 'Missing or invalid X-API-Key.' })
+  }
+  const { mobile, paymentId, status, amount } = req.body
+  if (!mobile || !paymentId || !status) {
+    return res.status(400).json({ error: 'mobile, paymentId, and status are required.' })
+  }
+  const normalizedStatus = PAY_STATUS_MAP[String(status).toLowerCase().trim()] || String(status).trim()
+  try {
+    const tenantId = await resolveSlugTenant(req.params.tenantSlug)
+    const appRes = await pool.query(
+      'SELECT id, app_no, name FROM applications WHERE mobile = $1 AND tenant_id = $2 ORDER BY id DESC LIMIT 1;',
+      [mobile, tenantId]
+    )
+    const app = appRes.rows[0]
+    if (!app) return res.status(404).json({ error: 'No application found for this mobile number in this tenant.' })
+
+    const amt = amount !== undefined ? (parseInt(amount, 10) || 0) : 0
+    const dateStr = new Date().toLocaleDateString('en-IN')
+
+    const existing = await pool.query(
+      'SELECT id FROM payments WHERE txn_id = $1 AND app_no = $2 AND tenant_id = $3 LIMIT 1;',
+      [paymentId, app.app_no, tenantId]
+    )
+    let paymentRow
+    if (existing.rows[0]) {
+      const r = await pool.query(`
+        UPDATE payments SET status = $1, amount = $2, date = $3
+        WHERE id = $4 AND tenant_id = $5
+        RETURNING id, name, app_no AS "appNo", amount, status, date, txn_id AS "txnId";
+      `, [normalizedStatus, amt, dateStr, existing.rows[0].id, tenantId])
+      paymentRow = r.rows[0]
+    } else {
+      const r = await pool.query(`
+        INSERT INTO payments (name, app_no, amount, method, status, date, txn_id, tenant_id)
+        VALUES ($1, $2, $3, 'Online', $4, $5, $6, $7)
+        RETURNING id, name, app_no AS "appNo", amount, status, date, txn_id AS "txnId";
+      `, [app.name, app.app_no, amt, normalizedStatus, dateStr, paymentId, tenantId])
+      paymentRow = r.rows[0]
+    }
+
+    // Overall application status always reflects this latest payment update.
+    await pool.query('UPDATE applications SET pay_status = $1 WHERE app_no = $2 AND tenant_id = $3;', [normalizedStatus, app.app_no, tenantId])
+
+    if (normalizedStatus === 'Paid') {
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+        [`Payment received: ₹${amt.toLocaleString('en-IN')} — ${app.app_no} (${app.name})`, 'Just now', tenantId]).catch(() => {})
+    }
+
+    res.json({ message: 'Payment status updated.', payment: paymentRow, overallPayStatus: normalizedStatus })
+  } catch (err) {
+    console.error('[Public Payment Status]', err)
+    res.status(500).json({ error: 'Failed to update payment status.' })
+  }
+})
+
 // --- FEATURE 11: PAYMENT LINK GENERATOR ---
 app.post('/api/payments/generate-link', async (req, res) => {
   const { appNo, name, email, mobile, amount, method } = req.body
