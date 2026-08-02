@@ -3486,7 +3486,7 @@ app.post('/api/platform/tenants', platformAdminOnly, async (req, res) => {
 
 // Suspend / activate / rename a tenant
 app.patch('/api/platform/tenants/:id', platformAdminOnly, async (req, res) => {
-  const { status, name, allowedDomains } = req.body
+  const { status, name, allowedDomains, plan } = req.body
   if (Number(req.params.id) === 1 && status && status !== 'Active') {
     return res.status(400).json({ error: 'The primary tenant cannot be suspended.' })
   }
@@ -3494,10 +3494,11 @@ app.patch('/api/platform/tenants/:id', platformAdminOnly, async (req, res) => {
     const sets = [], params = []
     if (status !== undefined)         { params.push(status); sets.push(`status = $${params.length}`) }
     if (name !== undefined)           { params.push(name); sets.push(`name = $${params.length}`) }
+    if (plan !== undefined)           { params.push(plan); sets.push(`plan = $${params.length}`) }
     if (allowedDomains !== undefined) { params.push(Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')); sets.push(`allowed_domains = $${params.length}`) }
     if (!sets.length) return res.json({ message: 'Nothing to update.' })
     params.push(req.params.id)
-    const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, slug, status;`, params)
+    const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, slug, status, plan, allowed_domains AS "allowedDomains";`, params)
     if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found.' })
     res.json(r.rows[0])
   } catch (e) { console.error('[platform/tenants PATCH]', e.message); res.status(500).json({ error: 'Failed to update tenant.' }) }
