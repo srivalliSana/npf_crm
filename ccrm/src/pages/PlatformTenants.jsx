@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Building2, Plus, RefreshCw, Power, PowerOff, X, Copy, Check } from 'lucide-react'
+import { Building2, Plus, RefreshCw, Power, PowerOff, X, Copy, Check, Edit3, Save } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
+import { Modal, Button } from '../components/ui'
+
+const PLAN_OPTIONS = ['standard', 'premium', 'enterprise']
 
 export default function PlatformTenants() {
   const { showToast } = useCcrm()
@@ -10,6 +13,38 @@ export default function PlatformTenants() {
   const [created, setCreated] = useState(null)   // { tenant, admin, tempPassword }
   const [copied, setCopied] = useState(false)
   const [form, setForm] = useState({ name: '', slug: '', adminName: '', adminEmail: '', adminPassword: '', allowedDomains: '' })
+
+  // Edit tenant modal
+  const [editTenant, setEditTenant] = useState(null)   // tenant row being edited
+  const [editForm, setEditForm]     = useState({ name: '', plan: 'standard', allowedDomains: '' })
+  const [editSaving, setEditSaving] = useState(false)
+
+  const openEdit = (t) => {
+    setEditTenant(t)
+    setEditForm({ name: t.name || '', plan: t.plan || 'standard', allowedDomains: t.allowedDomains || '' })
+  }
+
+  const saveEdit = async () => {
+    if (!editForm.name.trim()) return showToast('Organization name is required.', 'error')
+    setEditSaving(true)
+    try {
+      const res = await fetch(`/api/platform/tenants/${editTenant.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({
+          name: editForm.name.trim(),
+          plan: editForm.plan,
+          allowedDomains: editForm.allowedDomains.split(',').map(s => s.trim()).filter(Boolean)
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) return showToast(data.error || 'Failed to update tenant.', 'error')
+      showToast(`${editForm.name} updated.`, 'success')
+      setEditTenant(null)
+      load()
+    } catch { showToast('Failed to update tenant.', 'error') }
+    finally { setEditSaving(false) }
+  }
 
   const token = () => localStorage.getItem('ccrm_token')
 
@@ -101,7 +136,13 @@ export default function PlatformTenants() {
               <tr><td colSpan={7} className="text-center py-10 text-gray-400">No tenants yet.</td></tr>
             ) : rows.map(t => (
               <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-800">{t.name}</td>
+                <td className="px-4 py-3">
+                  <button onClick={() => openEdit(t)}
+                    className="font-medium text-primary-600 hover:text-primary-700 hover:underline text-left flex items-center gap-1.5 group">
+                    {t.name}
+                    <Edit3 size={12} className="text-gray-300 group-hover:text-primary-500 flex-shrink-0" />
+                  </button>
+                </td>
                 <td className="px-4 py-3 text-gray-500">{t.slug}</td>
                 <td className="px-4 py-3 text-gray-500 capitalize">{t.plan}</td>
                 <td className="px-4 py-3 text-right">{t.users}</td>
@@ -169,6 +210,34 @@ export default function PlatformTenants() {
           </div>
         </div>
       )}
+
+      {/* Edit Tenant modal */}
+      <Modal
+        open={!!editTenant}
+        onClose={() => setEditTenant(null)}
+        title={<span className="flex items-center gap-2"><Building2 size={18} className="text-primary-500" /> Edit Organization</span>}
+        subtitle={editTenant ? `Slug: ${editTenant.slug} (not editable — used in login URLs & webhooks)` : ''}
+        footer={(
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setEditTenant(null)}>Cancel</Button>
+            <Button className="flex-1" icon={Save} loading={editSaving} onClick={saveEdit}>Save Changes</Button>
+          </>
+        )}
+      >
+        <div className="space-y-3">
+          <Field label="Organization name" value={editForm.name}
+            onChange={v => setEditForm(f => ({ ...f, name: v }))} placeholder="Acme University" />
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1">Plan</label>
+            <select value={editForm.plan} onChange={e => setEditForm(f => ({ ...f, plan: e.target.value }))}
+              className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400 capitalize">
+              {PLAN_OPTIONS.map(p => <option key={p} value={p} className="capitalize">{p}</option>)}
+            </select>
+          </div>
+          <Field label="Allowed login domains (comma-sep, optional)" value={editForm.allowedDomains}
+            onChange={v => setEditForm(f => ({ ...f, allowedDomains: v }))} placeholder="acme.edu" />
+        </div>
+      </Modal>
     </div>
   )
 }
