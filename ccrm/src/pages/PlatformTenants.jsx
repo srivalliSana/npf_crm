@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Building2, Plus, RefreshCw, Power, PowerOff, X, Copy, Check, Edit3, Save } from 'lucide-react'
+import { Building2, Plus, RefreshCw, Power, PowerOff, X, Copy, Check, Edit3, Save, User, KeyRound } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import { Modal, Button } from '../components/ui'
 
@@ -15,13 +15,31 @@ export default function PlatformTenants() {
   const [form, setForm] = useState({ name: '', slug: '', adminName: '', adminEmail: '', adminPassword: '', allowedDomains: '' })
 
   // Edit tenant modal
-  const [editTenant, setEditTenant] = useState(null)   // tenant row being edited
-  const [editForm, setEditForm]     = useState({ name: '', plan: 'standard', allowedDomains: '' })
-  const [editSaving, setEditSaving] = useState(false)
+  const [editTenant, setEditTenant]     = useState(null)   // tenant row being edited
+  const [editForm, setEditForm]         = useState({ name: '', plan: 'standard', allowedDomains: '' })
+  const [editSaving, setEditSaving]     = useState(false)
+  const [admins, setAdmins]             = useState([])     // [{id, name, email, newPassword}]
+  const [adminsLoading, setAdminsLoading] = useState(false)
 
-  const openEdit = (t) => {
+  const token = () => localStorage.getItem('ccrm_token')
+
+  const openEdit = async (t) => {
     setEditTenant(t)
     setEditForm({ name: t.name || '', plan: t.plan || 'standard', allowedDomains: t.allowedDomains || '' })
+    setAdmins([])
+    setAdminsLoading(true)
+    try {
+      const res = await fetch(`/api/platform/tenants/${t.id}/admins`, { headers: { Authorization: `Bearer ${token()}` } })
+      if (res.ok) {
+        const data = await res.json()
+        setAdmins(data.map(a => ({ ...a, newPassword: '' })))
+      }
+    } catch { /* non-fatal — tenant fields still editable */ }
+    finally { setAdminsLoading(false) }
+  }
+
+  const updateAdminField = (id, field, value) => {
+    setAdmins(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a))
   }
 
   const saveEdit = async () => {
@@ -38,15 +56,31 @@ export default function PlatformTenants() {
         })
       })
       const data = await res.json()
-      if (!res.ok) return showToast(data.error || 'Failed to update tenant.', 'error')
+      if (!res.ok) { showToast(data.error || 'Failed to update tenant.', 'error'); setEditSaving(false); return }
+
+      // Push through any admin edits (name/email always sent; password only if the field was filled in)
+      for (const a of admins) {
+        const body = { name: a.name.trim(), email: a.email.trim() }
+        if (a.newPassword.trim()) body.password = a.newPassword.trim()
+        const aRes = await fetch(`/api/platform/tenants/${editTenant.id}/admins/${a.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+          body: JSON.stringify(body)
+        })
+        if (!aRes.ok) {
+          const aData = await aRes.json().catch(() => ({}))
+          showToast(`${a.email}: ${aData.error || 'Failed to update admin.'}`, 'error')
+          setEditSaving(false)
+          return
+        }
+      }
+
       showToast(`${editForm.name} updated.`, 'success')
       setEditTenant(null)
       load()
     } catch { showToast('Failed to update tenant.', 'error') }
     finally { setEditSaving(false) }
   }
-
-  const token = () => localStorage.getItem('ccrm_token')
 
   const load = async () => {
     setLoading(true)
@@ -217,6 +251,7 @@ export default function PlatformTenants() {
         onClose={() => setEditTenant(null)}
         title={<span className="flex items-center gap-2"><Building2 size={18} className="text-primary-500" /> Edit Organization</span>}
         subtitle={editTenant ? `Slug: ${editTenant.slug} (not editable — used in login URLs & webhooks)` : ''}
+        size="lg"
         footer={(
           <>
             <Button variant="secondary" className="flex-1" onClick={() => setEditTenant(null)}>Cancel</Button>
@@ -224,18 +259,59 @@ export default function PlatformTenants() {
           </>
         )}
       >
-        <div className="space-y-3">
-          <Field label="Organization name" value={editForm.name}
-            onChange={v => setEditForm(f => ({ ...f, name: v }))} placeholder="Acme University" />
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1">Plan</label>
-            <select value={editForm.plan} onChange={e => setEditForm(f => ({ ...f, plan: e.target.value }))}
-              className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400 capitalize">
-              {PLAN_OPTIONS.map(p => <option key={p} value={p} className="capitalize">{p}</option>)}
-            </select>
+        <div className="space-y-5">
+          <div className="space-y-3">
+            <Field label="Organization name" value={editForm.name}
+              onChange={v => setEditForm(f => ({ ...f, name: v }))} placeholder="Acme University" />
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1">Plan</label>
+              <select value={editForm.plan} onChange={e => setEditForm(f => ({ ...f, plan: e.target.value }))}
+                className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400 capitalize">
+                {PLAN_OPTIONS.map(p => <option key={p} value={p} className="capitalize">{p}</option>)}
+              </select>
+            </div>
+            <Field label="Allowed login domains (comma-sep, optional)" value={editForm.allowedDomains}
+              onChange={v => setEditForm(f => ({ ...f, allowedDomains: v }))} placeholder="acme.edu" />
           </div>
-          <Field label="Allowed login domains (comma-sep, optional)" value={editForm.allowedDomains}
-            onChange={v => setEditForm(f => ({ ...f, allowedDomains: v }))} placeholder="acme.edu" />
+
+          {/* Admin accounts */}
+          <div className="pt-4 border-t border-gray-100">
+            <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <User size={13} /> Admin Accounts
+            </p>
+            {adminsLoading ? (
+              <p className="text-xs text-gray-400">Loading admins…</p>
+            ) : admins.length === 0 ? (
+              <p className="text-xs text-gray-400">No admin accounts found for this tenant.</p>
+            ) : (
+              <div className="space-y-4">
+                {admins.map(a => (
+                  <div key={a.id} className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Name</label>
+                        <input value={a.name} onChange={e => updateAdminField(a.id, 'name', e.target.value)}
+                          className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Email</label>
+                        <input value={a.email} onChange={e => updateAdminField(a.id, 'email', e.target.value)}
+                          className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 flex items-center gap-1">
+                        <KeyRound size={10} /> New password (leave blank to keep current)
+                      </label>
+                      <input type="text" value={a.newPassword} onChange={e => updateAdminField(a.id, 'newPassword', e.target.value)}
+                        placeholder="Only fill in to reset"
+                        className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white font-mono" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </Modal>
     </div>
