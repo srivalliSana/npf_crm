@@ -5413,6 +5413,54 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
   }
 })
 
+// Look up a lead by mobile, email, or the formatted leadId (CULDAI26.../CULDSM26...)
+// — scoped to one tenant, so results only ever come from that tenant's own leads.
+// Pass exactly one of ?mobile=, ?email=, ?leadId=.
+app.get('/api/public/inquiry/:tenantSlug/lookup', async (req, res) => {
+  const { mobile, email, leadId } = req.query
+  if (!mobile && !email && !leadId) {
+    return res.status(400).json({ error: 'Provide one of: mobile, email, leadId.' })
+  }
+  try {
+    const tenantId = await resolveSlugTenant(req.params.tenantSlug)
+    let row
+    if (leadId) {
+      const m = String(leadId).match(/^CULD(AI|SM)260*(\d+)$/i)
+      if (!m) return res.status(400).json({ error: 'leadId must look like CULDAI26000123 or CULDSM26000123.' })
+      const r = await pool.query('SELECT * FROM leads WHERE id = $1 AND tenant_id = $2 LIMIT 1;', [parseInt(m[2], 10), tenantId])
+      row = r.rows[0]
+    } else if (mobile) {
+      const r = await pool.query('SELECT * FROM leads WHERE mobile = $1 AND tenant_id = $2 LIMIT 1;', [mobile, tenantId])
+      row = r.rows[0]
+    } else {
+      const r = await pool.query('SELECT * FROM leads WHERE LOWER(email) = LOWER($1) AND tenant_id = $2 LIMIT 1;', [email, tenantId])
+      row = r.rows[0]
+    }
+    if (!row) return res.status(404).json({ error: 'No matching lead found.' })
+
+    res.json({
+      lead: {
+        id: row.id,
+        leadId: `${row.source_type === 'sm' ? 'CULDSM26' : 'CULDAI26'}${String(row.id).padStart(4, '0')}`,
+        name: row.name,
+        email: row.email,
+        mobile: row.mobile,
+        state: row.state,
+        city: row.city,
+        course: row.course,
+        source: row.source,
+        stage: row.stage,
+        score: row.score,
+        owner: row.owner,
+        regDate: row.reg_date,
+      }
+    })
+  } catch (err) {
+    console.error('[Public Inquiry Lookup]', err)
+    res.status(500).json({ error: 'Lookup failed.' })
+  }
+})
+
 // --- FEATURE 11: PAYMENT LINK GENERATOR ---
 app.post('/api/payments/generate-link', async (req, res) => {
   const { appNo, name, email, mobile, amount, method } = req.body
