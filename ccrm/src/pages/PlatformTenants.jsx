@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Building2, Plus, RefreshCw, Power, PowerOff, X, Copy, Check, Edit3, Save, User, KeyRound } from 'lucide-react'
+import { Building2, Plus, RefreshCw, Power, PowerOff, X, Copy, Check, Edit3, Save, User, KeyRound, UserPlus, ArrowUpCircle } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import { Modal, Button } from '../components/ui'
 
@@ -21,25 +21,84 @@ export default function PlatformTenants() {
   const [admins, setAdmins]             = useState([])     // [{id, name, email, newPassword}]
   const [adminsLoading, setAdminsLoading] = useState(false)
 
+  // New admin (create fresh account)
+  const [showNewAdmin, setShowNewAdmin] = useState(false)
+  const [newAdmin, setNewAdmin]         = useState({ name: '', email: '', password: '' })
+  const [newAdminSaving, setNewAdminSaving] = useState(false)
+
+  // Promote existing tenant user to Admin
+  const [tenantUsers, setTenantUsers]   = useState([])     // every user in this tenant, incl. current admins
+  const [promoteUserId, setPromoteUserId] = useState('')
+  const [promoting, setPromoting]       = useState(false)
+
   const token = () => localStorage.getItem('ccrm_token')
+
+  const loadAdmins = async (tenantId) => {
+    const res = await fetch(`/api/platform/tenants/${tenantId}/admins`, { headers: { Authorization: `Bearer ${token()}` } })
+    if (res.ok) {
+      const data = await res.json()
+      setAdmins(data.map(a => ({ ...a, newPassword: '' })))
+    }
+  }
+
+  const loadTenantUsers = async (tenantId) => {
+    const res = await fetch(`/api/platform/tenants/${tenantId}/users`, { headers: { Authorization: `Bearer ${token()}` } })
+    if (res.ok) setTenantUsers(await res.json())
+  }
 
   const openEdit = async (t) => {
     setEditTenant(t)
     setEditForm({ name: t.name || '', plan: t.plan || 'standard', allowedDomains: t.allowedDomains || '' })
     setAdmins([])
+    setTenantUsers([])
+    setPromoteUserId('')
+    setShowNewAdmin(false)
+    setNewAdmin({ name: '', email: '', password: '' })
     setAdminsLoading(true)
     try {
-      const res = await fetch(`/api/platform/tenants/${t.id}/admins`, { headers: { Authorization: `Bearer ${token()}` } })
-      if (res.ok) {
-        const data = await res.json()
-        setAdmins(data.map(a => ({ ...a, newPassword: '' })))
-      }
+      await Promise.all([loadAdmins(t.id), loadTenantUsers(t.id)])
     } catch { /* non-fatal — tenant fields still editable */ }
     finally { setAdminsLoading(false) }
   }
 
   const updateAdminField = (id, field, value) => {
     setAdmins(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a))
+  }
+
+  const createAdmin = async () => {
+    if (!newAdmin.email.trim()) return showToast('Email is required.', 'error')
+    setNewAdminSaving(true)
+    try {
+      const res = await fetch(`/api/platform/tenants/${editTenant.id}/admins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify(newAdmin)
+      })
+      const data = await res.json()
+      if (!res.ok) return showToast(data.error || 'Failed to create admin.', 'error')
+      showToast(`${data.name} added as admin.`, 'success')
+      setShowNewAdmin(false)
+      setNewAdmin({ name: '', email: '', password: '' })
+      await Promise.all([loadAdmins(editTenant.id), loadTenantUsers(editTenant.id)])
+    } catch { showToast('Failed to create admin.', 'error') }
+    finally { setNewAdminSaving(false) }
+  }
+
+  const promoteToAdmin = async () => {
+    if (!promoteUserId) return
+    setPromoting(true)
+    try {
+      const res = await fetch(`/api/platform/tenants/${editTenant.id}/admins/${promoteUserId}/promote`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token()}` }
+      })
+      const data = await res.json()
+      if (!res.ok) return showToast(data.error || 'Failed to promote user.', 'error')
+      showToast(`${data.name} is now an Admin.`, 'success')
+      setPromoteUserId('')
+      await Promise.all([loadAdmins(editTenant.id), loadTenantUsers(editTenant.id)])
+    } catch { showToast('Failed to promote user.', 'error') }
+    finally { setPromoting(false) }
   }
 
   const saveEdit = async () => {
@@ -276,9 +335,48 @@ export default function PlatformTenants() {
 
           {/* Admin accounts */}
           <div className="pt-4 border-t border-gray-100">
-            <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <User size={13} /> Admin Accounts
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                <User size={13} /> Admin Accounts
+              </p>
+              <button onClick={() => setShowNewAdmin(v => !v)}
+                className="flex items-center gap-1 text-xs font-semibold text-primary-600 hover:text-primary-700">
+                <UserPlus size={13} /> Add New Admin
+              </button>
+            </div>
+
+            {showNewAdmin && (
+              <div className="bg-primary-50 border border-primary-200 rounded-xl p-3 mb-4 space-y-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Name</label>
+                    <input value={newAdmin.name} onChange={e => setNewAdmin(f => ({ ...f, name: e.target.value }))}
+                      placeholder="Jane Doe"
+                      className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Email *</label>
+                    <input value={newAdmin.email} onChange={e => setNewAdmin(f => ({ ...f, email: e.target.value }))}
+                      placeholder="jane@org.edu"
+                      className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Temp password (optional)</label>
+                  <input value={newAdmin.password} onChange={e => setNewAdmin(f => ({ ...f, password: e.target.value }))}
+                    placeholder="Defaults to ChangeMe@123"
+                    className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white font-mono" />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setShowNewAdmin(false)} className="flex-1 text-xs border border-gray-300 rounded-lg py-1.5 hover:bg-gray-50 bg-white">Cancel</button>
+                  <button onClick={createAdmin} disabled={newAdminSaving}
+                    className="flex-1 text-xs bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg py-1.5">
+                    {newAdminSaving ? 'Creating...' : 'Create Admin'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {adminsLoading ? (
               <p className="text-xs text-gray-400">Loading admins…</p>
             ) : admins.length === 0 ? (
@@ -309,6 +407,28 @@ export default function PlatformTenants() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Promote an existing tenant user to Admin */}
+            {tenantUsers.filter(u => u.role !== 'Admin').length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <label className="text-[11px] font-semibold text-gray-500 uppercase mb-1.5 flex items-center gap-1">
+                  <ArrowUpCircle size={12} /> Promote existing user to Admin
+                </label>
+                <div className="flex gap-2">
+                  <select value={promoteUserId} onChange={e => setPromoteUserId(e.target.value)}
+                    className="flex-1 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white">
+                    <option value="">— Choose a user —</option>
+                    {tenantUsers.filter(u => u.role !== 'Admin').map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.email}) · {u.role}</option>
+                    ))}
+                  </select>
+                  <button onClick={promoteToAdmin} disabled={!promoteUserId || promoting}
+                    className="text-xs font-semibold bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg px-3 whitespace-nowrap">
+                    {promoting ? 'Promoting...' : 'Promote'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
