@@ -5365,7 +5365,11 @@ app.get('/api/reports/leaderboard', authenticateToken, async (req, res) => {
 // --- FEATURE 10: PUBLIC INQUIRY FORM ---
 app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
   const { name, email, mobile, state, city, course, source, prefix } = req.body
-  if (!name || !mobile) return res.status(400).json({ error: 'Name and mobile are required.' })
+  console.log(`[Public Inquiry] HIT tenantSlug=${req.params.tenantSlug || '(default)'} name=${name || '?'} mobile=${mobile || '?'} email=${email || '(none)'} source=${source || '(none)'}`)
+  if (!name || !mobile) {
+    console.log(`[Public Inquiry] REJECTED 400 — missing name and/or mobile`)
+    return res.status(400).json({ error: 'Name and mobile are required.' })
+  }
   // Caller may supply their own leadId prefix (e.g. "CUEDU26"); sanitized to
   // letters/digits only and capped so it can't blow up the padded ID format.
   const cleanPrefix = prefix ? String(prefix).trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 20) : ''
@@ -5374,6 +5378,7 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
     // Dedup check
     const dup = await pool.query('SELECT id FROM leads WHERE (mobile = $1 OR LOWER(email) = LOWER($2)) AND tenant_id = $3 LIMIT 1;', [mobile, email || '', tenantId])
     if (dup.rows.length > 0) {
+      console.log(`[Public Inquiry] DUPLICATE — mobile=${mobile} already exists in tenant=${tenantId}`)
       return res.status(200).json({ message: 'Your inquiry was already received. Our team will contact you shortly.', duplicate: true })
     }
 
@@ -5416,6 +5421,7 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
       ? { ...pubLead, leadId: leadIdFormatted }
       : { id: pubLead.id, leadId: leadIdFormatted, name: pubLead.name, course: pubLead.course }
 
+    console.log(`[Public Inquiry] SUCCESS 201 — created leadId=${leadIdFormatted} (id=${pubLead.id}) in tenant=${tenantId}`)
     res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: respLead })
   } catch (err) {
     console.error('[Public Inquiry]', err)
@@ -5433,7 +5439,9 @@ const LOOKUP_API_KEY = process.env.LOOKUP_API_KEY || '6JJeV4blCJIfHzrVFBxpdkN3rt
 // — scoped to one tenant, so results only ever come from that tenant's own leads.
 // Pass exactly one of ?mobile=, ?email=, ?leadId=. Requires header: X-API-Key.
 app.get('/api/public/inquiry/:tenantSlug/lookup', async (req, res) => {
+  console.log(`[Public Inquiry Lookup] HIT tenantSlug=${req.params.tenantSlug} mobile=${req.query.mobile || '(none)'} email=${req.query.email || '(none)'} leadId=${req.query.leadId || '(none)'} keyProvided=${!!req.headers['x-api-key']}`)
   if (req.headers['x-api-key'] !== LOOKUP_API_KEY) {
+    console.log(`[Public Inquiry Lookup] REJECTED 401 — bad or missing X-API-Key`)
     return res.status(401).json({ error: 'Missing or invalid X-API-Key.' })
   }
   const { mobile, email, leadId } = req.query
@@ -5457,9 +5465,13 @@ app.get('/api/public/inquiry/:tenantSlug/lookup', async (req, res) => {
       const r = await pool.query('SELECT * FROM leads WHERE LOWER(email) = LOWER($1) AND tenant_id = $2 LIMIT 1;', [email, tenantId])
       row = r.rows[0]
     }
-    if (!row) return res.status(404).json({ error: 'No matching lead found.' })
+    if (!row) {
+      console.log(`[Public Inquiry Lookup] NOT FOUND 404 — tenant=${tenantId}`)
+      return res.status(404).json({ error: 'No matching lead found.' })
+    }
 
     const refPrefix = row.lead_ref_prefix || (row.source_type === 'sm' ? 'CULDSM26' : 'CULDAI26')
+    console.log(`[Public Inquiry Lookup] SUCCESS 200 — found lead id=${row.id} in tenant=${tenantId}`)
     res.json({
       lead: {
         id: row.id,
@@ -5503,7 +5515,9 @@ const PAY_STATUS_MAP = {
 // row; resubmitting the same paymentId updates that row instead of
 // duplicating it (safe for webhook retries). Requires header: X-API-Key.
 app.post('/api/public/payments/:tenantSlug?/status', async (req, res) => {
+  console.log(`[Public Payment Status] HIT tenantSlug=${req.params.tenantSlug || '(default)'} mobile=${req.body?.mobile || '?'} paymentId=${req.body?.paymentId || '?'} status=${req.body?.status || '?'} amount=${req.body?.amount ?? '?'} keyProvided=${!!req.headers['x-api-key']}`)
   if (req.headers['x-api-key'] !== PAYMENT_API_KEY) {
+    console.log(`[Public Payment Status] REJECTED 401 — bad or missing X-API-Key`)
     return res.status(401).json({ error: 'Missing or invalid X-API-Key.' })
   }
   const { mobile, paymentId, status, amount } = req.body
@@ -5518,7 +5532,10 @@ app.post('/api/public/payments/:tenantSlug?/status', async (req, res) => {
       [mobile, tenantId]
     )
     const app = appRes.rows[0]
-    if (!app) return res.status(404).json({ error: 'No application found for this mobile number in this tenant.' })
+    if (!app) {
+      console.log(`[Public Payment Status] NOT FOUND 404 — no application for mobile=${mobile} in tenant=${tenantId}`)
+      return res.status(404).json({ error: 'No application found for this mobile number in this tenant.' })
+    }
 
     const amt = amount !== undefined ? (parseInt(amount, 10) || 0) : 0
     const dateStr = new Date().toLocaleDateString('en-IN')
@@ -5552,6 +5569,7 @@ app.post('/api/public/payments/:tenantSlug?/status', async (req, res) => {
         [`Payment received: ₹${amt.toLocaleString('en-IN')} — ${app.app_no} (${app.name})`, 'Just now', tenantId]).catch(() => {})
     }
 
+    console.log(`[Public Payment Status] SUCCESS 200 — appNo=${app.app_no} status=${normalizedStatus} amount=${amt} tenant=${tenantId}`)
     res.json({ message: 'Payment status updated.', payment: paymentRow, overallPayStatus: normalizedStatus })
   } catch (err) {
     console.error('[Public Payment Status]', err)
