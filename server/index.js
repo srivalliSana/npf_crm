@@ -3504,6 +3504,40 @@ app.patch('/api/platform/tenants/:id', platformAdminOnly, async (req, res) => {
   } catch (e) { console.error('[platform/tenants PATCH]', e.message); res.status(500).json({ error: 'Failed to update tenant.' }) }
 })
 
+// List a tenant's admin accounts (platform admin only) — used by the Edit Organization modal
+app.get('/api/platform/tenants/:id/admins', platformAdminOnly, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, name, email FROM users WHERE tenant_id = $1 AND role = 'Admin' ORDER BY id;`,
+      [req.params.id]
+    )
+    res.json(r.rows)
+  } catch (e) { console.error('[platform/tenants admins GET]', e.message); res.status(500).json({ error: 'Failed to load admins.' }) }
+})
+
+// Update one admin's name/email/password (platform admin only)
+app.patch('/api/platform/tenants/:id/admins/:userId', platformAdminOnly, async (req, res) => {
+  const { name, email, password } = req.body
+  try {
+    const check = await pool.query('SELECT id FROM users WHERE id = $1 AND tenant_id = $2;', [req.params.userId, req.params.id])
+    if (!check.rows[0]) return res.status(404).json({ error: 'Admin not found for this tenant.' })
+
+    if (email !== undefined) {
+      const dup = await pool.query('SELECT id FROM users WHERE tenant_id = $1 AND LOWER(email) = LOWER($2) AND id != $3;', [req.params.id, email, req.params.userId])
+      if (dup.rows.length) return res.status(409).json({ error: 'That email is already used by another user in this tenant.' })
+    }
+
+    const sets = [], params = []
+    if (name !== undefined)  { params.push(name);  sets.push(`name = $${params.length}`) }
+    if (email !== undefined) { params.push(email); sets.push(`email = $${params.length}`) }
+    if (password)             { params.push(password); sets.push(`password = $${params.length}`) }
+    if (!sets.length) return res.json({ message: 'Nothing to update.' })
+    params.push(req.params.userId)
+    const r = await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, email;`, params)
+    res.json(r.rows[0])
+  } catch (e) { console.error('[platform/tenants admin PATCH]', e.message); res.status(500).json({ error: 'Failed to update admin.' }) }
+})
+
 // --- FILE UPLOAD ENDPOINTS ---
 app.post('/api/upload/avatar', uploadAvatar.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file uploaded.' })
