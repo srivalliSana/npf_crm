@@ -17,7 +17,7 @@ export default function PlatformTenants() {
 
   // Edit tenant modal
   const [editTenant, setEditTenant]     = useState(null)   // tenant row being edited
-  const [editForm, setEditForm]         = useState({ name: '', plan: 'standard', allowedDomains: '' })
+  const [editForm, setEditForm]         = useState({ name: '', plan: 'standard', allowedDomains: '', leadIdPrefix: '' })
   const [editSaving, setEditSaving]     = useState(false)
   const [admins, setAdmins]             = useState([])     // [{id, name, email, newPassword}]
   const [adminsLoading, setAdminsLoading] = useState(false)
@@ -49,7 +49,7 @@ export default function PlatformTenants() {
 
   const openEdit = async (t) => {
     setEditTenant(t)
-    setEditForm({ name: t.name || '', plan: t.plan || 'standard', allowedDomains: t.allowedDomains || '' })
+    setEditForm({ name: t.name || '', plan: t.plan || 'standard', allowedDomains: t.allowedDomains || '', leadIdPrefix: t.leadIdPrefix || '' })
     setAdmins([])
     setTenantUsers([])
     setPromoteUserId('')
@@ -112,7 +112,8 @@ export default function PlatformTenants() {
         body: JSON.stringify({
           name: editForm.name.trim(),
           plan: editForm.plan,
-          allowedDomains: editForm.allowedDomains.split(',').map(s => s.trim()).filter(Boolean)
+          allowedDomains: editForm.allowedDomains.split(',').map(s => s.trim()).filter(Boolean),
+          leadIdPrefix: editForm.leadIdPrefix.trim()
         })
       })
       const data = await res.json()
@@ -364,6 +365,15 @@ export default function PlatformTenants() {
             </div>
             <Field label="Allowed login domains (comma-sep, optional)" value={editForm.allowedDomains}
               onChange={v => setEditForm(f => ({ ...f, allowedDomains: v }))} placeholder="acme.edu" />
+            <div>
+              <Field label="Lead ID prefix (optional)" value={editForm.leadIdPrefix}
+                onChange={v => setEditForm(f => ({ ...f, leadIdPrefix: v.replace(/[^A-Za-z0-9]/g, '').slice(0, 20) }))}
+                placeholder="e.g. CUEDU26 — leave blank for the default CULDAI26/CULDSM26" />
+              <p className="text-[10px] text-gray-400 mt-1">
+                Used for the <code className="bg-gray-100 px-1 rounded">leadId</code> this tenant's public inquiry API returns
+                (e.g. <code className="bg-gray-100 px-1 rounded">{(editForm.leadIdPrefix || 'CULDAI26')}000123</code>). Letters/numbers only.
+              </p>
+            </div>
           </div>
 
           {/* Admin accounts */}
