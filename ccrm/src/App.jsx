@@ -68,9 +68,11 @@ export default function App() {
   // any per-route changes. Centurion's plain URLs (no matching segment) get
   // basename=undefined — identical to today's behavior.
   const tenantSlug = getUrlTenantSlug()
+  const basename = tenantSlug ? `/${tenantSlug}` : undefined
+  console.log(`[App] pathname=${window.location.pathname} tenantSlug=${tenantSlug} basename=${basename}`)
 
   return (
-    <BrowserRouter basename={tenantSlug ? `/${tenantSlug}` : undefined}>
+    <BrowserRouter basename={basename}>
       <Routes>
         {/* All routes nested under the root path */}
         <Route path="/">
