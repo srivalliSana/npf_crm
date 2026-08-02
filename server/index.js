@@ -627,12 +627,14 @@ app.post('/api/auth/google', async (req, res) => {
   const { email, name, picture, tenantSlug } = req.body
   if (!email) return res.status(400).json({ error: 'Email required.' })
   try {
+    console.log(`[Google Auth] email=${email} tenantSlug=${tenantSlug || '(none)'}`)
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
     // Email is unique per tenant, not globally — resolve which tenant this
     // URL belongs to (defaults to Centurion when no slug) and look up/create
     // the account within that tenant specifically, so the same email can
     // have a fully separate account in a different tenant.
     const lookupTenantId = await resolveSlugTenant(tenantSlug)
+    console.log(`[Google Auth] resolved tenantSlug=${tenantSlug} to tenantId=${lookupTenantId}`)
 
     let existing = await pool.query(
       'SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2;',
