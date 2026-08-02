@@ -5362,8 +5362,11 @@ app.get('/api/reports/leaderboard', authenticateToken, async (req, res) => {
 
 // --- FEATURE 10: PUBLIC INQUIRY FORM ---
 app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
-  const { name, email, mobile, state, city, course, source } = req.body
+  const { name, email, mobile, state, city, course, source, prefix } = req.body
   if (!name || !mobile) return res.status(400).json({ error: 'Name and mobile are required.' })
+  // Caller may supply their own leadId prefix (e.g. "CUEDU26"); sanitized to
+  // letters/digits only and capped so it can't blow up the padded ID format.
+  const cleanPrefix = prefix ? String(prefix).trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 20) : ''
   try {
     const tenantId = await resolveSlugTenant(req.params.tenantSlug || req.query.tenant)
     // Dedup check
@@ -5376,15 +5379,17 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
     const score = calculateLeadScore({ source: source || 'Website', stage: 'Untouched', mobile, email, course })
     const leadSource = source?.toLowerCase().includes('facebook') ? 'facebook' : 'form'
     // Same social-vs-direct classification used everywhere else in the app —
-    // drives which prefix (CULDSM26 / CULDAI26) this lead's reference ID gets.
+    // drives which default prefix (CULDSM26 / CULDAI26) this lead's reference
+    // ID gets, unless the caller supplied their own via `prefix`.
     const socialList = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram', 'social media']
     const sourceType = socialList.includes((source || '').toLowerCase()) ? 'sm' : 'ai'
+    const refPrefix = cleanPrefix || (sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26')
     const owner = await getNextAssignee(tenantId)
     const insertRes = await pool.query(`
-      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, source_type, tenant_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $12, $8, $9, 'Untouched', 'red', $10, $11, $13)
+      INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, source_type, lead_ref_prefix, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $12, $8, $9, 'Untouched', 'red', $10, $11, $13, $14)
       RETURNING id, name, email, course;
-    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, sourceType, owner, tenantId])
+    `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, sourceType, owner, refPrefix, tenantId])
 
     const pubLead = insertRes.rows[0]
     if (owner && owner !== 'Unassigned') {
@@ -5395,11 +5400,11 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
         [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned', tenantId])
     }
 
-    // Same reference-ID format shown in the CRM's own Lead Manager table
-    // (e.g. CULDAI26000123), so external integrations can quote the same ID
-    // a counsellor sees on their side — the raw numeric `id` alone isn't
-    // recognizable to anyone looking at the CRM UI.
-    const leadIdFormatted = `${sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}${String(pubLead.id).padStart(4, '0')}`
+    // Reference ID the caller can quote — either their own supplied prefix,
+    // or the same CULDAI26/CULDSM26 format shown in the CRM's own Lead
+    // Manager table. The raw numeric `id` alone isn't recognizable to anyone
+    // looking at the CRM UI, so this is included either way.
+    const leadIdFormatted = `${refPrefix}${String(pubLead.id).padStart(4, '0')}`
 
     // CU EDU's integration also needs the email echoed back; other tenants keep the original field set.
     const respLead = (req.params.tenantSlug || '').toLowerCase() === 'cuedu'
@@ -5434,9 +5439,11 @@ app.get('/api/public/inquiry/:tenantSlug/lookup', async (req, res) => {
     const tenantId = await resolveSlugTenant(req.params.tenantSlug)
     let row
     if (leadId) {
-      const m = String(leadId).match(/^CULD(AI|SM)260*(\d+)$/i)
-      if (!m) return res.status(400).json({ error: 'leadId must look like CULDAI26000123 or CULDSM26000123.' })
-      const r = await pool.query('SELECT * FROM leads WHERE id = $1 AND tenant_id = $2 LIMIT 1;', [parseInt(m[2], 10), tenantId])
+      // Prefix is caller-defined and can vary, so just take the trailing
+      // digit run as the numeric id — works for any prefix scheme.
+      const m = String(leadId).match(/(\d+)$/)
+      if (!m) return res.status(400).json({ error: 'leadId must end in the numeric lead id, e.g. CULDAI26000123.' })
+      const r = await pool.query('SELECT * FROM leads WHERE id = $1 AND tenant_id = $2 LIMIT 1;', [parseInt(m[1], 10), tenantId])
       row = r.rows[0]
     } else if (mobile) {
       const r = await pool.query('SELECT * FROM leads WHERE mobile = $1 AND tenant_id = $2 LIMIT 1;', [mobile, tenantId])
@@ -5447,10 +5454,11 @@ app.get('/api/public/inquiry/:tenantSlug/lookup', async (req, res) => {
     }
     if (!row) return res.status(404).json({ error: 'No matching lead found.' })
 
+    const refPrefix = row.lead_ref_prefix || (row.source_type === 'sm' ? 'CULDSM26' : 'CULDAI26')
     res.json({
       lead: {
         id: row.id,
-        leadId: `${row.source_type === 'sm' ? 'CULDSM26' : 'CULDAI26'}${String(row.id).padStart(4, '0')}`,
+        leadId: `${refPrefix}${String(row.id).padStart(4, '0')}`,
         name: row.name,
         email: row.email,
         mobile: row.mobile,
