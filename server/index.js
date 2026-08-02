@@ -5231,7 +5231,7 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
     const insertRes = await pool.query(`
       INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, tenant_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $11, $8, $9, 'Untouched', 'red', $10, $12)
-      RETURNING id, name, course;
+      RETURNING id, name, email, course;
     `, [name, email || `pub_${Date.now()}@noemail.com`, mobile, state || '', city || '', course || 'B.Tech CSE', source || 'Website', new Date().toLocaleString('en-IN', { hour12: true }), score, leadSource, owner, tenantId])
 
     const pubLead = insertRes.rows[0]
@@ -5243,7 +5243,12 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
         [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned', tenantId])
     }
 
-    res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: pubLead })
+    // CU EDU's integration needs the email echoed back; other tenants keep the original response shape.
+    const respLead = (req.params.tenantSlug || '').toLowerCase() === 'cuedu'
+      ? pubLead
+      : { id: pubLead.id, name: pubLead.name, course: pubLead.course }
+
+    res.status(201).json({ message: 'Thank you! Our admissions team will contact you within 24 hours.', lead: respLead })
   } catch (err) {
     console.error('[Public Inquiry]', err)
     res.status(500).json({ error: 'Failed to submit inquiry.' })
