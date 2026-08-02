@@ -3420,6 +3420,19 @@ async function platformAdminOnly(req, res, next) {
   } catch { return res.status(403).json({ error: 'Invalid or expired token.' }) }
 }
 
+// Every platform-admin action (tenant edits, admin creation/promotion,
+// impersonation) gets a row here for later investigation. Never logs
+// passwords — only whether one was changed.
+async function logAudit(actor, action, { targetTenantId = null, targetType = '', targetId = '', details = {} } = {}) {
+  try {
+    await pool.query(
+      `INSERT INTO platform_audit_logs (actor_user_id, actor_email, action, target_tenant_id, target_type, target_id, details)
+       VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+      [actor?.id || null, actor?.email || '', action, targetTenantId, targetType, String(targetId ?? ''), JSON.stringify(details)]
+    )
+  } catch (e) { console.error('[audit log]', e.message) }
+}
+
 // List all tenants (+ basic counts)
 app.get('/api/platform/tenants', platformAdminOnly, async (req, res) => {
   try {
@@ -3476,6 +3489,7 @@ app.post('/api/platform/tenants', platformAdminOnly, async (req, res) => {
       [adminName || `${name} Admin`, adminEmail, adminPassword || 'ChangeMe@123', tenantId]
     )
     await client.query('COMMIT')
+    logAudit(req.user, 'tenant.create', { targetTenantId: tenantId, targetType: 'tenant', targetId: tenantId, details: { name, slug: cleanSlug, adminEmail } })
     res.status(201).json({ success: true, tenant: { id: tenantId, name, slug: cleanSlug }, admin: uRes.rows[0], tempPassword: adminPassword || 'ChangeMe@123' })
   } catch (e) {
     await client.query('ROLLBACK')
@@ -3500,6 +3514,7 @@ app.patch('/api/platform/tenants/:id', platformAdminOnly, async (req, res) => {
     params.push(req.params.id)
     const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, slug, status, plan, allowed_domains AS "allowedDomains";`, params)
     if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found.' })
+    logAudit(req.user, 'tenant.update', { targetTenantId: req.params.id, targetType: 'tenant', targetId: req.params.id, details: { status, name, plan, allowedDomains } })
     res.json(r.rows[0])
   } catch (e) { console.error('[platform/tenants PATCH]', e.message); res.status(500).json({ error: 'Failed to update tenant.' }) }
 })
@@ -3534,6 +3549,7 @@ app.patch('/api/platform/tenants/:id/admins/:userId', platformAdminOnly, async (
     if (!sets.length) return res.json({ message: 'Nothing to update.' })
     params.push(req.params.userId)
     const r = await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, email;`, params)
+    logAudit(req.user, 'tenant.admin.update', { targetTenantId: req.params.id, targetType: 'user', targetId: req.params.userId, details: { name, email, passwordChanged: !!password } })
     res.json(r.rows[0])
   } catch (e) { console.error('[platform/tenants admin PATCH]', e.message); res.status(500).json({ error: 'Failed to update admin.' }) }
 })
@@ -3550,6 +3566,7 @@ app.post('/api/platform/tenants/:id/admins', platformAdminOnly, async (req, res)
        VALUES ($1, $2, $3, 'Admin', 'Active', 'LEADS', FALSE, $4) RETURNING id, name, email;`,
       [name || email.split('@')[0], email, password || 'ChangeMe@123', req.params.id]
     )
+    logAudit(req.user, 'tenant.admin.create', { targetTenantId: req.params.id, targetType: 'user', targetId: r.rows[0].id, details: { name: r.rows[0].name, email: r.rows[0].email } })
     res.status(201).json(r.rows[0])
   } catch (e) { console.error('[platform/tenants admin POST]', e.message); res.status(500).json({ error: 'Failed to create admin.' }) }
 })
@@ -3573,8 +3590,66 @@ app.post('/api/platform/tenants/:id/admins/:userId/promote', platformAdminOnly, 
       [req.params.userId, req.params.id]
     )
     if (!r.rows[0]) return res.status(404).json({ error: 'User not found for this tenant.' })
+    logAudit(req.user, 'tenant.admin.promote', { targetTenantId: req.params.id, targetType: 'user', targetId: r.rows[0].id, details: { name: r.rows[0].name, email: r.rows[0].email } })
     res.json(r.rows[0])
   } catch (e) { console.error('[platform/tenants promote POST]', e.message); res.status(500).json({ error: 'Failed to promote user.' }) }
+})
+
+// Impersonate a tenant's admin account (platform admin only) — issues a
+// short-lived (2h) token scoped to that tenant so the platform admin can
+// view/manage its data exactly as that tenant's own admin would. The
+// impersonated session is fully logged; frontend keeps the platform admin's
+// original token stashed locally so they can return to it afterward.
+app.post('/api/platform/tenants/:id/impersonate', platformAdminOnly, async (req, res) => {
+  try {
+    const tRes = await pool.query('SELECT id, name, slug, status FROM tenants WHERE id = $1;', [req.params.id])
+    const tenant = tRes.rows[0]
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found.' })
+    if (tenant.status !== 'Active') return res.status(400).json({ error: 'This tenant is suspended.' })
+
+    const aRes = await pool.query(
+      `SELECT * FROM users WHERE tenant_id = $1 AND role = 'Admin' AND status = 'Active' ORDER BY id LIMIT 1;`,
+      [tenant.id]
+    )
+    const admin = aRes.rows[0]
+    if (!admin) return res.status(400).json({ error: 'This tenant has no active admin account yet — use "Add New Admin" first.' })
+
+    const token = jwt.sign(
+      { id: admin.id, email: admin.email, role: admin.role, tenant_id: tenant.id, is_platform_admin: true, impersonated_by: req.user.id },
+      JWT_SECRET, { expiresIn: '2h' }
+    )
+    logAudit(req.user, 'tenant.impersonate', { targetTenantId: tenant.id, targetType: 'tenant', targetId: tenant.id, details: { asUserId: admin.id, asEmail: admin.email } })
+
+    res.json({
+      token,
+      tenantSlug: tenant.id === 1 ? null : tenant.slug,
+      user: {
+        id: admin.id, name: admin.name, email: admin.email, role: admin.role,
+        team: admin.team, picture: admin.picture, status: admin.status,
+        mobile_number: admin.mobile_number, entities: admin.entities || 'CUTM',
+        isSuperAdmin: !!admin.is_superadmin, isPlatformAdmin: !!admin.is_platform_admin,
+        lastLogin: admin.last_login
+      }
+    })
+  } catch (e) { console.error('[platform/tenants impersonate POST]', e.message); res.status(500).json({ error: 'Failed to view tenant.' }) }
+})
+
+// Read the audit trail (platform admin only) — optionally filtered to one tenant
+app.get('/api/platform/audit-logs', platformAdminOnly, async (req, res) => {
+  try {
+    const { tenantId, limit = 200 } = req.query
+    const params = []
+    let where = ''
+    if (tenantId) { params.push(tenantId); where = `WHERE target_tenant_id = $${params.length}` }
+    params.push(Math.min(Number(limit) || 200, 1000))
+    const r = await pool.query(
+      `SELECT al.*, t.name AS tenant_name FROM platform_audit_logs al
+       LEFT JOIN tenants t ON t.id = al.target_tenant_id
+       ${where} ORDER BY al.created_at DESC LIMIT $${params.length};`,
+      params
+    )
+    res.json(r.rows)
+  } catch (e) { console.error('[platform/audit-logs GET]', e.message); res.status(500).json({ error: 'Failed to load audit logs.' }) }
 })
 
 // --- FILE UPLOAD ENDPOINTS ---

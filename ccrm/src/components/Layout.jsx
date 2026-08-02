@@ -4,6 +4,7 @@ import { X, Phone } from 'lucide-react'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import IdleLogout from './IdleLogout'
+import ImpersonationBanner from './ImpersonationBanner'
 
 export default function Layout({ onLogout, user }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -36,6 +37,7 @@ export default function Layout({ onLogout, user }) {
         <Outlet />
       </main>
       <IdleLogout />
+      <ImpersonationBanner />
 
       {/* Close / reopen control for the voice assistant widget */}
       {voiceHidden ? (
