@@ -3320,6 +3320,21 @@ app.get('/api/integration-settings', async (req, res) => {
   }
 })
 
+// Decrypt and return ONE saved secret's real value, on demand — the bulk GET
+// above deliberately never does this (it would leak every secret on every
+// page load). Admin-only, and logged since it's a real credential exposure.
+app.get('/api/integration-settings/:key/reveal', authenticateToken, async (req, res) => {
+  if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+  try {
+    const r = await pool.query('SELECT value FROM integration_settings WHERE key = $1 AND tenant_id = $2;', [req.params.key, req.tenantId])
+    if (!r.rows[0] || !r.rows[0].value) return res.status(404).json({ error: 'Setting not found.' })
+    console.log(`[Integration Settings] REVEAL key=${req.params.key} tenant=${req.tenantId} by=${req.user.email}`)
+    res.json({ key: req.params.key, value: decryptSecret(r.rows[0].value) })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reveal setting.' })
+  }
+})
+
 app.post('/api/integration-settings', authenticateToken, async (req, res) => {
   if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
   const settings = req.body
