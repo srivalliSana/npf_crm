@@ -545,6 +545,7 @@ export default function Integrations() {
   const [editing, setEditing]         = useState(null)
   const [formValues, setFormValues]   = useState({})
   const [showSecrets, setShowSecrets] = useState({})
+  const [revealing, setRevealing]     = useState({})
   const [testing, setTesting]         = useState(null)
   const [saving, setSaving]           = useState(null)
   const [expanded, setExpanded]       = useState({})
@@ -574,6 +575,30 @@ export default function Integrations() {
     setFormValues(current)
     setShowSecrets({})
     setExpanded(prev => ({ ...prev, [integ.id]: true }))
+  }
+
+  // Fetch a saved secret's real, decrypted value on demand and reveal it
+  // in-place. Only ever called for a field still showing the mask — once
+  // revealed (or once the user has typed something new), the eye icon just
+  // toggles the input type locally, no further fetch needed.
+  const handleReveal = async (key) => {
+    setRevealing(prev => ({ ...prev, [key]: true }))
+    try {
+      const res = await fetch(`/api/integration-settings/${encodeURIComponent(key)}/reveal`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('ccrm_token') || ''}` }
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setFormValues(prev => ({ ...prev, [key]: data.value }))
+        setShowSecrets(prev => ({ ...prev, [key]: true }))
+      } else {
+        showToast(data.error || 'Failed to reveal value.', 'error')
+      }
+    } catch {
+      showToast('Failed to reveal value.', 'error')
+    } finally {
+      setRevealing(prev => ({ ...prev, [key]: false }))
+    }
   }
 
   const handleSave = async (integ) => {
@@ -838,39 +863,32 @@ export default function Integrations() {
                                   className="input-field text-sm w-full"
                                 />
                               ) : (() => {
-                                // The server never sends a saved secret's real value back —
-                                // only this fixed placeholder — so there's nothing for an eye
-                                // toggle to reveal until the user actually types something new.
+                                // Still showing the server's placeholder — the real value hasn't
+                                // been fetched yet. The eye icon fetches+decrypts it on click
+                                // (handleReveal) rather than just flipping input type on nothing.
                                 const isMasked = field.secret && formValues[field.key] === SETTINGS_MASK
+                                const isRevealing = revealing[field.key]
                                 return (
                                 <>
                                   <input
-                                    type={field.secret && !isMasked && !showSecrets[field.key] ? 'password' : 'text'}
+                                    type={field.secret && !showSecrets[field.key] ? 'password' : 'text'}
                                     value={formValues[field.key] || ''}
                                     readOnly={isMasked}
                                     onChange={e => setFormValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-                                    onFocus={() => { if (isMasked) setFormValues(prev => ({ ...prev, [field.key]: '' })) }}
                                     placeholder={field.placeholder}
-                                    className={`input-field text-sm pr-9 ${isMasked ? 'text-gray-400 cursor-pointer' : ''}`}
+                                    className={`input-field text-sm pr-9 ${isMasked ? 'text-gray-400' : ''}`}
                                   />
-                                  {field.secret && !isMasked && (
+                                  {field.secret && (
                                     <button
                                       type="button"
-                                      onClick={() => setShowSecrets(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
-                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                      title={showSecrets[field.key] ? 'Hide' : 'Show'}
+                                      disabled={isRevealing}
+                                      onClick={() => isMasked ? handleReveal(field.key) : setShowSecrets(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
+                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                                      title={isMasked ? 'Reveal saved value' : (showSecrets[field.key] ? 'Hide' : 'Show')}
                                     >
-                                      {showSecrets[field.key] ? <EyeOff size={14} /> : <Eye size={14} />}
-                                    </button>
-                                  )}
-                                  {isMasked && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setFormValues(prev => ({ ...prev, [field.key]: '' }))}
-                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-primary-500 hover:text-primary-700"
-                                      title="Saved value is hidden for security — click to enter a new one"
-                                    >
-                                      Change
+                                      {isRevealing
+                                        ? <RefreshCw size={14} className="animate-spin" />
+                                        : (showSecrets[field.key] ? <EyeOff size={14} /> : <Eye size={14} />)}
                                     </button>
                                   )}
                                 </>
