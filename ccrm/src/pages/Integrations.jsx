@@ -10,6 +10,12 @@ import { Plug } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import IntegrationStatusWidget from '../components/IntegrationStatusWidget'
 
+// Must match server/index.js's SETTINGS_MASK exactly — the backend never
+// sends a saved secret's real value back to the browser, only this fixed
+// placeholder, so the eye toggle only makes sense once the user has typed
+// something new (anything other than this string).
+const SETTINGS_MASK = '••••••'
+
 const INTEGRATIONS = [
   // ── Social Media & Ads ──────────────────────────────────────────────────────
   {
@@ -831,26 +837,45 @@ export default function Integrations() {
                                   rows="3"
                                   className="input-field text-sm w-full"
                                 />
-                              ) : (
+                              ) : (() => {
+                                // The server never sends a saved secret's real value back —
+                                // only this fixed placeholder — so there's nothing for an eye
+                                // toggle to reveal until the user actually types something new.
+                                const isMasked = field.secret && formValues[field.key] === SETTINGS_MASK
+                                return (
                                 <>
                                   <input
-                                    type={field.secret && !showSecrets[field.key] ? 'password' : 'text'}
+                                    type={field.secret && !isMasked && !showSecrets[field.key] ? 'password' : 'text'}
                                     value={formValues[field.key] || ''}
+                                    readOnly={isMasked}
                                     onChange={e => setFormValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                    onFocus={() => { if (isMasked) setFormValues(prev => ({ ...prev, [field.key]: '' })) }}
                                     placeholder={field.placeholder}
-                                    className="input-field text-sm pr-9"
+                                    className={`input-field text-sm pr-9 ${isMasked ? 'text-gray-400 cursor-pointer' : ''}`}
                                   />
-                                  {field.secret && (
+                                  {field.secret && !isMasked && (
                                     <button
                                       type="button"
                                       onClick={() => setShowSecrets(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
                                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                      title={showSecrets[field.key] ? 'Hide' : 'Show'}
                                     >
                                       {showSecrets[field.key] ? <EyeOff size={14} /> : <Eye size={14} />}
                                     </button>
                                   )}
+                                  {isMasked && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setFormValues(prev => ({ ...prev, [field.key]: '' }))}
+                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-primary-500 hover:text-primary-700"
+                                      title="Saved value is hidden for security — click to enter a new one"
+                                    >
+                                      Change
+                                    </button>
+                                  )}
                                 </>
-                              )}
+                                )
+                              })()}
                             </div>
                           </div>
                         ))}
