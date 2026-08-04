@@ -587,10 +587,16 @@ export default function Integrations() {
       const res = await fetch(`/api/integration-settings/${encodeURIComponent(key)}/reveal`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('ccrm_token') || ''}` }
       })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
+      // A misrouted request (e.g. hitting the SPA fallback instead of the API)
+      // still comes back 200 OK, just as HTML — catch that explicitly instead
+      // of silently treating an empty/malformed body as a successful reveal.
+      const isJson = (res.headers.get('content-type') || '').includes('application/json')
+      const data = isJson ? await res.json().catch(() => ({})) : {}
+      if (res.ok && isJson && data.value) {
         setFormValues(prev => ({ ...prev, [key]: data.value }))
         setShowSecrets(prev => ({ ...prev, [key]: true }))
+      } else if (res.ok && (!isJson || !data.value)) {
+        showToast('Server did not return a value — the API may not be deployed yet, or nothing is saved for this field.', 'error')
       } else {
         showToast(data.error || 'Failed to reveal value.', 'error')
       }
