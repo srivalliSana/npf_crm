@@ -1,0 +1,485 @@
+<title>CCRM — SOP &amp; User Manual</title>
+<style>
+  :root {
+    --ink: #0f172a; --paper: #eef1f7; --card: #ffffff; --line: #dfe6f0; --muted: #5b6b85;
+    --accent: #2563eb; --accent-ink: #1e40af; --accent-soft: #eff6ff;
+    --success: #15803d; --success-soft: #dcfce7;
+    --warning: #b45309; --warning-soft: #fef3c7;
+    --danger: #b91c1c; --danger-soft: #fee2e2;
+    --info: #1d4ed8; --info-soft: #dbeafe;
+    --shadow: 0 1px 2px rgba(15,23,42,.06), 0 6px 20px -8px rgba(15,23,42,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e7edf9; --paper: #0a0f1c; --card: #111a2c; --line: #22304a; --muted: #8fa0c2;
+      --accent: #6c9bff; --accent-ink: #a9c5ff; --accent-soft: rgba(108,155,255,.14);
+      --success: #4ade80; --success-soft: rgba(74,222,128,.14);
+      --warning: #fbbf24; --warning-soft: rgba(251,191,36,.14);
+      --danger: #f87171; --danger-soft: rgba(248,113,113,.14);
+      --info: #7fb0ff; --info-soft: rgba(127,176,255,.14);
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -10px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e7edf9; --paper: #0a0f1c; --card: #111a2c; --line: #22304a; --muted: #8fa0c2;
+    --accent: #6c9bff; --accent-ink: #a9c5ff; --accent-soft: rgba(108,155,255,.14);
+    --success: #4ade80; --success-soft: rgba(74,222,128,.14);
+    --warning: #fbbf24; --warning-soft: rgba(251,191,36,.14);
+    --danger: #f87171; --danger-soft: rgba(248,113,113,.14);
+    --info: #7fb0ff; --info-soft: rgba(127,176,255,.14);
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -10px rgba(0,0,0,.5);
+  }
+  :root[data-theme="light"] {
+    --ink: #0f172a; --paper: #eef1f7; --card: #ffffff; --line: #dfe6f0; --muted: #5b6b85;
+    --accent: #2563eb; --accent-ink: #1e40af; --accent-soft: #eff6ff;
+    --success: #15803d; --success-soft: #dcfce7;
+    --warning: #b45309; --warning-soft: #fef3c7;
+    --danger: #b91c1c; --danger-soft: #fee2e2;
+    --info: #1d4ed8; --info-soft: #dbeafe;
+    --shadow: 0 1px 2px rgba(15,23,42,.06), 0 6px 20px -8px rgba(15,23,42,.12);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace; }
+
+  .topbar {
+    background: var(--card); border-bottom: 1px solid var(--line);
+    padding: 22px clamp(16px, 4vw, 40px); position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow);
+  }
+  .mark { width: 38px; height: 38px; border-radius: 11px; background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; flex-shrink: 0; }
+  .topbar h1 { font-size: 16px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+  .topbar p { font-size: 12.5px; margin: 1px 0 0; color: var(--muted); }
+
+  .shell { display: grid; grid-template-columns: 260px minmax(0,800px); gap: 40px; justify-content: center;
+    padding: 36px clamp(16px, 4vw, 40px) 100px; max-width: 1180px; margin: 0 auto; }
+  @media (max-width: 900px) { .shell { grid-template-columns: minmax(0,1fr); } .toc-desktop { display: none; } }
+
+  .toc-desktop { position: sticky; top: 92px; align-self: start; max-height: calc(100vh - 120px); overflow-y: auto; }
+  .toc-mobile { display: none; }
+  @media (max-width: 900px) { .toc-mobile { display: block; margin-bottom: 8px; } }
+  .toc-mobile summary { cursor: pointer; font-weight: 700; font-size: 13.5px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; box-shadow: var(--shadow); }
+  .toc-mobile[open] summary { border-radius: 12px 12px 0 0; }
+  .toc-mobile .toc-inner { border: 1px solid var(--line); border-top: none; border-radius: 0 0 12px 12px; padding: 6px 8px 12px; background: var(--card); }
+
+  .toc-part { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 18px 0 6px; padding: 0 10px; }
+  .toc-part:first-child { margin-top: 4px; }
+  .toc a { display: block; font-size: 13px; color: var(--ink); text-decoration: none; padding: 6px 10px;
+    border-radius: 8px; line-height: 1.35; }
+  .toc a:hover { background: var(--accent-soft); color: var(--accent-ink); }
+
+  main { min-width: 0; }
+  .lede { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px 26px;
+    box-shadow: var(--shadow); margin-bottom: 34px; }
+  .lede p { margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--muted); }
+  .lede p + p { margin-top: 10px; }
+
+  .part-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--accent); margin: 56px 0 4px; }
+  .part-title:first-of-type { margin-top: 0; }
+  .part-sub { font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 28px; text-wrap: balance; }
+
+  section.sect { margin-bottom: 40px; scroll-margin-top: 90px; }
+  section.sect h2 { font-size: 19px; font-weight: 800; letter-spacing: -.01em; margin: 0 0 4px; text-wrap: balance; }
+  section.sect .sect-desc { font-size: 13.5px; color: var(--muted); margin: 0 0 16px; max-width: 62ch; line-height: 1.6; }
+  section.sect h3 { font-size: 13.5px; font-weight: 800; margin: 22px 0 8px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px;
+    box-shadow: var(--shadow); margin-bottom: 14px; }
+  .card p { margin: 0 0 8px; font-size: 14px; line-height: 1.65; }
+  .card p:last-child { margin-bottom: 0; }
+  .card ul, .card ol { margin: 8px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.7; }
+  .card li { margin-bottom: 4px; }
+  .card li:last-child { margin-bottom: 0; }
+
+  .steps { counter-reset: step; list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .steps li { counter-increment: step; display: flex; gap: 12px; font-size: 14px; line-height: 1.55; }
+  .steps li::before { content: counter(step); flex-shrink: 0; width: 22px; height: 22px; border-radius: 7px;
+    background: var(--accent-soft); color: var(--accent-ink); font-size: 11.5px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+
+  .note { border-radius: 12px; padding: 12px 15px; font-size: 13px; line-height: 1.6; margin: 12px 0; border: 1px solid; }
+  .note.info    { background: var(--info-soft);    border-color: color-mix(in srgb, var(--info) 30%, transparent);    color: var(--ink); }
+  .note.warn    { background: var(--warning-soft);  border-color: color-mix(in srgb, var(--warning) 35%, transparent); color: var(--ink); }
+  .note.danger  { background: var(--danger-soft);   border-color: color-mix(in srgb, var(--danger) 35%, transparent);  color: var(--ink); }
+  .note b { font-weight: 800; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 620px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .roletable { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .roletable-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  .roletable th { text-align: left; background: var(--paper); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--muted); padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .roletable td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .roletable tr:last-child td { border-bottom: none; }
+  .tick { color: var(--success); font-weight: 800; }
+  .cross { color: var(--muted); }
+
+  .pillrow { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+  .pill { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .pill.gray { background: var(--paper); border: 1px solid var(--line); color: var(--muted); }
+  .pill.accent { background: var(--accent-soft); color: var(--accent-ink); }
+  .pill.success { background: var(--success-soft); color: var(--success); }
+  .pill.warn { background: var(--warning-soft); color: var(--warning); }
+  .pill.danger { background: var(--danger-soft); color: var(--danger); }
+  .flowarrow { color: var(--muted); font-size: 12px; align-self: center; }
+
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 4px 14px; font-size: 13.5px; }
+  .kv dt { color: var(--muted); font-weight: 600; }
+  .kv dd { margin: 0; }
+
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 30px 20px 50px; }
+</style>
+
+<div class="topbar">
+  <div class="mark">C</div>
+  <div>
+    <h1>CCRM — Admissions CRM</h1>
+    <p>Standard Operating Procedures &amp; User Manual · v1.30</p>
+  </div>
+</div>
+
+<div class="shell">
+  <nav class="toc-desktop toc">
+    <div class="toc-part">Part 1 — SOP</div>
+    <a href="#roles">1.1 Roles &amp; Access</a>
+    <a href="#lead-lifecycle">1.2 Lead Lifecycle Policy</a>
+    <a href="#daily-workflow">1.3 Daily Counsellor Workflow</a>
+    <a href="#assignment">1.4 Assignment &amp; Transfers</a>
+    <a href="#payment-sop">1.5 Application &amp; Payment SOP</a>
+    <a href="#docs-sop">1.6 Document Verification</a>
+    <a href="#user-sop">1.7 User &amp; Role Management</a>
+    <a href="#tenant-sop">1.8 Tenant Onboarding</a>
+    <a href="#data-policy">1.9 Duplicate &amp; Data Policy</a>
+    <a href="#integration-policy">1.10 Credential Policy</a>
+
+    <div class="toc-part">Part 2 — User Manual</div>
+    <a href="#getting-started">2.1 Getting Started</a>
+    <a href="#dashboard">2.2 Dashboard</a>
+    <a href="#lead-manager">2.3 Lead Manager</a>
+    <a href="#lead-file">2.4 Student File</a>
+    <a href="#applications">2.5 Applications</a>
+    <a href="#tasks-calendar">2.6 Tasks &amp; Calendar</a>
+    <a href="#payments">2.7 Payments</a>
+    <a href="#documents">2.8 Documents</a>
+    <a href="#campaigns">2.9 Campaigns</a>
+    <a href="#reports">2.10 Reports &amp; Analytics</a>
+    <a href="#users">2.11 User Management</a>
+    <a href="#integrations">2.12 Integrations</a>
+    <a href="#tenants">2.13 Platform Admin</a>
+    <a href="#settings">2.14 Settings &amp; Profile</a>
+    <a href="#troubleshooting">2.15 Troubleshooting</a>
+  </nav>
+
+  <main>
+    <details class="toc-mobile">
+      <summary>Contents</summary>
+      <div class="toc-inner toc">
+        <div class="toc-part">Part 1 — SOP</div>
+        <a href="#roles">1.1 Roles &amp; Access</a>
+        <a href="#lead-lifecycle">1.2 Lead Lifecycle Policy</a>
+        <a href="#daily-workflow">1.3 Daily Counsellor Workflow</a>
+        <a href="#assignment">1.4 Assignment &amp; Transfers</a>
+        <a href="#payment-sop">1.5 Application &amp; Payment SOP</a>
+        <a href="#docs-sop">1.6 Document Verification</a>
+        <a href="#user-sop">1.7 User &amp; Role Management</a>
+        <a href="#tenant-sop">1.8 Tenant Onboarding</a>
+        <a href="#data-policy">1.9 Duplicate &amp; Data Policy</a>
+        <a href="#integration-policy">1.10 Credential Policy</a>
+        <div class="toc-part">Part 2 — User Manual</div>
+        <a href="#getting-started">2.1 Getting Started</a>
+        <a href="#dashboard">2.2 Dashboard</a>
+        <a href="#lead-manager">2.3 Lead Manager</a>
+        <a href="#lead-file">2.4 Student File</a>
+        <a href="#applications">2.5 Applications</a>
+        <a href="#tasks-calendar">2.6 Tasks &amp; Calendar</a>
+        <a href="#payments">2.7 Payments</a>
+        <a href="#documents">2.8 Documents</a>
+        <a href="#campaigns">2.9 Campaigns</a>
+        <a href="#reports">2.10 Reports &amp; Analytics</a>
+        <a href="#users">2.11 User Management</a>
+        <a href="#integrations">2.12 Integrations</a>
+        <a href="#tenants">2.13 Platform Admin</a>
+        <a href="#settings">2.14 Settings &amp; Profile</a>
+        <a href="#troubleshooting">2.15 Troubleshooting</a>
+      </div>
+    </details>
+
+    <div class="lede">
+      <p><b>What this is.</b> CCRM is the admissions CRM used to capture, assign, and progress student leads through to enrolment — leads come in from Meta/Facebook &amp; Instagram ads, your own website's inquiry form, bulk Excel/CSV uploads, and partner integrations (e.g. CU EDU's registration form), and are worked by counsellors through to payment and admission.</p>
+      <p>Part 1 is <b>process</b> — what to do, in what order, and who's responsible. Part 2 is <b>reference</b> — what each screen does and how to use it. Every organisation on the platform (Centurion, CU EDU, and any future tenant) uses the same CCRM instance, each with its own login URL, branding, and fully separate data.</p>
+    </div>
+
+    <!-- ══════════════════════ PART 1 — SOP ══════════════════════ -->
+    <div class="part-title">Part 1</div>
+    <h1 class="part-sub">Standard Operating Procedures</h1>
+
+    <section class="sect" id="roles">
+      <h2>1.1 Roles &amp; Access Levels</h2>
+      <p class="sect-desc">Every account has exactly one role, which controls what they can see and do. Two additional flags — Super Admin and Platform Admin — sit above roles for organisation-wide and cross-organisation control.</p>
+      <div class="roletable-wrap">
+        <table class="roletable">
+          <thead><tr><th>Role</th><th>Sees</th><th>Can edit leads</th><th>Manages users</th><th>Typical user</th></tr></thead>
+          <tbody>
+            <tr><td><b>Counselor</b></td><td>Only their own assigned leads</td><td><span class="tick">✓</span> own leads only</td><td><span class="cross">—</span></td><td>Front-line admissions staff</td></tr>
+            <tr><td><b>Manager</b></td><td>Their team's leads, reports, analytics</td><td><span class="tick">✓</span></td><td><span class="cross">—</span></td><td>Team lead / supervisor</td></tr>
+            <tr><td><b>Finance</b></td><td>Payments &amp; reports</td><td><span class="cross">—</span></td><td><span class="cross">—</span></td><td>Accounts team</td></tr>
+            <tr><td><b>Admin</b></td><td>Everything in their organisation</td><td><span class="tick">✓</span> all</td><td><span class="tick">✓</span></td><td>Organisation owner</td></tr>
+            <tr><td><b>+ Super Admin</b> <span class="pill gray">flag</span></td><td>Same as Admin, plus bypasses entity-gating within the org</td><td><span class="tick">✓</span></td><td><span class="tick">✓</span></td><td>Senior org admin</td></tr>
+            <tr><td><b>+ Platform Admin</b> <span class="pill gray">flag</span></td><td>The Tenants page — every organisation on CCRM</td><td>only by impersonating a tenant</td><td>can add/promote admins in <i>any</i> tenant</td><td>CCRM platform owner</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note info">Within Admin/Manager, an <b>Entity Access</b> grant (e.g. CUTM, CUTMAP, FTL) further restricts which lead sets a Counselor sees, set per-user in User Management.</div>
+    </section>
+
+    <section class="sect" id="lead-lifecycle">
+      <h2>1.2 Lead Lifecycle Policy</h2>
+      <p class="sect-desc">Every lead moves through a fixed set of stages. Stage changes drive dashboard counts, reports, and — at one specific point — automatically create an Application.</p>
+      <div class="pillrow">
+        <span class="pill gray">Untouched</span><span class="flowarrow">→</span>
+        <span class="pill gray">Contacted</span><span class="flowarrow">→</span>
+        <span class="pill warn">Follow Up</span><span class="flowarrow">→</span>
+        <span class="pill success">Interested</span><span class="flowarrow">→</span>
+        <span class="pill gray">Campus Visit</span><span class="flowarrow">→</span>
+        <span class="pill warn">Process for Payment</span><span class="flowarrow">→</span>
+        <span class="pill success">Payment Success</span>
+      </div>
+      <div class="pillrow">
+        <span class="pill danger">Not Interested</span>
+        <span class="pill danger">Invalid Number</span>
+        <span class="pill gray">No Response</span>
+        <span class="span" style="font-size:12px;color:var(--muted);align-self:center;">— off-ramps, reachable from most stages</span>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <p><b>Rule:</b> the moment a lead reaches <b>Process for Payment</b>, the system automatically creates its matching Application record — counsellors never create that Application by hand.</p>
+        <p><b>Rule:</b> a lead marked <b>Not Interested</b> must have a reason attached (Budget, Already Enrolled, Not Reachable, etc.) — this is required, not optional, and feeds the Reports page.</p>
+        <p><b>Rule:</b> <b>Unable to Connect</b> is not a dead end — it moves the lead to Follow Up so it re-enters the working queue, rather than silently disappearing.</p>
+      </div>
+    </section>
+
+    <section class="sect" id="daily-workflow">
+      <h2>1.3 Daily Counsellor Workflow</h2>
+      <ol class="steps">
+        <li>Open <b>Dashboard</b> first — check your Untouched and Follow Up counts for the day.</li>
+        <li>Work <b>Lead Manager</b> top-down within your assigned list: call, log the outcome (Call Log icon), and move the stage immediately after the call — don't batch stage updates for later.</li>
+        <li>Every call gets logged via the <b>phone icon</b> on the lead row, even a "no answer" — outcome tracking depends on this, and Call Report/Productivity dashboards read directly from it.</li>
+        <li>For an interested lead, open the lead and fill in <b>Lead Details</b> (parent info, 10th/12th marks, address) as it comes up in conversation — this data auto-fills the Provisional Admission Letter later, so it's much easier to capture it now than to chase it after payment.</li>
+        <li>Check <b>Tasks</b> and <b>Calendar</b> for anything scheduled (interviews, follow-up calls) before logging off.</li>
+        <li>End of day: clear your <b>Not Interested</b> queue with reasons recorded — don't leave stage changes half-done.</li>
+      </ol>
+    </section>
+
+    <section class="sect" id="assignment">
+      <h2>1.4 Assignment &amp; Transfer Policy</h2>
+      <div class="card">
+        <p><b>New leads</b> auto-assign round-robin across active counsellors granted the relevant entity (CUTM/CUTMAP/FTL/etc.) — nobody hand-picks who gets the next lead.</p>
+        <p><b>Transfers:</b> Admins/Managers can move a lead to another counsellor instantly. A Counsellor requesting a transfer instead creates a <i>pending request</i> that an Admin/Manager must approve or reject on the <b>Transfer Approvals</b> page — a counsellor can never move a lead to themselves or a peer unilaterally.</p>
+        <p><b>Bulk reassignment:</b> use Lead Manager's multi-select + "Assign to…" for reassigning many leads at once (e.g. when a counsellor leaves).</p>
+      </div>
+    </section>
+
+    <section class="sect" id="payment-sop">
+      <h2>1.5 Application &amp; Payment Processing SOP</h2>
+      <ol class="steps">
+        <li>Application auto-creates when the lead hits <b>Process for Payment</b> (see 1.2).</li>
+        <li>Counsellor fills <b>Admission Details</b> on the student's profile before generating a payment link — this populates the Provisional Admission Letter and is required, not optional.</li>
+        <li>Generate the payment link: choose <b>Online (Razorpay)</b> or <b>Offline (bank/cash)</b>. Online auto-fetches the UTR on success; Offline requires the counsellor or student to type in the UTR/reference number manually.</li>
+        <li>Submitting a UTR sets the application to <b>Payment Done</b> — this is <i>not</i> final. It sits in a queue for Accounts.</li>
+        <li><b>Finance/Accounts</b> reviews and clicks <b>Approve</b> on the Payments page, moving it to <b>Paid</b> — only then does the Provisional Admission Letter auto-send by email.</li>
+      </ol>
+      <div class="note warn"><b>Never</b> mark a payment Approved without a verified UTR/transaction reference — Approval is the point of no return for the auto-sent admission letter.</div>
+    </section>
+
+    <section class="sect" id="docs-sop">
+      <h2>1.6 Document Verification Procedure</h2>
+      <div class="card">
+        <p>Required documents: 10th Marksheet, 12th Marksheet, Aadhar Card, Passport Photo, Transfer Certificate, Migration Certificate, Caste Certificate, Income Certificate, Character Certificate, Medical Certificate.</p>
+        <ol>
+          <li>Student/counsellor uploads via the Documents tab on the student's file (PDF/JPG/PNG, under 5MB).</li>
+          <li>Every upload starts at status <b>Pending</b>.</li>
+          <li>Admin/Manager reviews and marks <b>Verified</b> or <b>Rejected</b> — a rejected document should be followed by a note/call asking for a re-upload.</li>
+          <li>A <b>share link</b> can be generated and sent to the student so they can upload directly without a CRM login.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="sect" id="user-sop">
+      <h2>1.7 User &amp; Role Management</h2>
+      <div class="card">
+        <p><b>Creating a user:</b> Admin → User Management → Add User. Set role, team, entity access, and a temporary password — the new user should change it on first login.</p>
+        <p><b>Deactivating, not deleting:</b> when someone leaves, set their status to Inactive rather than deleting the account — this preserves their historical lead/call/payment attribution in reports.</p>
+        <p><b>Password resets</b> generate a new temporary password and email it automatically — Admins should never share a password over chat/SMS.</p>
+        <p><b>Excluded from auto-assign:</b> toggle this for anyone temporarily off rotation (leave, training) so round-robin skips them without changing their role.</p>
+      </div>
+    </section>
+
+    <section class="sect" id="tenant-sop">
+      <h2>1.8 Tenant Onboarding (Platform Admin only)</h2>
+      <ol class="steps">
+        <li>Platform Admin → Tenants → <b>Add Tenant</b>. Set organisation name, URL slug (e.g. <code>cuedu</code> → <code>crm.cutmap.ac.in/cuedu/login</code>), and the first admin's email.</li>
+        <li>One-time credentials are shown once — copy and hand them to the organisation's admin immediately, they aren't recoverable from the UI afterward (only resettable).</li>
+        <li>Set <b>allowed login domains</b> (e.g. <code>cutm.ac.in</code>) so Google Sign-In only accepts that organisation's real staff emails.</li>
+        <li>Optionally set a <b>Lead ID prefix</b> (e.g. <code>CUEDU26</code>) if this tenant has an external integration quoting lead reference IDs — otherwise it defaults to CULDAI26/CULDSM26.</li>
+        <li>Use <b>View Leads</b> to check in on a tenant as its own admin when helping them troubleshoot — this is logged.</li>
+      </ol>
+      <div class="note info">Every email address is unique <i>per organisation</i>, not globally — the same person can have a completely separate account in two different tenants.</div>
+    </section>
+
+    <section class="sect" id="data-policy">
+      <h2>1.9 Duplicate &amp; Data Integrity Policy</h2>
+      <div class="card">
+        <p>A lead is a duplicate within its organisation if it shares a <b>mobile number</b> or <b>email</b> with an existing lead — checked automatically on every create path (manual add, bulk upload, Meta webhook, public inquiry API).</p>
+        <p>Bulk upload lets you choose how duplicates are handled: <b>Skip</b> (default, leaves existing leads alone), <b>Update existing</b> (refreshes name/course/source on the match), or <b>Import all</b> (allows intentional duplicates — rarely correct).</p>
+        <p>Never manually delete a lead to "fix" a duplicate — use Skip/Update handling, or merge context via a Note instead, so the original creation timestamp and history survive.</p>
+      </div>
+    </section>
+
+    <section class="sect" id="integration-policy">
+      <h2>1.10 Integration &amp; Credential Management Policy</h2>
+      <div class="card">
+        <p>All third-party credentials (Meta Page Access Token, SMTP, Razorpay, etc.) are entered once on the <b>Integrations</b> page and encrypted at rest — the CRM never displays a saved secret by default, only a masked placeholder.</p>
+        <p>Click the <b>eye icon</b> next to a saved field to decrypt and view it on demand (Admin only, and logged) — only do this when you actually need to copy/verify the value, not as a matter of routine.</p>
+        <p>When a partner integration (e.g. CU EDU) needs an API key, generate one specifically for that purpose rather than sharing an internal credential — ask your platform admin.</p>
+      </div>
+      <div class="note danger"><b>Never</b> paste a live API key or access token into chat, email, or a shared document unencrypted — including this manual. Reference "see Integrations page" instead.</div>
+    </section>
+
+    <!-- ══════════════════════ PART 2 — MANUAL ══════════════════════ -->
+    <div class="part-title">Part 2</div>
+    <h1 class="part-sub">User Manual</h1>
+
+    <section class="sect" id="getting-started">
+      <h2>2.1 Getting Started</h2>
+      <p class="sect-desc">Each organisation on CCRM has its own login address and its own branding — you'll only ever see your own organisation's data.</p>
+      <div class="card">
+        <dl class="kv">
+          <dt>Centurion staff</dt><dd><code>crm.cutmap.ac.in/login</code></dd>
+          <dt>Other organisations</dt><dd><code>crm.cutmap.ac.in/&lt;your-org-slug&gt;/login</code></dd>
+          <dt>Sign in</dt><dd>Email + password, or Google Sign-In if your work email's domain is on the organisation's allow-list</dd>
+          <dt>Forgot password</dt><dd>"Forgot password?" on the login screen sends a one-time code to your email</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="sect" id="dashboard">
+      <h2>2.2 Dashboard</h2>
+      <p class="sect-desc">Your homepage after login. What you see depends on your role.</p>
+      <div class="grid2">
+        <div class="card"><p><b>Counsellor</b><br>Your own lead counts by stage only — Total, Untouched, Interested, Follow Up, Not Interested.</p></div>
+        <div class="card"><p><b>Admin / Manager</b><br>Organisation-wide KPI tiles, the CUTM/CUTMAP split, Leads by Source, and the Stage Summary matrix (every counsellor × every stage, exportable to CSV).</p></div>
+      </div>
+    </section>
+
+    <section class="sect" id="lead-manager">
+      <h2>2.3 Lead Manager</h2>
+      <p class="sect-desc">The main working table — search, filter, and act on leads without opening each one.</p>
+      <h3>Filtering</h3>
+      <p style="font-size:14px;">Domain tabs (All / CUTM / CUTMAP) at the top, plus Stage, Owner, Source, State, and date-range filters. Search matches name, email, or mobile.</p>
+      <h3>Per-row actions</h3>
+      <p style="font-size:14px;">WhatsApp, RCS message, log a call, email, schedule a follow-up, transfer, or delete (Counsellors can only delete their own <i>Untouched</i> leads — Admins can delete any).</p>
+      <h3>Bulk actions (select multiple rows)</h3>
+      <p style="font-size:14px;">WhatsApp/RCS/Email campaigns, Drip sequence enrolment, bulk reassignment, bulk delete (Admin/Manager only).</p>
+      <h3>Add Lead / Bulk Upload</h3>
+      <p style="font-size:14px;">Add one lead manually (checks for duplicates as you type the mobile number), or import a CSV/Excel file — the importer auto-detects columns and shows a preview before committing.</p>
+    </section>
+
+    <section class="sect" id="lead-file">
+      <h2>2.4 Student File (Lead / Application Detail)</h2>
+      <p class="sect-desc">Click any lead's name to open their full file — profile, stage journey, and a tabbed workspace.</p>
+      <div class="card">
+        <ul>
+          <li><b>Lead Journey</b> — click any stage bubble to move the lead directly, no dropdown needed.</li>
+          <li><b>Lead Details tab</b> — student, parent/guardian, address, 10th/12th academic history, joining programme. Click <i>Edit Information</i> to fill it in.</li>
+          <li><b>Timeline</b> — automatic log of every stage change, note, call, and email on this lead.</li>
+          <li><b>Notes, Tickets, Calendar Pro</b> — free-text notes, support tickets, and interview/call scheduling scoped to this student.</li>
+          <li><b>Documents tab</b> — upload and check verification status without leaving the file.</li>
+          <li><b>Admission Details / Payment buttons</b> appear automatically once the student has an Application.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="sect" id="applications">
+      <h2>2.5 Applications</h2>
+      <p class="sect-desc">Application Manager lists every application across your organisation (or your own, as a Counsellor) with Payment Status, Form Status, and quick actions.</p>
+      <p style="font-size:14px;">Application Stage runs <span class="pill gray">Unverified</span> → <span class="pill gray">Verified</span> → <span class="pill gray">Application Started</span> → <span class="pill warn">Payment Approved</span> → <span class="pill gray">Application Submitted</span> → <span class="pill success">Enrolment</span>. Generate a payment link straight from the row, or open the application for full detail.</p>
+    </section>
+
+    <section class="sect" id="tasks-calendar">
+      <h2>2.6 Tasks &amp; Calendar</h2>
+      <p style="font-size:14px;">General to-dos (Tasks) and scheduled events/interviews (Calendar). Both can be tied to a specific lead from that lead's own file, or created standalone for anything else on your plate.</p>
+    </section>
+
+    <section class="sect" id="payments">
+      <h2>2.7 Payments</h2>
+      <p class="sect-desc">The full payment ledger — every transaction against every application, with its status.</p>
+      <div class="pillrow">
+        <span class="pill warn">Payment Pending</span><span class="flowarrow">→</span>
+        <span class="pill info">Payment Done</span><span class="flowarrow">(Accounts approves)→</span>
+        <span class="pill success">Paid</span>
+      </div>
+      <p style="font-size:14px; margin-top:10px;">Finance/Admin use the <b>Approve</b> action here to move Payment Done → Paid, which triggers the Provisional Admission Letter email automatically.</p>
+    </section>
+
+    <section class="sect" id="documents">
+      <h2>2.8 Documents</h2>
+      <p style="font-size:14px;">Organisation-wide view of every uploaded document across all students, filterable by status — the same Verify/Reject actions available on an individual student's file, but for bulk review.</p>
+    </section>
+
+    <section class="sect" id="campaigns">
+      <h2>2.9 Campaigns &amp; Communication</h2>
+      <div class="card">
+        <p><b>Email Campaigns</b> — compose and send to a filtered lead list; delivery is tracked per recipient.</p>
+        <p><b>Drip Workflows</b> — enrol leads into a multi-step, timed sequence of automated touches.</p>
+        <p><b>Social Comments</b> — Facebook/Instagram comments on your ads are auto-captured here and turned into leads automatically.</p>
+        <p><b>Comms Report</b> — a rollup of everything sent (WhatsApp, RCS, Email, SMS) across the organisation.</p>
+      </div>
+    </section>
+
+    <section class="sect" id="reports">
+      <h2>2.10 Reports &amp; Analytics</h2>
+      <p style="font-size:14px;">Reports, Analytics, Productivity, Call Activity Report, and Leaderboard cover conversion funnels, per-counsellor performance, call outcomes, and team rankings — all exportable, all scoped to your role's visibility (a Counsellor only ever sees their own numbers reflected in these).</p>
+    </section>
+
+    <section class="sect" id="users">
+      <h2>2.11 User Management <span class="pill gray">Admin</span></h2>
+      <p style="font-size:14px;">Add/edit users, assign roles and entity access, reset passwords, promote/revoke Super Admin, and manage custom Teams &amp; Roles beyond the four system defaults. See 1.7 for the procedure.</p>
+    </section>
+
+    <section class="sect" id="integrations">
+      <h2>2.12 Integrations <span class="pill gray">Admin</span></h2>
+      <p style="font-size:14px;">Connect Meta Lead Ads, Google Sign-In, SMTP email, Razorpay, RCS messaging, and more. Each card shows a <span class="pill success">Connected</span> badge once configured, a <b>Test Connection</b> button, and an eye icon to reveal a saved secret on demand. See 1.10 for policy.</p>
+    </section>
+
+    <section class="sect" id="tenants">
+      <h2>2.13 Platform Admin — Tenants <span class="pill gray">Platform Admin</span></h2>
+      <p style="font-size:14px;">Create organisations, edit their name/plan/allowed domains/lead-ID prefix, manage their admin accounts (add new, promote an existing user, reset credentials), suspend/reactivate, and use <b>View Leads</b> to step into a tenant as its own admin when helping them troubleshoot. See 1.8.</p>
+    </section>
+
+    <section class="sect" id="settings">
+      <h2>2.14 Settings &amp; Profile</h2>
+      <p style="font-size:14px;">Update your own name, photo, and mobile number (used for WhatsApp lead-assignment alerts and click-to-call) under <b>Profile</b>. Organisation-wide branding, entities, and lead-stage customisation live under <b>Organization</b> (Admin only).</p>
+    </section>
+
+    <section class="sect" id="troubleshooting">
+      <h2>2.15 Troubleshooting &amp; Support</h2>
+      <div class="card">
+        <p><b>"No leads found" as a Counsellor</b> — you only see leads assigned to you; ask an Admin to check your entity access and assignment.</p>
+        <p><b>Can't log into another organisation's URL</b> — each organisation's URL only accepts its own accounts (plus Platform Admins); the same email can have a separate account per organisation.</p>
+        <p><b>Payment link not generating</b> — check Razorpay credentials under Integrations are current, or use the Offline/UTR path instead.</p>
+        <p><b>Still stuck?</b> Use the <b>Ask CU AI</b> assistant in the top bar, or contact your organisation's Admin.</p>
+      </div>
+    </section>
+
+    <footer>CCRM Admissions CRM — internal documentation. Do not distribute externally with credentials included.</footer>
+  </main>
+</div>
