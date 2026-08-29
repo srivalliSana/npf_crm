@@ -19,7 +19,7 @@ export default function IntegrationSettings() {
 
   const fetchConfig = async () => {
     try {
-      const token = localStorage.getItem('ccrm_auth_token')
+      const token = localStorage.getItem('ccrm_token')
       const res = await fetch('/api/integrations/messaging-provider/calling', {
         headers: {
           'Content-Type': 'application/json',
@@ -51,7 +51,7 @@ export default function IntegrationSettings() {
 
     setConfigLoading(true)
     try {
-      const token = localStorage.getItem('ccrm_auth_token')
+      const token = localStorage.getItem('ccrm_token')
       const res = await fetch('/api/integrations/messaging-provider', {
         method: 'POST',
         headers: {

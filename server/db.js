@@ -755,6 +755,20 @@ export async function initDb() {
       }
     }
 
+    // Post-admission lifecycle: email verification → document upload → semester
+    // fee → ERP access. Kept on `applications` since that's the one row that
+    // already tracks the student's admission progress end to end.
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS email_otp VARCHAR(10);`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS email_otp_expires_at TIMESTAMP;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS doc_upload_token VARCHAR(100);`).catch(() => {})
+    // Locked → Pending (unlocked by admin after docs verified) → Payment Done → Paid
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS semester_fee_status VARCHAR(30) DEFAULT 'Locked';`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS erp_access_granted BOOLEAN DEFAULT false;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS erp_access_granted_at TIMESTAMP;`).catch(() => {})
+    // 'Application' | 'Semester' — lets one app_no carry two payment records
+    await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS fee_type VARCHAR(30) DEFAULT 'Application';`).catch(() => {})
+
     console.log('--- CCRM PostgreSQL Database Schema Bootstrapped & Seeded Successfully ---')
   } catch (err) {
     console.error('Failed to initialize CCRM database schema:', err)

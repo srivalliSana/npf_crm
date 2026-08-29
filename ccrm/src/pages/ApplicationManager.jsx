@@ -20,7 +20,7 @@ const QUICK_VIEWS = ['All Applications', 'My Applications', 'Payment Pending', '
 
 export default function ApplicationManager() {
   const navigate = useNavigate()
-  const { applications, addApplication, updateApplication, deleteApplication, leads, currentUser, showToast, generatePaymentLink } = useCcrm()
+  const { applications, addApplication, updateApplication, deleteApplication, leads, currentUser, showToast, generatePaymentLink, payments } = useCcrm()
 
   const [selectedRows, setSelectedRows] = useState([])
   const [exam, setExam] = useState('All Programs')
@@ -82,9 +82,8 @@ export default function ApplicationManager() {
   const handleSubmitOfflineUtr = async () => {
     if (!offlineUtr.trim()) return showToast('Please enter UTR / reference number.', 'error')
     try {
-      // Find pending payment for this app
-      const payRes = await fetch(`/api/payments?appNo=${linkApp.appNo}`).then(r => r.json()).catch(() => [])
-      const payment = Array.isArray(payRes) ? payRes.find(p => p.appNo === linkApp.appNo && p.status === 'Pending') : null
+      // Find pending payment for this app — read from already-authenticated context state
+      const payment = payments?.find(p => p.appNo === linkApp.appNo && p.status === 'Pending')
       const paymentId = payment?.id
 
       if (paymentId) {

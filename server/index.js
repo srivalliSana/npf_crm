@@ -1503,7 +1503,7 @@ app.get('/api/applications/next-app-id', async (req, res) => {
 
 app.get('/api/applications', authenticateToken, async (req, res) => {
   try {
-    const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept" FROM applications WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
+    const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept", email_verified AS "emailVerified", semester_fee_status AS "semesterFeeStatus", erp_access_granted AS "erpAccessGranted", erp_access_granted_at AS "erpAccessGrantedAt" FROM applications WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
     res.json(appsRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch applications.' })
@@ -1900,7 +1900,7 @@ app.get('/api/payments', authenticateToken, async (req, res) => {
     const { requesterRole, requesterName } = req.query
     // Admin/Manager/Finance see all; counsellors only their assigned leads' payments (matched by name)
     const isCounsellor = requesterRole && !['Admin', 'Manager', 'Finance'].includes(requesterRole) && requesterName
-    let sql = 'SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode" FROM payments WHERE tenant_id = $1'
+    let sql = 'SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode", fee_type AS "feeType" FROM payments WHERE tenant_id = $1'
     const params = [req.tenantId]
     if (isCounsellor) {
       params.push(requesterName)
@@ -1985,6 +1985,52 @@ async function autoSendAdmissionLetter(appNo, utrNumber, tenantId = 1) {
   }
 }
 
+// Helper — after the *application* fee is approved, gate the student behind
+// email OTP verification before they get the document-upload link.
+async function sendApplicationEmailOtp(appNo, tenantId = 1) {
+  try {
+    const r = await pool.query('SELECT id, name, email FROM applications WHERE app_no = $1 AND tenant_id = $2;', [appNo, tenantId])
+    if (!r.rows[0] || !r.rows[0].email) { console.warn(`[Email Verify] No email on file for ${appNo}, skipping OTP`); return }
+    const app = r.rows[0]
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    await pool.query(
+      `UPDATE applications SET email_otp = $1, email_otp_expires_at = NOW() + INTERVAL '30 minutes' WHERE id = $2;`,
+      [otp, app.id]
+    )
+    const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email/${appNo}`
+    await sendSystemMailAlert(
+      app.email,
+      `Verify your email — Admission ${appNo}`,
+      `Dear ${app.name},\n\nYour application fee payment has been received. Please verify your email to continue your admission process.\n\nYour verification OTP: ${otp}\n\nVerify here: ${verifyUrl}\n\nThis OTP is valid for 30 minutes. Your Admission Reference is ${appNo}.\n\nBest regards,\nCUTM Admissions Team`,
+      tenantId
+    )
+    console.log(`[Email Verify] OTP sent for ${appNo}`)
+  } catch (e) {
+    console.error(`[Email Verify] Failed to send OTP for ${appNo}:`, e.message)
+  }
+}
+
+// Helper — 1st semester fee approved → grant ERP access, notify the student.
+// There's no ERP system inside this CRM (see LMS/ERP integration roadmap);
+// this just flips the tracked status and tells the student what to use as
+// their login ID until a permanent Student ID is issued.
+async function grantErpAccess(appNo, tenantId = 1) {
+  try {
+    const r = await pool.query('SELECT name, email FROM applications WHERE app_no = $1 AND tenant_id = $2;', [appNo, tenantId])
+    if (!r.rows[0] || !r.rows[0].email) return
+    const app = r.rows[0]
+    await sendSystemMailAlert(
+      app.email,
+      `ERP Access Granted — ${appNo}`,
+      `Dear ${app.name},\n\nYour 1st semester fee payment has been received and you now have access to the Student ERP.\n\nUse your Admission Number as your login ID until your permanent Student ID is issued: ${appNo}\n\nWelcome aboard!\n\nBest regards,\nCUTM Admissions Team`,
+      tenantId
+    )
+    console.log(`[ERP Access] Granted + notified for ${appNo}`)
+  } catch (e) {
+    console.error(`[ERP Access] Failed for ${appNo}:`, e.message)
+  }
+}
+
 app.post('/api/payments/:id/submit-utr', async (req, res) => {
   const { id } = req.params
   const { utrNumber, payMode } = req.body
@@ -1995,15 +2041,18 @@ app.post('/api/payments/:id/submit-utr', async (req, res) => {
       SET status = 'Payment Done', utr_number = $1, pay_mode = $2,
           date = $3
       WHERE id = $4 AND tenant_id = $5
-      RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode";
+      RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode", fee_type AS "feeType";
     `, [utrNumber, payMode || 'offline', new Date().toLocaleDateString('en-IN'), id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Payment not found.' })
 
-    // Also update linked application pay status
-    await pool.query(`UPDATE applications SET pay_status = 'Payment Done' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
-
-    // Auto-send provisional letter (non-blocking)
-    autoSendAdmissionLetter(r.rows[0].appNo, utrNumber, req.tenantId).catch(() => {})
+    if (r.rows[0].feeType === 'Semester') {
+      await pool.query(`UPDATE applications SET semester_fee_status = 'Payment Done' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
+    } else {
+      // Also update linked application pay status
+      await pool.query(`UPDATE applications SET pay_status = 'Payment Done' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
+      // Auto-send provisional letter (non-blocking)
+      autoSendAdmissionLetter(r.rows[0].appNo, utrNumber, req.tenantId).catch(() => {})
+    }
 
     res.json(r.rows[0])
   } catch (err) {
@@ -2018,16 +2067,133 @@ app.post('/api/payments/:id/approve', async (req, res) => {
     const r = await pool.query(`
       UPDATE payments SET status = 'Paid'
       WHERE id = $1 AND status = 'Payment Done' AND tenant_id = $2
-      RETURNING id, name, app_no AS "appNo", amount, status, utr_number AS "utrNumber";
+      RETURNING id, name, app_no AS "appNo", amount, status, utr_number AS "utrNumber", fee_type AS "feeType";
     `, [id, req.tenantId])
     if (!r.rows[0]) return res.status(400).json({ error: 'Payment not found or not in Payment Done status.' })
-    await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
-    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
-      [`Payment approved: ₹25,000 — ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now', req.tenantId])
-    // Auto-send provisional letter (non-blocking)
-    autoSendAdmissionLetter(r.rows[0].appNo, r.rows[0].utrNumber || 'N/A', req.tenantId).catch(() => {})
+
+    if (r.rows[0].feeType === 'Semester') {
+      await pool.query(`UPDATE applications SET semester_fee_status = 'Paid', erp_access_granted = true, erp_access_granted_at = NOW() WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+        [`1st semester fee paid — ERP access granted: ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now', req.tenantId])
+      grantErpAccess(r.rows[0].appNo, req.tenantId).catch(() => {})
+    } else {
+      await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+        [`Payment approved: ₹25,000 — ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now', req.tenantId])
+      // Auto-send provisional letter (non-blocking)
+      autoSendAdmissionLetter(r.rows[0].appNo, r.rows[0].utrNumber || 'N/A', req.tenantId).catch(() => {})
+      // Gate next step behind email OTP verification (non-blocking)
+      sendApplicationEmailOtp(r.rows[0].appNo, req.tenantId).catch(() => {})
+    }
+
     res.json(r.rows[0])
   } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Admin/Manager unlocks the 1st semester fee once required documents are verified
+app.post('/api/applications/:id/unlock-semester-fee', authenticateToken, async (req, res) => {
+  if (!['Admin', 'Manager'].includes(req.user.role) && !req.user.isSuperAdmin) {
+    return res.status(403).json({ error: 'Only Admin/Manager can unlock the semester fee.' })
+  }
+  try {
+    const r = await pool.query(
+      `UPDATE applications SET semester_fee_status = 'Pending'
+       WHERE id = $1 AND tenant_id = $2 AND semester_fee_status = 'Locked'
+       RETURNING id, app_no AS "appNo", name, semester_fee_status AS "semesterFeeStatus";`,
+      [req.params.id, req.tenantId]
+    )
+    if (!r.rows[0]) return res.status(400).json({ error: 'Semester fee is already unlocked, or the application was not found.' })
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+      [`Semester fee unlocked for ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now', req.tenantId])
+    res.json(r.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Create the semester-fee payment record (separate row from the application fee,
+// same app_no) once it's unlocked — the existing Razorpay/offline UI then targets it by id.
+app.post('/api/applications/:id/generate-semester-fee', authenticateToken, async (req, res) => {
+  try {
+    const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [req.params.id, req.tenantId])
+    if (!appRes.rows[0]) return res.status(404).json({ error: 'Application not found.' })
+    const app = appRes.rows[0]
+    if (app.semester_fee_status !== 'Pending') {
+      return res.status(400).json({ error: `Semester fee isn't unlocked yet (status: ${app.semester_fee_status}). Verify required documents first.` })
+    }
+    const amount = parseInt(req.body.amount) || 45000
+    const insertRes = await pool.query(`
+      INSERT INTO payments (name, app_no, amount, method, status, date, fee_type, tenant_id)
+      VALUES ($1, $2, $3, $4, 'Pending', '', 'Semester', $5)
+      RETURNING id, name, app_no AS "appNo", amount, method, status, fee_type AS "feeType";
+    `, [app.name, app.app_no, amount, req.body.method || '', req.tenantId])
+    res.json(insertRes.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Public — resend the application-fee-stage email OTP (student lost/didn't get it)
+app.post('/api/public/resend-email-otp', async (req, res) => {
+  const { appNo } = req.body
+  if (!appNo) return res.status(400).json({ error: 'Application number required.' })
+  try {
+    const r = await pool.query('SELECT tenant_id FROM applications WHERE app_no = $1;', [appNo])
+    if (!r.rows[0]) return res.status(404).json({ error: 'Application not found.' })
+    await sendApplicationEmailOtp(appNo, r.rows[0].tenant_id)
+    res.json({ message: 'OTP resent — please check your email.' })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Public — verify the email OTP; on success, issue a document-upload link and email it
+app.post('/api/public/verify-email-otp', async (req, res) => {
+  const { appNo, otp } = req.body
+  if (!appNo || !otp) return res.status(400).json({ error: 'Application number and OTP are required.' })
+  try {
+    const r = await pool.query('SELECT * FROM applications WHERE app_no = $1;', [appNo])
+    if (!r.rows[0]) return res.status(404).json({ error: 'Application not found.' })
+    const app = r.rows[0]
+
+    if (app.email_verified) return res.json({ success: true, alreadyVerified: true })
+    if (!app.email_otp || !app.email_otp_expires_at) return res.status(400).json({ error: 'No OTP requested. Please request a new one.' })
+    if (new Date(app.email_otp_expires_at) < new Date()) return res.status(400).json({ error: 'OTP has expired. Please request a new one.' })
+    if (String(app.email_otp).trim() !== String(otp).trim()) return res.status(400).json({ error: 'Invalid OTP. Please check and try again.' })
+
+    await pool.query(`UPDATE applications SET email_verified = true, email_otp = NULL, email_otp_expires_at = NULL WHERE id = $1;`, [app.id])
+
+    // Reuse the existing document-upload-link infrastructure (document_links + /document-upload/:token)
+    // by matching this application back to its originating lead on email/mobile.
+    let shareUrl = null
+    const leadRes = await pool.query(
+      `SELECT id FROM leads WHERE tenant_id = $1 AND (LOWER(email) = LOWER($2) OR mobile = $3) LIMIT 1;`,
+      [app.tenant_id, app.email, app.mobile]
+    )
+    if (leadRes.rows[0]) {
+      const token = require('crypto').randomBytes(16).toString('hex')
+      const expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+      await pool.query(
+        `INSERT INTO document_links (lead_id, token, created_by, expiry_date) VALUES ($1, $2, $3, $4);`,
+        [leadRes.rows[0].id, token, 'System (Email Verification)', expiryDate]
+      )
+      await pool.query(`UPDATE applications SET doc_upload_token = $1 WHERE id = $2;`, [token, app.id])
+      shareUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/document-upload/${token}`
+      await sendSystemMailAlert(
+        app.email,
+        `Upload your documents — Admission ${appNo}`,
+        `Dear ${app.name},\n\nYour email has been verified. Please upload your required documents using the secure link below:\n\n${shareUrl}\n\nThis link is valid for 30 days.\n\nAdmission Reference: ${appNo}\n\nBest regards,\nCUTM Admissions Team`,
+        app.tenant_id
+      )
+    } else {
+      console.warn(`[Email Verify] No matching lead for application ${appNo} — document-upload link not sent`)
+    }
+
+    res.json({ success: true, docUploadLinkSent: !!shareUrl })
+  } catch (err) {
+    console.error('[Email Verify]', err)
     res.status(500).json({ error: err.message })
   }
 })
@@ -4021,8 +4187,8 @@ app.post('/api/document-upload/:token', uploadDoc.single('file'), async (req, re
 
     await pool.query(
       `INSERT INTO documents (student, type, file_url, status, upload_date)
-       VALUES ((SELECT name FROM leads WHERE id = $1), 'Candidate Upload', $2, 'Uploaded', NOW());`,
-      [leadId, fileUrl]
+       VALUES ((SELECT name FROM leads WHERE id = $1), $2, $3, 'Uploaded', NOW());`,
+      [leadId, req.body.type || 'Candidate Upload', fileUrl]
     )
     res.json({ success: true, message: 'Document uploaded successfully.' })
   } catch (err) {
@@ -5602,7 +5768,7 @@ app.post('/api/public/payments/:tenantSlug?/status', async (req, res) => {
 
 // --- FEATURE 11: PAYMENT LINK GENERATOR ---
 app.post('/api/payments/generate-link', async (req, res) => {
-  const { appNo, name, email, mobile, amount, method } = req.body
+  const { appNo, name, email, mobile, amount, method, paymentId } = req.body
   if (!appNo) return res.status(400).json({ error: 'Application number required.' })
 
   try {
@@ -5638,11 +5804,13 @@ app.post('/api/payments/generate-link', async (req, res) => {
       paymentLink = `https://pay.cutmap.ac.in/${appNo}?amount=${amount || 25000}&name=${encodeURIComponent(name || '')}`
     }
 
-    // Update payment record
-    await pool.query(
-      "UPDATE payments SET method = $1, status = 'Link Sent' WHERE app_no = $2;",
-      [method || 'Online', appNo]
-    )
+    // Update payment record — scope by id when given, since one app_no can
+    // now carry two payment rows (application fee + semester fee)
+    if (paymentId) {
+      await pool.query("UPDATE payments SET method = $1, status = 'Link Sent' WHERE id = $2;", [method || 'Online', paymentId])
+    } else {
+      await pool.query("UPDATE payments SET method = $1, status = 'Link Sent' WHERE app_no = $2;", [method || 'Online', appNo])
+    }
     await pool.query('INSERT INTO notifications (text, time) VALUES ($1, $2);', [`Payment link generated for ${appNo}: ₹${(amount || 25000).toLocaleString('en-IN')}`, 'Just now'])
 
     res.json({ success: true, paymentLink, appNo, amount: amount || 25000 })

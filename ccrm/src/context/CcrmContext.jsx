@@ -1159,13 +1159,13 @@ export function CcrmProvider({ children }) {
   }
 
   // Feature 11: Payment link
-  const generatePaymentLink = async (appNo, name, email, mobile, amount) => {
+  const generatePaymentLink = async (appNo, name, email, mobile, amount, paymentId) => {
     try {
       const integCfg = JSON.parse(localStorage.getItem('ccrm_integrations') || '{}')?.razorpay || {}
       const res = await fetch('/api/payments/generate-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appNo, name, email, mobile, amount, razorpayConfig: integCfg })
+        body: JSON.stringify({ appNo, name, email, mobile, amount, paymentId, razorpayConfig: integCfg })
       })
       if (res.ok) {
         const data = await res.json()

@@ -40,8 +40,9 @@ export default function Campaigns() {
     if (!confirm('⚠️ This will DELETE all campaigns data permanently.\n\nType OK to continue.')) return
     if (prompt('Type "RESET MODULE" to confirm') !== 'RESET MODULE') return showToast('Reset cancelled.', 'info')
     try {
+      const token = localStorage.getItem('ccrm_token')
       const res = await fetch('/api/admin/reset-module', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ module: 'campaigns', confirmPhrase: 'RESET MODULE' })
       })
       if (res.ok) {

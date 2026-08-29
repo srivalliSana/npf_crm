@@ -12,6 +12,9 @@ import {
 const SECTIONS = [
   { id: 'profile',       label: 'Profile Settings',      icon: User       },
   { id: 'organization',  label: 'Organization',           icon: Building   },
+  { id: 'notifications', label: 'Notifications',          icon: Bell       },
+  { id: 'security',      label: 'Security',               icon: Shield     },
+  { id: 'integrations',  label: 'Integrations',           icon: Link       },
   { id: 'backup',        label: 'Backup & Restore',       icon: Database,   adminOnly: true },
   { id: 'production',    label: 'Production Reset',       icon: AlertTriangle, adminOnly: true },
 ]

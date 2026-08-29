@@ -49,6 +49,8 @@ export default function ProductivityReport() {
           // Build owner lookup maps from fetched applications and payments
           let appsByOwner = {}
           let payByOwner = {}
+          let submittedByOwner = {}
+          let enrolledByOwner = {}
           let apps = []
 
           if (appsRes.ok) {
@@ -56,6 +58,8 @@ export default function ProductivityReport() {
             apps.forEach(app => {
               const owner = app.owner || 'Unassigned'
               appsByOwner[owner] = (appsByOwner[owner] || 0) + 1
+              if (app.stage === 'Application Submitted') submittedByOwner[owner] = (submittedByOwner[owner] || 0) + 1
+              if (app.stage === 'Enrolment' || app.stage === 'Enrolments') enrolledByOwner[owner] = (enrolledByOwner[owner] || 0) + 1
             })
           }
 
@@ -78,6 +82,8 @@ export default function ProductivityReport() {
           // Store for use in REPORT_DATA mapping below
           window._productivityAppCounts = appsByOwner
           window._productivityPayCounts = payByOwner
+          window._productivitySubmittedCounts = submittedByOwner
+          window._productivityEnrolledCounts = enrolledByOwner
         }
       } catch (e) {
         console.error('[Productivity]', e.message)
@@ -113,6 +119,8 @@ export default function ProductivityReport() {
     converted:       stats.converted || 0,
     appAssigned:     window._productivityAppCounts?.[stats.name] || 0,
     payApproved:     window._productivityPayCounts?.[stats.name] || 0,
+    appSubmitted:    window._productivitySubmittedCounts?.[stats.name] || 0,
+    enrolment:       window._productivityEnrolledCounts?.[stats.name] || 0,
   }))
 
   // Filter data based on selected domain
@@ -133,7 +141,9 @@ export default function ProductivityReport() {
     converted:       acc.converted       + row.converted,
     appAssigned:     acc.appAssigned     + row.appAssigned,
     payApproved:     acc.payApproved     + row.payApproved,
-  }), { leads: 0, unassigned: 0, untouched: 0, contacted: 0, followUp: 0, interested: 0, notInterested: 0, qualified: 0, converted: 0, appAssigned: 0, payApproved: 0 })
+    appSubmitted:    acc.appSubmitted    + row.appSubmitted,
+    enrolment:       acc.enrolment       + row.enrolment,
+  }), { leads: 0, unassigned: 0, untouched: 0, contacted: 0, followUp: 0, interested: 0, notInterested: 0, qualified: 0, converted: 0, appAssigned: 0, payApproved: 0, appSubmitted: 0, enrolment: 0 })
 
   const rowsPerPage = 6
   const totalPages = Math.ceil(REPORT_DATA.length / rowsPerPage) || 1
@@ -144,8 +154,8 @@ export default function ProductivityReport() {
     const rows = REPORT_DATA.map(r => [
       r.owner,
       r.email,
-      r.leadAssigned,
-      r.leadsEngaged,
+      r.leads,
+      r.contacted,
       r.untouched,
       r.appAssigned,
       r.payApproved,

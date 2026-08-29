@@ -628,6 +628,7 @@ export default function Reports() {
             { stage: 'Enrolled', count: enrolledN, color: '#059669' },
           ]
 
+          const allSources = Array.from(new Set(leads.map(l => l.source).filter(Boolean)))
           const sourceBreakdown = allSources.map(src => {
             const srcLeads = leads.filter(l => l.source === src)
             const srcApps = applications.filter(a => srcLeads.some(l => l.name === a.name))
@@ -829,6 +830,7 @@ export default function Reports() {
       case 'Publisher Benchmarking':
         return (() => {
           // Source quality matrix
+          const allSources = Array.from(new Set(leads.map(l => l.source).filter(Boolean)))
           const sourceMatrix = allSources.map(src => {
             const srcLeads = leads.filter(l => l.source === src)
             const srcApps = applications.filter(a => srcLeads.some(l => l.name === a.name || l.mobile === a.mobile))
