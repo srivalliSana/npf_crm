@@ -19,6 +19,24 @@ function initials(name = '') {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 }
 
+// Notifications are stored with a real `createdAt` timestamp but the legacy
+// `time` column is always literally the string "Just now" — compute the
+// actual relative time here instead of trusting that stored text.
+function relativeTime(createdAt, fallback) {
+  if (!createdAt) return fallback || ''
+  const then = new Date(createdAt).getTime()
+  if (Number.isNaN(then)) return fallback || ''
+  const diffSec = Math.max(0, Math.floor((Date.now() - then) / 1000))
+  if (diffSec < 60) return 'Just now'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr}h ago`
+  const diffDay = Math.floor(diffHr / 24)
+  if (diffDay < 7) return `${diffDay}d ago`
+  return new Date(createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 // Best-effort breadcrumb from the current path — no per-route title config
 // to maintain, just a readable default derived from the URL itself.
 function useBreadcrumb() {
@@ -137,7 +155,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
                         {n.title && n.text !== n.title && (
                           <p className="text-xs text-gray-500 mt-0.5">{n.text}</p>
                         )}
-                        <p className="text-[10px] text-gray-400 mt-1">{n.time}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">{relativeTime(n.createdAt, n.time)}</p>
                       </div>
                       {n.unread && <span className="w-1.5 h-1.5 bg-primary-500 rounded-full shrink-0 mt-1.5"></span>}
                     </div>

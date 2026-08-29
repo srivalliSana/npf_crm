@@ -327,7 +327,7 @@ export function CcrmProvider({ children }) {
   const addNotification = (text) => {
     // Optimistically add to local state; server creates it via createNotification() on actions
     const nextId = Date.now()
-    const newNotif = { id: nextId, text, title: text, time: 'Just now', unread: true }
+    const newNotif = { id: nextId, text, title: text, time: 'Just now', createdAt: new Date().toISOString(), unread: true }
     setNotifications(prev => [newNotif, ...prev])
   }
 
