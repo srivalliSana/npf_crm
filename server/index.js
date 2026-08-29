@@ -6804,6 +6804,185 @@ app.delete('/api/email-campaigns/:id', async (req, res) => {
 })
 
 // ============================================================
+// =========== ASK CU AI — real data, real answers ============
+// ============================================================
+// The assistant only ever states numbers that come back from
+// runCrmMetric() below (a real SQL query against this request's own
+// tenant/role scope) — it never estimates or invents a figure.
+
+async function getAnthropicClient(tenantId = 1) {
+  const apiKey = await getIntegrationSetting('anthropic_api_key', tenantId) || process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return { error: 'Ask CU AI isn\'t configured yet — add an Anthropic API key under Integrations.' }
+  try {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk')
+    return { client: new Anthropic({ apiKey }) }
+  } catch {
+    return { error: '@anthropic-ai/sdk not installed on server — run: cd server && npm install' }
+  }
+}
+
+const MIO_AI_METRICS = [
+  'lead_count', 'leads_by_source', 'pending_followups', 'untouched_leads',
+  'not_interested_reasons', 'conversion_by_counsellor', 'payment_pending',
+  'total_revenue', 'top_campaigns', 'enrollments', 'applications_by_stage',
+  'documents_pending', 'recent_leads'
+]
+
+// Every query is scoped to req.tenantId, and further scoped to the asking
+// counsellor's own leads/applications so nobody sees another counsellor's
+// book through the chat widget (same visibility rule as the Dashboard).
+async function runCrmMetric(metric, range, tenantId, currentUser) {
+  const isCounsellor = currentUser?.role === 'Counselor'
+  const ownerClause = isCounsellor ? ' AND owner = $2' : ''
+  const ownerParam = isCounsellor ? [currentUser.name] : []
+  const rangeCutoff = { today: "NOW() - INTERVAL '1 day'", week: "NOW() - INTERVAL '7 days'", month: "NOW() - INTERVAL '30 days'" }[range] || null
+
+  switch (metric) {
+    case 'lead_count': {
+      const dateClause = rangeCutoff ? ` AND created_at >= ${rangeCutoff}` : ''
+      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM leads WHERE tenant_id = $1${ownerClause}${dateClause};`, [tenantId, ...ownerParam])
+      return { count: r.rows[0].c, range: range || 'all-time' }
+    }
+    case 'leads_by_source': {
+      const dateClause = rangeCutoff ? ` AND created_at >= ${rangeCutoff}` : ''
+      const r = await pool.query(`SELECT source, COUNT(*)::int AS c FROM leads WHERE tenant_id = $1${ownerClause}${dateClause} GROUP BY source ORDER BY c DESC LIMIT 8;`, [tenantId, ...ownerParam])
+      return { bySource: r.rows, range: range || 'all-time' }
+    }
+    case 'pending_followups': {
+      const r = await pool.query(`SELECT name, follow_up_date FROM leads WHERE tenant_id = $1 AND stage = 'Follow Up'${ownerClause} ORDER BY id DESC LIMIT 5;`, [tenantId, ...ownerParam])
+      const countRes = await pool.query(`SELECT COUNT(*)::int AS c FROM leads WHERE tenant_id = $1 AND stage = 'Follow Up'${ownerClause};`, [tenantId, ...ownerParam])
+      return { count: countRes.rows[0].c, sample: r.rows }
+    }
+    case 'untouched_leads': {
+      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM leads WHERE tenant_id = $1 AND stage = 'Untouched'${ownerClause};`, [tenantId, ...ownerParam])
+      return { count: r.rows[0].c }
+    }
+    case 'not_interested_reasons': {
+      const r = await pool.query(`SELECT COALESCE(NULLIF(not_interested_reason,''),'Unspecified') AS reason, COUNT(*)::int AS c FROM leads WHERE tenant_id = $1 AND stage = 'Not Interested'${ownerClause} GROUP BY reason ORDER BY c DESC LIMIT 8;`, [tenantId, ...ownerParam])
+      return { reasons: r.rows }
+    }
+    case 'conversion_by_counsellor': {
+      const r = await pool.query(`
+        SELECT owner, COUNT(*)::int AS total,
+          SUM(CASE WHEN stage IN ('Payment Success','Converted') THEN 1 ELSE 0 END)::int AS converted
+        FROM leads WHERE tenant_id = $1 AND owner IS NOT NULL AND owner <> '' AND owner <> 'Unassigned'${ownerClause}
+        GROUP BY owner ORDER BY converted DESC LIMIT 10;`, [tenantId, ...ownerParam])
+      return { counsellors: r.rows.map(row => ({ ...row, rate: row.total ? +(100 * row.converted / row.total).toFixed(1) : 0 })) }
+    }
+    case 'payment_pending': {
+      const appOwnerClause = isCounsellor ? ' AND a.owner = $2' : ''
+      const r = await pool.query(`
+        SELECT p.name, p.amount, p.date, p.app_no AS "appNo"
+        FROM payments p JOIN applications a ON a.app_no = p.app_no AND a.tenant_id = p.tenant_id
+        WHERE p.tenant_id = $1 AND p.status = 'Pending'${appOwnerClause}
+        ORDER BY p.id ASC LIMIT 5;`, [tenantId, ...ownerParam])
+      const sumRes = await pool.query(`
+        SELECT COUNT(*)::int AS c, COALESCE(SUM(p.amount),0)::bigint AS total
+        FROM payments p JOIN applications a ON a.app_no = p.app_no AND a.tenant_id = p.tenant_id
+        WHERE p.tenant_id = $1 AND p.status = 'Pending'${appOwnerClause};`, [tenantId, ...ownerParam])
+      return { count: sumRes.rows[0].c, totalAmount: Number(sumRes.rows[0].total), oldestFew: r.rows }
+    }
+    case 'total_revenue': {
+      const appOwnerClause = isCounsellor ? ' AND a.owner = $2' : ''
+      const r = await pool.query(`
+        SELECT COALESCE(SUM(p.amount),0)::bigint AS total, COUNT(*)::int AS c
+        FROM payments p JOIN applications a ON a.app_no = p.app_no AND a.tenant_id = p.tenant_id
+        WHERE p.tenant_id = $1 AND p.status IN ('Paid','Approved','Payment Approved') AND p.utr_number IS NOT NULL AND TRIM(p.utr_number) <> ''${appOwnerClause};`, [tenantId, ...ownerParam])
+      return { totalAmount: Number(r.rows[0].total), paymentCount: r.rows[0].c }
+    }
+    case 'top_campaigns': {
+      const r = await pool.query(`SELECT name, channel, status, budget, spent, leads, conversions FROM campaigns WHERE tenant_id = $1 ORDER BY leads DESC LIMIT 5;`, [tenantId])
+      return { campaigns: r.rows }
+    }
+    case 'enrollments': {
+      const appOwnerClause = isCounsellor ? ' AND owner = $2' : ''
+      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM applications WHERE tenant_id = $1 AND stage IN ('Enrolment','Enrolments')${appOwnerClause};`, [tenantId, ...ownerParam])
+      return { count: r.rows[0].c }
+    }
+    case 'applications_by_stage': {
+      const appOwnerClause = isCounsellor ? ' AND owner = $2' : ''
+      const r = await pool.query(`SELECT stage, COUNT(*)::int AS c FROM applications WHERE tenant_id = $1${appOwnerClause} GROUP BY stage ORDER BY c DESC;`, [tenantId, ...ownerParam])
+      return { byStage: r.rows }
+    }
+    case 'documents_pending': {
+      const r = await pool.query(`SELECT COUNT(*)::int AS c FROM documents WHERE tenant_id = $1 AND status = 'Pending';`, [tenantId])
+      return { count: r.rows[0].c }
+    }
+    case 'recent_leads': {
+      const r = await pool.query(`SELECT name, source, stage, created_at AS "createdAt" FROM leads WHERE tenant_id = $1${ownerClause} ORDER BY created_at DESC LIMIT 5;`, [tenantId, ...ownerParam])
+      return { leads: r.rows }
+    }
+    default:
+      return { error: `Unknown metric: ${metric}` }
+  }
+}
+
+app.post('/api/mio-ai/ask', authenticateToken, async (req, res) => {
+  const question = (req.body?.question || '').trim()
+  if (!question) return res.status(400).json({ error: 'Question required.' })
+
+  const { client, error: clientError } = await getAnthropicClient(req.tenantId)
+  if (clientError) return res.status(400).json({ error: clientError })
+
+  const tools = [{
+    name: 'query_crm_data',
+    description: 'Query live, real-time data from this CRM\'s database — leads, applications, payments, campaigns, counsellor performance, or documents. Always call this before stating any number or fact about the CRM\'s data; never estimate or recall a figure from memory.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        metric: { type: 'string', enum: MIO_AI_METRICS, description: 'Which figure to pull.' },
+        range: { type: 'string', enum: ['today', 'week', 'month', 'all'], description: 'Time window for lead-count/source metrics. Defaults to all-time. Ignored by metrics that don\'t support it.' }
+      },
+      required: ['metric']
+    }
+  }]
+
+  const systemPrompt = `You are CU AI, the assistant embedded in CUTM's admissions CRM (CCRM). You answer questions about this organisation's own live leads, applications, payments, campaigns, and counsellor performance using the query_crm_data tool — never guess, estimate, or recall a number from earlier in the conversation; call the tool again if you need current data. You're talking to ${currentUserRoleLabel(req.user)}, so only discuss data already scoped to them by the tool. Keep answers short (2-4 sentences), lead with the number, use **bold** for key figures, and use ₹ with Indian comma grouping for money. If a question isn't about this CRM's data, answer briefly and steer back to what you can help with.`
+
+  const messages = [{ role: 'user', content: question }]
+  let finalText = ''
+  try {
+    for (let i = 0; i < 6; i++) {
+      const response = await client.messages.create({
+        model: 'claude-opus-5',
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools,
+        messages
+      })
+
+      if (response.stop_reason !== 'tool_use') {
+        finalText = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
+        break
+      }
+
+      messages.push({ role: 'assistant', content: response.content })
+      const toolResults = []
+      for (const block of response.content) {
+        if (block.type !== 'tool_use') continue
+        let result
+        try {
+          result = await runCrmMetric(block.input.metric, block.input.range, req.tenantId, req.user)
+        } catch (e) {
+          result = { error: e.message }
+        }
+        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
+      }
+      messages.push({ role: 'user', content: toolResults })
+    }
+    res.json({ answer: finalText || 'I ran out of steps answering that — try rephrasing your question.' })
+  } catch (err) {
+    console.error('[Ask CU AI]', err.message)
+    res.status(500).json({ error: err.status === 401 ? 'Invalid Anthropic API key — check Integrations.' : 'Ask CU AI failed to respond. Please try again.' })
+  }
+})
+
+function currentUserRoleLabel(user) {
+  if (user?.role === 'Counselor') return `${user.name}, a Counselor (their own leads/applications only)`
+  return `${user?.name || 'a user'}, ${user?.role || 'staff'} (organisation-wide data)`
+}
+
+// ============================================================
 // =================== END NEW FEATURES ======================
 // ============================================================
 
