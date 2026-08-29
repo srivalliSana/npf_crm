@@ -688,27 +688,6 @@ export async function initDb() {
       }
     }
 
-    // Seed Documents
-    const docsCountRes = await client.query('SELECT COUNT(*) FROM documents;')
-    if (parseInt(docsCountRes.rows[0].count) === 0) {
-      console.log('Seeding initial documents...')
-      const seedDocs = [
-        ['Ravi Kumar Sharma', '10th Marksheet', 'Verified', '20/05/2026'],
-        ['Ravi Kumar Sharma', '12th Marksheet', 'Verified', '20/05/2026'],
-        ['Ravi Kumar Sharma', 'Aadhaar Card', 'Verified', '21/05/2026'],
-        ['Priya Devi Nayak', '10th Marksheet', 'Pending', '22/05/2026'],
-        ['Priya Devi Nayak', 'Transfer Certificate', 'Rejected', '22/05/2026'],
-        ['Arjun Patel', '10th Marksheet', 'Verified', '23/05/2026'],
-        ['Arjun Patel', '12th Marksheet', 'Pending', '23/05/2026']
-      ]
-      for (const d of seedDocs) {
-        await client.query(`
-          INSERT INTO documents (student, type, status, upload_date)
-          VALUES ($1, $2, $3, $4)
-        `, d)
-      }
-    }
-
     // Seed Events
     const eventsCountRes = await client.query('SELECT COUNT(*) FROM events;')
     if (parseInt(eventsCountRes.rows[0].count) === 0) {

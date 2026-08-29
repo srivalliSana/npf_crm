@@ -11,6 +11,11 @@ const QUICK_VIEWS = [
   'Effort Analysis',
 ]
 
+// Case/whitespace-insensitive owner key — matches the backend's LOWER()-based
+// join for leads, so applications/payments counts don't silently read 0 for a
+// counsellor whose stored owner string differs only in case or trailing spaces.
+const normOwner = (s) => (s || 'Unassigned').trim().toLowerCase()
+
 function BlueNum({ n }) {
   return (
     <button className="text-primary-500 hover:text-primary-700 hover:underline font-semibold focus:outline-none">
@@ -56,7 +61,7 @@ export default function ProductivityReport() {
           if (appsRes.ok) {
             apps = await appsRes.json()
             apps.forEach(app => {
-              const owner = app.owner || 'Unassigned'
+              const owner = normOwner(app.owner)
               appsByOwner[owner] = (appsByOwner[owner] || 0) + 1
               if (app.stage === 'Application Submitted') submittedByOwner[owner] = (submittedByOwner[owner] || 0) + 1
               if (app.stage === 'Enrolment' || app.stage === 'Enrolments') enrolledByOwner[owner] = (enrolledByOwner[owner] || 0) + 1
@@ -72,7 +77,7 @@ export default function ProductivityReport() {
               if (p.status === 'Approved' || p.status === 'Payment Approved' || p.status === 'Paid') {
                 const app = appMap[p.appNo]
                 if (app) {
-                  const owner = app.owner || 'Unassigned'
+                  const owner = normOwner(app.owner)
                   payByOwner[owner] = (payByOwner[owner] || 0) + 1
                 }
               }
@@ -95,11 +100,14 @@ export default function ProductivityReport() {
     fetchStats()
   }, [])
 
-  // Helper function to determine domain from email
+  // Helper function to determine domain from email — case-insensitive, matches
+  // the backend's ILIKE-based split so a counsellor never silently vanishes
+  // from a domain tab just because their stored email has different casing.
   const getDomain = (email) => {
-    if (!email) return 'other'
-    if (email.includes('@cutm.ac.in')) return 'cutm'
-    if (email.includes('@cutmap.ac.in')) return 'cutmap'
+    const e = (email || '').toLowerCase()
+    if (!e) return 'other'
+    if (e.includes('@cutm.ac.in')) return 'cutm'
+    if (e.includes('@cutmap.ac.in')) return 'cutmap'
     return 'other'
   }
 
@@ -117,10 +125,10 @@ export default function ProductivityReport() {
     notInterested:   stats.notInterested || 0,
     qualified:       stats.qualified || 0,
     converted:       stats.converted || 0,
-    appAssigned:     window._productivityAppCounts?.[stats.name] || 0,
-    payApproved:     window._productivityPayCounts?.[stats.name] || 0,
-    appSubmitted:    window._productivitySubmittedCounts?.[stats.name] || 0,
-    enrolment:       window._productivityEnrolledCounts?.[stats.name] || 0,
+    appAssigned:     window._productivityAppCounts?.[normOwner(stats.name)] || 0,
+    payApproved:     window._productivityPayCounts?.[normOwner(stats.name)] || 0,
+    appSubmitted:    window._productivitySubmittedCounts?.[normOwner(stats.name)] || 0,
+    enrolment:       window._productivityEnrolledCounts?.[normOwner(stats.name)] || 0,
   }))
 
   // Filter data based on selected domain
