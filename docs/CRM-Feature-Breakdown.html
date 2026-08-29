@@ -1,0 +1,176 @@
+<title>CRM Feature Breakdown</title>
+<style>
+  :root {
+    --ink: #10182b; --paper: #f2f4fa; --card: #ffffff; --line: #e1e6f0; --muted: #5c6a86;
+    --accent: #4338ca; --accent-soft: #eef0fd; --accent-ink: #362d9e;
+    --exists: #157a4d; --exists-soft: #dcf5e8;
+    --partial: #a3690a; --partial-soft: #fbecd2;
+    --missing: #c0362c; --missing-soft: #fbe3e1;
+    --shadow: 0 1px 2px rgba(16,24,43,.05), 0 8px 24px -10px rgba(16,24,43,.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8ecf8; --paper: #0a0e1a; --card: #121729; --line: #232a42; --muted: #909dc2;
+      --accent: #8b83ff; --accent-soft: rgba(139,131,255,.14); --accent-ink: #b3adff;
+      --exists: #4fd695; --exists-soft: rgba(79,214,149,.14);
+      --partial: #f0b429; --partial-soft: rgba(240,180,41,.14);
+      --missing: #ff7a70; --missing-soft: rgba(255,122,112,.14);
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px -12px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e8ecf8; --paper: #0a0e1a; --card: #121729; --line: #232a42; --muted: #909dc2;
+    --accent: #8b83ff; --accent-soft: rgba(139,131,255,.14); --accent-ink: #b3adff;
+    --exists: #4fd695; --exists-soft: rgba(79,214,149,.14);
+    --partial: #f0b429; --partial-soft: rgba(240,180,41,.14);
+    --missing: #ff7a70; --missing-soft: rgba(255,122,112,.14);
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px -12px rgba(0,0,0,.55);
+  }
+  :root[data-theme="light"] {
+    --ink: #10182b; --paper: #f2f4fa; --card: #ffffff; --line: #e1e6f0; --muted: #5c6a86;
+    --accent: #4338ca; --accent-soft: #eef0fd; --accent-ink: #362d9e;
+    --exists: #157a4d; --exists-soft: #dcf5e8;
+    --partial: #a3690a; --partial-soft: #fbecd2;
+    --missing: #c0362c; --missing-soft: #fbe3e1;
+    --shadow: 0 1px 2px rgba(16,24,43,.05), 0 8px 24px -10px rgba(16,24,43,.14);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace; }
+
+  .wrap { max-width: 920px; margin: 0 auto; padding: clamp(24px,5vw,56px) clamp(16px,4vw,32px) 90px; }
+
+  .kicker { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--accent); margin-bottom: 10px; }
+  h1 { font-size: clamp(24px,4vw,32px); font-weight: 800; letter-spacing: -.02em; margin: 0 0 10px; text-wrap: balance; line-height: 1.15; }
+  .dek { font-size: 14.5px; color: var(--muted); line-height: 1.65; max-width: 68ch; margin: 0 0 30px; }
+
+  h2 { font-size: 19px; font-weight: 800; letter-spacing: -.01em; margin: 46px 0 4px; text-wrap: balance;
+    display: flex; align-items: center; gap: 10px; }
+  h2 .num { width: 26px; height: 26px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink);
+    font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sect-desc { font-size: 13.5px; color: var(--muted); margin: 0 0 18px; max-width: 66ch; line-height: 1.6; }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .04em; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.exists { background: var(--exists-soft); color: var(--exists); }
+  .pill.partial { background: var(--partial-soft); color: var(--partial); }
+  .pill.missing { background: var(--missing-soft); color: var(--missing); }
+
+  /* Table 1 — what we have */
+  .havetable-wrap, .needtable-wrap, .modtable-wrap { overflow-x: auto; border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: var(--shadow); background: var(--card); margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 620px; }
+  th { text-align: left; background: var(--paper); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--muted); padding: 11px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.55; }
+  tr:last-child td { border-bottom: none; }
+  td.cat { font-weight: 700; white-space: nowrap; }
+  .evidence code { font-size: 11.5px; background: var(--accent-soft); color: var(--accent-ink); padding: 1px 5px; border-radius: 5px; }
+  .modtable td.mnum { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; }
+  .modtable td.mname { font-weight: 700; white-space: nowrap; }
+
+  .divider { height: 1px; background: var(--line); margin: 44px 0; border: none; }
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 40px 20px 10px; }
+</style>
+
+<div class="wrap">
+  <div class="kicker">CCRM · feature breakdown for Friday demo planning</div>
+  <h1>What we have, what we need to add, and how they compare</h1>
+  <p class="dek">Three views of the same audit: current CRM capabilities on their own, the additional features the lead-to-alumni spec requires on their own, and a final side-by-side comparison across all 17 modules from Sarada Prasad's email.</p>
+
+  <h2><span class="num">1</span>What we have today</h2>
+  <p class="sect-desc">Working, shipped features already in the codebase, grouped by area.</p>
+  <div class="havetable-wrap">
+    <table>
+      <thead><tr><th>Area</th><th>Feature</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td class="cat">Lead capture</td><td>Meta/Facebook &amp; Instagram Lead Ads webhook (auto lead creation)</td><td class="evidence"><code>server/index.js:4360</code></td></tr>
+        <tr><td class="cat"></td><td>Google Sheets bulk lead sync</td><td class="evidence"><code>syncGoogleSheet()</code></td></tr>
+        <tr><td class="cat"></td><td>Website inquiry form → CRM lead</td><td class="evidence"><code>PublicInquiry.jsx</code></td></tr>
+        <tr><td class="cat"></td><td>Duplicate lead detection (mobile/email)</td><td class="evidence"><code>/api/leads/check-duplicate</code></td></tr>
+        <tr><td class="cat"></td><td>Round-robin counsellor auto-assignment</td><td class="evidence"><code>getNextAssignee()</code></td></tr>
+        <tr><td class="cat"></td><td>Lead stage tracking (Untouched → Payment Success)</td><td class="evidence"><code>leads.stage</code></td></tr>
+        <tr><td class="cat">Qualification</td><td>Lead quality/priority scoring</td><td class="evidence"><code>calculateLeadScore()</code></td></tr>
+        <tr><td class="cat">Counselling</td><td>Role-scoped counsellor dashboard</td><td class="evidence"><code>Dashboard.jsx</code></td></tr>
+        <tr><td class="cat"></td><td>Call logging, click-to-call, call outcomes</td><td class="evidence"><code>call_logs</code>, <code>ClickToCall.jsx</code></td></tr>
+        <tr><td class="cat"></td><td>WhatsApp / SMS / RCS / email communication logs</td><td class="evidence"><code>whatsapp_logs</code>, <code>email_logs</code></td></tr>
+        <tr><td class="cat"></td><td>Follow-up scheduling + morning "untouched leads" reminder</td><td class="evidence"><code>follow_up_date</code>, cron job</td></tr>
+        <tr><td class="cat"></td><td>Free-text counselling notes</td><td class="evidence">Student File → Notes tab</td></tr>
+        <tr><td class="cat">Application</td><td>Auto-created application on Process for Payment</td><td class="evidence"><code>ApplicationDetails.jsx</code></td></tr>
+        <tr><td class="cat"></td><td>Auto-generated application number</td><td class="evidence"><code>CUEEAP26...</code></td></tr>
+        <tr><td class="cat"></td><td>Document upload, verify/reject workflow</td><td class="evidence">Documents tab, verify/reject routes</td></tr>
+        <tr><td class="cat"></td><td>Counsellor ownership + transfer approvals</td><td class="evidence"><code>TransferApprovals.jsx</code></td></tr>
+        <tr><td class="cat">Payment</td><td>Razorpay online payment + offline/UTR payment</td><td class="evidence"><code>server/index.js:5609</code></td></tr>
+        <tr><td class="cat"></td><td>Payment approval workflow, auto-sent admission letter</td><td class="evidence">Payments page → Approve</td></tr>
+        <tr><td class="cat">Automation</td><td>Multi-step, multi-channel Drip Workflows</td><td class="evidence"><code>DripWorkflows.jsx</code></td></tr>
+        <tr><td class="cat">Dashboards</td><td>Management, Counsellor, Analytics, Reports, Productivity, Leaderboard</td><td class="evidence">6 distinct dashboard/report pages</td></tr>
+        <tr><td class="cat">Chatbot</td><td>Rule-based FAQ widget on landing page</td><td class="evidence"><code>ChatWidget.jsx</code></td></tr>
+        <tr><td class="cat">Platform</td><td>Multi-tenant CRM (separate org per client, own login URL/branding)</td><td class="evidence"><code>PlatformTenants.jsx</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="divider">
+
+  <h2><span class="num">2</span>Additional features we need to add</h2>
+  <p class="sect-desc">What the lead-to-alumni spec calls for that has no equivalent in the codebase today — this is the real build list.</p>
+  <div class="needtable-wrap">
+    <table>
+      <thead><tr><th>Area</th><th>Feature to build</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="cat">Lead capture</td><td>UTM/campaign-parameter capture on every lead; LinkedIn Lead Ads ingestion</td><td><span class="pill partial">Near-term</span></td></tr>
+        <tr><td class="cat">Qualification</td><td>Eligibility fields (marks/board) + automated qualification rules gating stage moves</td><td><span class="pill partial">Near-term</span></td></tr>
+        <tr><td class="cat">Counselling</td><td>Programme recommendation engine, EMI/fee info surfaced to counsellors, counsellor FAQ/KB</td><td><span class="pill partial">Near-term</span></td></tr>
+        <tr><td class="cat">Fees</td><td>Fee-structure config (per programme), semester-fee model, EMI/installment tracking, refunds</td><td><span class="pill partial">Near-term</span></td></tr>
+        <tr><td class="cat">Onboarding</td><td>Student ID generation, onboarding checklist, LMS account provisioning, orientation scheduling</td><td><span class="pill missing">Phase 2</span></td></tr>
+        <tr><td class="cat">Academic services</td><td>LMS integration: enrollment, attendance, engagement, academic support tickets</td><td><span class="pill missing">Phase 2</span></td></tr>
+        <tr><td class="cat">Exams</td><td>Assignment status, exam registration, hall ticket, results, backlog tracking</td><td><span class="pill missing">Phase 3</span></td></tr>
+        <tr><td class="cat">Continuation</td><td>Semester re-registration workflow, fee-due reminders, dropout/re-engagement tracking</td><td><span class="pill missing">Phase 3</span></td></tr>
+        <tr><td class="cat">Completion</td><td>Credit completion tracking, certificate/degree status, convocation info</td><td><span class="pill missing">Phase 3</span></td></tr>
+        <tr><td class="cat">Placement</td><td>Career profile, resume, placement drives, interview + offer tracking</td><td><span class="pill missing">Phase 4</span></td></tr>
+        <tr><td class="cat">Alumni</td><td>Alumni database, events, networking, referrals, continuous-learning offers</td><td><span class="pill missing">Phase 4</span></td></tr>
+        <tr><td class="cat">Automation</td><td>Generic event-trigger engine (payment pending → reminder, doc rejected → notify, etc.)</td><td><span class="pill partial">Near-term</span></td></tr>
+        <tr><td class="cat">Dashboards</td><td>Academic/Operations dashboard, Placement dashboard, Alumni dashboard</td><td><span class="pill missing">Phase 2–4</span></td></tr>
+        <tr><td class="cat">Website</td><td>Full programme-discovery site: programme pages, faculty, testimonials, brochures</td><td><span class="pill partial">Near-term</span></td></tr>
+        <tr><td class="cat">Chatbot/Voicebot</td><td>AI-backed chatbot wired into CRM lead creation; voicebot for calls/reminders</td><td><span class="pill partial">Near-term</span></td></tr>
+        <tr><td class="cat">Analytics</td><td>Google Analytics, Meta Pixel/CAPI, UTM attribution, cost-per-lead/admission</td><td><span class="pill partial">Near-term</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="divider">
+
+  <h2><span class="num">3</span>Final comparison table</h2>
+  <p class="sect-desc">All 17 modules from the email, side by side against current implementation status.</p>
+  <div class="modtable-wrap">
+    <table class="modtable">
+      <thead><tr><th>#</th><th>Module (target spec)</th><th>Status</th><th>Have vs. need, in one line</th></tr></thead>
+      <tbody>
+        <tr><td class="mnum">1</td><td class="mname">Lead Generation</td><td><span class="pill partial">Partial</span></td><td>Have: Meta capture, dedup, auto-assign. Need: UTM tracking, LinkedIn.</td></tr>
+        <tr><td class="mnum">2</td><td class="mname">Lead Validation &amp; Qualification</td><td><span class="pill partial">Partial</span></td><td>Have: lead scoring. Need: eligibility fields, qualification rules.</td></tr>
+        <tr><td class="mnum">3</td><td class="mname">Enquiry + Counselling</td><td><span class="pill partial">Partial</span></td><td>Have: calls/WhatsApp/follow-ups. Need: recommendations, EMI info, KB.</td></tr>
+        <tr><td class="mnum">4</td><td class="mname">Application &amp; Admission</td><td><span class="pill exists">Exists</span></td><td>Have: full lifecycle, working end-to-end. Need: nothing major.</td></tr>
+        <tr><td class="mnum">5</td><td class="mname">Fee &amp; Payment</td><td><span class="pill partial">Partial</span></td><td>Have: Razorpay + offline payment. Need: fee config, EMI, refunds.</td></tr>
+        <tr><td class="mnum">6</td><td class="mname">Student Onboarding</td><td><span class="pill missing">Missing</span></td><td>Have: nothing. Need: entire module.</td></tr>
+        <tr><td class="mnum">7</td><td class="mname">Academic Services</td><td><span class="pill missing">Missing</span></td><td>Have: nothing (no LMS link). Need: entire module.</td></tr>
+        <tr><td class="mnum">8</td><td class="mname">Assignments &amp; Examinations</td><td><span class="pill missing">Missing</span></td><td>Have: nothing. Need: entire module.</td></tr>
+        <tr><td class="mnum">9</td><td class="mname">Re-registration / Continuation</td><td><span class="pill missing">Missing</span></td><td>Have: nothing. Need: entire module.</td></tr>
+        <tr><td class="mnum">10</td><td class="mname">Programme Completion</td><td><span class="pill missing">Missing</span></td><td>Have: nothing. Need: entire module.</td></tr>
+        <tr><td class="mnum">11</td><td class="mname">Placement &amp; Career Services</td><td><span class="pill missing">Missing</span></td><td>Have: marketing copy only. Need: entire module.</td></tr>
+        <tr><td class="mnum">12</td><td class="mname">Alumni Management</td><td><span class="pill missing">Missing</span></td><td>Have: marketing copy only. Need: entire module.</td></tr>
+        <tr><td class="mnum">13</td><td class="mname">Automation</td><td><span class="pill partial">Partial</span></td><td>Have: campaign drip sequences. Need: generic event-trigger engine.</td></tr>
+        <tr><td class="mnum">14</td><td class="mname">CRM Dashboards</td><td><span class="pill partial">Partial</span></td><td>Have: Sales/Management dashboards. Need: Academic/Placement/Alumni views.</td></tr>
+        <tr><td class="mnum">15</td><td class="mname">Website (cuedu.in)</td><td><span class="pill partial">Partial</span></td><td>Have: one landing page. Need: full programme-discovery site.</td></tr>
+        <tr><td class="mnum">16</td><td class="mname">Chatbot / Voicebot</td><td><span class="pill partial">Partial</span></td><td>Have: static FAQ widget. Need: AI chatbot wired to CRM, voicebot.</td></tr>
+        <tr><td class="mnum">17</td><td class="mname">Analytics &amp; Marketing Integration</td><td><span class="pill missing">Missing</span></td><td>Have: nothing. Need: GA/Pixel/UTM + attribution + CPL/CPA.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>Prepared from a full-repo audit of the CCRM codebase — every claim above is backed by a specific route, table, or file.</footer>
+</div>

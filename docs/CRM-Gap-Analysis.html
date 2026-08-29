@@ -1,0 +1,222 @@
+<title>Lead-to-Alumni Gap Analysis</title>
+<style>
+  :root {
+    --ink: #10182b; --paper: #f2f4fa; --card: #ffffff; --line: #e1e6f0; --muted: #5c6a86;
+    --accent: #4338ca; --accent-soft: #eef0fd; --accent-ink: #362d9e;
+    --exists: #157a4d; --exists-soft: #dcf5e8;
+    --partial: #a3690a; --partial-soft: #fbecd2;
+    --missing: #c0362c; --missing-soft: #fbe3e1;
+    --shadow: 0 1px 2px rgba(16,24,43,.05), 0 8px 24px -10px rgba(16,24,43,.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8ecf8; --paper: #0a0e1a; --card: #121729; --line: #232a42; --muted: #909dc2;
+      --accent: #8b83ff; --accent-soft: rgba(139,131,255,.14); --accent-ink: #b3adff;
+      --exists: #4fd695; --exists-soft: rgba(79,214,149,.14);
+      --partial: #f0b429; --partial-soft: rgba(240,180,41,.14);
+      --missing: #ff7a70; --missing-soft: rgba(255,122,112,.14);
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px -12px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e8ecf8; --paper: #0a0e1a; --card: #121729; --line: #232a42; --muted: #909dc2;
+    --accent: #8b83ff; --accent-soft: rgba(139,131,255,.14); --accent-ink: #b3adff;
+    --exists: #4fd695; --exists-soft: rgba(79,214,149,.14);
+    --partial: #f0b429; --partial-soft: rgba(240,180,41,.14);
+    --missing: #ff7a70; --missing-soft: rgba(255,122,112,.14);
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px -12px rgba(0,0,0,.55);
+  }
+  :root[data-theme="light"] {
+    --ink: #10182b; --paper: #f2f4fa; --card: #ffffff; --line: #e1e6f0; --muted: #5c6a86;
+    --accent: #4338ca; --accent-soft: #eef0fd; --accent-ink: #362d9e;
+    --exists: #157a4d; --exists-soft: #dcf5e8;
+    --partial: #a3690a; --partial-soft: #fbecd2;
+    --missing: #c0362c; --missing-soft: #fbe3e1;
+    --shadow: 0 1px 2px rgba(16,24,43,.05), 0 8px 24px -10px rgba(16,24,43,.14);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace; }
+  ::selection { background: var(--accent-soft); }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: clamp(24px,5vw,56px) clamp(16px,4vw,32px) 90px; }
+
+  .kicker { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--accent); margin-bottom: 10px; }
+  h1 { font-size: clamp(26px,4vw,34px); font-weight: 800; letter-spacing: -.02em; margin: 0 0 10px; text-wrap: balance; line-height: 1.15; }
+  .dek { font-size: 15px; color: var(--muted); line-height: 1.65; max-width: 66ch; margin: 0 0 30px; }
+
+  .statrow { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 34px; }
+  @media (max-width: 640px) { .statrow { grid-template-columns: repeat(2,1fr); } }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 14px;
+    box-shadow: var(--shadow); }
+  .stat .n { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1; }
+  .stat .l { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; }
+  .stat.exists .n { color: var(--exists); }
+  .stat.partial .n { color: var(--partial); }
+  .stat.missing .n { color: var(--missing); }
+  .stat.total .n { color: var(--ink); }
+
+  h2 { font-size: 19px; font-weight: 800; letter-spacing: -.01em; margin: 46px 0 4px; text-wrap: balance; }
+  h2 .idx { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 8px; }
+  .sect-desc { font-size: 13.5px; color: var(--muted); margin: 0 0 18px; max-width: 64ch; line-height: 1.6; }
+
+  .callout { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px;
+    box-shadow: var(--shadow); margin: 18px 0; }
+  .callout p { margin: 0 0 8px; font-size: 14px; line-height: 1.65; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout.accent { border-left: 3px solid var(--accent); }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .04em; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.exists { background: var(--exists-soft); color: var(--exists); }
+  .pill.partial { background: var(--partial-soft); color: var(--partial); }
+  .pill.missing { background: var(--missing-soft); color: var(--missing); }
+
+  .modtable-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); background: var(--card); }
+  table.modtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 720px; }
+  .modtable th { text-align: left; background: var(--paper); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--muted); padding: 11px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .modtable td { padding: 13px 16px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.55; }
+  .modtable tr:last-child td { border-bottom: none; }
+  .modtable td.mnum { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; }
+  .modtable td.mname { font-weight: 700; white-space: nowrap; }
+  .modtable .evidence { color: var(--muted); font-size: 12.5px; }
+  .modtable .evidence code { font-size: 11.5px; background: var(--accent-soft); color: var(--accent-ink); padding: 1px 5px; border-radius: 5px; }
+
+  .flow { display: flex; flex-direction: column; margin: 10px 0 0; }
+  .fstep { display: grid; grid-template-columns: 28px 1fr; gap: 14px; position: relative; padding-bottom: 4px; }
+  .fstep .rail { position: relative; display: flex; justify-content: center; }
+  .fstep .rail::before { content: ''; position: absolute; top: 22px; bottom: -4px; width: 2px; background: var(--line); }
+  .fstep:last-child .rail::before { display: none; }
+  .fstep .dot { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 800; z-index: 1; flex-shrink: 0; }
+  .fstep.ok .dot { background: var(--exists-soft); color: var(--exists); border: 2px solid var(--exists); }
+  .fstep.part .dot { background: var(--partial-soft); color: var(--partial); border: 2px solid var(--partial); }
+  .fstep.no .dot { background: var(--missing-soft); color: var(--missing); border: 2px solid var(--missing); }
+  .fbody { padding-bottom: 20px; }
+  .fbody .ftitle { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .fbody .fnote { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.55; max-width: 60ch; }
+
+  .divider { height: 1px; background: var(--line); margin: 44px 0; border: none; }
+
+  ul.clean { margin: 8px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.7; }
+  ul.clean li { margin-bottom: 6px; }
+
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 40px 20px 10px; }
+</style>
+
+<div class="wrap">
+  <div class="kicker">CCRM Gap Analysis · prepared for Friday demo planning</div>
+  <h1>Lead Generation → Alumni: what the CRM has today, vs. what was asked for</h1>
+  <p class="dek">Sarada Prasad's email asks for a full digital student lifecycle, not an admissions tool. Below is a module-by-module comparison of the 17-part target spec against what's actually implemented in the codebase right now — verified against real routes, tables, and files, not assumed from feature names.</p>
+
+  <div class="statrow">
+    <div class="stat total"><div class="n">17</div><div class="l">Modules in target spec</div></div>
+    <div class="stat exists"><div class="n">1</div><div class="l">Fully exists</div></div>
+    <div class="stat partial"><div class="n">8</div><div class="l">Partially exists</div></div>
+    <div class="stat missing"><div class="n">8</div><div class="l">Missing entirely</div></div>
+  </div>
+
+  <div class="callout accent">
+    <p><b>Headline finding.</b> Everything from <b>Lead Generation through Admission</b> (modules 1–5) is real and working — this is a genuine, demoable end-to-end flow. Everything <b>after Admission</b> — Onboarding, Academic Services, Exams, Re-registration, Completion, Placement, Alumni (modules 6–12) — does not exist in any form. Automation (13) is limited to campaign drip sequences, not the cross-module event triggers the spec describes. There is no LMS integration, no marketing website beyond one landing page, and no analytics/attribution layer.</p>
+  </div>
+
+  <h2><span class="idx">§1</span>Module-by-module comparison</h2>
+  <p class="sect-desc">Status reflects what's implemented in code today, independent of the CRM's UI polish.</p>
+
+  <div class="modtable-wrap">
+    <table class="modtable">
+      <thead><tr><th>#</th><th>Module</th><th>Status</th><th>What exists / evidence</th></tr></thead>
+      <tbody>
+        <tr><td class="mnum">1</td><td class="mname">Lead Generation</td><td><span class="pill partial">Partial</span></td>
+          <td>Meta Lead Ads webhook is real (<span class="evidence"><code>server/index.js:4360</code></span>); Google via manual Sheets sync only; <b>no LinkedIn ingestion</b>, <b>no UTM/campaign-param capture</b> on any lead. Duplicate detection and round-robin assignment both work.</td></tr>
+        <tr><td class="mnum">2</td><td class="mname">Lead Validation &amp; Qualification</td><td><span class="pill partial">Partial</span></td>
+          <td>Lead scoring exists (<span class="evidence"><code>calculateLeadScore()</code></span>) but no eligibility fields (marks/board), no automated qualification rules — scoring is informational only, doesn't gate stage transitions.</td></tr>
+        <tr><td class="mnum">3</td><td class="mname">Enquiry + Counselling</td><td><span class="pill partial">Partial</span></td>
+          <td>Counsellor dashboard, call logs, WhatsApp/SMS/email tracking, follow-up dates, and a morning "untouched leads" cron all exist. <b>No</b> programme-recommendation engine, no EMI info (EMI doesn't exist anywhere), no counsellor-facing FAQ/KB.</td></tr>
+        <tr><td class="mnum">4</td><td class="mname">Application &amp; Admission</td><td><span class="pill exists">Exists</span></td>
+          <td>Full application lifecycle: auto-numbering (<span class="evidence"><code>CUEEAP26...</code></span>), status tracking, document upload/verify/reject, counsellor ownership, transfer approvals. This is the strongest part of the system.</td></tr>
+        <tr><td class="mnum">5</td><td class="mname">Fee &amp; Payment</td><td><span class="pill partial">Partial</span></td>
+          <td>Razorpay + offline/UTR payment both work, with approval workflow. <b>No</b> fee-structure config table, <b>no</b> semester-fee model (only one flat application fee), <b>no</b> EMI/installment tracking, <b>no</b> refund tracking.</td></tr>
+        <tr><td class="mnum">6</td><td class="mname">Student Onboarding</td><td><span class="pill missing">Missing</span></td>
+          <td>No student ID generation, no onboarding checklist, no LMS account provisioning. "Orientation" appears once as a static seed calendar event, not a workflow.</td></tr>
+        <tr><td class="mnum">7</td><td class="mname">Student Academic Services</td><td><span class="pill missing">Missing</span></td>
+          <td>Zero references to "LMS" anywhere in the codebase. No course enrollment, attendance, or academic-support-ticket tracking tied to a learning platform.</td></tr>
+        <tr><td class="mnum">8</td><td class="mname">Assignments &amp; Examinations</td><td><span class="pill missing">Missing</span></td>
+          <td>No hall ticket, results, or backlog tracking. Only matches are unrelated ("Exam Fee" line item on the fee PDF, one static seed calendar event).</td></tr>
+        <tr><td class="mnum">9</td><td class="mname">Re-registration / Semester Continuation</td><td><span class="pill missing">Missing</span></td>
+          <td>Zero matches for "semester", "re-registration", or "dropout" anywhere in the codebase.</td></tr>
+        <tr><td class="mnum">10</td><td class="mname">Programme Completion</td><td><span class="pill missing">Missing</span></td>
+          <td>"Certificate" only refers to admission-time documents (Transfer/Caste/Migration certificates collected pre-enrolment). No degree or convocation tracking.</td></tr>
+        <tr><td class="mnum">11</td><td class="mname">Placement &amp; Career Services</td><td><span class="pill missing">Missing</span></td>
+          <td>"Placement" only appears as static marketing copy (chatbot FAQ answer, landing-page text). No resume, career-profile, drive, or interview tracking.</td></tr>
+        <tr><td class="mnum">12</td><td class="mname">Alumni Management</td><td><span class="pill missing">Missing</span></td>
+          <td>"Alumni" appears once, as marketing copy on the landing page. No alumni database, events, or engagement tracking.</td></tr>
+        <tr><td class="mnum">13</td><td class="mname">Automation</td><td><span class="pill partial">Partial</span></td>
+          <td>Drip Workflows support time-delayed, manually-enrolled multi-channel sequences. <b>No generic event-trigger engine</b> — nothing fires automatically off "payment pending," "document rejected," or similar state changes; only a couple of hardcoded cron jobs exist.</td></tr>
+        <tr><td class="mnum">14</td><td class="mname">CRM Dashboards</td><td><span class="pill partial">Partial</span></td>
+          <td>Role-scoped Management/Counsellor dashboards plus Analytics, Reports, Productivity, and Leaderboard views all exist and work well. <b>No</b> Academic/Operations, Placement, or Alumni dashboard — consistent with those modules not existing.</td></tr>
+        <tr><td class="mnum">15</td><td class="mname">Website (cuedu.in)</td><td><span class="pill partial">Partial</span></td>
+          <td>No separate marketing site — one lead-capture landing page (<span class="evidence"><code>PublicInquiry.jsx</code></span>) lives inside the CRM app itself. No programme-detail pages, faculty, testimonials, or brochure downloads.</td></tr>
+        <tr><td class="mnum">16</td><td class="mname">Chatbot / WhatsApp / Voicebot</td><td><span class="pill partial">Partial</span></td>
+          <td>A rule-based FAQ widget exists (keyword pattern-matching, no AI backend) but it <b>doesn't create leads or write to the CRM</b> — it's a static, disconnected FAQ box. No voicebot exists in any form.</td></tr>
+        <tr><td class="mnum">17</td><td class="mname">Analytics &amp; Marketing Integration</td><td><span class="pill missing">Missing</span></td>
+          <td>No Google Analytics, Meta Pixel/CAPI, or UTM capture anywhere. Campaign records store budget/spend totals but there's no cost-per-lead or attribution math computed from them.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="divider">
+
+  <h2><span class="idx">§2</span>Readiness of the Friday demo flow</h2>
+  <p class="sect-desc">Mapped against the 17-step lead-to-alumni journey from the email. Steps 1–11 are genuinely demoable today; 12–17 have no underlying feature to show.</p>
+
+  <div class="flow">
+    <div class="fstep part"><div class="rail"><div class="dot">~</div></div><div class="fbody">
+      <div class="ftitle">1. Website <span class="pill partial">Partial</span></div>
+      <div class="fnote">One landing page exists and works, not the full programme-discovery site described in the email — fine for a focused demo, not a benchmark-quality site yet.</div></div></div>
+    <div class="fstep ok"><div class="rail"><div class="dot">✓</div></div><div class="fbody">
+      <div class="ftitle">2–3. Apply/Enquire → lead enters CRM <span class="pill exists">Works</span></div>
+      <div class="fnote">Public inquiry form posts straight into the lead table with duplicate checking.</div></div></div>
+    <div class="fstep ok"><div class="rail"><div class="dot">✓</div></div><div class="fbody">
+      <div class="ftitle">4. Counsellor auto-assignment <span class="pill exists">Works</span></div>
+      <div class="fnote">Round-robin assignment logic is live.</div></div></div>
+    <div class="fstep ok"><div class="rail"><div class="dot">✓</div></div><div class="fbody">
+      <div class="ftitle">5–6. Contact + follow-up scheduled <span class="pill exists">Works</span></div>
+      <div class="fnote">Call logging, WhatsApp/email tracking, and follow-up dates all function.</div></div></div>
+    <div class="fstep part"><div class="rail"><div class="dot">~</div></div><div class="fbody">
+      <div class="ftitle">7. Lead becomes qualified <span class="pill partial">Manual</span></div>
+      <div class="fnote">Lead score exists but doesn't drive an automatic "Qualified" transition — a counsellor moves the stage by hand, which is fine for a live demo.</div></div></div>
+    <div class="fstep ok"><div class="rail"><div class="dot">✓</div></div><div class="fbody">
+      <div class="ftitle">8–11. Application → documents → payment → admission confirmed <span class="pill exists">Works</span></div>
+      <div class="fnote">This is the strongest, most complete part of the product — application auto-creation, document verification, Razorpay/offline payment, approval, and the auto-sent admission letter all function end-to-end.</div></div></div>
+    <div class="fstep no"><div class="rail"><div class="dot">✕</div></div><div class="fbody">
+      <div class="ftitle">12. Student onboarding <span class="pill missing">Not built</span></div></div></div>
+    <div class="fstep no"><div class="rail"><div class="dot">✕</div></div><div class="fbody">
+      <div class="ftitle">13. Semester progression <span class="pill missing">Not built</span></div></div></div>
+    <div class="fstep no"><div class="rail"><div class="dot">✕</div></div><div class="fbody">
+      <div class="ftitle">14. Examination <span class="pill missing">Not built</span></div></div></div>
+    <div class="fstep no"><div class="rail"><div class="dot">✕</div></div><div class="fbody">
+      <div class="ftitle">15. Completion <span class="pill missing">Not built</span></div></div></div>
+    <div class="fstep no"><div class="rail"><div class="dot">✕</div></div><div class="fbody">
+      <div class="ftitle">16. Placement <span class="pill missing">Not built</span></div></div></div>
+    <div class="fstep no"><div class="rail"><div class="dot">✕</div></div><div class="fbody">
+      <div class="ftitle">17. Alumni <span class="pill missing">Not built</span></div></div></div>
+  </div>
+
+  <hr class="divider">
+
+  <h2><span class="idx">§3</span>What this means for Friday</h2>
+  <div class="callout">
+    <p><b>The honest story to tell:</b> "Phase 1 — Lead to Admission — is live and working end-to-end today." That's steps 1–11, and it's a real, running system, not a mockup. Demo it live: a lead comes in from the landing page, gets assigned, gets counselled, converts to an application, gets documents verified, pays, and gets an admission letter auto-emailed.</p>
+    <p><b>Steps 12–17 have zero underlying implementation</b> — there's no realistic way to build working Onboarding, Academic Services, Exams, Re-registration, Completion, Placement, or Alumni features by Friday. Trying to fake these with static screens risks the demo reading as thin the moment anyone asks a follow-up question.</p>
+    <p><b>Recommended framing:</b> show the live Lead→Admission flow as "Phase 1, shipped," then present modules 6–17 as a named roadmap (Phase 2: Onboarding + Academic Services; Phase 3: Exams + Re-registration + Completion; Phase 4: Placement + Alumni) with the automation engine (module 13) called out as the connective layer that makes the whole thing feel like one system rather than a database — this directly answers the "digital ecosystem, not a database" line in the email without overclaiming what exists today.</p>
+  </div>
+
+  <footer>Prepared from a full-repo audit of the CCRM codebase — every "exists" claim above is backed by a specific route, table, or file.</footer>
+</div>
