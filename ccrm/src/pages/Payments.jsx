@@ -21,8 +21,9 @@ export default function Payments() {
     if (!confirm('⚠️ This will DELETE all payments data permanently.\n\nType OK to continue.')) return
     if (prompt('Type "RESET MODULE" to confirm') !== 'RESET MODULE') return showToast('Reset cancelled.', 'info')
     try {
+      const token = localStorage.getItem('ccrm_token')
       const res = await fetch('/api/admin/reset-module', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ module: 'payments', confirmPhrase: 'RESET MODULE' })
       })
       if (res.ok) {
@@ -168,13 +169,18 @@ export default function Payments() {
     navigator.clipboard?.writeText(url).then(() => showToast('Payment link copied!', 'success')).catch(() => showToast('Copy failed. Please copy manually.', 'warning'))
   }
 
-  const sendLinkViaWA = (app, url) => {
-    const msg = encodeURIComponent(`Dear ${app.name}, please complete your CUTM admission fee payment of ₹${Number(payAmount).toLocaleString('en-IN')} via this secure link:\n${url}\n\nApp No: ${app.appNo}\n\nBest Regards,\nCUTM Admissions Team`)
+  const sendLinkViaWA = (app, url, amount = payAmount) => {
+    const msg = encodeURIComponent(`Dear ${app.name}, please complete your CUTM admission fee payment of ₹${Number(amount).toLocaleString('en-IN')} via this secure link:\n${url}\n\nApp No: ${app.appNo}\n\nBest Regards,\nCUTM Admissions Team`)
     window.open(`https://wa.me/91${app.mobile}?text=${msg}`, '_blank')
   }
 
-  const handleSendLink = (p) => {
-    showToast(`Payment link successfully sent to ${p.name}'s registered contact details.`, 'success')
+  const handleSendLink = async (p) => {
+    const app = applications.find(a => a.appNo === p.appNo)
+    if (!app?.mobile) return showToast('No mobile number on file for this application.', 'error')
+    const linkRes = await generatePaymentLink(p.appNo, p.name, app.email, app.mobile, p.amount, p.id)
+    if (!linkRes?.paymentLink) return showToast('Failed to generate payment link.', 'error')
+    sendLinkViaWA(app, linkRes.paymentLink, p.amount)
+    showToast(`Payment link opened in WhatsApp for ${p.name}.`, 'success')
   }
 
   const handleRetry = (p) => {

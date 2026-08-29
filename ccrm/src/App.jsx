@@ -26,6 +26,8 @@ import Help from './pages/Help'
 import TransferApprovals from './pages/TransferApprovals'
 import PublicInquiry from './pages/PublicInquiry'
 import StudentPortal from './pages/StudentPortal'
+import VerifyEmail from './pages/VerifyEmail'
+import DocumentUpload from './pages/DocumentUpload'
 import Analytics from './pages/Analytics'
 import SocialComments from './pages/SocialComments'
 import PlatformTenants from './pages/PlatformTenants'
@@ -85,6 +87,9 @@ export default function App() {
           <Route path="apply"          element={<PublicInquiry />} />
           <Route path="student-portal" element={<StudentPortal />} />
           <Route path="student"        element={<StudentPortal />} />
+          <Route path="verify-email"       element={<VerifyEmail />} />
+          <Route path="verify-email/:appNo" element={<VerifyEmail />} />
+          <Route path="document-upload/:token" element={<DocumentUpload />} />
 
           {/* ── Login — redirect inside if already authenticated ──
               basename (set above from the URL) already handles the tenant
