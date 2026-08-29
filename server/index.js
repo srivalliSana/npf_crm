@@ -910,6 +910,9 @@ app.get('/api/gttech-leads', authenticateToken, async (req, res) => {
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
 
+    const status = req.query.status || ''
+    if (status) { params.push(status); where.push(`status = $${params.length}`) }
+
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM gttech_leads ${whereSql};`, params)
@@ -957,6 +960,9 @@ app.get('/api/ftl-leads', authenticateToken, async (req, res) => {
     } else if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
+
+    const status = req.query.status || ''
+    if (status) { params.push(status); where.push(`status = $${params.length}`) }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
@@ -1006,6 +1012,9 @@ app.get('/api/gtib-leads', authenticateToken, async (req, res) => {
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
 
+    const status = req.query.status || ''
+    if (status) { params.push(status); where.push(`status = $${params.length}`) }
+
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM gtib_leads ${whereSql};`, params)
@@ -1053,6 +1062,9 @@ app.get('/api/esse-leads', authenticateToken, async (req, res) => {
     } else if (owner === 'Unassigned') where.push(`(owner IS NULL OR owner = '')`)
     else if (owner === '!Unassigned') where.push(`(owner IS NOT NULL AND owner <> '')`)
     else if (owner) { params.push(owner); where.push(`owner = $${params.length}`) }
+
+    const status = req.query.status || ''
+    if (status) { params.push(status); where.push(`status = $${params.length}`) }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
