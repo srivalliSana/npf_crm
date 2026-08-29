@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Sparkles, X, Send, Bot, User } from 'lucide-react'
+import { Sparkles, X, Send, Bot, User, AlertCircle } from 'lucide-react'
 
 const SUGGESTIONS = [
   'Show me today\'s pending follow-ups',
@@ -10,30 +10,9 @@ const SUGGESTIONS = [
   'How many students enrolled this month?',
 ]
 
-const BOT_RESPONSES = {
-  'follow': 'You have **8 pending follow-ups** today. Top priority: Ravi Kumar Sharma (Call), Sneha Reddy (WhatsApp), Kiran Babu Rao (Email).',
-  'leads': 'This week **142 new leads** were added. Top sources: Google Ads (52), Facebook Ads (38), Referral (28).',
-  'conversion': '**Kavitha Rao** has the highest conversion rate at 18.2%, followed by Anita Sharma at 15.8%.',
-  'payment': 'There are **6 applications** with payment pending totaling ₹1,75,000. Oldest pending: Korumalli Vandana (3 days).',
-  'campaign': 'Top campaign: **Google Search – B.Tech** with 2,100 leads and 156 conversions (ROI: 142%).',
-  'enrolled': '**128 students** enrolled this month, up 22% from last month. B.Tech CSE leads with 34 enrollments.',
-  'default': 'I can help you with lead insights, application status, payment tracking, campaign performance, and team productivity. What would you like to know?',
-}
-
-function getBotResponse(msg) {
-  const lower = msg.toLowerCase()
-  if (lower.includes('follow')) return BOT_RESPONSES.follow
-  if (lower.includes('lead') && lower.includes('week')) return BOT_RESPONSES.leads
-  if (lower.includes('conversion')) return BOT_RESPONSES.conversion
-  if (lower.includes('payment')) return BOT_RESPONSES.payment
-  if (lower.includes('campaign')) return BOT_RESPONSES.campaign
-  if (lower.includes('enroll')) return BOT_RESPONSES.enrolled
-  return BOT_RESPONSES.default
-}
-
 export default function MioAI({ onClose }) {
   const [messages, setMessages] = useState([
-    { id: 1, role: 'bot', text: 'Hi! I\'m **CU AI**, your intelligent CCRM assistant. I can help you with lead insights, application tracking, payment status, and much more. What would you like to know?' }
+    { id: 1, role: 'bot', text: 'Hi! I\'m **CU AI**. I can answer real, live questions about your leads, applications, payments, and campaigns — ask me anything.' }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -43,16 +22,29 @@ export default function MioAI({ onClose }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const sendMessage = (text) => {
+  const sendMessage = async (text) => {
     const msg = text || input.trim()
-    if (!msg) return
+    if (!msg || loading) return
     setInput('')
     setMessages(prev => [...prev, { id: Date.now(), role: 'user', text: msg }])
     setLoading(true)
-    setTimeout(() => {
-      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'bot', text: getBotResponse(msg) }])
-      setLoading(false)
-    }, 800)
+    try {
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/mio-ai/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ question: msg })
+      })
+      const data = await res.json()
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        role: res.ok ? 'bot' : 'error',
+        text: res.ok ? data.answer : (data.error || 'Something went wrong.')
+      }])
+    } catch {
+      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'error', text: 'Network error — please try again.' }])
+    }
+    setLoading(false)
   }
 
   const renderText = (text) => {
@@ -82,10 +74,18 @@ export default function MioAI({ onClose }) {
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map(msg => (
           <div key={msg.id} className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'bot' ? 'bg-purple-100' : 'bg-primary-500'}`}>
-              {msg.role === 'bot' ? <Bot size={14} className="text-purple-600" /> : <User size={14} className="text-white" />}
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+              msg.role === 'user' ? 'bg-primary-500' : msg.role === 'error' ? 'bg-red-100' : 'bg-purple-100'
+            }`}>
+              {msg.role === 'user' ? <User size={14} className="text-white" />
+                : msg.role === 'error' ? <AlertCircle size={14} className="text-red-500" />
+                : <Bot size={14} className="text-purple-600" />}
             </div>
-            <div className={`max-w-[75%] px-3 py-2 rounded-xl text-sm ${msg.role === 'bot' ? 'bg-gray-100 text-gray-800' : 'bg-primary-500 text-white'}`}
+            <div className={`max-w-[75%] px-3 py-2 rounded-xl text-sm ${
+              msg.role === 'user' ? 'bg-primary-500 text-white'
+                : msg.role === 'error' ? 'bg-red-50 text-red-700 border border-red-100'
+                : 'bg-gray-100 text-gray-800'
+            }`}
               dangerouslySetInnerHTML={{ __html: renderText(msg.text) }} />
           </div>
         ))}
@@ -110,8 +110,8 @@ export default function MioAI({ onClose }) {
       <div className="px-4 pb-2">
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {SUGGESTIONS.slice(0, 3).map(s => (
-            <button key={s} onClick={() => sendMessage(s)}
-              className="text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-2.5 py-1 whitespace-nowrap hover:bg-purple-100 transition-colors flex-shrink-0">
+            <button key={s} onClick={() => sendMessage(s)} disabled={loading}
+              className="text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-2.5 py-1 whitespace-nowrap hover:bg-purple-100 transition-colors flex-shrink-0 disabled:opacity-50">
               {s.length > 28 ? s.slice(0, 28) + '…' : s}
             </button>
           ))}
