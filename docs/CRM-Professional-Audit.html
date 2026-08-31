@@ -1,0 +1,195 @@
+<title>Professional CRM Audit</title>
+<style>
+  :root {
+    --ink: #10182b; --paper: #f2f4fa; --card: #ffffff; --line: #e1e6f0; --muted: #5c6a86;
+    --accent: #4338ca; --accent-soft: #eef0fd; --accent-ink: #362d9e;
+    --exists: #157a4d; --exists-soft: #dcf5e8;
+    --partial: #a3690a; --partial-soft: #fbecd2;
+    --missing: #c0362c; --missing-soft: #fbe3e1;
+    --shadow: 0 1px 2px rgba(16,24,43,.05), 0 8px 24px -10px rgba(16,24,43,.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8ecf8; --paper: #0a0e1a; --card: #121729; --line: #232a42; --muted: #909dc2;
+      --accent: #8b83ff; --accent-soft: rgba(139,131,255,.14); --accent-ink: #b3adff;
+      --exists: #4fd695; --exists-soft: rgba(79,214,149,.14);
+      --partial: #f0b429; --partial-soft: rgba(240,180,41,.14);
+      --missing: #ff7a70; --missing-soft: rgba(255,122,112,.14);
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px -12px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e8ecf8; --paper: #0a0e1a; --card: #121729; --line: #232a42; --muted: #909dc2;
+    --accent: #8b83ff; --accent-soft: rgba(139,131,255,.14); --accent-ink: #b3adff;
+    --exists: #4fd695; --exists-soft: rgba(79,214,149,.14);
+    --partial: #f0b429; --partial-soft: rgba(240,180,41,.14);
+    --missing: #ff7a70; --missing-soft: rgba(255,122,112,.14);
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px -12px rgba(0,0,0,.55);
+  }
+  :root[data-theme="light"] {
+    --ink: #10182b; --paper: #f2f4fa; --card: #ffffff; --line: #e1e6f0; --muted: #5c6a86;
+    --accent: #4338ca; --accent-soft: #eef0fd; --accent-ink: #362d9e;
+    --exists: #157a4d; --exists-soft: #dcf5e8;
+    --partial: #a3690a; --partial-soft: #fbecd2;
+    --missing: #c0362c; --missing-soft: #fbe3e1;
+    --shadow: 0 1px 2px rgba(16,24,43,.05), 0 8px 24px -10px rgba(16,24,43,.14);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace; }
+  .wrap { max-width: 940px; margin: 0 auto; padding: clamp(24px,5vw,56px) clamp(16px,4vw,32px) 90px; }
+  .kicker { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: var(--accent); margin-bottom: 10px; }
+  h1 { font-size: clamp(24px,4vw,32px); font-weight: 800; letter-spacing: -.02em; margin: 0 0 10px; text-wrap: balance; line-height: 1.15; }
+  .dek { font-size: 14.5px; color: var(--muted); line-height: 1.65; max-width: 70ch; margin: 0 0 30px; }
+  .statrow { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 34px; }
+  @media (max-width: 640px) { .statrow { grid-template-columns: repeat(2,1fr); } }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 14px; box-shadow: var(--shadow); }
+  .stat .n { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1; }
+  .stat .l { font-size: 10.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; }
+  .stat.exists .n { color: var(--exists); } .stat.partial .n { color: var(--partial); }
+  .stat.missing .n { color: var(--missing); } .stat.total .n { color: var(--ink); }
+  h2 { font-size: 19px; font-weight: 800; letter-spacing: -.01em; margin: 46px 0 4px; text-wrap: balance; display: flex; align-items: center; gap: 10px; }
+  h2 .num { width: 26px; height: 26px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sect-desc { font-size: 13.5px; color: var(--muted); margin: 0 0 18px; max-width: 68ch; line-height: 1.6; }
+  .callout { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px; box-shadow: var(--shadow); margin: 18px 0; }
+  .callout p { margin: 0 0 8px; font-size: 14px; line-height: 1.65; } .callout p:last-child { margin-bottom: 0; }
+  .callout.accent { border-left: 3px solid var(--accent); }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.exists { background: var(--exists-soft); color: var(--exists); }
+  .pill.partial { background: var(--partial-soft); color: var(--partial); }
+  .pill.missing { background: var(--missing-soft); color: var(--missing); }
+  .modtable-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); background: var(--card); margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.3px; min-width: 680px; }
+  th { text-align: left; background: var(--paper); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 11px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.55; }
+  tr:last-child td { border-bottom: none; }
+  td.mnum { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; }
+  td.mname { font-weight: 700; white-space: nowrap; }
+  .evidence code { font-size: 11.3px; background: var(--accent-soft); color: var(--accent-ink); padding: 1px 5px; border-radius: 5px; }
+  .prio-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 10px; }
+  .prio-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; box-shadow: var(--shadow); }
+  .prio-card h3 { font-size: 14px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .prio-card ul { margin: 0; padding-left: 20px; font-size: 13.5px; line-height: 1.75; }
+  .divider { height: 1px; background: var(--line); margin: 44px 0; border: none; }
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 40px 20px 10px; }
+</style>
+
+<div class="wrap">
+  <div class="kicker">CCRM &middot; full-stack audit against a professional CRM baseline</div>
+  <h1>Integrations &amp; platform capabilities: what's real, what's a stub, what's missing</h1>
+  <p class="dek">Every claim below is backed by a direct code read — file and line, or an explicit "no matches found." Two passes: 20 third-party integration categories, and 20 core capabilities expected of a Salesforce/HubSpot/Zoho-tier CRM. 40 categories total.</p>
+
+  <div class="statrow">
+    <div class="stat total"><div class="n">40</div><div class="l">Categories checked</div></div>
+    <div class="stat exists"><div class="n">7</div><div class="l">Fully exists</div></div>
+    <div class="stat partial"><div class="n">11</div><div class="l">Partial / stubbed</div></div>
+    <div class="stat missing"><div class="n">22</div><div class="l">Absent</div></div>
+  </div>
+
+  <div class="callout accent">
+    <p><b>Headline.</b> Communications infrastructure is genuinely strong — SMTP, SMS (7 providers), WhatsApp, RCS with template approval, and telephony (EasyGoIVR with click-to-call) are all fully wired, not stubs. Payments and lead-source integrations are real but incomplete (Razorpay works, PayU is UI-only; Meta/Instagram work, LinkedIn is UI-only with no backend route). Everything else that makes a CRM feel "enterprise-grade" — analytics/attribution, e-signature, video conferencing, a general-purpose developer API, 2FA, GDPR tooling, a workflow-rule builder, custom fields, audit trails on records, forecasting — is absent. The product is a strong operational lead-to-admission engine with a comms stack most CRMs charge extra for; it is not yet a platform in the Salesforce/HubSpot sense.</p>
+  </div>
+
+  <div class="part-title" style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:56px 0 4px;">Part 1</div>
+  <h1 style="font-size:24px;margin:0 0 24px;">Integrations</h1>
+
+  <div class="modtable-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Category</th><th>Status</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td class="mnum">1</td><td class="mname">Payment gateways</td><td><span class="pill partial">Partial</span></td><td>Razorpay live (<span class="evidence"><code>index.js:5795</code></span> creates real payment links). PayU is UI-only — settings fields exist, no API calls found. No Stripe.</td></tr>
+        <tr><td class="mnum">2</td><td class="mname">Email (SMTP)</td><td><span class="pill exists">Exists</span></td><td>Full mailer, used for alerts/OTP/reports/receipts, dedicated test endpoint (<span class="evidence"><code>index.js:413</code></span>).</td></tr>
+        <tr><td class="mnum">3</td><td class="mname">SMS gateway</td><td><span class="pill exists">Exists</span></td><td>7 real providers wired (msg91/twilio/plivo/textlocal/gupshup/kaleyra/karix) — <span class="evidence"><code>index.js:4877</code></span>.</td></tr>
+        <tr><td class="mnum">4</td><td class="mname">WhatsApp</td><td><span class="pill exists">Exists</span></td><td>Meta Cloud API webhook + outbound sending (<span class="evidence"><code>index.js:4715</code></span>). Not a BSP-specific integration, but functional.</td></tr>
+        <tr><td class="mnum">5</td><td class="mname">Voice / telephony</td><td><span class="pill exists">Exists</span></td><td>EasyGoIVR — click-to-call, token refresh, call-status webhook (<span class="evidence"><code>index.js:4299&ndash;4440</code></span>). No other voice provider.</td></tr>
+        <tr><td class="mnum">6</td><td class="mname">Social/ads lead sources</td><td><span class="pill partial">Partial</span></td><td>Meta + Instagram fully wired. Google Ads: webhook ingest only, OAuth fields never read. LinkedIn: settings UI + advertised webhook URL, <b>no matching backend route exists</b>.</td></tr>
+        <tr><td class="mnum">7</td><td class="mname">Analytics / tracking</td><td><span class="pill missing">Absent</span></td><td>GA4 fields exist in Integrations UI but zero backend usage. No Meta Pixel/CAPI. No UTM parameter capture anywhere.</td></tr>
+        <tr><td class="mnum">8</td><td class="mname">Cloud storage / backup</td><td><span class="pill exists">Exists</span></td><td>AWS S3, real <code>S3Client</code> calls, daily 3am cron (<span class="evidence"><code>index.js:7169&ndash;7263</code></span>).</td></tr>
+        <tr><td class="mnum">9</td><td class="mname">Spreadsheet sync</td><td><span class="pill exists">Exists</span></td><td>Google Sheets → leads, one-way, cron-scheduled (<span class="evidence"><code>index.js:6432</code></span>).</td></tr>
+        <tr><td class="mnum">10</td><td class="mname">AI / LLM</td><td><span class="pill exists">Exists</span></td><td>Anthropic Claude powers Ask CU AI — real, but has <b>no settings card</b> in the Integrations UI; key must be set via an undocumented path.</td></tr>
+        <tr><td class="mnum">11</td><td class="mname">Calendar sync</td><td><span class="pill partial">Partial</span></td><td>Internal <code>events</code> table only. No Google Calendar/Outlook/iCal OAuth sync, no .ics export.</td></tr>
+        <tr><td class="mnum">12</td><td class="mname">Video conferencing</td><td><span class="pill missing">Absent</span></td><td>No Zoom/Meet/Teams integration anywhere.</td></tr>
+        <tr><td class="mnum">13</td><td class="mname">E-signature</td><td><span class="pill missing">Absent</span></td><td>No DocuSign or equivalent. Document routes are upload/verify only.</td></tr>
+        <tr><td class="mnum">14</td><td class="mname">SSO / identity</td><td><span class="pill partial">Partial</span></td><td>Consumer Google OAuth login exists. No SAML, Okta, or Azure AD.</td></tr>
+        <tr><td class="mnum">15</td><td class="mname">Public API for 3rd parties</td><td><span class="pill partial">Partial</span></td><td>Two narrow shared-secret endpoints (lead lookup, payment status) with a hardcoded fallback key in source — not a general API-key-management system.</td></tr>
+        <tr><td class="mnum">16</td><td class="mname">Zapier / iPaaS</td><td><span class="pill missing">Absent</span></td><td>No Zapier, Make, or generic iPaaS connector.</td></tr>
+        <tr><td class="mnum">17</td><td class="mname">Accounting / ERP</td><td><span class="pill missing">Absent</span></td><td>No Tally/QuickBooks/SAP/Zoho Books. "ERP access" in the post-admission flow is a status flag + email, explicitly documented as not a real integration.</td></tr>
+        <tr><td class="mnum">18</td><td class="mname">Template approval workflows</td><td><span class="pill partial">Partial</span></td><td>RCS has full template-approval + DLR webhooks. No Meta WhatsApp official template CRUD.</td></tr>
+        <tr><td class="mnum">19</td><td class="mname">Credit / KYC / ID verification</td><td><span class="pill missing">Absent</span></td><td>No CIBIL, Aadhaar, or PAN verification API. KYC fields are stored, never verified.</td></tr>
+        <tr><td class="mnum">20</td><td class="mname">LMS / student portal</td><td><span class="pill missing">Absent</span></td><td>No external LMS (Moodle/Canvas) connection. Explicitly acknowledged in code comments as a future roadmap item.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="divider">
+
+  <div class="part-title" style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:0 0 4px;">Part 2</div>
+  <h1 style="font-size:24px;margin:0 0 24px;">Core platform capabilities</h1>
+
+  <div class="modtable-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Category</th><th>Status</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td class="mnum">1</td><td class="mname">RBAC granularity</td><td><span class="pill partial">Partial</span></td><td>Custom roles/teams can be created, but permission checks are hardcoded role-name string comparisons — a custom role is just a label with no enforced permissions.</td></tr>
+        <tr><td class="mnum">2</td><td class="mname">Audit trail on records</td><td><span class="pill partial">Partial</span></td><td>Platform-admin cross-tenant actions are logged. No field-level change history on a lead/application record itself.</td></tr>
+        <tr><td class="mnum">3</td><td class="mname">Custom fields</td><td><span class="pill missing">Absent</span></td><td>Zero matches for a custom-field mechanism. Every field is a hardcoded DB column.</td></tr>
+        <tr><td class="mnum">4</td><td class="mname">Workflow / automation builder</td><td><span class="pill missing">Absent</span></td><td>No generic "when X happens, do Y" rule engine. Only the hardcoded Drip Workflows campaign feature.</td></tr>
+        <tr><td class="mnum">5</td><td class="mname">Dedup / merge tool</td><td><span class="pill missing">Absent</span></td><td>Create-time duplicate detection exists; no tool to find/merge two already-existing duplicate leads.</td></tr>
+        <tr><td class="mnum">6</td><td class="mname">Bulk import / export</td><td><span class="pill partial">Partial</span></td><td>Leads import well (with column mapping). No import/export routes for users or payments. No scheduled/recurring export.</td></tr>
+        <tr><td class="mnum">7</td><td class="mname">Two-factor authentication</td><td><span class="pill missing">Absent</span></td><td>No TOTP/2FA anywhere — password or Google OAuth only.</td></tr>
+        <tr><td class="mnum">8</td><td class="mname">GDPR / privacy tooling</td><td><span class="pill missing">Absent</span></td><td>No consent tracking, data-subject export, or right-to-be-forgotten deletion implemented (mentioned only in docs, not code).</td></tr>
+        <tr><td class="mnum">9</td><td class="mname">Backup / restore</td><td><span class="pill partial">Partial</span></td><td>S3 backup is real and admin-triggerable. <b>No restore capability exists</b> — recovery requires manual SSH + <code>pg_restore</code>.</td></tr>
+        <tr><td class="mnum">10</td><td class="mname">Custom report builder</td><td><span class="pill missing">Absent</span></td><td>All reports are fixed pages; no field/filter/chart-type builder.</td></tr>
+        <tr><td class="mnum">11</td><td class="mname">General developer API</td><td><span class="pill missing">Absent</span></td><td>No API-key issuance, scoping, or documentation for external developers — distinct from the narrow endpoints noted in Part 1 #15.</td></tr>
+        <tr><td class="mnum">12</td><td class="mname">Mobile app / PWA</td><td><span class="pill missing">Absent</span></td><td>No React Native, Capacitor, service worker, or PWA manifest.</td></tr>
+        <tr><td class="mnum">13</td><td class="mname">SLA tracking / escalation</td><td><span class="pill missing">Absent</span></td><td>Only the fixed "morning untouched leads" cron — no configurable SLA-hours or escalation rules.</td></tr>
+        <tr><td class="mnum">14</td><td class="mname">Forecasting / territory mgmt</td><td><span class="pill missing">Absent</span></td><td>No weighted-pipeline revenue forecasting or territory-assignment logic beyond round-robin.</td></tr>
+        <tr><td class="mnum">15</td><td class="mname">Email open/click tracking</td><td><span class="pill missing">Absent</span></td><td>Delivery status only — no tracking pixel or click-through logging.</td></tr>
+        <tr><td class="mnum">16</td><td class="mname">Scheduling links</td><td><span class="pill missing">Absent</span></td><td>No Calendly-style self-service booking page for students.</td></tr>
+        <tr><td class="mnum">17</td><td class="mname">Rate limiting</td><td><span class="pill partial">Partial</span></td><td>Exists, but scoped only to <code>/api/auth</code> and <code>/api/webhooks</code> — not the public inquiry form or document upload.</td></tr>
+        <tr><td class="mnum">18</td><td class="mname">Multi-language / i18n</td><td><span class="pill missing">Absent</span></td><td>No translation framework; all UI text is hardcoded English.</td></tr>
+        <tr><td class="mnum">19</td><td class="mname">Sandbox / staging mode</td><td><span class="pill missing">Absent</span></td><td>No environment flag for testing workflows without touching real data.</td></tr>
+        <tr><td class="mnum">20</td><td class="mname">Data retention / archival</td><td><span class="pill missing">Absent</span></td><td>No archiving of stale leads — everything lives forever in the primary table (only a destructive full "Production Reset" exists).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="divider">
+
+  <h2><span class="num">3</span>Where to spend effort first</h2>
+  <p class="sect-desc">Grouped by real-world payoff versus build cost, not by category order above.</p>
+
+  <div class="prio-grid">
+    <div class="prio-card">
+      <h3>🟢 Quick wins — finish what's already 80% built</h3>
+      <ul>
+        <li>Give Ask CU AI (Anthropic) its own Integrations settings card — it's fully working but invisible to any Admin who doesn't already know the hidden config path</li>
+        <li>Add a real <code>/api/webhooks/linkedin-leads</code> route — the UI and webhook URL are already advertised, the backend just isn't there</li>
+        <li>Wire the PayU fields that already exist in the UI, or remove them if PayU isn't actually planned</li>
+        <li>Add restore documentation/tooling on top of the existing S3 backups — the hard part (getting data out safely) is already solved</li>
+      </ul>
+    </div>
+    <div class="prio-card">
+      <h3>🟡 Medium build — real gaps a growing team will hit soon</h3>
+      <ul>
+        <li>UTM capture + Meta Pixel/CAPI + GA4 wiring — you're already paying for ads; right now there's no way to measure cost-per-lead or cost-per-admission</li>
+        <li>Field-level audit trail on leads/applications — "who changed this and when" is one of the first things a compliance or ops review asks for</li>
+        <li>A merge-duplicates tool — create-time dedup is good, but duplicates from bulk imports/API sources will still slip through and need cleanup</li>
+        <li>Two-factor authentication — cheap to add (TOTP), meaningfully raises the bar against account takeover on Admin accounts</li>
+      </ul>
+    </div>
+    <div class="prio-card">
+      <h3>🔴 Major initiatives — only worth it once the above is done</h3>
+      <ul>
+        <li>A generic workflow/automation rule engine ("when X happens, do Y") — this is what would make the "digital ecosystem, not a database" pitch actually true across every module, not just payments</li>
+        <li>Custom fields + a report builder — real platform-tier features, but a significant schema/UI investment</li>
+        <li>A documented public API with proper key management — only worth it once there's an actual external system wanting to integrate</li>
+        <li>Enterprise SSO (SAML/Okta) — matters once you're selling into institutions with their own IT policy, not before</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>Prepared from a full-repo audit of the CCRM codebase — every verdict above is backed by a specific file, line, or an explicit "no matches found."</footer>
+</div>

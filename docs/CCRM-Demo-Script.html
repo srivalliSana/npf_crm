@@ -1,0 +1,250 @@
+<title>CCRM Demo Script</title>
+<style>
+  :root {
+    --ink: #10182b; --paper: #f2f4fa; --card: #ffffff; --line: #e1e6f0; --muted: #5c6a86;
+    --accent: #4338ca; --accent-soft: #eef0fd; --accent-ink: #362d9e;
+    --exists: #157a4d; --exists-soft: #dcf5e8;
+    --partial: #a3690a; --partial-soft: #fbecd2;
+    --missing: #c0362c; --missing-soft: #fbe3e1;
+    --shadow: 0 1px 2px rgba(16,24,43,.05), 0 8px 24px -10px rgba(16,24,43,.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8ecf8; --paper: #0a0e1a; --card: #121729; --line: #232a42; --muted: #909dc2;
+      --accent: #8b83ff; --accent-soft: rgba(139,131,255,.14); --accent-ink: #b3adff;
+      --exists: #4fd695; --exists-soft: rgba(79,214,149,.14);
+      --partial: #f0b429; --partial-soft: rgba(240,180,41,.14);
+      --missing: #ff7a70; --missing-soft: rgba(255,122,112,.14);
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px -12px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e8ecf8; --paper: #0a0e1a; --card: #121729; --line: #232a42; --muted: #909dc2;
+    --accent: #8b83ff; --accent-soft: rgba(139,131,255,.14); --accent-ink: #b3adff;
+    --exists: #4fd695; --exists-soft: rgba(79,214,149,.14);
+    --partial: #f0b429; --partial-soft: rgba(240,180,41,.14);
+    --missing: #ff7a70; --missing-soft: rgba(255,122,112,.14);
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px -12px rgba(0,0,0,.55);
+  }
+  :root[data-theme="light"] {
+    --ink: #10182b; --paper: #f2f4fa; --card: #ffffff; --line: #e1e6f0; --muted: #5c6a86;
+    --accent: #4338ca; --accent-soft: #eef0fd; --accent-ink: #362d9e;
+    --exists: #157a4d; --exists-soft: #dcf5e8;
+    --partial: #a3690a; --partial-soft: #fbecd2;
+    --missing: #c0362c; --missing-soft: #fbe3e1;
+    --shadow: 0 1px 2px rgba(16,24,43,.05), 0 8px 24px -10px rgba(16,24,43,.14);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: clamp(24px,5vw,56px) clamp(16px,4vw,32px) 90px; }
+  .kicker { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: var(--accent); margin-bottom: 10px; }
+  h1 { font-size: clamp(24px,4vw,32px); font-weight: 800; letter-spacing: -.02em; margin: 0 0 10px; text-wrap: balance; line-height: 1.15; }
+  .dek { font-size: 14.5px; color: var(--muted); line-height: 1.65; max-width: 68ch; margin: 0 0 26px; }
+
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 30px; }
+  .meta-chip { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; color: var(--muted); box-shadow: var(--shadow); display: flex; align-items: center; gap: 6px; }
+  .meta-chip b { color: var(--ink); }
+
+  .callout { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; box-shadow: var(--shadow); margin: 16px 0; }
+  .callout p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.65; } .callout p:last-child { margin-bottom: 0; }
+  .callout.accent { border-left: 3px solid var(--accent); }
+  .callout.warn { border-left: 3px solid var(--partial); }
+
+  h2 { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin: 40px 0 4px; }
+  h1.stage-title { font-size: 21px; font-weight: 800; letter-spacing: -.01em; margin: 0 0 16px; text-wrap: balance; }
+  .stage-time { font-size: 11.5px; font-weight: 700; color: var(--muted); background: var(--accent-soft); color: var(--accent-ink); display: inline-flex; padding: 2px 9px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
+
+  .steps { counter-reset: step; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 26px 1fr; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); margin-bottom: 8px; }
+  .step::before { content: counter(step); width: 22px; height: 22px; border-radius: 7px; background: var(--accent-soft); color: var(--accent-ink); font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .step .do { font-size: 13.5px; font-weight: 700; line-height: 1.4; }
+  .step .say { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.55; font-style: italic; }
+  .step .say b { font-style: normal; color: var(--accent-ink); }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; white-space: nowrap; margin-left: 6px; }
+  .pill.exists { background: var(--exists-soft); color: var(--exists); }
+  .pill.partial { background: var(--partial-soft); color: var(--partial); }
+
+  .divider { height: 1px; background: var(--line); margin: 40px 0; border: none; }
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 40px 20px 10px; }
+
+  .fallback-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  @media (max-width: 620px) { .fallback-grid { grid-template-columns: 1fr; } }
+  .fallback-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .fallback-card .prob { font-size: 12.5px; font-weight: 700; color: var(--missing); margin-bottom: 4px; }
+  .fallback-card .fix { font-size: 12.5px; color: var(--muted); line-height: 1.55; }
+
+  .tour-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  @media (max-width: 620px) { .tour-grid { grid-template-columns: 1fr; } }
+  .tour-group { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .tour-group h4 { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--accent-ink); margin: 0 0 10px; }
+  .tour-item { margin-bottom: 9px; }
+  .tour-item:last-child { margin-bottom: 0; }
+  .tour-item .name { font-size: 13px; font-weight: 700; }
+  .tour-item .desc { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 1px; }
+</style>
+
+<div class="wrap">
+  <div class="kicker">CCRM &middot; live demo runbook</div>
+  <h1>Demo script — start to finish, ~18 minutes</h1>
+  <p class="dek">A walk-through in one continuous story: a student's whole journey from first inquiry to ERP access, followed by the reporting/admin layer. Each step says exactly what to click and what to say. Read it once beforehand so the clicks feel natural — you shouldn't need to look at this screen while actually presenting.</p>
+
+  <div class="meta-row">
+    <div class="meta-chip">⏱️ <b>~18 min</b> total, trim Section 6&ndash;7 if short on time</div>
+    <div class="meta-chip">🎭 <b>2 roles</b> — Admin tab + a private/incognito tab for student-facing parts</div>
+    <div class="meta-chip">📧 <b>1 test inbox</b> you control, for OTP/links</div>
+  </div>
+
+  <h2>Before you start</h2>
+  <div class="callout accent">
+    <p><b>Open two browser windows.</b> Window A: logged into the CRM as Admin — this is what you present from 90% of the time. Window B: a private/incognito window, logged out — this is "the student's" view (public inquiry form, OTP page, document upload).</p>
+    <p><b>Pick one real test lead now</b> and use the same person throughout the whole demo — one continuous story lands better than jumping between random records. Use an email address you can actually check live (for the OTP/document-link steps).</p>
+    <p><b>Have a second tab open on your own inbox</b>, ready to alt-tab to when an email needs to visibly arrive (admission letter, OTP, document link, ERP access).</p>
+  </div>
+
+  <hr class="divider">
+
+  <h2>1 &middot; Open — the story you're telling</h2>
+  <h1 class="stage-title">Set up the arc before you touch anything<span class="stage-time">30 sec</span></h1>
+  <ol class="steps">
+    <li class="step"><div>
+      <div class="do">Don't open the CRM yet — say the sentence first.</div>
+      <div class="say"><b>Say:</b> "I'm going to show you one student going from their first click on our website, all the way through to getting access to ERP — live, in this system, right now. Then I'll show what the team sees on the other side: dashboards, reports, and an AI assistant that answers questions from real data."</div>
+    </div></li>
+  </ol>
+
+  <h2>2 &middot; Lead capture</h2>
+  <h1 class="stage-title">The public inquiry form <span class="pill exists">Live</span><span class="stage-time">2 min</span></h1>
+  <ol class="steps">
+    <li class="step"><div><div class="do">Window B (incognito) → go to the public inquiry page (<code>/apply</code>).</div>
+      <div class="say"><b>Say:</b> "This is what a student sees when they click 'Apply' from an ad or the website."</div></div></li>
+    <li class="step"><div><div class="do">Fill in your test lead's real name, email, mobile, and course. Submit.</div>
+      <div class="say"><b>Say:</b> "No login needed — this is the exact form real applicants use."</div></div></li>
+    <li class="step"><div><div class="do">Switch to Window A (Admin) → Lead Manager. Refresh.</div>
+      <div class="say"><b>Say:</b> "And there it is — already in the CRM, already duplicate-checked, already round-robin assigned to a counsellor." Point at the Owner column.</div></div></li>
+  </ol>
+
+  <h2>3 &middot; Counselling</h2>
+  <h1 class="stage-title">Working the lead <span class="pill exists">Live</span><span class="stage-time">2 min</span></h1>
+  <ol class="steps">
+    <li class="step"><div><div class="do">Click into the lead → open the Student File.</div>
+      <div class="say"><b>Say:</b> "Everything about this student lives in one file — profile, timeline, calls, notes."</div></div></li>
+    <li class="step"><div><div class="do">Click the Lead Journey bubble to move the stage forward (e.g. Contacted → Interested).</div>
+      <div class="say"><b>Say:</b> "A counsellor updates the stage as they work the lead — no dropdown hunting, just click where they are in the journey." Mention the Timeline auto-logging the change.</div></div></li>
+    <li class="step"><div><div class="do">Point at (don't necessarily click) WhatsApp / Call / Email icons.</div>
+      <div class="say"><b>Say:</b> "Every touch — call, WhatsApp, email — is logged automatically against this student, which is what feeds the reports later."</div></div></li>
+  </ol>
+
+  <h2>4 &middot; Application &amp; payment</h2>
+  <h1 class="stage-title">From interested to paid <span class="pill exists">Live</span><span class="stage-time">3 min</span></h1>
+  <ol class="steps">
+    <li class="step"><div><div class="do">Move the lead's stage to <b>Process for Payment</b>.</div>
+      <div class="say"><b>Say:</b> "The moment they hit this stage, the system automatically creates their Application — nobody types that in by hand." Switch to Applications to show the new row with an auto-generated application number.</div></div></li>
+    <li class="step"><div><div class="do">Open the application → Generate Payment Link (Offline mode is fastest for a live demo).</div>
+      <div class="say"><b>Say:</b> "Counsellor generates a payment link — online via Razorpay, or offline if the student's already paid by bank transfer." Enter a fake UTR and submit.</div></div></li>
+    <li class="step"><div><div class="do">Go to Payments → find the row → click Approve (Finance/Admin action).</div>
+      <div class="say"><b>Say:</b> "Finance approves it — and watch, two things fire automatically." Alt-tab to your inbox.</div></div></li>
+    <li class="step"><div><div class="do">Show the inbox: Provisional Admission Letter (PDF) <i>and</i> a second email with a 6-digit OTP.</div>
+      <div class="say"><b>Say:</b> "The admission letter goes out immediately — and this OTP email is the start of the next phase, which most CRMs don't have at all."</div></div></li>
+  </ol>
+
+  <h2>5 &middot; Post-admission — the new build</h2>
+  <h1 class="stage-title">Email verification → documents → semester fee → ERP <span class="pill exists">Live</span><span class="stage-time">4 min</span></h1>
+  <div class="callout warn"><p>This whole section is what was built this cycle — it's worth slowing down here, this is the newest and most differentiated part of the demo.</p></div>
+  <ol class="steps">
+    <li class="step"><div><div class="do">Window B → go to <code>/verify-email</code>, enter the admission number + OTP from the inbox.</div>
+      <div class="say"><b>Say:</b> "Before anything else, we confirm this is really the student's email — not just a name someone typed in a form."</div></div></li>
+    <li class="step"><div><div class="do">Show the success screen, then alt-tab to the inbox — a second email just arrived with a unique document-upload link.</div>
+      <div class="say"><b>Say:</b> "Verified email unlocks a one-time secure upload link — sent automatically, no counsellor had to chase it."</div></div></li>
+    <li class="step"><div><div class="do">Click that link (still Window B) → upload one test file against any document type.</div>
+      <div class="say"><b>Say:</b> "Student uploads straight from their phone or laptop — no login required — and it lands in the counsellor's Documents tab as Pending."</div></div></li>
+    <li class="step"><div><div class="do">Window A → Student File → Documents tab → mark the upload Verified.</div>
+      <div class="say"><b>Say:</b> "Counsellor verifies it like any other document."</div></div></li>
+    <li class="step"><div><div class="do">Same file → click <b>Unlock Semester Fee</b> → then <b>Generate Semester Fee Link</b>.</div>
+      <div class="say"><b>Say:</b> "This is deliberately a manual gate — an Admin decides when a student's ready for 1st-semester billing, it never happens by accident." Point out this is a completely separate payment from the application fee — check Payments, now shows two rows for this student.</div></div></li>
+    <li class="step"><div><div class="do">Approve that semester payment the same way as step 4.3.</div>
+      <div class="say"><b>Say:</b> "Same approval flow as before — and now watch the final piece." Alt-tab to inbox.</div></div></li>
+    <li class="step"><div><div class="do">Show the ERP-access email, then Window A → the Student File now shows an "🎓 ERP Access Granted" badge.</div>
+      <div class="say"><b>Say:</b> "Student's told to use their admission number as a login ID for now — and the CRM tracks that this student has crossed from 'applicant' to 'active student.' That handoff point is exactly where the roadmap picks up toward a real LMS/ERP connection."</div></div></li>
+  </ol>
+
+  <h2>6 &middot; The team's side</h2>
+  <h1 class="stage-title">Dashboards, reports, and Ask CU AI <span class="pill exists">Live</span><span class="stage-time">4 min</span></h1>
+  <ol class="steps">
+    <li class="step"><div><div class="do">Dashboard (role-scoped landing page).</div>
+      <div class="say"><b>Say:</b> "A counsellor only ever sees their own numbers here — an Admin sees the whole funnel." Point at KPI tiles and the stage-summary matrix.</div></div></li>
+    <li class="step"><div><div class="do">Website Leads Dashboard (sidebar → Website Leads → Overview).</div>
+      <div class="say"><b>Say:</b> "This tracks our other inbound channels — FTL, GTIB, GTTECH, ESSE — each with total, not-contacted, and assignment numbers, live off the database."</div></div></li>
+    <li class="step"><div><div class="do">Open <b>Ask CU AI</b> (top bar) → type: <i>"How many total leads do we have?"</i> then a second question, e.g. <i>"How many applications have payment pending?"</i></div>
+      <div class="say"><b>Say:</b> "This isn't a chatbot with canned answers — it's genuinely querying the live database every time. Ask it something right now if you want." <i>(Live audience Q&A here is a strong moment — the numbers really do change if someone adds a lead mid-demo.)</i></div></div></li>
+    <li class="step"><div><div class="do">Productivity Report (Admin/Manager only).</div>
+      <div class="say"><b>Say:</b> "Per-counsellor breakdown — leads, follow-ups, applications, conversions — the numbers management actually reviews weekly."</div></div></li>
+  </ol>
+
+  <h2>7 &middot; Admin &amp; platform (optional, time permitting)</h2>
+  <h1 class="stage-title">User management, integrations, multi-tenant <span class="stage-time">2 min</span></h1>
+  <ol class="steps">
+    <li class="step"><div><div class="do">User Management → show role assignment (Admin/Manager/Counsellor/Finance) and entity access.</div>
+      <div class="say"><b>Say:</b> "Every permission — who sees which leads, who can approve payments — is controlled here, no code changes needed."</div></div></li>
+    <li class="step"><div><div class="do">Integrations page → scroll past the connected cards (Meta, SMTP, WhatsApp, Razorpay, EasyGoIVR).</div>
+      <div class="say"><b>Say:</b> "All of this — ads, email, WhatsApp, payments, calling — is wired directly into the CRM, not bolted on separately."</div></div></li>
+  </ol>
+
+  <hr class="divider">
+
+  <h2>8 &middot; Full feature tour — everything else in the sidebar</h2>
+  <h1 class="stage-title">One line each — walk the sidebar top to bottom<span class="stage-time">5&ndash;8 min</span></h1>
+  <p class="dek" style="margin-bottom:14px;">Sections 2&ndash;6 already covered Dashboard, Leads, Website Leads, Applications, Payments, Documents, Analytics, Productivity, and Ask CU AI in the story. This is everything not yet touched — go down the sidebar in order, one sentence per item, click in only where marked.</p>
+
+  <div class="tour-grid">
+    <div class="tour-group"><h4>Day-to-day work</h4>
+      <div class="tour-item"><div class="name">Tasks <span class="pill exists">click in</span></div><div class="desc">General to-dos and follow-up reminders — standalone or tied to a specific lead.</div></div>
+      <div class="tour-item"><div class="name">Calendar</div><div class="desc">Scheduled interviews and follow-up calls in a day/week view.</div></div>
+      <div class="tour-item"><div class="name">Transfers</div><div class="desc">Where Admin/Manager approves or rejects a counsellor's request to hand off a lead — nobody reassigns a lead to themselves unilaterally.</div></div>
+    </div>
+    <div class="tour-group"><h4>Marketing &amp; outreach</h4>
+      <div class="tour-item"><div class="name">Campaigns <span class="pill exists">click in</span></div><div class="desc">Every ad campaign's budget, spend, leads, and conversions in one place.</div></div>
+      <div class="tour-item"><div class="name">Email Camps</div><div class="desc">Compose and send to a filtered lead list, with delivery tracked per recipient.</div></div>
+      <div class="tour-item"><div class="name">Drip Flows</div><div class="desc">Multi-step, timed WhatsApp/SMS/Email sequences — e.g. an automatic payment-reminder cadence.</div></div>
+      <div class="tour-item"><div class="name">Social Comments</div><div class="desc">Facebook/Instagram comments on ads are auto-captured here and turned into leads automatically.</div></div>
+    </div>
+    <div class="tour-group"><h4>Reporting</h4>
+      <div class="tour-item"><div class="name">Reports <span class="pill exists">click in</span></div><div class="desc">Conversion funnels, source-to-enrollment tracking, publisher benchmarking.</div></div>
+      <div class="tour-item"><div class="name">Call Report</div><div class="desc">Call outcomes and connect rates, per counsellor.</div></div>
+      <div class="tour-item"><div class="name">Comms</div><div class="desc">Every WhatsApp/SMS/Email/Call sent across the whole organisation, rolled into one view.</div></div>
+      <div class="tour-item"><div class="name">Leaderboard</div><div class="desc">Team rankings by conversion — the one page counsellors actually check unprompted.</div></div>
+      <div class="tour-item"><div class="name">Upload Logs</div><div class="desc">History of every bulk lead import, with duplicate-handling results.</div></div>
+    </div>
+    <div class="tour-group"><h4>Admin &amp; platform</h4>
+      <div class="tour-item"><div class="name">Users <span class="pill exists">click in</span></div><div class="desc">Create accounts, assign roles/entity access, reset passwords — covered briefly in Section 7.</div></div>
+      <div class="tour-item"><div class="name">Integrations</div><div class="desc">Meta, SMTP, WhatsApp, Razorpay, EasyGoIVR, Google Sheets, AWS S3 backup — covered in Section 7.</div></div>
+      <div class="tour-item"><div class="name">Server Health</div><div class="desc">Live system status — uptime, DB connectivity — for the technically curious in the room.</div></div>
+      <div class="tour-item"><div class="name">Security &amp; Access</div><div class="desc">Login activity and access-control overview.</div></div>
+      <div class="tour-item"><div class="name">Organization</div><div class="desc">Branding, entity structure (CUTM/CUTMAP/GT entities), and lead-stage customization — this is what lets the same CRM serve a completely different organisation with different branding and a different pipeline, with zero code changes.</div></div>
+      <div class="tour-item"><div class="name">Settings / Help</div><div class="desc">Personal profile, notification preferences, and documentation — skip unless asked.</div></div>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:16px;">
+    <p><b>Pacing tip:</b> Sections 2&ndash;6 are the "show, don't tell" part — slow down, let the emails actually arrive, let the AI actually think. Section 8 is the "yes, we thought of that too" part — fast, one sentence per item, click in only on the three or four marked pages. Don't let Section 8 drag; it's breadth, not depth.</p>
+  </div>
+
+  <hr class="divider">
+
+  <h2>Close</h2>
+  <div class="callout accent">
+    <p><b>Say:</b> "Everything you just watched — lead, counselling, application, documents, both payments, ERP handoff — was one continuous, real flow, not a mockup. What's next on the roadmap is extending this same pattern past admission: academic services, exams, semester re-registration, placement, and alumni — the same 'one student, one file, automatic handoffs' idea, just carried further down the lifecycle."</p>
+  </div>
+
+  <h2>If something doesn't cooperate live</h2>
+  <div class="fallback-grid">
+    <div class="fallback-card"><div class="prob">Email doesn't arrive in time</div><div class="fix">Keep talking — narrate what should have happened, then check the inbox again after the next step. Never sit in silence refreshing.</div></div>
+    <div class="fallback-card"><div class="prob">A number looks "wrong" or surprising on a dashboard</div><div class="fix">Say "that's live data, let's see what's actually behind it" and click in — real numbers are more convincing than round demo numbers.</div></div>
+    <div class="fallback-card"><div class="prob">Ask CU AI is slow to respond</div><div class="fix">Narrate: "it's actually running a live database query right now, not playing back a script" — the wait itself supports the pitch.</div></div>
+    <div class="fallback-card"><div class="prob">Running short on time</div><div class="fix">Cut Section 7 entirely and shorten Section 6 to just the Ask CU AI live-question moment — that's the highest-impact single beat in the whole demo.</div></div>
+  </div>
+
+  <footer>CCRM demo runbook &middot; every step above reflects features verified working in the live system, not a wishlist.</footer>
+</div>
