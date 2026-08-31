@@ -354,7 +354,7 @@ export default function WebsiteLeads({ website }) {
                     className="w-4 h-4 rounded border-gray-300 text-primary-500"
                   />
                 </th>
-                <th className="table-th">ID</th>
+                <th className="table-th">#</th>
                 <th className="table-th">
                   {website === 'gttech' ? 'Full Name' : 'Name'}
                 </th>
@@ -386,7 +386,7 @@ export default function WebsiteLeads({ website }) {
               ) : leads.length === 0 ? (
                 <tr><td colSpan={12} className="text-center py-8 text-gray-500">No leads found</td></tr>
               ) : (
-                leads.map(lead => (
+                leads.map((lead, i) => (
                   <tr key={lead.id} className="hover:bg-gray-50/80 transition-colors">
                     <td className="table-td">
                       <input
@@ -396,7 +396,7 @@ export default function WebsiteLeads({ website }) {
                         className="w-4 h-4 rounded border-gray-300 text-primary-500"
                       />
                     </td>
-                    <td className="table-td text-gray-900 font-mono text-xs">{lead.id}</td>
+                    <td className="table-td text-gray-500 font-mono text-xs">{(page - 1) * limit + i + 1}</td>
                     <td className="table-td text-gray-900 font-medium">{lead.full_name || lead.name}</td>
                     {website === 'gttech' ? (
                       <>
