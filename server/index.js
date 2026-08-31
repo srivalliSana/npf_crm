@@ -915,6 +915,12 @@ app.get('/api/gttech-leads', authenticateToken, async (req, res) => {
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
+    // "Select all N matching leads" (across every page) — just the ids, no cap
+    if (req.query.idsOnly === '1') {
+      const idsRes = await pool.query(`SELECT id FROM gttech_leads ${whereSql};`, params)
+      return res.json({ ids: idsRes.rows.map(r => r.id), total: idsRes.rows.length })
+    }
+
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM gttech_leads ${whereSql};`, params)
     const total = countRes.rows[0].total
 
@@ -965,6 +971,11 @@ app.get('/api/ftl-leads', authenticateToken, async (req, res) => {
     if (status) { params.push(status); where.push(`status = $${params.length}`) }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    if (req.query.idsOnly === '1') {
+      const idsRes = await pool.query(`SELECT id FROM ftl_leads ${whereSql};`, params)
+      return res.json({ ids: idsRes.rows.map(r => r.id), total: idsRes.rows.length })
+    }
 
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM ftl_leads ${whereSql};`, params)
     const total = countRes.rows[0].total
@@ -1017,6 +1028,11 @@ app.get('/api/gtib-leads', authenticateToken, async (req, res) => {
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
+    if (req.query.idsOnly === '1') {
+      const idsRes = await pool.query(`SELECT id FROM gtib_leads ${whereSql};`, params)
+      return res.json({ ids: idsRes.rows.map(r => r.id), total: idsRes.rows.length })
+    }
+
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM gtib_leads ${whereSql};`, params)
     const total = countRes.rows[0].total
 
@@ -1067,6 +1083,11 @@ app.get('/api/esse-leads', authenticateToken, async (req, res) => {
     if (status) { params.push(status); where.push(`status = $${params.length}`) }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    if (req.query.idsOnly === '1') {
+      const idsRes = await pool.query(`SELECT id FROM esse_leads ${whereSql};`, params)
+      return res.json({ ids: idsRes.rows.map(r => r.id), total: idsRes.rows.length })
+    }
 
     const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM esse_leads ${whereSql};`, params)
     const total = countRes.rows[0].total

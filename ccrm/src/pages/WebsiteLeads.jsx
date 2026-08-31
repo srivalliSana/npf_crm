@@ -176,10 +176,37 @@ export default function WebsiteLeads({ website }) {
   }
 
   const toggleSelectAll = () => {
-    if (selectedRows.length === leads.length) {
+    if (allOnPageSelected) {
       setSelectedRows([])
     } else {
       setSelectedRows(leads.map(lead => lead.id))
+    }
+  }
+
+  const [selectingAll, setSelectingAll] = useState(false)
+  const allOnPageSelected = leads.length > 0 && leads.every(l => selectedRows.includes(l.id))
+  const handleSelectAllMatching = async () => {
+    setSelectingAll(true)
+    try {
+      const qs = new URLSearchParams()
+      qs.set('idsOnly', '1')
+      if (search) qs.set('search', search)
+      if (assignFilter === 'assigned')        qs.set('owner', '!Unassigned')
+      else if (assignFilter === 'unassigned') qs.set('owner', 'Unassigned')
+      if (currentUser?.role) qs.set('requesterRole', currentUser.role)
+      if (currentUser?.name) qs.set('requesterName', currentUser.name)
+
+      const token = localStorage.getItem('ccrm_token')
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+      const res = await fetch(`${apiEndpoint}?${qs.toString()}`, { headers })
+      if (!res.ok) throw new Error('Failed to fetch matching leads')
+      const data = await res.json()
+      setSelectedRows(data.ids || [])
+      showToast(`Selected all ${(data.ids || []).length} matching leads`, 'success')
+    } catch (err) {
+      showToast('Failed to select all leads.', 'error')
+    } finally {
+      setSelectingAll(false)
     }
   }
 
@@ -315,11 +342,25 @@ export default function WebsiteLeads({ website }) {
           </select>
         </div>
 
+        {/* "Select all N matching leads" — appears once every row on this page is checked */}
+        {allOnPageSelected && selectedRows.length < total && (
+          <div className="flex items-center justify-center gap-2 py-2 text-sm bg-primary-50/60 border border-primary-100 rounded-lg">
+            <span className="text-primary-800">All {leads.length} leads on this page are selected.</span>
+            <button
+              onClick={handleSelectAllMatching}
+              disabled={selectingAll}
+              className="text-primary-700 font-semibold underline hover:text-primary-900 disabled:opacity-50"
+            >
+              {selectingAll ? 'Selecting...' : `Select all ${total} leads matching this view`}
+            </button>
+          </div>
+        )}
+
         {/* Bulk Assign — Admin/Manager only */}
         {isPrivileged && selectedRows.length > 0 && (
           <div className="flex items-center gap-3 p-3 bg-primary-50 rounded-lg border border-primary-100">
             <span className="text-sm font-medium text-primary-900">
-              {selectedRows.length} selected
+              {selectedRows.length === total ? `All ${total} selected` : `${selectedRows.length} selected`}
             </span>
 
             <select
@@ -349,7 +390,7 @@ export default function WebsiteLeads({ website }) {
                 <th className="table-th w-10">
                   <input
                     type="checkbox"
-                    checked={selectedRows.length === leads.length && leads.length > 0}
+                    checked={allOnPageSelected}
                     onChange={toggleSelectAll}
                     className="w-4 h-4 rounded border-gray-300 text-primary-500"
                   />
