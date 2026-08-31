@@ -14,12 +14,12 @@ const NAV_ITEMS = [
   { icon: Building2,       label: 'Tenants',            to: '/platform-tenants',       platformOnly: true },
   { icon: LayoutDashboard, label: 'Dashboard',          to: '/dashboard',              roles: null },
   { icon: Users,           label: 'Leads',              to: '/leads',                  roles: null },
-  { icon: Users,           label: 'Website Leads',      to: '/websites-dashboard',     roles: ['Admin'] },
   {
     icon: Users,
-    label: 'GT Entities',
+    label: 'Website Leads',
     roles: ['Admin'],
     submenu: [
+      { label: 'Overview', to: '/websites-dashboard' },
       { label: 'FTL',    to: '/ftl-leads' },
       { label: 'GTIB',   to: '/gtib-leads' },
       { label: 'GTTECH', to: '/gttech-leads' },
@@ -74,16 +74,16 @@ export default function Sidebar({ onLogout, user, expanded = true }) {
   const isPlatformAdmin = !!user?.isPlatformAdmin
   const visibleItems = NAV_ITEMS.filter(item => {
     if (item.platformOnly) return isPlatformAdmin         // Tenants page — platform admin only
-    if (item.label === 'GT Entities' && GT_CODES.length === 0) return false  // tenant has no GT entities
+    if (item.label === 'Website Leads' && GT_CODES.length === 0) return false  // tenant has no GT entities
     if (isSuper) return true                              // Super Admin sees everything
-    if (item.label === 'GT Entities') return hasGT        // only if granted a GT entity
+    if (item.label === 'Website Leads') return hasGT      // only if granted a GT entity
     if (item.label === 'Leads')       return hasMain      // only if granted a main entity
     return !item.roles || item.roles.includes(userRole)   // admin still sees admin-only items
   }).map(item => {
-    // Build the GT submenu from the tenant's GT entities, filtered to those granted
-    if (item.label === 'GT Entities' && item.submenu) {
+    // Build the GT submenu (Overview + one entry per granted GT entity)
+    if (item.label === 'Website Leads' && item.submenu) {
       const codes = isSuper ? GT_CODES : GT_CODES.filter(c => userEntities.includes(c))
-      return { ...item, submenu: codes.map(c => ({ label: gtLabel(c), to: `/${c.toLowerCase()}-leads` })) }
+      return { ...item, submenu: [{ label: 'Overview', to: '/websites-dashboard' }, ...codes.map(c => ({ label: gtLabel(c), to: `/${c.toLowerCase()}-leads` }))] }
     }
     return item
   })
