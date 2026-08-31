@@ -202,40 +202,56 @@ export default function Documents() {
         ))}
       </div>
 
-      {/* Document checklist by student */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        {leads.slice(0, 3).map(lead => {
-          const studentDocs = documents.filter(d => d.student.toLowerCase() === lead.name.toLowerCase())
-          const verifiedCount = studentDocs.filter(d => d.status === 'Verified').length
-          return (
-            <div key={lead.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="font-semibold text-gray-800 text-sm truncate max-w-44">{lead.name}</p>
-                  <p className="text-xs text-gray-500 font-semibold">{verifiedCount}/{studentDocs.length || 3} documents verified</p>
+      {/* Document checklist by student — real students with real uploads,
+          prioritizing whoever still has something Pending/Rejected */}
+      {documents.length > 0 && (() => {
+        const byStudent = {}
+        documents.forEach(d => {
+          const key = d.student
+          if (!byStudent[key]) byStudent[key] = []
+          byStudent[key].push(d)
+        })
+        const studentCards = Object.entries(byStudent)
+          .map(([student, docs]) => ({
+            student, docs,
+            verifiedCount: docs.filter(d => d.status === 'Verified').length,
+            needsAttention: docs.some(d => d.status === 'Pending' || d.status === 'Rejected'),
+          }))
+          .sort((a, b) => (b.needsAttention - a.needsAttention) || (b.docs.length - a.docs.length))
+          .slice(0, 3)
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            {studentCards.map(({ student, docs, verifiedCount }) => (
+              <div key={student} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm truncate max-w-44">{student}</p>
+                    <p className="text-xs text-gray-500 font-semibold">{verifiedCount}/{docs.length} documents verified</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold shadow select-none">
+                    {student.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  </div>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold shadow select-none">
-                  {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                <div className="w-full bg-gray-150 rounded-full h-1.5 mb-3">
+                  <div className="bg-primary-500 h-1.5 rounded-full transition-all" style={{ width: `${(verifiedCount / Math.max(docs.length, 1)) * 100}%` }} />
+                </div>
+                <div className="space-y-1.5">
+                  {docs.map(d => {
+                    const sc = STATUS_COLORS[d.status] || STATUS_COLORS.Pending
+                    return (
+                      <div key={d.id} className="flex items-center justify-between py-0.5 border-b border-gray-50 last:border-0">
+                        <span className="text-xs text-gray-600 font-medium truncate max-w-44">{d.type}</span>
+                        <span className={`badge ${sc.bg} ${sc.text} text-[10px] font-bold`}>{d.status}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
-              <div className="w-full bg-gray-150 rounded-full h-1.5 mb-3">
-                <div className="bg-primary-500 h-1.5 rounded-full transition-all" style={{ width: `${(verifiedCount / Math.max(studentDocs.length || 3, 1)) * 100}%` }} />
-              </div>
-              <div className="space-y-1.5">
-                {studentDocs.map(d => {
-                  const sc = STATUS_COLORS[d.status] || STATUS_COLORS.Pending
-                  return (
-                    <div key={d.id} className="flex items-center justify-between py-0.5 border-b border-gray-50 last:border-0">
-                      <span className="text-xs text-gray-600 font-medium truncate max-w-44">{d.type}</span>
-                      <span className={`badge ${sc.bg} ${sc.text} text-[10px] font-bold`}>{d.status}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
