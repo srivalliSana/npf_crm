@@ -57,6 +57,20 @@ const STATES = ['Andhra Pradesh', 'Odisha']
 // CUTM campuses
 const CAMPUSES = ['Bhubaneswar', 'Paralakhemundi', 'Balasore', 'Vizianagaram']
 const SOURCES = ['Google Ads', 'Meta', 'LinkedIn', 'Walk-in', 'Referral', 'Website', 'WhatsApp', 'Education Fair', 'SMS Campaign', 'Instagram']
+
+// All Indian states for multi-state organizations
+const ALL_STATES = ['Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal']
+
+// Tenant-specific form configurations
+const TENANT_FORM_CONFIGS = {
+  cuedu: {
+    states: ALL_STATES,
+    campuses: ['Online'],
+    programs: ['BBA', 'BCA', 'BCOM', 'MBA', 'MCA', 'MSc (Maths)'],
+    hideReferenceCollege: true,
+    showProgram: true,
+  }
+}
 const CRM_FIELDS = ['name', 'email', 'mobile', 'state', 'city', 'course', 'source', 'owner']
 const WA_TEMPLATES = [
   { label: 'Course Enquiry', msg: 'Hi {name}! 👋 Thanks for showing interest in CUTM. We have excellent programs in {course}. Call us: +91-674-2559441' },
@@ -89,8 +103,20 @@ export default function LeadManager() {
 
   // Add Lead modal
   const [showAddModal, setShowAddModal] = useState(false)
-  const [newLead, setNewLead] = useState({ name:'', email:'', mobile:'', state:'', city:'', course:'', source:'Google Ads', owner:'' })
+  const [newLead, setNewLead] = useState({ name:'', email:'', mobile:'', state:'', city:'', course:'', program:'', source:'Google Ads', owner:'' })
   const [autoAssign, setAutoAssign] = useState(true)
+
+  // Get tenant-specific form configuration
+  const tenantName = tenantConfig?.name || 'default'
+  const formConfig = TENANT_FORM_CONFIGS[tenantName.toLowerCase()] || {
+    states: STATES,
+    campuses: CAMPUSES,
+    hideReferenceCollege: false,
+    showProgram: false,
+  }
+  const formStates = formConfig.states || STATES
+  const formCampuses = formConfig.campuses || CAMPUSES
+  const formPrograms = formConfig.programs || []
   const [addLoading, setAddLoading] = useState(false)
   const [dupWarning, setDupWarning] = useState(null) // {duplicates, hasDuplicate}
 
@@ -1099,32 +1125,45 @@ export default function LeadManager() {
                   </div>
                 ))}
 
-                {/* State — AP / Odisha only */}
+                {/* State */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">State (Optional)</label>
                   <select value={newLead.state} onChange={e => setNewLead(p => ({ ...p, state: e.target.value }))} className="input-field text-sm">
                     <option value="">— Select state —</option>
-                    {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                    {formStates.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
 
-                {/* Campus — dropdown of CUTM campuses */}
+                {/* Campus */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Campus (Optional)</label>
                   <select value={newLead.campus || ''} onChange={e => setNewLead(p => ({ ...p, campus: e.target.value }))} className="input-field text-sm">
                     <option value="">— Select campus —</option>
-                    {CAMPUSES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {formCampuses.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
 
-                {/* Reference College — was Course Preference; dropdown only */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Reference College</label>
-                  <select value={newLead.course} onChange={e => setNewLead(p => ({ ...p, course: e.target.value }))} className="input-field text-sm">
-                    <option value="">— Select reference college —</option>
-                    {REFERENCE_COLLEGES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
+                {/* Reference College — conditional based on tenant config */}
+                {!formConfig.hideReferenceCollege && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Reference College</label>
+                    <select value={newLead.course} onChange={e => setNewLead(p => ({ ...p, course: e.target.value }))} className="input-field text-sm">
+                      <option value="">— Select reference college —</option>
+                      {REFERENCE_COLLEGES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {/* Program — conditional based on tenant config */}
+                {formConfig.showProgram && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Program</label>
+                    <select value={newLead.program || ''} onChange={e => setNewLead(p => ({ ...p, program: e.target.value }))} className="input-field text-sm">
+                      <option value="">— Select program —</option>
+                      {formPrograms.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Lead Source</label>
                   <select value={newLead.source} onChange={e => setNewLead(p => ({ ...p, source: e.target.value }))} className="input-field text-sm">
