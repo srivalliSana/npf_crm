@@ -3701,6 +3701,66 @@ app.put('/api/tenant/config', authenticateToken, async (req, res) => {
   } catch (e) { console.error('[tenant/config PUT]', e.message); res.status(500).json({ error: 'Failed to save tenant config.' }) }
 })
 
+// ── PROGRAMS: Global program management (platform admin only) ─────
+app.get('/api/programs', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM programs ORDER BY name;')
+    res.json(r.rows)
+  } catch (e) {
+    console.error('[GET /api/programs]', e.message)
+    res.status(500).json({ error: 'Failed to fetch programs.' })
+  }
+})
+
+app.post('/api/programs', authenticateToken, async (req, res) => {
+  if (!req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Platform admin only.' })
+  const { name, application_fee, registration_fee, tuition_fee, min_amount_to_pay } = req.body
+  if (!name?.trim()) return res.status(400).json({ error: 'Program name is required.' })
+  try {
+    const r = await pool.query(
+      'INSERT INTO programs (name, application_fee, registration_fee, tuition_fee, min_amount_to_pay) VALUES ($1, $2, $3, $4, $5) RETURNING *;',
+      [name, application_fee || 0, registration_fee || 0, tuition_fee || 0, min_amount_to_pay || 0]
+    )
+    res.status(201).json(r.rows[0])
+  } catch (e) {
+    console.error('[POST /api/programs]', e.message)
+    if (e.message.includes('duplicate')) return res.status(400).json({ error: 'Program name already exists.' })
+    res.status(500).json({ error: 'Failed to create program.' })
+  }
+})
+
+app.put('/api/programs/:id', authenticateToken, async (req, res) => {
+  if (!req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Platform admin only.' })
+  const { id } = req.params
+  const { name, application_fee, registration_fee, tuition_fee, min_amount_to_pay } = req.body
+  if (!name?.trim()) return res.status(400).json({ error: 'Program name is required.' })
+  try {
+    const r = await pool.query(
+      'UPDATE programs SET name = $1, application_fee = $2, registration_fee = $3, tuition_fee = $4, min_amount_to_pay = $5, updated_at = NOW() WHERE id = $6 RETURNING *;',
+      [name, application_fee || 0, registration_fee || 0, tuition_fee || 0, min_amount_to_pay || 0, id]
+    )
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Program not found.' })
+    res.json(r.rows[0])
+  } catch (e) {
+    console.error('[PUT /api/programs/:id]', e.message)
+    if (e.message.includes('duplicate')) return res.status(400).json({ error: 'Program name already exists.' })
+    res.status(500).json({ error: 'Failed to update program.' })
+  }
+})
+
+app.delete('/api/programs/:id', authenticateToken, async (req, res) => {
+  if (!req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Platform admin only.' })
+  const { id } = req.params
+  try {
+    const r = await pool.query('DELETE FROM programs WHERE id = $1 RETURNING id;', [id])
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Program not found.' })
+    res.json({ success: true, id })
+  } catch (e) {
+    console.error('[DELETE /api/programs/:id]', e.message)
+    res.status(500).json({ error: 'Failed to delete program.' })
+  }
+})
+
 // ── PHASE 4: platform admin (manages tenants — above per-tenant admins) ─────
 async function platformAdminOnly(req, res, next) {
   const token = (req.headers['authorization'] || '').split(' ')[1]

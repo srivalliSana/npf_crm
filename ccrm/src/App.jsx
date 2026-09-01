@@ -45,6 +45,7 @@ import UploadLogs from './pages/UploadLogs'
 import CallOutcomes from './pages/CallOutcomes'
 import CallActivityReport from './pages/CallActivityReport'
 import WorkbookImport from './pages/WorkbookImport'
+import ProgramsManager from './pages/ProgramsManager'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -119,6 +120,7 @@ export default function App() {
             <Route path="applications/:id" element={<ApplicationDetails />} />
             <Route path="dashboard"        element={<Dashboard />} />
             <Route path="platform-tenants" element={<PlatformTenants />} />
+            <Route path="programs"         element={<ProgramsManager />} />
             <Route path="reports"          element={<Reports />} />
             <Route path="productivity"     element={<ProductivityReport />} />
             <Route element={<RoleGuard roles={['Admin','Manager']} />}>
