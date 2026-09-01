@@ -1065,11 +1065,11 @@ export default function LeadManager() {
                           className="p-1 rounded hover:bg-indigo-50 text-gray-400 hover:text-indigo-500" title="Schedule follow-up">
                           <Calendar size={12} />
                         </button>
-                        {/* Transfer (re-assign) — Admin/Manager direct, Counsellor requests approval */}
-                        <button onClick={e => { e.stopPropagation(); setTransferLead(lead); setTransferTo(''); setTransferRemark('') }}
+                        {/* Transfer (re-assign) — DISABLED */}
+                        {/* <button onClick={e => { e.stopPropagation(); setTransferLead(lead); setTransferTo(''); setTransferRemark('') }}
                           className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500" title="Transfer lead to another counsellor">
                           <ArrowRightLeft size={12} />
-                        </button>
+                        </button> */}
                         {/* Delete: Admin/Manager anytime; Counsellor only own + Untouched */}
                         {(() => {
                           const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
@@ -1508,8 +1508,8 @@ export default function LeadManager() {
         )}
       </Modal>
 
-      {/* ============ TRANSFER LEAD MODAL ============ */}
-      <Modal
+      {/* TRANSFER LEAD MODAL — DISABLED (use Applications section instead) */}
+      {/* <Modal
         open={!!transferLead}
         onClose={() => setTransferLead(null)}
         title="Transfer Lead"
@@ -1558,7 +1558,7 @@ export default function LeadManager() {
             </div>
           </>
         )}
-      </Modal>
+      </Modal> */}
 
       {/* ============ DELETE CONFIRM MODAL ============ */}
       <Modal
