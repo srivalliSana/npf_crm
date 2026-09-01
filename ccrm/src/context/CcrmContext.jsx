@@ -399,9 +399,10 @@ export function CcrmProvider({ children }) {
 
   const addUser = async (userData) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
       const res = await fetch('/api/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
         body: JSON.stringify(userData)
       })
       const data = await res.json().catch(() => ({}))
@@ -427,9 +428,10 @@ export function CcrmProvider({ children }) {
 
   const updateUser = async (id, data) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
       const res = await fetch(`/api/users/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
         body: JSON.stringify(data)
       })
       if (res.ok) {
