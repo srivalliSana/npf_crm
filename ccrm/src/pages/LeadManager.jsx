@@ -122,15 +122,25 @@ export default function LeadManager() {
 
   // Get tenant-specific form configuration
   const getTenantFormConfig = () => {
-    const tenantName = tenantConfig?.name || ''
-    const tenantSlug = tenantConfig?.slug || ''
+    // Try to get tenant from context first, fallback to URL slug
+    let tenantName = tenantConfig?.name || ''
+    let tenantSlug = tenantConfig?.slug || ''
+
+    // Fallback: extract tenant slug from URL (e.g., /cuedu/leads → cuedu)
+    if (!tenantSlug) {
+      const pathParts = window.location.pathname.split('/')
+      if (pathParts.length > 1 && pathParts[1]) {
+        tenantSlug = pathParts[1]
+      }
+    }
+
     const nameLower = tenantName.toLowerCase().replace(/\s+/g, '')
 
-    console.log('[LeadManager] Tenant config:', { name: tenantName, slug: tenantSlug, nameLower })
+    console.log('[LeadManager] Tenant config:', { name: tenantName, slug: tenantSlug, nameLower, pathSlug: window.location.pathname.split('/')[1] })
 
-    // Check multiple variations of tenant identifiers
-    for (const key of [nameLower, tenantSlug.toLowerCase(), tenantName.toLowerCase()]) {
-      if (TENANT_FORM_CONFIGS[key]) {
+    // Check multiple variations of tenant identifiers (slug first since it's more reliable)
+    for (const key of [tenantSlug.toLowerCase(), nameLower, tenantName.toLowerCase()]) {
+      if (key && TENANT_FORM_CONFIGS[key]) {
         console.log('[LeadManager] Matched config key:', key)
         return TENANT_FORM_CONFIGS[key]
       }
