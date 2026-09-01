@@ -12,8 +12,8 @@ import { useCcrm } from '../context/CcrmContext'
 
 const NAV_ITEMS = [
   { icon: Building2,       label: 'Tenants',            to: '/platform-tenants',       platformOnly: true },
-  { icon: GraduationCap,   label: 'Programs',           to: '/programs',               platformOnly: true },
   { icon: LayoutDashboard, label: 'Dashboard',          to: '/dashboard',              roles: null },
+  { icon: GraduationCap,   label: 'Programs',           to: '/programs',               roles: ['Admin'] },
   { icon: Users,           label: 'Leads',              to: '/leads',                  roles: null },
   {
     icon: Users,
