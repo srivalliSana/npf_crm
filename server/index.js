@@ -1467,8 +1467,7 @@ app.put('/api/leads/:id', authenticateToken, async (req, res) => {
 
         await pool.query(`
           INSERT INTO applications (name, app_no, email, mobile, course, campus, stage, owner, tenant_id, date)
-          VALUES ($1, $2, $3, $4, $5, $6, 'Interested', $7, $8, NOW())
-          ON CONFLICT (app_no, tenant_id) DO NOTHING;
+          VALUES ($1, $2, $3, $4, $5, $6, 'Interested', $7, $8, NOW());
         `, [appName, appNo, appEmail, appMobile, appCourse, appCampus, owner || currentLead.owner, req.tenantId])
       }
     }
