@@ -31,9 +31,21 @@ export default function ApplicationManager() {
   const navigate = useNavigate()
   const { applications, addApplication, updateApplication, deleteApplication, leads, currentUser, showToast, generatePaymentLink, payments, tenantConfig } = useCcrm()
 
-  // Get tenant-specific exam options
-  const tenantName = tenantConfig?.name?.toLowerCase().replace(/\s+/g, '') || 'default'
-  const EXAM_OPTIONS = TENANT_EXAM_OPTIONS[tenantName] || TENANT_EXAM_OPTIONS.default
+  // Get tenant-specific exam options (from context or URL slug)
+  let tenantName = tenantConfig?.name?.toLowerCase().replace(/\s+/g, '') || ''
+  let tenantSlug = tenantConfig?.slug?.toLowerCase() || ''
+
+  // Fallback: extract tenant slug from URL (e.g., /cuedu/applications → cuedu)
+  if (!tenantSlug) {
+    const pathParts = window.location.pathname.split('/')
+    if (pathParts.length > 1 && pathParts[1]) {
+      tenantSlug = pathParts[1]
+    }
+  }
+
+  // Use slug first (more reliable), then name, then default
+  const configKey = tenantSlug || tenantName || 'default'
+  const EXAM_OPTIONS = TENANT_EXAM_OPTIONS[configKey] || TENANT_EXAM_OPTIONS.default
 
   const [selectedRows, setSelectedRows] = useState([])
   const [exam, setExam] = useState('All Programs')
@@ -44,8 +56,8 @@ export default function ApplicationManager() {
   const [filters, setFilters] = useState({ payStatus: '', owner: '', appStage: '', formStatus: '' })
 
   // Default course for new applications based on tenant
-  const defaultCourse = tenantName === 'cuedu' ? 'BBA' : 'B.Tech CSE'
-  const defaultCampus = tenantName === 'cuedu' ? 'Online' : 'Bhubaneswar'
+  const defaultCourse = (tenantSlug === 'cuedu' || tenantName === 'cuedu') ? 'BBA' : 'B.Tech CSE'
+  const defaultCampus = (tenantSlug === 'cuedu' || tenantName === 'cuedu') ? 'Online' : 'Bhubaneswar'
 
   // Add application modal state
   const [showAddModal, setShowAddModal] = useState(false)
