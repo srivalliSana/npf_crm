@@ -1675,9 +1675,9 @@ export default function LeadManager() {
                     </div>
                     <button
                       onClick={handleDownloadTemplate}
-                      className="flex-shrink-0 flex items-center gap-1.5 text-sm bg-success-600 hover:bg-success-700 text-white rounded-lg px-4 py-2 transition-colors font-medium"
+                      className="flex items-center gap-2 text-base bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-3 transition-colors font-bold shadow-md"
                     >
-                      <Download size={14} /> Template
+                      <Download size={18} /> Download Template
                     </button>
                   </div>
 
