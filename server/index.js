@@ -3583,7 +3583,7 @@ function tenantConfigFromRow(t) {
 }
 
 // Current tenant's full config (loaded by the app after login)
-app.get('/api/tenant/config', async (req, res) => {
+app.get('/api/tenant/config', authenticateToken, async (req, res) => {
   try {
     const r = await pool.query('SELECT * FROM tenants WHERE id = $1;', [req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found.' })
