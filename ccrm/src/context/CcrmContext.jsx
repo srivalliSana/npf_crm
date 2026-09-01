@@ -532,6 +532,11 @@ export function CcrmProvider({ children }) {
       if (res.ok) {
         const updated = await res.json()
         setLeads(prev => prev.map(l => l.id === id ? updated : l))
+        // If stage changed to "Interested", refresh applications to show newly created app
+        if (data.stage === 'Interested') {
+          const appsRes = await fetch('/api/applications', { headers })
+          if (appsRes.ok) setApplications(await appsRes.json())
+        }
         showToast('Lead details updated.', 'success')
         return
       }
