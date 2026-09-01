@@ -1440,6 +1440,37 @@ app.put('/api/leads/:id', authenticateToken, async (req, res) => {
     const updatedLead = updateRes.rows[0]
     const newStage = stage || currentLead.stage
 
+    // Log status change to history and notes if stage changed
+    if (newStage !== currentLead.stage) {
+      const timestamp = new Date().toISOString()
+      const userEmail = req.user?.email || 'system'
+      const historyEntry = {
+        timestamp,
+        oldStage: currentLead.stage,
+        newStage: newStage,
+        changedBy: userEmail
+      }
+
+      // Get current status history
+      const historyRes = await pool.query(
+        'SELECT status_history FROM leads WHERE id = $1 AND tenant_id = $2;',
+        [id, req.tenantId]
+      )
+      const currentHistory = (historyRes.rows[0]?.status_history || [])
+      const newHistory = [...currentHistory, historyEntry]
+
+      // Append to notes
+      const noteText = `[${timestamp}] Status changed: ${currentLead.stage} → ${newStage}`
+      const currentNotes = currentLead.lead_details?.notes || ''
+      const newNotes = currentNotes ? `${currentNotes}\n${noteText}` : noteText
+
+      // Update both history and notes
+      await pool.query(
+        'UPDATE leads SET status_history = $1::jsonb, lead_details = jsonb_set(COALESCE(lead_details, \'{}\'), \'{notes}\', $2::jsonb) WHERE id = $3 AND tenant_id = $4;',
+        [JSON.stringify(newHistory), JSON.stringify(newNotes), id, req.tenantId]
+      )
+    }
+
     // If stage is changed to "Interested", create an application record if it doesn't exist
     if (newStage === 'Interested') {
       const appCheckRes = await pool.query(
@@ -1472,7 +1503,13 @@ app.put('/api/leads/:id', authenticateToken, async (req, res) => {
       }
     }
 
-    res.json(updatedLead)
+    // Refetch the lead to include status_history in response
+    const finalRes = await pool.query(
+      'SELECT id, name, email, mobile, state, city, course, program, source, owner, reg_date AS "regDate", score, stage, stage_color AS "stageColor", not_interested_reason AS "notInterestedReason", lead_details AS "leadDetails", status_history AS "statusHistory", campus FROM leads WHERE id = $1 AND tenant_id = $2;',
+      [id, req.tenantId]
+    )
+
+    res.json(finalRes.rows[0] || updatedLead)
   } catch (err) {
     console.error('[PUT /api/leads/:id]', err.message)
     res.status(500).json({ error: 'Failed to update lead details.' })
