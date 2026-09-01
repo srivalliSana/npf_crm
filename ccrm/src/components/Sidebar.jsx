@@ -77,7 +77,7 @@ export default function Sidebar({ onLogout, user, expanded = true }) {
     if (item.label === 'Website Leads' && GT_CODES.length === 0) return false  // tenant has no GT entities
     if (isSuper) return true                              // Super Admin sees everything
     if (item.label === 'Website Leads') return hasGT      // only if granted a GT entity
-    if (item.label === 'Leads')       return hasMain      // only if granted a main entity
+    if (item.label === 'Leads') return userRole === 'Admin' || hasMain  // Admins always see; others need main entity
     return !item.roles || item.roles.includes(userRole)   // admin still sees admin-only items
   }).map(item => {
     // Build the GT submenu (Overview + one entry per granted GT entity)
