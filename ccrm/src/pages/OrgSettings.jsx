@@ -154,27 +154,31 @@ export default function OrgSettings() {
               </button>
             </div>
 
-            <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-              <p className="text-sm font-medium text-gray-800 mb-2">GT Entity Leads ({gtEntities || 'GT'})</p>
-              <p className="text-sm text-gray-600 mb-3">
-                Auto-assign all unassigned GT entity leads to active counselors using round-robin.
-              </p>
-              <button onClick={() => handleAutoAssign('gt')} disabled={assigning}
-                className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
-                <Zap size={14} /> {assigning ? 'Auto-assigning…' : 'Auto-assign GT Leads'}
-              </button>
-            </div>
+            {gtEntities && (
+              <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <p className="text-sm font-medium text-gray-800 mb-2">GT Entity Leads ({gtEntities})</p>
+                <p className="text-sm text-gray-600 mb-3">
+                  Auto-assign all unassigned GT entity leads to active counselors using round-robin.
+                </p>
+                <button onClick={() => handleAutoAssign('gt')} disabled={assigning}
+                  className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Zap size={14} /> {assigning ? 'Auto-assigning…' : 'Auto-assign GT Leads'}
+                </button>
+              </div>
+            )}
 
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm font-medium text-gray-800 mb-2">All Leads ({allEntityLabels || 'All'})</p>
-              <p className="text-sm text-gray-600 mb-3">
-                Auto-assign all unassigned leads (regular + GT) to active counselors.
-              </p>
-              <button onClick={() => handleAutoAssign('all')} disabled={assigning}
-                className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
-                <Zap size={14} /> {assigning ? 'Auto-assigning…' : 'Auto-assign All Leads'}
-              </button>
-            </div>
+            {gtEntities && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm font-medium text-gray-800 mb-2">All Leads ({allEntityLabels})</p>
+                <p className="text-sm text-gray-600 mb-3">
+                  Auto-assign all unassigned leads (regular + GT) to active counselors.
+                </p>
+                <button onClick={() => handleAutoAssign('all')} disabled={assigning}
+                  className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Zap size={14} /> {assigning ? 'Auto-assigning…' : 'Auto-assign All Leads'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
