@@ -1456,11 +1456,20 @@ app.put('/api/leads/:id', authenticateToken, async (req, res) => {
         const appCourse = program || course || currentLead.program || currentLead.course
         const appCampus = currentLead.campus || ''
 
+        // Generate app_no using sequence or random number
+        let appNo
+        try {
+          const r = await pool.query(`SELECT lpad(nextval('cueeap_seq')::text, 4, '0') AS num;`)
+          appNo = `CUEEAP26${r.rows[0].num}`
+        } catch {
+          appNo = `CUEEAP26${String(Math.floor(1 + Math.random() * 9999)).padStart(4, '0')}`
+        }
+
         await pool.query(`
-          INSERT INTO applications (name, email, mobile, course, campus, stage, owner, tenant_id, date)
-          VALUES ($1, $2, $3, $4, $5, 'Interested', $6, $7, NOW())
-          ON CONFLICT DO NOTHING;
-        `, [appName, appEmail, appMobile, appCourse, appCampus, owner || currentLead.owner, req.tenantId])
+          INSERT INTO applications (name, app_no, email, mobile, course, campus, stage, owner, tenant_id, date)
+          VALUES ($1, $2, $3, $4, $5, $6, 'Interested', $7, $8, NOW())
+          ON CONFLICT (app_no, tenant_id) DO NOTHING;
+        `, [appName, appNo, appEmail, appMobile, appCourse, appCampus, owner || currentLead.owner, req.tenantId])
       }
     }
 
