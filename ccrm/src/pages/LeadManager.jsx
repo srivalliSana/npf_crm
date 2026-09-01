@@ -654,20 +654,35 @@ export default function LeadManager() {
   }
 
   const handleDownloadTemplate = () => {
-    // Course is OPTIONAL — counsellor can fill it in CRM after import
-    const headers = ['Name', 'Mobile', 'Source', 'Email (Optional)', 'State (Optional)', 'City (Optional)', 'Course (Optional)']
-    const samples = [
-      ['Rahul Sharma',  '9876543210', 'AI', 'rahul@gmail.com', 'Odisha',        'Bhubaneswar',  ''],
-      ['Priya Patel',   '9123456789', 'SM', 'priya@yahoo.com', 'Andhra Pradesh','Vizianagaram', 'MBA'],
-      ['Amit Kumar',    '8765432109', 'AI', '',                'Jharkhand',     'Ranchi',       ''],
-      ['Sneha Rao',     '9012345678', 'SM', '',                '',              '',             ''],
-      ['Vikram Singh',  '7890123456', 'AI', 'vikram@gmail.com','Bihar',         'Patna',        'B.Tech CSE'],
-    ]
+    // Get tenant slug from URL for tenant-specific template
+    const tenantSlug = window.location.pathname.split('/')[1]
+    const isCuedu = tenantSlug === 'cuedu'
+
+    const headers = isCuedu
+      ? ['Name', 'Mobile', 'Source', 'Email (Optional)', 'State (Optional)', 'City (Optional)', 'Program (Optional)']
+      : ['Name', 'Mobile', 'Source', 'Email (Optional)', 'State (Optional)', 'City (Optional)', 'Course (Optional)']
+
+    const samples = isCuedu
+      ? [
+          ['Rahul Sharma',  '9876543210', 'Website', 'rahul@gmail.com', 'Karnataka',      'Bangalore',    'BBA'],
+          ['Priya Patel',   '9123456789', 'Referral', 'priya@yahoo.com', 'Maharashtra',   'Mumbai',       'MBA'],
+          ['Amit Kumar',    '8765432109', 'Website', '',                 'Tamil Nadu',    'Chennai',      ''],
+          ['Sneha Rao',     '9012345678', 'Referral', '',                '',               '',             'MCA'],
+          ['Vikram Singh',  '7890123456', 'Website', 'vikram@gmail.com', 'Delhi',          'Delhi',        'BCOM'],
+        ]
+      : [
+          ['Rahul Sharma',  '9876543210', 'AI', 'rahul@gmail.com', 'Odisha',        'Bhubaneswar',  ''],
+          ['Priya Patel',   '9123456789', 'SM', 'priya@yahoo.com', 'Andhra Pradesh','Vizianagaram', 'MBA'],
+          ['Amit Kumar',    '8765432109', 'AI', '',                'Jharkhand',     'Ranchi',       ''],
+          ['Sneha Rao',     '9012345678', 'SM', '',                '',              '',             ''],
+          ['Vikram Singh',  '7890123456', 'AI', 'vikram@gmail.com','Bihar',         'Patna',        'B.Tech CSE'],
+        ]
+
     const csv = "data:text/csv;charset=utf-8,"
       + [headers.join(','), ...samples.map(r => r.map(v => `"${v}"`).join(','))].join('\n')
     const a = document.createElement('a')
     a.href = encodeURI(csv)
-    a.download = 'CCRM_Lead_Upload_Template.csv'
+    a.download = `${isCuedu ? 'CueEdu' : 'CCRM'}_Lead_Upload_Template.csv`
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
     showToast('Template downloaded — only Name, Mobile, Source are required', 'success')
   }
