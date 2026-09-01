@@ -1392,6 +1392,11 @@ app.put('/api/leads/:id', authenticateToken, async (req, res) => {
   const { id } = req.params
   const { name, email, mobile, state, city, course, source, owner, score, stage, stageColor, not_interested_reason, leadDetails } = req.body
   try {
+    // First, get the current lead to check if stage is changing to "Interested"
+    const leadRes = await pool.query('SELECT * FROM leads WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
+    const currentLead = leadRes.rows[0]
+    if (!currentLead) return res.status(404).json({ error: 'Lead not found.' })
+
     const updateRes = await pool.query(`
       UPDATE leads
       SET
@@ -1431,7 +1436,34 @@ app.put('/api/leads/:id', authenticateToken, async (req, res) => {
       req.tenantId
     ])
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Lead not found.' })
-    res.json(updateRes.rows[0])
+
+    const updatedLead = updateRes.rows[0]
+    const newStage = stage || currentLead.stage
+
+    // If stage is changed to "Interested", create an application record if it doesn't exist
+    if (newStage === 'Interested') {
+      const appCheckRes = await pool.query(
+        'SELECT id FROM applications WHERE (email = $1 OR mobile = $2) AND tenant_id = $3 LIMIT 1;',
+        [email || currentLead.email, mobile || currentLead.mobile, req.tenantId]
+      )
+
+      if (appCheckRes.rows.length === 0) {
+        // Create new application from lead details
+        const appName = name || currentLead.name
+        const appEmail = email || currentLead.email
+        const appMobile = mobile || currentLead.mobile
+        const appCourse = course || currentLead.course
+        const appCampus = currentLead.campus || ''
+
+        await pool.query(`
+          INSERT INTO applications (name, email, mobile, course, campus, stage, owner, tenant_id, date)
+          VALUES ($1, $2, $3, $4, $5, 'Interested', $6, $7, NOW())
+          ON CONFLICT DO NOTHING;
+        `, [appName, appEmail, appMobile, appCourse, appCampus, owner || currentLead.owner, req.tenantId])
+      }
+    }
+
+    res.json(updatedLead)
   } catch (err) {
     console.error('[PUT /api/leads/:id]', err.message)
     res.status(500).json({ error: 'Failed to update lead details.' })
