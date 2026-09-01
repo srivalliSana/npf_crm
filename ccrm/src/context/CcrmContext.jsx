@@ -149,7 +149,12 @@ export function CcrmProvider({ children }) {
 
     try {
       // Only pull a recent slice for incidental use — never the whole table.
-      const leadsRes = await fetch('/api/leads?limit=100', { headers })
+      // Include requesterRole & requesterName so counselors only see their own leads
+      const leadsUrl = new URL('/api/leads', window.location.origin)
+      leadsUrl.searchParams.set('limit', '100')
+      if (currentUser?.role) leadsUrl.searchParams.set('requesterRole', currentUser.role)
+      if (currentUser?.name) leadsUrl.searchParams.set('requesterName', currentUser.name)
+      const leadsRes = await fetch(leadsUrl.toString(), { headers })
       if (leadsRes.ok) {
         const data = await leadsRes.json()
         setLeads(data.rows || data)
