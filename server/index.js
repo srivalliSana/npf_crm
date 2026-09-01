@@ -3701,8 +3701,8 @@ app.put('/api/tenant/config', authenticateToken, async (req, res) => {
   } catch (e) { console.error('[tenant/config PUT]', e.message); res.status(500).json({ error: 'Failed to save tenant config.' }) }
 })
 
-// ── PROGRAMS: Global program management (platform admin only) ─────
-app.get('/api/programs', async (req, res) => {
+// ── PROGRAMS: Global program management (all authenticated users can read) ─────
+app.get('/api/programs', authenticateToken, async (req, res) => {
   try {
     const r = await pool.query('SELECT * FROM programs ORDER BY name;')
     res.json(r.rows)
