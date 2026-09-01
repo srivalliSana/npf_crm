@@ -9,18 +9,31 @@ import { useCcrm } from '../context/CcrmContext'
 import PageContainer from '../components/PageContainer'
 import { Card, Modal, Button } from '../components/ui'
 
-const EXAM_OPTIONS = [
-  { label: 'All Programs',          courses: [],   year: 'all' }, // shows everything
-  { label: 'CUEE Application 2026', courses: ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'B.Com', 'B.Tech Civil', 'B.Tech Mech'], year: '2026' },
-  { label: 'CUEE Application 2025', courses: ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'B.Com'], year: '2025' },
-  { label: 'CUTM MBA 2026',         courses: ['MBA', 'MBA (Finance)', 'MBA (Marketing)', 'MBA (HR)'], year: '2026' },
-  { label: 'CUTM PhD 2026',         courses: ['M.Tech', 'M.Sc Agriculture (Genetics)', 'M.Sc', 'PhD'], year: '2026' },
-]
+// Tenant-specific exam/program options
+const TENANT_EXAM_OPTIONS = {
+  cuedu: [
+    { label: 'All Programs', courses: [], year: 'all' },
+    { label: 'Undergraduate', courses: ['BBA', 'BCA', 'BCOM'], year: 'all' },
+    { label: 'Postgraduate', courses: ['MBA', 'MCA', 'MSc (Maths)'], year: 'all' },
+  ],
+  default: [
+    { label: 'All Programs',          courses: [],   year: 'all' },
+    { label: 'CUEE Application 2026', courses: ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'B.Com', 'B.Tech Civil', 'B.Tech Mech'], year: '2026' },
+    { label: 'CUEE Application 2025', courses: ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'B.Com'], year: '2025' },
+    { label: 'CUTM MBA 2026',         courses: ['MBA', 'MBA (Finance)', 'MBA (Marketing)', 'MBA (HR)'], year: '2026' },
+    { label: 'CUTM PhD 2026',         courses: ['M.Tech', 'M.Sc Agriculture (Genetics)', 'M.Sc', 'PhD'], year: '2026' },
+  ]
+}
+
 const QUICK_VIEWS = ['All Applications', 'My Applications', 'Payment Pending', 'Approved', 'Submitted']
 
 export default function ApplicationManager() {
   const navigate = useNavigate()
-  const { applications, addApplication, updateApplication, deleteApplication, leads, currentUser, showToast, generatePaymentLink, payments } = useCcrm()
+  const { applications, addApplication, updateApplication, deleteApplication, leads, currentUser, showToast, generatePaymentLink, payments, tenantConfig } = useCcrm()
+
+  // Get tenant-specific exam options
+  const tenantName = tenantConfig?.name?.toLowerCase().replace(/\s+/g, '') || 'default'
+  const EXAM_OPTIONS = TENANT_EXAM_OPTIONS[tenantName] || TENANT_EXAM_OPTIONS.default
 
   const [selectedRows, setSelectedRows] = useState([])
   const [exam, setExam] = useState('All Programs')
@@ -30,6 +43,10 @@ export default function ApplicationManager() {
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({ payStatus: '', owner: '', appStage: '', formStatus: '' })
 
+  // Default course for new applications based on tenant
+  const defaultCourse = tenantName === 'cuedu' ? 'BBA' : 'B.Tech CSE'
+  const defaultCampus = tenantName === 'cuedu' ? 'Online' : 'Bhubaneswar'
+
   // Add application modal state
   const [showAddModal, setShowAddModal] = useState(false)
   const [chooseLeadId, setChooseLeadId] = useState('')
@@ -37,8 +54,8 @@ export default function ApplicationManager() {
     name: '',
     email: '',
     mobile: '',
-    campus: 'Bhubaneswar',
-    course: 'B.Tech CSE',
+    campus: defaultCampus,
+    course: defaultCourse,
     formStatus: 'Complete',
     payStatus: 'Payment Pending',
     payMethod: 'Online',

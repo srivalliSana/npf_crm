@@ -1390,7 +1390,7 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
 
 app.put('/api/leads/:id', authenticateToken, async (req, res) => {
   const { id } = req.params
-  const { name, email, mobile, state, city, course, source, owner, score, stage, stageColor, not_interested_reason, leadDetails } = req.body
+  const { name, email, mobile, state, city, course, program, source, owner, score, stage, stageColor, not_interested_reason, leadDetails } = req.body
   try {
     // First, get the current lead to check if stage is changing to "Interested"
     const leadRes = await pool.query('SELECT * FROM leads WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
@@ -1452,7 +1452,8 @@ app.put('/api/leads/:id', authenticateToken, async (req, res) => {
         const appName = name || currentLead.name
         const appEmail = email || currentLead.email
         const appMobile = mobile || currentLead.mobile
-        const appCourse = course || currentLead.course
+        // Use program if provided (cuedu), otherwise use course
+        const appCourse = program || course || currentLead.program || currentLead.course
         const appCampus = currentLead.campus || ''
 
         await pool.query(`
