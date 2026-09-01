@@ -36,6 +36,14 @@ function initials(name = '') {
 
 export default function UserManagement({ currentUser }) {
   const { users, addUser, updateUser, deleteUser, fetchAllData, showToast, tenantConfig } = useCcrm()
+  // Get auth headers helper
+  const getAuthHeaders = (contentType = 'application/json') => {
+    const token = localStorage.getItem('ccrm_token')
+    return {
+      'Content-Type': contentType,
+      ...(token && { Authorization: `Bearer ${token}` })
+    }
+  }
   // Entity codes from per-tenant config (falls back to the default CUTM/GT set)
   const ENTITY_CODES = Array.isArray(tenantConfig?.entities) && tenantConfig.entities.length
     ? tenantConfig.entities.map(e => e.code)
@@ -61,8 +69,8 @@ export default function UserManagement({ currentUser }) {
   const loadTeamsRoles = async () => {
     try {
       const [t, r] = await Promise.all([
-        fetch('/api/teams').then(x => x.json()),
-        fetch('/api/roles').then(x => x.json()),
+        fetch('/api/teams', { headers: getAuthHeaders() }).then(x => x.json()),
+        fetch('/api/roles', { headers: getAuthHeaders() }).then(x => x.json()),
       ])
       setTeamsList(Array.isArray(t) ? t : [])
       setRolesList(Array.isArray(r) ? r : [])
@@ -76,7 +84,7 @@ export default function UserManagement({ currentUser }) {
   const addTeam = async () => {
     if (!newTeamName.trim()) return
     const res = await fetch('/api/teams', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: getAuthHeaders(),
       body: JSON.stringify({ name: newTeamName.trim() })
     })
     if (res.ok) { setNewTeamName(''); loadTeamsRoles() }
@@ -85,7 +93,7 @@ export default function UserManagement({ currentUser }) {
 
   const deleteTeam = async (id, name) => {
     if (!confirm(`Delete team "${name}"?`)) return
-    const res = await fetch(`/api/teams/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/teams/${id}`, { method: 'DELETE', headers: getAuthHeaders() })
     if (res.ok) loadTeamsRoles()
     else alert((await res.json()).error || 'Delete failed')
   }
@@ -93,7 +101,7 @@ export default function UserManagement({ currentUser }) {
   const addRole = async () => {
     if (!newRoleName.trim()) return
     const res = await fetch('/api/roles', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: getAuthHeaders(),
       body: JSON.stringify({ name: newRoleName.trim(), description: newRoleDesc.trim() })
     })
     if (res.ok) { setNewRoleName(''); setNewRoleDesc(''); loadTeamsRoles() }
@@ -102,7 +110,7 @@ export default function UserManagement({ currentUser }) {
 
   const deleteRole = async (id, name) => {
     if (!confirm(`Delete role "${name}"?`)) return
-    const res = await fetch(`/api/roles/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/roles/${id}`, { method: 'DELETE', headers: getAuthHeaders() })
     if (res.ok) loadTeamsRoles()
     else alert((await res.json()).error || 'Delete failed')
   }
@@ -116,7 +124,7 @@ export default function UserManagement({ currentUser }) {
 
   useEffect(() => {
     if (showActivity) {
-      fetch('/api/users/activity').then(r => r.json()).then(d => setActivity(d || { recentLogins: [], activity: [] }))
+      fetch('/api/users/activity', { headers: getAuthHeaders() }).then(r => r.json()).then(d => setActivity(d || { recentLogins: [], activity: [] }))
     }
   }, [showActivity])
 
@@ -132,10 +140,9 @@ export default function UserManagement({ currentUser }) {
   const applyBulkEntities = async () => {
     if (selectedIds.length === 0) return
     try {
-      const token = localStorage.getItem('ccrm_token')
       const res = await fetch('/api/users/bulk-entities', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ ids: selectedIds, entities: bulkEnt })
       })
       if (res.ok) {
@@ -149,7 +156,7 @@ export default function UserManagement({ currentUser }) {
     if (selectedIds.length === 0) return
     try {
       const res = await fetch('/api/users/bulk-status', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: getAuthHeaders(),
         body: JSON.stringify({ ids: selectedIds, status })
       })
       if (res.ok) {
@@ -164,7 +171,7 @@ export default function UserManagement({ currentUser }) {
     if (!confirm(`Reset password for ${user.name}?\nA new temporary password will be emailed to ${user.email}.`)) return
     setResetForUser(user)
     try {
-      const res = await fetch(`/api/users/${user.id}/reset-password`, { method: 'POST' })
+      const res = await fetch(`/api/users/${user.id}/reset-password`, { method: 'POST', headers: getAuthHeaders() })
       const data = await res.json()
       if (res.ok) setResetResult(data)
       else alert(data.error || 'Reset failed')
@@ -206,7 +213,9 @@ export default function UserManagement({ currentUser }) {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch('/api/users/bulk-upload', { method: 'POST', body: fd })
+      const token = localStorage.getItem('ccrm_token')
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+      const res = await fetch('/api/users/bulk-upload', { method: 'POST', headers, body: fd })
       const data = await res.json()
       if (res.ok) {
         setBulkResult(data)
@@ -298,10 +307,9 @@ export default function UserManagement({ currentUser }) {
   // ── Promote / revoke Super Admin (Super Admin only) ────────────────────────
   const toggleSuperAdmin = async (u) => {
     try {
-      const token = localStorage.getItem('ccrm_token')
       const res = await fetch(`/api/users/${u.id}/superadmin`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ isSuperAdmin: !u.isSuperAdmin })
       })
       const data = await res.json().catch(() => ({}))
