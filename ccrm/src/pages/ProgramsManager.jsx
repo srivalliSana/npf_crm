@@ -122,7 +122,9 @@ export default function ProgramsManager() {
     <PageContainer>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Programs Manager</h1>
-        <Button icon={Plus} onClick={() => openModal()}>Add Program</Button>
+        <button onClick={() => openModal()} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 font-medium">
+          <Plus size={16} /> Add Program
+        </button>
       </div>
 
       <Card>
@@ -197,8 +199,10 @@ export default function ProgramsManager() {
             </div>
           </div>
           <div className="mt-6 flex gap-2 justify-end">
-            <button onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
-            <Button icon={Save} loading={saving} onClick={handleSave}>{editingId ? 'Update' : 'Create'}</Button>
+            <button onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
+            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 font-medium disabled:opacity-50">
+              <Save size={16} /> {saving ? 'Saving...' : (editingId ? 'Update' : 'Create')}
+            </button>
           </div>
         </Modal>
       )}
