@@ -73,6 +73,23 @@ export default function OrgSettings() {
 
   const isAdmin = ['Admin', 'Manager'].includes(currentUser?.role)
 
+  // Get entity names from tenant config
+  const entities = Array.isArray(tenantConfig?.entities) && tenantConfig.entities.length > 0
+    ? tenantConfig.entities
+    : [
+        { code: 'CUTM', label: 'CUTM' },
+        { code: 'CUTMAP', label: 'CUTMAP' },
+        { code: 'GTIB', label: 'GTIB' },
+        { code: 'FTL', label: 'FTL' },
+        { code: 'GTTECH', label: 'GTTECH' },
+        { code: 'ESSE', label: 'ESSE' }
+      ]
+
+  // Separate regular and GT entities
+  const regularEntities = entities.filter(e => ['CUTM', 'CUTMAP'].includes(e.code)).map(e => e.label || e.code).join(', ')
+  const gtEntities = entities.filter(e => ['GTIB', 'FTL', 'GTTECH', 'ESSE'].includes(e.code)).map(e => e.label || e.code).join(', ')
+  const allEntityLabels = entities.map(e => e.label || e.code).join(', ')
+
   return (
     <div className="p-6 max-w-2xl">
       <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-1">
@@ -127,7 +144,7 @@ export default function OrgSettings() {
           </h2>
           <div className="space-y-3">
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm font-medium text-gray-800 mb-2">Regular Leads (CUTM, CUTMAP)</p>
+              <p className="text-sm font-medium text-gray-800 mb-2">Regular Leads ({regularEntities || 'Regular'})</p>
               <p className="text-sm text-gray-600 mb-3">
                 Auto-assign all unassigned regular leads to active counselors using round-robin.
               </p>
@@ -138,7 +155,7 @@ export default function OrgSettings() {
             </div>
 
             <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-              <p className="text-sm font-medium text-gray-800 mb-2">GT Entity Leads (GTIB, FTL, GTTECH, ESSE)</p>
+              <p className="text-sm font-medium text-gray-800 mb-2">GT Entity Leads ({gtEntities || 'GT'})</p>
               <p className="text-sm text-gray-600 mb-3">
                 Auto-assign all unassigned GT entity leads to active counselors using round-robin.
               </p>
@@ -149,7 +166,7 @@ export default function OrgSettings() {
             </div>
 
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm font-medium text-gray-800 mb-2">All Leads (CUTM, CUTMAP, GT)</p>
+              <p className="text-sm font-medium text-gray-800 mb-2">All Leads ({allEntityLabels || 'All'})</p>
               <p className="text-sm text-gray-600 mb-3">
                 Auto-assign all unassigned leads (regular + GT) to active counselors.
               </p>
