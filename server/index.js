@@ -3619,6 +3619,7 @@ function tenantConfigFromRow(t) {
     id: t.id, name: t.name, slug: t.slug, status: t.status, plan: t.plan,
     allowedDomains: (t.allowed_domains || '').split(',').map(s => s.trim()).filter(Boolean),
     customDomain: t.custom_domain || null,
+    assignmentMethod: t.assignment_method || 'random',
     branding, entities, stages
   }
 }
@@ -3646,7 +3647,7 @@ app.get('/api/tenant/public', async (req, res) => {
 // Update the current tenant's config (tenant Admin only)
 app.put('/api/tenant/config', authenticateToken, async (req, res) => {
   if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
-  const { branding, entities, stages, allowedDomains, customDomain, name } = req.body
+  const { branding, entities, stages, allowedDomains, customDomain, name, assignmentMethod } = req.body
   try {
     const sets = [], params = []
     if (branding !== undefined)       { params.push(JSON.stringify(branding)); sets.push(`branding = $${params.length}::jsonb`) }
@@ -3655,6 +3656,7 @@ app.put('/api/tenant/config', authenticateToken, async (req, res) => {
     if (allowedDomains !== undefined) { params.push(Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')); sets.push(`allowed_domains = $${params.length}`) }
     if (customDomain !== undefined)   { params.push(customDomain || null); sets.push(`custom_domain = $${params.length}`) }
     if (name !== undefined)           { params.push(String(name)); sets.push(`name = $${params.length}`) }
+    if (assignmentMethod !== undefined) { params.push(String(assignmentMethod || 'random')); sets.push(`assignment_method = $${params.length}`) }
     if (!sets.length) return res.json({ message: 'Nothing to update.' })
     params.push(req.tenantId)
     const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *;`, params)
