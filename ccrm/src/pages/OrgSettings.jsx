@@ -9,6 +9,7 @@ export default function OrgSettings() {
   const [domains, setDomains] = useState('')
   const [customDomain, setCustomDomain] = useState('')
   const [stages, setStages] = useState('')
+  const [assignmentMethod, setAssignmentMethod] = useState('random')
   const [saving, setSaving] = useState(false)
   const [assigning, setAssigning] = useState(false)
 
@@ -19,6 +20,7 @@ export default function OrgSettings() {
     setDomains((tenantConfig.allowedDomains || []).join(', '))
     setCustomDomain(tenantConfig.customDomain || '')
     setStages((tenantConfig.stages || []).join(', '))
+    setAssignmentMethod(tenantConfig.assignmentMethod || 'random')
   }, [tenantConfig])
 
   const save = async () => {
@@ -34,6 +36,7 @@ export default function OrgSettings() {
           allowedDomains: domains.split(',').map(s => s.trim()).filter(Boolean),
           customDomain: customDomain.trim() || null,
           stages: stages.split(',').map(s => s.trim()).filter(Boolean),
+          assignmentMethod,
         })
       })
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Save failed') }
@@ -95,7 +98,7 @@ export default function OrgSettings() {
       <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-1">
         <Building2 size={20} className="text-primary-500" /> Organization Settings
       </h1>
-      <p className="text-sm text-gray-500 mb-6">Branding and login control for your organization.</p>
+      <p className="text-sm text-gray-500 mb-6">Branding, login control, and lead assignment for your organization.</p>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
         <Field label="Organization name" value={name} onChange={setName} placeholder="Acme University" />
@@ -134,6 +137,17 @@ export default function OrgSettings() {
           <input value={stages} onChange={e => setStages(e.target.value)} placeholder="New, Contacted, Interested, Converted"
             className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400" />
           <p className="text-[11px] text-gray-400 mt-1">Comma-separated, in funnel order.</p>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1">Lead assignment method</label>
+          <select value={assignmentMethod} onChange={e => setAssignmentMethod(e.target.value)}
+            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400">
+            <option value="random">Random — distribute evenly at random</option>
+            <option value="roundrobin">Round-robin — cycle through counselors in order</option>
+            <option value="loadbased">Load-based — assign to counselor with fewest leads</option>
+          </select>
+          <p className="text-[11px] text-gray-400 mt-1">How new leads are distributed among active counselors.</p>
         </div>
       </div>
 
