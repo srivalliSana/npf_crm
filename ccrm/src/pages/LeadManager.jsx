@@ -61,9 +61,23 @@ const SOURCES = ['Google Ads', 'Meta', 'LinkedIn', 'Walk-in', 'Referral', 'Websi
 // All Indian states for multi-state organizations
 const ALL_STATES = ['Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal']
 
-// Tenant-specific form configurations
+// Tenant-specific form configurations (supports multiple key variations)
 const TENANT_FORM_CONFIGS = {
   cuedu: {
+    states: ALL_STATES,
+    campuses: ['Online'],
+    programs: ['BBA', 'BCA', 'BCOM', 'MBA', 'MCA', 'MSc (Maths)'],
+    hideReferenceCollege: true,
+    showProgram: true,
+  },
+  'cue edu': {
+    states: ALL_STATES,
+    campuses: ['Online'],
+    programs: ['BBA', 'BCA', 'BCOM', 'MBA', 'MCA', 'MSc (Maths)'],
+    hideReferenceCollege: true,
+    showProgram: true,
+  },
+  'cueedu': {
     states: ALL_STATES,
     campuses: ['Online'],
     programs: ['BBA', 'BCA', 'BCOM', 'MBA', 'MCA', 'MSc (Maths)'],
@@ -107,13 +121,32 @@ export default function LeadManager() {
   const [autoAssign, setAutoAssign] = useState(true)
 
   // Get tenant-specific form configuration
-  const tenantName = tenantConfig?.name || 'default'
-  const formConfig = TENANT_FORM_CONFIGS[tenantName.toLowerCase()] || {
-    states: STATES,
-    campuses: CAMPUSES,
-    hideReferenceCollege: false,
-    showProgram: false,
+  const getTenantFormConfig = () => {
+    const tenantName = tenantConfig?.name || ''
+    const tenantSlug = tenantConfig?.slug || ''
+    const nameLower = tenantName.toLowerCase().replace(/\s+/g, '')
+
+    console.log('[LeadManager] Tenant config:', { name: tenantName, slug: tenantSlug, nameLower })
+
+    // Check multiple variations of tenant identifiers
+    for (const key of [nameLower, tenantSlug.toLowerCase(), tenantName.toLowerCase()]) {
+      if (TENANT_FORM_CONFIGS[key]) {
+        console.log('[LeadManager] Matched config key:', key)
+        return TENANT_FORM_CONFIGS[key]
+      }
+    }
+    console.log('[LeadManager] No matching config found, using default')
+
+    // Default fallback
+    return {
+      states: STATES,
+      campuses: CAMPUSES,
+      hideReferenceCollege: false,
+      showProgram: false,
+    }
   }
+
+  const formConfig = getTenantFormConfig()
   const formStates = formConfig.states || STATES
   const formCampuses = formConfig.campuses || CAMPUSES
   const formPrograms = formConfig.programs || []
