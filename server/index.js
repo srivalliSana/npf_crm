@@ -4018,6 +4018,10 @@ async function getNextAssignee(tenantId = 1) {
     const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role NOT IN ('Admin', 'Finance') AND COALESCE(exclude_from_assignment, FALSE) = FALSE AND tenant_id = $1 ORDER BY name;", [tenantId])
     if (usersRes.rows.length === 0) return 'Unassigned'
 
+    // Get tenant's assignment method (default: random)
+    const tenantRes = await pool.query('SELECT assignment_method FROM tenants WHERE id = $1;', [tenantId])
+    const method = tenantRes.rows[0]?.assignment_method || 'random'
+
     // Ensure every active user has a counter row
     for (const u of usersRes.rows) {
       await pool.query(
@@ -4026,16 +4030,34 @@ async function getNextAssignee(tenantId = 1) {
       )
     }
 
-    // Pick the counsellor with the least assignments (load-based)
-    const counterRes = await pool.query(`
-      SELECT lac.counselor_name
-      FROM lead_assignment_counter lac
-      JOIN users u ON u.name = lac.counselor_name AND u.tenant_id = $1
-      WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE AND lac.tenant_id = $1
-      ORDER BY lac.assignment_count ASC, lac.last_assigned ASC
-      LIMIT 1;
-    `, [tenantId])
-    const assignee = counterRes.rows[0]?.counselor_name || usersRes.rows[0].name
+    let assignee
+    if (method === 'random') {
+      // Random: pick a random counselor
+      assignee = usersRes.rows[Math.floor(Math.random() * usersRes.rows.length)].name
+    } else if (method === 'roundrobin') {
+      // Round-robin: pick the last assigned + 1
+      const counterRes = await pool.query(`
+        SELECT lac.counselor_name
+        FROM lead_assignment_counter lac
+        JOIN users u ON u.name = lac.counselor_name AND u.tenant_id = $1
+        WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE AND lac.tenant_id = $1
+        ORDER BY lac.last_assigned ASC, lac.assignment_count ASC
+        LIMIT 1;
+      `, [tenantId])
+      assignee = counterRes.rows[0]?.counselor_name || usersRes.rows[0].name
+    } else {
+      // Load-based (default): pick the counsellor with the least assignments
+      const counterRes = await pool.query(`
+        SELECT lac.counselor_name
+        FROM lead_assignment_counter lac
+        JOIN users u ON u.name = lac.counselor_name AND u.tenant_id = $1
+        WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE AND lac.tenant_id = $1
+        ORDER BY lac.assignment_count ASC, lac.last_assigned ASC
+        LIMIT 1;
+      `, [tenantId])
+      assignee = counterRes.rows[0]?.counselor_name || usersRes.rows[0].name
+    }
+
     await pool.query(
       'UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1 AND tenant_id = $2;',
       [assignee, tenantId]
