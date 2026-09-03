@@ -11,11 +11,12 @@ const GOOGLE_CLIENT_ID = isGoogleConfigured
   ? rawClientId 
   : '100000000000-dummyclientid1234567890abcdef.apps.googleusercontent.com'
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {})
-  })
-}
+// Service worker disabled - was causing render errors
+// if ('serviceWorker' in navigator) {
+//   window.addEventListener('load', () => {
+//     navigator.serviceWorker.register('/sw.js').catch(() => {})
+//   })
+// }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
