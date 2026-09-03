@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
+import EmailTemplateModal from '../components/EmailTemplateModal'
 import { stageLabel } from '../stageLabel'
 import PageContainer from '../components/PageContainer'
 import { Card, Table, Modal, Button } from '../components/ui'
@@ -1346,42 +1347,17 @@ export default function LeadManager() {
             </div>
         </Modal>
 
-      {/* ============ EMAIL COMPOSE MODAL ============ */}
-      <Modal
-        open={showEmailModal}
+      {/* ============ EMAIL TEMPLATE MODAL ============ */}
+      <EmailTemplateModal
+        isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
-        title={<span className="flex items-center gap-2"><Mail size={18} className="text-warning-500" /> Send Email</span>}
-        footer={(
-          <>
-            <Button variant="secondary" className="flex-1" onClick={() => setShowEmailModal(false)}>Cancel</Button>
-            <Button className="flex-1 !bg-warning-500 hover:!bg-warning-600" icon={Mail} loading={emailSending} onClick={handleSendEmail}>
-              {emailSending ? 'Sending...' : 'Send Email'}
-            </Button>
-          </>
-        )}
-      >
-            <p className="text-sm text-gray-500 mb-4">
-              {emailMode === 'single'
-                ? <>To <strong className="text-gray-800">{emailLead?.name}</strong> {emailLead?.email ? <span className="text-gray-500">&lt;{emailLead.email}&gt;</span> : <span className="text-danger-500">(no email on file)</span>}</>
-                : emailMode === 'filtered'
-                  ? <>To <strong className="text-gray-800">all leads in current filter</strong> ({Math.min(total, RCS_CAMPAIGN_CAP).toLocaleString()})</>
-                  : <>To <strong className="text-gray-800">{selectedRows.length} selected lead(s)</strong></>}
-            </p>
-
-            <div className="mb-3">
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Subject *</label>
-              <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)}
-                placeholder="e.g. Your CUTM admission — next steps"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-warning-400" />
-            </div>
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Message *</label>
-              <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={7}
-                placeholder="Hi {name}, ..."
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warning-400 resize-none" />
-              <p className="text-xs text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> to personalise. Leads without an email are skipped.</p>
-            </div>
-      </Modal>
+        app={emailLead ? { id: emailLead.appId || emailLead.id, name: emailLead.name, email: emailLead.email } : null}
+        lead={emailLead}
+        onSendSuccess={() => {
+          setShowEmailModal(false)
+          showToast('Email sent successfully!', 'success')
+        }}
+      />
 
       {/* ============ WHATSAPP BULK MODAL ============ */}
       <Modal
