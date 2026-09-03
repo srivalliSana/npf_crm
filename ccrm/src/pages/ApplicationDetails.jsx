@@ -773,23 +773,20 @@ export default function ApplicationDetails() {
               )}
               {/* Admission Details — appears once app exists */}
               {associatedApp?.appNo && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      console.log('[TEST] Button clicked, setting modal to true')
-                      setShowAdmissionForm(true)
-                    }}
-                    className={`w-full text-xs font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
-                      associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
-                        ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
-                        : 'bg-orange-500 hover:bg-orange-600 text-white'
-                    }`}
-                  >
-                    {associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
-                      ? '✓ Admission Details Filled — Edit'
-                      : '📝 Fill Admission Details'}
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAdmissionMethodModal(true)}
+                  className={`w-full text-xs font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
+                    associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
+                      ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
+                      : 'bg-orange-500 hover:bg-orange-600 text-white'
+                  }`}
+                >
+                  {associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
+                    ? '✓ Admission Details Filled — Edit'
+                    : '📝 Fill Admission Details'}
+                </button>
+              )}
                 </>
               )}
               {/* Payment — show when app exists and payment not yet done */}
