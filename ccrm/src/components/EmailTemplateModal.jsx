@@ -38,18 +38,26 @@ export default function EmailTemplateModal({ isOpen, onClose, app, lead, onSendS
       return
     }
 
-    // Handle both leads and applications
-    let appId = app?.id || lead?.appId || lead?.id
-    let email = app?.email || lead?.email
+    // For applications: use app_id directly
+    let appId = app?.id
+    let email = app?.email
+
+    // For leads: check if they have an associated application
+    if (lead && !app) {
+      if (!lead.appId) {
+        setError('❌ This lead has no application yet. Please create an application first, then send the email.')
+        return
+      }
+      appId = lead.appId
+      email = lead.email
+    }
 
     if (!appId) {
-      setError('Record not found')
+      setError('Application ID is required')
       return
     }
 
-    // For leads without appId, we can still send emails
-    // The backend will handle it gracefully
-    if (!appId && !email) {
+    if (!email) {
       setError('Email address not found')
       return
     }
