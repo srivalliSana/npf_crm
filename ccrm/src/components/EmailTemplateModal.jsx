@@ -38,10 +38,19 @@ export default function EmailTemplateModal({ isOpen, onClose, app, lead, onSendS
       return
     }
 
-    const appId = app?.id || lead?.appId
+    // Handle both leads and applications
+    let appId = app?.id || lead?.appId || lead?.id
+    let email = app?.email || lead?.email
 
     if (!appId) {
-      setError('Application not found')
+      setError('Record not found')
+      return
+    }
+
+    // For leads without appId, we can still send emails
+    // The backend will handle it gracefully
+    if (!appId && !email) {
+      setError('Email address not found')
       return
     }
 
@@ -89,7 +98,7 @@ export default function EmailTemplateModal({ isOpen, onClose, app, lead, onSendS
       <div className="p-6 max-w-2xl">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Mail size={24} className="text-indigo-600" />
-          Send Email to Student
+          Send Email {app?.name || lead?.name ? `to ${app?.name || lead?.name}` : ''}
         </h2>
 
         {error && (
