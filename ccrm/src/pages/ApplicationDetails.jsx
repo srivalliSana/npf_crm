@@ -787,8 +787,6 @@ export default function ApplicationDetails() {
                     : '📝 Fill Admission Details'}
                 </button>
               )}
-                </>
-              )}
               {/* Payment — show when app exists and payment not yet done */}
               {associatedApp && !['Paid','Payment Done'].includes(associatedApp.payStatus) && (
                 <button
