@@ -838,6 +838,97 @@ export async function initDb() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_admission_tokens_token ON admission_tokens(token);`).catch(() => {})
     await client.query(`CREATE INDEX IF NOT EXISTS idx_admission_tokens_app ON admission_tokens(app_id, tenant_id);`).catch(() => {})
 
+    // Email templates for counselors to send various communications
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_templates (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER DEFAULT 1,
+        template_type VARCHAR(50) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        subject VARCHAR(255) NOT NULL,
+        body_html TEXT NOT NULL,
+        body_text TEXT NOT NULL,
+        variables TEXT DEFAULT '[]',
+        description TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `).catch(() => {})
+
+    // Email history/logs for tracking sent emails
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_logs (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER DEFAULT 1,
+        app_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
+        recipient_email VARCHAR(255) NOT NULL,
+        template_type VARCHAR(50),
+        subject VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'Sent',
+        sent_by VARCHAR(255),
+        sent_at TIMESTAMP DEFAULT NOW()
+      );
+    `).catch(() => {})
+
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_email_logs_app ON email_logs(app_id);`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_email_logs_tenant ON email_logs(tenant_id);`).catch(() => {})
+
+    // Seed default email templates
+    const defaultTemplates = [
+      {
+        type: 'admission_details',
+        name: 'Admission Details Form',
+        subject: 'Complete Your Admission Details - Application {APP_NO}',
+        description: 'Send link for student to fill personal and academic details'
+      },
+      {
+        type: 'application_fee',
+        name: 'Application Fee Payment',
+        subject: 'Pay Application Fee - {APP_NO}',
+        description: 'Send payment request for application fee'
+      },
+      {
+        type: 'registration_fee',
+        name: 'Registration Fee Payment',
+        subject: 'Pay Registration Fee - {APP_NO}',
+        description: 'Send payment request for registration/booking fee'
+      },
+      {
+        type: 'tuition_fee',
+        name: 'Tuition Fee Payment',
+        subject: 'Pay Tuition Fee - {APP_NO}',
+        description: 'Send payment request for semester/tuition fee'
+      },
+      {
+        type: 'other_fee',
+        name: 'Custom Fee Payment',
+        subject: 'Payment Required - {APP_NO}',
+        description: 'Send payment request for other fees'
+      },
+      {
+        type: 'admission_complete',
+        name: 'Admission Confirmation',
+        subject: 'Welcome to {UNIVERSITY_NAME} - {APP_NO}',
+        description: 'Send admission confirmation with details'
+      }
+    ]
+
+    for (const tpl of defaultTemplates) {
+      const exists = await client.query(
+        'SELECT 1 FROM email_templates WHERE template_type = $1 AND tenant_id = 1;',
+        [tpl.type]
+      ).catch(() => ({ rows: [] }))
+
+      if (exists.rows.length === 0) {
+        await client.query(
+          `INSERT INTO email_templates (tenant_id, template_type, name, subject, description, body_html, body_text, variables, is_active)
+           VALUES (1, $1, $2, $3, $4, '', '', '[]', TRUE)`,
+          [tpl.type, tpl.name, tpl.subject, tpl.description]
+        ).catch(() => {})
+      }
+    }
+
     console.log('--- CCRM PostgreSQL Database Schema Bootstrapped & Seeded Successfully ---')
   } catch (err) {
     console.error('Failed to initialize CCRM database schema:', err)
@@ -857,7 +948,7 @@ const TENANT_TABLES = [
   'esse_leads', 'ftl_leads', 'gtib_leads', 'gttech_leads', 'social_comments',
   'drip_sequences', 'drip_enrollments', 'email_campaigns', 'calls',
   'call_logs', 'whatsapp_logs', 'email_logs', 'sms_logs', 'queries', 'teams',
-  'finance_verifications', 'admission_tokens'
+  'finance_verifications', 'admission_tokens', 'email_templates'
 ]
 
 export async function initTenancy() {

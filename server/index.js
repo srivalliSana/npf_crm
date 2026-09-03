@@ -8429,6 +8429,149 @@ app.post('/api/applications/:id/pay-fee', authenticateToken, async (req, res) =>
   }
 })
 
+// ════════════════════════════════════════════════════════════════════════════════
+// EMAIL TEMPLATES: Dynamic templates for various communications
+// ════════════════════════════════════════════════════════════════════════════════
+
+// GET /api/email-templates
+// List all email templates for the tenant
+app.get('/api/email-templates', authenticateToken, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, template_type, name, subject, description, is_active
+       FROM email_templates
+       WHERE tenant_id = $1 AND is_active = TRUE
+       ORDER BY name ASC`,
+      [req.tenantId]
+    )
+
+    res.json(r.rows)
+  } catch (e) {
+    console.error('[GET /api/email-templates]', e.message)
+    res.status(500).json({ error: 'Failed to fetch templates.' })
+  }
+})
+
+// POST /api/send-template-email
+// Send email using a template with dynamic values
+app.post('/api/send-template-email', authenticateToken, async (req, res) => {
+  try {
+    const { app_id, template_type, amount, customMessage } = req.body
+
+    // Get application details
+    const app = await pool.query(
+      'SELECT id, name, email, app_no, course, campus FROM applications WHERE id = $1 AND tenant_id = $2',
+      [app_id, req.tenantId]
+    )
+
+    if (!app.rows.length) {
+      return res.status(404).json({ error: 'Application not found.' })
+    }
+
+    const appData = app.rows[0]
+
+    // Get template
+    const tpl = await pool.query(
+      'SELECT subject, template_type FROM email_templates WHERE template_type = $1 AND tenant_id = $2',
+      [template_type, req.tenantId]
+    )
+
+    if (!tpl.rows.length) {
+      return res.status(404).json({ error: 'Template not found.' })
+    }
+
+    const template = tpl.rows[0]
+
+    // Replace variables in subject
+    let subject = template.subject
+      .replace('{APP_NO}', appData.app_no)
+      .replace('{STUDENT_NAME}', appData.name)
+      .replace('{COURSE}', appData.course)
+      .replace('{UNIVERSITY_NAME}', 'Centurion University')
+
+    let emailBody = ''
+    let emailHtml = ''
+    let linkToken = null
+
+    // Generate appropriate content based on template type
+    if (template_type === 'admission_details') {
+      // Create admission token
+      linkToken = crypto.randomBytes(32).toString('hex')
+      await pool.query(
+        `INSERT INTO admission_tokens (app_id, token, email, tenant_id)
+         VALUES ($1, $2, $3, $4)`,
+        [app_id, linkToken, appData.email, req.tenantId]
+      )
+
+      const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
+      const formLink = `${baseUrl}/admission-details/${linkToken}`
+
+      emailHtml = `<div style="font-family: Arial; max-width: 600px; margin: 0 auto;">
+        <h2>Complete Your Admission Details</h2>
+        <p>Dear ${appData.name},</p>
+        <p>Please complete your admission details by clicking the button below:</p>
+        <a href="${formLink}" style="background: #4f46e5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0;">
+          Fill Admission Details →
+        </a>
+        <p>Or copy this link: <code>${formLink}</code></p>
+        <p>Link expires in 30 days.</p>
+      </div>`
+
+      emailBody = `Dear ${appData.name},\n\nPlease complete your admission details:\n${formLink}\n\nLink expires in 30 days.`
+    } else if (['application_fee', 'registration_fee', 'tuition_fee', 'other_fee'].includes(template_type)) {
+      // Payment templates
+      const feeNames = {
+        'application_fee': 'Application Fee',
+        'registration_fee': 'Registration Fee',
+        'tuition_fee': 'Tuition Fee',
+        'other_fee': 'Fee'
+      }
+
+      emailHtml = `<div style="font-family: Arial; max-width: 600px; margin: 0 auto;">
+        <h2>${feeNames[template_type]}</h2>
+        <p>Dear ${appData.name},</p>
+        <p>Amount Due: <strong>₹${amount}</strong></p>
+        <p>${customMessage || ''}</p>
+        <p>Please make the payment as soon as possible.</p>
+        <p>Application #: ${appData.app_no}</p>
+      </div>`
+
+      emailBody = `Dear ${appData.name},\n\n${feeNames[template_type]}: ₹${amount}\n\n${customMessage || ''}\n\nApplication #: ${appData.app_no}`
+    } else if (template_type === 'admission_complete') {
+      emailHtml = `<div style="font-family: Arial; max-width: 600px; margin: 0 auto;">
+        <h2>Welcome to Centurion University</h2>
+        <p>Dear ${appData.name},</p>
+        <p>Congratulations! Your admission has been confirmed.</p>
+        <p><strong>Application #:</strong> ${appData.app_no}</p>
+        <p><strong>Course:</strong> ${appData.course}</p>
+        <p><strong>Campus:</strong> ${appData.campus}</p>
+        <p>${customMessage || ''}</p>
+      </div>`
+
+      emailBody = `Dear ${appData.name},\n\nCongratulations! Your admission has been confirmed.\n\nApplication #: ${appData.app_no}\nCourse: ${appData.course}\nCampus: ${appData.campus}\n\n${customMessage || ''}`
+    }
+
+    // Send email via SES
+    await sendSystemMailAlert(appData.email, subject, emailBody, req.tenantId, emailHtml)
+
+    // Log the email
+    await pool.query(
+      `INSERT INTO email_logs (tenant_id, app_id, recipient_email, template_type, subject, sent_by)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [req.tenantId, app_id, appData.email, template_type, subject, req.user?.email]
+    ).catch(() => {})
+
+    res.json({
+      success: true,
+      message: `Email sent to ${appData.email}`,
+      token: linkToken
+    })
+  } catch (e) {
+    console.error('[POST /api/send-template-email]', e.message)
+    res.status(500).json({ error: 'Failed to send email.' })
+  }
+})
+
   // --- SCHEDULED AUTO-ASSIGN: Every hour, assign all unassigned leads (regular + GT) ---
   cron.schedule('0 * * * *', async () => {
     try {
