@@ -370,6 +370,27 @@ export async function initDb() {
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_letter_sent_at TIMESTAMP;`).catch(() => {})
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS school_dept VARCHAR(255) DEFAULT '';`).catch(() => {})
 
+    // Student login credentials (for student portal login)
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS student_password VARCHAR(255);`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS student_login_email_sent_at TIMESTAMP;`).catch(() => {})
+
+    // Admission number (ADMSOL26XXXX format)
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_number VARCHAR(50) UNIQUE;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_number_generated_at TIMESTAMP;`).catch(() => {})
+
+    // Fee configuration per program (pulled from programs master)
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS application_fee_amount INTEGER DEFAULT 0;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS registration_fee_amount INTEGER DEFAULT 0;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_fee_amount INTEGER DEFAULT 0;`).catch(() => {})
+
+    // Fee payment status
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS application_fee_paid BOOLEAN DEFAULT FALSE;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS application_fee_paid_at TIMESTAMP;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS registration_fee_paid BOOLEAN DEFAULT FALSE;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS registration_fee_paid_at TIMESTAMP;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_fee_paid BOOLEAN DEFAULT FALSE;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_fee_paid_at TIMESTAMP;`).catch(() => {})
+
     // Leads: same details so counsellor can fill them at lead stage (before app exists)
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
 

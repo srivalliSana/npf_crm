@@ -8121,6 +8121,314 @@ app.post('/api/admission-details/:token', async (req, res) => {
   }
 })
 
+// ════════════════════════════════════════════════════════════════════════════════
+// STUDENT PORTAL: Login + Fee Payment + Admission Number
+// ════════════════════════════════════════════════════════════════════════════════
+
+// POST /api/applications/:id/send-login-credentials
+// Counselor sends login credentials email to student after verifying admission details
+app.post('/api/applications/:id/send-login-credentials', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+
+    // Only admins/counselors can send login credentials
+    if (req.user?.role !== 'Admin' && req.user?.role !== 'Counselor') {
+      return res.status(403).json({ error: 'Admin only.' })
+    }
+
+    // Get application
+    const r = await pool.query(
+      'SELECT id, name, email, app_no FROM applications WHERE id = $1 AND tenant_id = $2',
+      [id, req.tenantId]
+    )
+    if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
+
+    const app = r.rows[0]
+
+    // Generate random password (12 characters)
+    const password = crypto.randomBytes(6).toString('hex')
+
+    // Store hashed password
+    const hashedPassword = crypto.createHash('sha256').update(password).digest('hex')
+
+    // Update application with password
+    await pool.query(
+      `UPDATE applications
+       SET student_password = $1, student_login_email_sent_at = NOW()
+       WHERE id = $2`,
+      [hashedPassword, id]
+    )
+
+    // Build student portal link
+    const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
+    const loginLink = `${baseUrl}/student-login`
+
+    // Email content
+    const emailSubject = `Your Student Portal Login - Application ${app.app_no}`
+    const emailHtml = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(to right, #10b981, #059669); color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px;">
+          <h1 style="margin: 0; font-size: 24px;">✅ Welcome to Student Portal</h1>
+        </div>
+
+        <p>Dear <strong>${app.name}</strong>,</p>
+
+        <p>Your admission details have been verified! You can now access the student portal to:</p>
+
+        <ul style="list-style: none; padding: 0;">
+          <li style="padding: 8px 0;">✓ View your admission details</li>
+          <li style="padding: 8px 0;">✓ Pay application fee</li>
+          <li style="padding: 8px 0;">✓ Pay registration fee</li>
+          <li style="padding: 8px 0;">✓ Pay tuition fee</li>
+          <li style="padding: 8px 0;">✓ View your admission number</li>
+        </ul>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${loginLink}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Login to Portal →
+          </a>
+        </div>
+
+        <div style="background-color: #f0fdf4; padding: 15px; border-left: 4px solid #10b981; border-radius: 4px; margin: 30px 0;">
+          <h3 style="margin-top: 0; color: #10b981;">Login Credentials:</h3>
+          <p style="font-size: 14px; margin: 5px 0;">
+            <strong>Email:</strong> ${app.email}
+          </p>
+          <p style="font-size: 14px; margin: 5px 0;">
+            <strong>Password:</strong> <code style="background: white; padding: 5px 10px; border-radius: 3px; font-weight: bold;">${password}</code>
+          </p>
+        </div>
+
+        <p style="color: #666; font-size: 13px;">
+          <strong>Important:</strong> Please change your password after your first login for security.
+        </p>
+
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px;">
+          <p>Best regards,<br><strong>Admissions Team</strong><br>
+          <em>Centurion University of Technology and Management</em></p>
+        </div>
+      </div>
+    </div>
+    `
+
+    const emailBody = `
+Dear ${app.name},
+
+Your admission details have been verified! You can now access the student portal.
+
+Login Link: ${loginLink}
+
+Login Credentials:
+Email: ${app.email}
+Password: ${password}
+
+You can now:
+- View your admission details
+- Pay application fee
+- Pay registration fee
+- Pay tuition fee
+- View your admission number
+
+Please change your password after your first login for security.
+
+Best regards,
+Admissions Team
+Centurion University of Technology and Management
+    `.trim()
+
+    // Send email via AWS SES
+    await sendSystemMailAlert(app.email, emailSubject, emailBody, req.tenantId, emailHtml)
+
+    res.json({
+      success: true,
+      message: 'Login credentials email sent successfully.'
+    })
+  } catch (e) {
+    console.error('[POST /api/applications/:id/send-login-credentials]', e.message)
+    res.status(500).json({ error: 'Failed to send login credentials email.' })
+  }
+})
+
+// POST /api/student-login
+// Student portal login
+app.post('/api/student-login', async (req, res) => {
+  try {
+    const { email, password } = req.body
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required.' })
+    }
+
+    // Get application by email
+    const r = await pool.query(
+      'SELECT id, name, app_no, email, course, admission_number FROM applications WHERE email = $1',
+      [email]
+    )
+
+    if (!r.rows.length) {
+      return res.status(401).json({ error: 'Invalid email or password.' })
+    }
+
+    const app = r.rows[0]
+    const hashedPassword = crypto.createHash('sha256').update(password).digest('hex')
+
+    // Verify password
+    if (app.student_password !== hashedPassword) {
+      return res.status(401).json({ error: 'Invalid email or password.' })
+    }
+
+    // Generate student JWT token (different from admin token)
+    const studentToken = jwt.sign(
+      { appId: app.id, email: app.email, role: 'Student' },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    )
+
+    res.json({
+      success: true,
+      token: studentToken,
+      application: {
+        id: app.id,
+        name: app.name,
+        email: app.email,
+        appNo: app.app_no,
+        course: app.course,
+        admissionNumber: app.admission_number
+      }
+    })
+  } catch (e) {
+    console.error('[POST /api/student-login]', e.message)
+    res.status(500).json({ error: 'Login failed.' })
+  }
+})
+
+// GET /api/student-portal
+// Get student's application data for portal
+app.get('/api/student-portal', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is a student
+    if (req.user?.role !== 'Student') {
+      return res.status(403).json({ error: 'Student portal only.' })
+    }
+
+    const r = await pool.query(
+      `SELECT id, name, email, mobile, app_no, course, campus, admission_details,
+              admission_number, admission_number_generated_at,
+              application_fee_amount, application_fee_paid, application_fee_paid_at,
+              registration_fee_amount, registration_fee_paid, registration_fee_paid_at,
+              tuition_fee_amount, tuition_fee_paid, tuition_fee_paid_at
+       FROM applications WHERE id = $1`,
+      [req.user.appId]
+    )
+
+    if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
+
+    res.json(r.rows[0])
+  } catch (e) {
+    console.error('[GET /api/student-portal]', e.message)
+    res.status(500).json({ error: 'Failed to fetch application data.' })
+  }
+})
+
+// POST /api/applications/:id/pay-fee
+// Student pays a specific fee (application, registration, or tuition)
+app.post('/api/applications/:id/pay-fee', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { feeType, amount, transactionId } = req.body
+
+    if (!feeType || !['application', 'registration', 'tuition'].includes(feeType)) {
+      return res.status(400).json({ error: 'Invalid fee type. Must be: application, registration, or tuition' })
+    }
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Valid amount required.' })
+    }
+
+    // Get application
+    const app = await pool.query(
+      'SELECT id, application_fee_paid, registration_fee_paid FROM applications WHERE id = $1 AND tenant_id = $2',
+      [id, req.tenantId]
+    )
+
+    if (!app.rows.length) return res.status(404).json({ error: 'Application not found.' })
+
+    const appData = app.rows[0]
+
+    // Enforce payment sequence
+    if (feeType === 'registration' && !appData.application_fee_paid) {
+      return res.status(400).json({ error: 'Application fee must be paid first.' })
+    }
+
+    if (feeType === 'tuition' && !appData.registration_fee_paid) {
+      return res.status(400).json({ error: 'Registration fee must be paid first.' })
+    }
+
+    // Update payment status based on fee type
+    let updateQuery = ''
+    if (feeType === 'application') {
+      updateQuery = 'UPDATE applications SET application_fee_paid = TRUE, application_fee_paid_at = NOW() WHERE id = $1'
+    } else if (feeType === 'registration') {
+      updateQuery = 'UPDATE applications SET registration_fee_paid = TRUE, registration_fee_paid_at = NOW() WHERE id = $1'
+    } else if (feeType === 'tuition') {
+      updateQuery = 'UPDATE applications SET tuition_fee_paid = TRUE, tuition_fee_paid_at = NOW() WHERE id = $1'
+    }
+
+    await pool.query(updateQuery, [id])
+
+    // Record payment
+    await pool.query(
+      `INSERT INTO payments (app_id, amount, status, method, transaction_id, fee_type, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, amount, 'Approved', 'online', transactionId || '', `${feeType}_fee`, req.tenantId]
+    ).catch(() => {})
+
+    // After registration fee paid, auto-generate admission number
+    if (feeType === 'registration') {
+      const appDetails = await pool.query(
+        'SELECT admission_number FROM applications WHERE id = $1',
+        [id]
+      )
+
+      if (!appDetails.rows[0]?.admission_number) {
+        // Generate admission number: ADMSOL26XXXX
+        const year = new Date().getFullYear().toString().slice(2)
+        const tenantPrefix = 'ADMSOL' // Can be customized per tenant
+
+        // Get max sequential number
+        const lastApp = await pool.query(
+          `SELECT admission_number FROM applications
+           WHERE admission_number LIKE $1
+           ORDER BY admission_number DESC LIMIT 1`,
+          [`${tenantPrefix}${year}%`]
+        )
+
+        let seqNum = 1
+        if (lastApp.rows.length > 0) {
+          const lastNum = parseInt(lastApp.rows[0].admission_number.slice(-4))
+          seqNum = lastNum + 1
+        }
+
+        const admissionNumber = `${tenantPrefix}${year}${String(seqNum).padStart(4, '0')}`
+
+        await pool.query(
+          `UPDATE applications SET admission_number = $1, admission_number_generated_at = NOW() WHERE id = $2`,
+          [admissionNumber, id]
+        )
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${feeType} fee paid successfully.`
+    })
+  } catch (e) {
+    console.error('[POST /api/applications/:id/pay-fee]', e.message)
+    res.status(500).json({ error: 'Failed to process payment.' })
+  }
+})
+
   // --- SCHEDULED AUTO-ASSIGN: Every hour, assign all unassigned leads (regular + GT) ---
   cron.schedule('0 * * * *', async () => {
     try {
