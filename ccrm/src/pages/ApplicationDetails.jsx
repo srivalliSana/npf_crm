@@ -149,6 +149,9 @@ export default function ApplicationDetails() {
   // Admission details modal + letter send state
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [letterSending, setLetterSending]         = useState(false)
+  const [showAdmissionModal, setShowAdmissionModal] = useState(false)
+  const [admissionEmail, setAdmissionEmail] = useState('')
+  const [admissionSending, setAdmissionSending] = useState(false)
   const [adForm, setAdForm] = useState(() => ({
     studentName: '', studentEmail: '', studentMobile: '',
     parentName: '', parentEmail: '', parentMobile: '',
@@ -2354,28 +2357,8 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
               <div className="flex gap-3">
                 <button
                   onClick={() => {
-                    const email = record?.email || prompt('Enter student email:')
-                    if (!email) return
-
-                    const token = localStorage.getItem('ccrm_token')
-                    fetch(`/api/applications/${record.id}/send-admission-details`, {
-                      method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                      },
-                      body: JSON.stringify({ email })
-                    })
-                      .then(r => r.json())
-                      .then(d => {
-                        if (d.success) {
-                          showToast(`Email sent to ${email}`, 'success')
-                          console.log('Admission link:', d.link)
-                        } else {
-                          alert('Error: ' + d.error)
-                        }
-                      })
-                      .catch(e => alert('Failed: ' + e.message))
+                    setAdmissionEmail(record?.email || '')
+                    setShowAdmissionModal(true)
                   }}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium flex items-center gap-2"
                 >
@@ -2384,6 +2367,78 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                 </button>
               </div>
             </div>
+          )}
+
+          {/* Admission Details Modal */}
+          {showAdmissionModal && (
+            <Modal onClose={() => setShowAdmissionModal(false)}>
+              <div className="p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">📧 Send Admission Form</h2>
+                <p className="text-gray-600 mb-6">Enter the email address to send the admission form link to:</p>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+                  <input
+                    type="email"
+                    value={admissionEmail}
+                    onChange={(e) => setAdmissionEmail(e.target.value)}
+                    placeholder="student@example.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                  <p className="text-sm text-purple-900">
+                    <strong>ℹ️ Note:</strong> A secure link will be sent to this email. The link expires in 30 days.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={async () => {
+                      if (!admissionEmail) {
+                        alert('Please enter an email address')
+                        return
+                      }
+
+                      setAdmissionSending(true)
+                      const token = localStorage.getItem('ccrm_token')
+                      try {
+                        const res = await fetch(`/api/applications/${record.id}/send-admission-details`, {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify({ email: admissionEmail })
+                        })
+                        const d = await res.json()
+                        if (d.success) {
+                          showToast(`Email sent to ${admissionEmail}`, 'success')
+                          setShowAdmissionModal(false)
+                        } else {
+                          alert('Error: ' + d.error)
+                        }
+                      } catch (e) {
+                        alert('Failed: ' + e.message)
+                      } finally {
+                        setAdmissionSending(false)
+                      }
+                    }}
+                    disabled={admissionSending}
+                    className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {admissionSending ? '📤 Sending...' : '✉️ Send Email'}
+                  </button>
+                  <button
+                    onClick={() => setShowAdmissionModal(false)}
+                    className="px-6 py-2 bg-gray-300 text-gray-900 rounded-lg hover:bg-gray-400 font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </Modal>
           )}
         </div>
       )}
