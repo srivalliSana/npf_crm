@@ -2348,13 +2348,15 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
             </div>
           )}
 
-          {/* Phase 9: Admission Details Link */}
-          {currentUser?.role === 'Admin' && (
-            <div className="mt-8 bg-purple-50 border border-purple-200 rounded-lg p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">📋 Send Admission Details Form</h3>
-              <p className="text-gray-700 mb-4">Send a secure link to the student to fill in their admission details (personal + academic information).</p>
+          {/* Phase 9: Admission Details Link & Login Credentials */}
+          {(currentUser?.role === 'Admin' || currentUser?.role === 'Counselor') && (
+            <div className="mt-8 space-y-6">
+              {/* Step 1: Send Admission Details Form */}
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">📋 Step 1: Admission Details Form</h3>
+                <p className="text-gray-700 mb-4">Send a secure link to the student to fill in their admission details (personal + academic information).</p>
 
-              <div className="flex gap-3">
+                <div className="flex gap-3">
                 <button
                   onClick={() => {
                     setAdmissionEmail(record?.email || '')
@@ -2365,6 +2367,46 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                   <Mail size={16} />
                   Send Admission Form Link
                 </button>
+              </div>
+
+              {/* Step 2: Send Login Credentials */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">✅ Step 2: Send Login Credentials</h3>
+                <p className="text-gray-700 mb-4">After verifying admission details, send student their login credentials to access the portal and pay fees.</p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      if (!record?.email) {
+                        alert('Student email not found')
+                        return
+                      }
+                      const token = localStorage.getItem('ccrm_token')
+                      setAdmissionSending(true)
+                      fetch(`/api/applications/${record.id}/send-login-credentials`, {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${token}`,
+                          'Content-Type': 'application/json'
+                        }
+                      })
+                        .then(r => r.json())
+                        .then(d => {
+                          if (d.success) {
+                            showToast('Login credentials sent to student', 'success')
+                          } else {
+                            alert('Error: ' + d.error)
+                          }
+                        })
+                        .catch(e => alert('Failed: ' + e.message))
+                        .finally(() => setAdmissionSending(false))
+                    }}
+                    disabled={admissionSending}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {admissionSending ? '📤 Sending...' : '🔑 Send Login Credentials'}
+                  </button>
+                </div>
               </div>
             </div>
           )}
