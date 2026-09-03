@@ -4,23 +4,20 @@ import { Modal } from './ui'
 
 export default function AdmissionMethodModal({ isOpen, onClose, app, onConfirm }) {
   const [method, setMethod] = useState(null)
-  const [sendingEmail, setSendingEmail] = useState(false)
+  const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
 
-  const handleConfirm = async () => {
+  const handleProceed = async () => {
     if (!method) {
       setError('Please select a method')
       return
     }
 
     if (method === 'online') {
-      // Send email with admission details form link
-      setSendingEmail(true)
-      setError('')
-
+      setSending(true)
       try {
         const token = localStorage.getItem('ccrm_token')
-        const res = await fetch('/api/send-template-email', {
+        const response = await fetch('/api/send-template-email', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -34,23 +31,22 @@ export default function AdmissionMethodModal({ isOpen, onClose, app, onConfirm }
           })
         })
 
-        const data = await res.json()
-
-        if (!res.ok) {
+        if (!response.ok) {
+          const data = await response.json()
           setError(data.error || 'Failed to send email')
-          setSendingEmail(false)
+          setSending(false)
           return
         }
 
-        onConfirm(method, data.token)
+        const data = await response.json()
+        onConfirm('online', data.token)
         onClose()
-      } catch (err) {
-        setError(err.message)
-        setSendingEmail(false)
+      } catch (e) {
+        setError(e.message)
+        setSending(false)
       }
     } else {
-      // Manual entry - counselor fills the form
-      onConfirm(method, null)
+      onConfirm('manual', null)
       onClose()
     }
   }
@@ -68,12 +64,9 @@ export default function AdmissionMethodModal({ isOpen, onClose, app, onConfirm }
         )}
 
         <div className="space-y-3 mb-6">
-          {/* Manual Entry */}
           <button
-            onClick={() => {
-              setMethod('manual')
-              setError('')
-            }}
+            type="button"
+            onClick={() => setMethod('manual')}
             className={`w-full p-4 rounded-lg border-2 text-left transition ${
               method === 'manual'
                 ? 'border-blue-600 bg-blue-50'
@@ -84,17 +77,14 @@ export default function AdmissionMethodModal({ isOpen, onClose, app, onConfirm }
               <FileText size={24} className={method === 'manual' ? 'text-blue-600' : 'text-gray-600'} />
               <div>
                 <p className="font-semibold text-gray-900">Manual Entry</p>
-                <p className="text-sm text-gray-600">You fill the details in the form</p>
+                <p className="text-sm text-gray-600">You fill the details</p>
               </div>
             </div>
           </button>
 
-          {/* Online Form Link */}
           <button
-            onClick={() => {
-              setMethod('online')
-              setError('')
-            }}
+            type="button"
+            onClick={() => setMethod('online')}
             className={`w-full p-4 rounded-lg border-2 text-left transition ${
               method === 'online'
                 ? 'border-indigo-600 bg-indigo-50'
@@ -111,34 +101,18 @@ export default function AdmissionMethodModal({ isOpen, onClose, app, onConfirm }
           </button>
         </div>
 
-        {method === 'manual' && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-900">
-              You'll open the form to enter student's personal and academic details.
-            </p>
-          </div>
-        )}
-
-        {method === 'online' && (
-          <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
-            <p className="text-sm text-indigo-900 flex items-center gap-2">
-              <Mail size={16} />
-              Secure email with form link will be sent to the student
-            </p>
-          </div>
-        )}
-
-        {/* Action Buttons */}
         <div className="flex gap-3">
           <button
-            onClick={handleConfirm}
-            disabled={!method || sendingEmail}
+            type="button"
+            onClick={handleProceed}
+            disabled={!method || sending}
             className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
           >
-            {sendingEmail ? <Loader size={16} className="animate-spin" /> : '✓'}
-            {sendingEmail ? 'Sending...' : 'Proceed'}
+            {sending ? <Loader size={16} className="animate-spin" /> : '✓'}
+            {sending ? 'Sending...' : 'Proceed'}
           </button>
           <button
+            type="button"
             onClick={onClose}
             className="flex-1 px-4 py-2 bg-gray-300 text-gray-900 rounded-lg hover:bg-gray-400 font-medium"
           >
