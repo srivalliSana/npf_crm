@@ -2191,6 +2191,161 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
           </table>
         </div>
       )}
+
+      {/* ─── PHASE 7-8: Registration Number & CampusOne Sync ─── */}
+      {isApp && isAdmin && (
+        <div className="mt-6 space-y-4">
+          {/* Phase 7: Registration Number Generation */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-4 pb-4 border-b">
+              <h3 className="text-lg font-bold text-gray-900">Registration Number</h3>
+              {record?.registration_number && (
+                <span className="inline-block px-3 py-1 bg-green-100 text-green-800 text-sm font-semibold rounded-full">
+                  Generated
+                </span>
+              )}
+            </div>
+            {record?.registration_number ? (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <p className="text-sm text-gray-600 mb-2">Registration Number:</p>
+                <p className="text-2xl font-bold text-blue-600">{record.registration_number}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Generated on {record.reg_number_generated_at ? new Date(record.reg_number_generated_at).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <p className="text-sm text-gray-600 mb-3">Preconditions for registration number generation:</p>
+                <ul className="space-y-2 text-sm">
+                  <li className={`flex items-center gap-2 ${record?.form_status === 'Complete' ? 'text-green-600' : 'text-gray-600'}`}>
+                    <span>{record?.form_status === 'Complete' ? '✓' : '○'}</span> Application Submitted
+                  </li>
+                  <li className={`flex items-center gap-2 ${record?.pay_status === 'Payment Approved' ? 'text-green-600' : 'text-gray-600'}`}>
+                    <span>{record?.pay_status === 'Payment Approved' ? '✓' : '○'}</span> Application Fee Paid
+                  </li>
+                  <li className={`flex items-center gap-2 ${record?.booking_fee_status === 'Paid' ? 'text-green-600' : 'text-gray-600'}`}>
+                    <span>{record?.booking_fee_status === 'Paid' ? '✓' : '○'}</span> Booking Fee Paid
+                  </li>
+                  <li className={`flex items-center gap-2 text-gray-600`}>
+                    <span>○</span> All Documents Verified
+                  </li>
+                  <li className={`flex items-center gap-2 ${record?.finance_status === 'Verified' ? 'text-green-600' : 'text-gray-600'}`}>
+                    <span>{record?.finance_status === 'Verified' ? '✓' : '○'}</span> Finance Verified
+                  </li>
+                </ul>
+                <button
+                  onClick={() => {
+                    if (confirm('Generate registration number? All preconditions must be met.')) {
+                      const token = localStorage.getItem('ccrm_token')
+                      fetch(`/api/applications/${record.id}/generate-registration`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token}` }
+                      })
+                        .then(r => r.json())
+                        .then(d => {
+                          if (d.success) {
+                            alert('Registration number generated: ' + d.registrationNumber)
+                            fetchAllData()
+                          } else {
+                            alert('Error: ' + d.error)
+                          }
+                        })
+                        .catch(e => alert('Failed: ' + e.message))
+                    }
+                  }}
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                >
+                  Generate Registration Number
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Phase 8: CampusOne API Sync */}
+          {record?.registration_number && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b">
+                <h3 className="text-lg font-bold text-gray-900">CampusOne Integration</h3>
+                {record?.campusone_sync_status === 'Success' && (
+                  <span className="inline-block px-3 py-1 bg-green-100 text-green-800 text-sm font-semibold rounded-full">
+                    Synced
+                  </span>
+                )}
+                {record?.campusone_sync_status === 'Failed' && (
+                  <span className="inline-block px-3 py-1 bg-red-100 text-red-800 text-sm font-semibold rounded-full">
+                    Failed
+                  </span>
+                )}
+              </div>
+
+              {record?.campusone_sync_status === 'Success' ? (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <p className="text-sm text-gray-600 mb-2">CampusOne Student ID:</p>
+                  <p className="text-xl font-bold text-green-600">{record.campusone_student_id}</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Synced on {record.campusone_synced_at ? new Date(record.campusone_synced_at).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+              ) : record?.campusone_sync_status === 'Failed' ? (
+                <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                  <p className="text-sm text-red-600 font-semibold mb-2">Sync Failed</p>
+                  <p className="text-sm text-red-700">{record.campusone_sync_error}</p>
+                  <button
+                    onClick={() => {
+                      const token = localStorage.getItem('ccrm_token')
+                      fetch(`/api/applications/${record.id}/sync-campusone`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token}` }
+                      })
+                        .then(r => r.json())
+                        .then(d => {
+                          if (d.success) {
+                            alert(d.message)
+                            fetchAllData()
+                          } else {
+                            alert('Error: ' + d.error)
+                          }
+                        })
+                        .catch(e => alert('Failed: ' + e.message))
+                    }}
+                    className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                  >
+                    Retry Sync
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <p className="text-sm text-gray-600 mb-3">Ready to sync with CampusOne</p>
+                  <button
+                    onClick={() => {
+                      if (confirm('Sync this application to CampusOne? All data will be transferred.')) {
+                        const token = localStorage.getItem('ccrm_token')
+                        fetch(`/api/applications/${record.id}/sync-campusone`, {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${token}` }
+                        })
+                          .then(r => r.json())
+                          .then(d => {
+                            if (d.success) {
+                              alert(d.message)
+                              fetchAllData()
+                            } else {
+                              alert('Error: ' + d.error)
+                            }
+                          })
+                          .catch(e => alert('Failed: ' + e.message))
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                  >
+                    Sync to CampusOne
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

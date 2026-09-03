@@ -5,7 +5,8 @@ import {
   BarChart2, Settings, LogOut, CreditCard,
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
   Trophy, Mail, Globe, ExternalLink, Zap, Radio,
-  PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall, Layers, MessageCircle, Building2, GraduationCap
+  PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall, Layers, MessageCircle, Building2, GraduationCap,
+  CheckCircle, DollarSign
 } from 'lucide-react'
 import { APP_VERSION } from '../version'
 import { useCcrm } from '../context/CcrmContext'
@@ -28,6 +29,8 @@ const NAV_ITEMS = [
     ]
   },
   { icon: FileText,        label: 'Applications',  to: '/applications',     roles: null },
+  { icon: CheckCircle,     label: 'Doc Verification', to: '/document-verification', roles: ['Admin'] },
+  { icon: DollarSign,      label: 'Finance Verify',   to: '/finance-verification',  roles: ['Admin'] },
   { icon: CheckSquare,     label: 'Tasks',         to: '/tasks',            roles: null },
   { icon: Megaphone,       label: 'Campaigns',     to: '/campaigns',        roles: null },
   { icon: CreditCard,      label: 'Payments',      to: '/payments',         roles: null },
