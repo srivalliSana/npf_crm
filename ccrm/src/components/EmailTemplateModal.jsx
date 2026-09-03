@@ -112,31 +112,30 @@ export default function EmailTemplateModal({ isOpen, onClose, app, lead, onSendS
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Template Selection */}
+            {/* Template Selection Dropdown */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Select Email Template *
               </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <select
+                value={selectedTemplate?.id || ''}
+                onChange={(e) => {
+                  const tpl = templates.find(t => t.id === parseInt(e.target.value))
+                  if (tpl) {
+                    setSelectedTemplate(tpl)
+                    setAmount('')
+                    setCustomMessage('')
+                  }
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+              >
+                <option value="">-- Choose a template --</option>
                 {templates.map((tpl) => (
-                  <button
-                    key={tpl.id}
-                    onClick={() => {
-                      setSelectedTemplate(tpl)
-                      setAmount('')
-                      setCustomMessage('')
-                    }}
-                    className={`p-4 rounded-lg border-2 text-left transition ${
-                      selectedTemplate?.id === tpl.id
-                        ? 'border-indigo-600 bg-indigo-50'
-                        : 'border-gray-200 hover:border-indigo-300'
-                    }`}
-                  >
-                    <p className="font-semibold text-gray-900">{tpl.name}</p>
-                    <p className="text-sm text-gray-600">{tpl.description}</p>
-                  </button>
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name} — {tpl.description}
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
 
             {selectedTemplate && (
