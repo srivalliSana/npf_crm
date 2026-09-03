@@ -7899,6 +7899,162 @@ app.get('/api/applications/:id/campusone-status', authenticateToken, async (req,
   }
 })
 
+// ════════════════════════════════════════════════════════════════════════════════
+// ADMISSION DETAILS: Send email link to student + secure form submission
+// ════════════════════════════════════════════════════════════════════════════════
+
+// POST /api/applications/:id/send-admission-details
+// Admin sends email link to student to fill admission details
+app.post('/api/applications/:id/send-admission-details', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { email } = req.body
+
+    if (!email) return res.status(400).json({ error: 'Email is required.' })
+
+    // Validate application exists
+    const r = await pool.query(
+      'SELECT id, name, app_no FROM applications WHERE id = $1 AND tenant_id = $2',
+      [id, req.tenantId]
+    )
+    if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
+
+    const app = r.rows[0]
+
+    // Generate unique secure token
+    const token = crypto.randomBytes(32).toString('hex')
+
+    // Store token in database
+    await pool.query(
+      `INSERT INTO admission_tokens (app_id, token, email, tenant_id)
+       VALUES ($1, $2, $3, $4)`,
+      [id, token, email, req.tenantId]
+    )
+
+    // Build secure link
+    const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
+    const admissionLink = `${baseUrl}/admission-details/${token}`
+
+    // Email subject and body
+    const emailSubject = `Complete Your Admission Details - Application ${app.app_no}`
+    const emailBody = `
+Dear ${app.name},
+
+We're pleased to move forward with your admission process. To complete your enrollment, please fill out your admission details using the link below:
+
+${admissionLink}
+
+This link will expire in 30 days. If you have any questions, please contact our admissions team.
+
+Best regards,
+Admissions Team
+    `.trim()
+
+    // TODO: Integrate with your email service (Nodemailer, SendGrid, SES, etc.)
+    // For now, log to console
+    console.log(`[ADMISSION EMAIL] To: ${email}`)
+    console.log(`Subject: ${emailSubject}`)
+    console.log(`Link: ${admissionLink}`)
+
+    res.json({
+      success: true,
+      message: 'Admission details email sent successfully.',
+      token,
+      link: admissionLink
+    })
+  } catch (e) {
+    console.error('[POST /api/applications/:id/send-admission-details]', e.message)
+    res.status(500).json({ error: 'Failed to send admission details email.' })
+  }
+})
+
+// GET /api/admission-details/:token
+// Public endpoint - retrieve application by token (no auth required)
+app.get('/api/admission-details/:token', async (req, res) => {
+  try {
+    const { token } = req.params
+
+    // Find token in database
+    const r = await pool.query(
+      `SELECT at.app_id, at.email, a.id, a.name, a.email as app_email, a.mobile, a.course,
+              a.program, a.admission_details, at.filled_at, at.expires_at
+       FROM admission_tokens at
+       JOIN applications a ON a.id = at.app_id
+       WHERE at.token = $1 AND at.expires_at > NOW()`,
+      [token]
+    )
+
+    if (!r.rows.length) {
+      return res.status(404).json({ error: 'Invalid or expired admission link.' })
+    }
+
+    const { app_id, name, app_email, mobile, course, program, admission_details, filled_at } = r.rows[0]
+
+    res.json({
+      success: true,
+      application: {
+        id: app_id,
+        name,
+        email: app_email,
+        mobile,
+        course,
+        program
+      },
+      admissionDetails: admission_details || {},
+      alreadyFilled: !!filled_at
+    })
+  } catch (e) {
+    console.error('[GET /api/admission-details/:token]', e.message)
+    res.status(500).json({ error: 'Failed to fetch admission details form.' })
+  }
+})
+
+// POST /api/admission-details/:token
+// Public endpoint - submit admission details form
+app.post('/api/admission-details/:token', async (req, res) => {
+  try {
+    const { token } = req.params
+    const details = req.body
+
+    // Find and validate token
+    const r = await pool.query(
+      `SELECT app_id FROM admission_tokens
+       WHERE token = $1 AND expires_at > NOW()`,
+      [token]
+    )
+
+    if (!r.rows.length) {
+      return res.status(404).json({ error: 'Invalid or expired admission link.' })
+    }
+
+    const app_id = r.rows[0].app_id
+
+    // Save admission details to application
+    await pool.query(
+      `UPDATE applications
+       SET admission_details = $1::jsonb
+       WHERE id = $2`,
+      [JSON.stringify(details), app_id]
+    )
+
+    // Mark token as filled
+    await pool.query(
+      `UPDATE admission_tokens
+       SET filled_at = NOW()
+       WHERE token = $1`,
+      [token]
+    )
+
+    res.json({
+      success: true,
+      message: 'Admission details saved successfully.'
+    })
+  } catch (e) {
+    console.error('[POST /api/admission-details/:token]', e.message)
+    res.status(500).json({ error: 'Failed to save admission details.' })
+  }
+})
+
   // --- SCHEDULED AUTO-ASSIGN: Every hour, assign all unassigned leads (regular + GT) ---
   cron.schedule('0 * * * *', async () => {
     try {

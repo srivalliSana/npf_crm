@@ -2344,6 +2344,47 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
               )}
             </div>
           )}
+
+          {/* Phase 9: Admission Details Link */}
+          {currentUser?.role === 'Admin' && (
+            <div className="mt-8 bg-purple-50 border border-purple-200 rounded-lg p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">📋 Send Admission Details Form</h3>
+              <p className="text-gray-700 mb-4">Send a secure link to the student to fill in their admission details (personal + academic information).</p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    const email = record?.email || prompt('Enter student email:')
+                    if (!email) return
+
+                    const token = localStorage.getItem('ccrm_token')
+                    fetch(`/api/applications/${record.id}/send-admission-details`, {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({ email })
+                    })
+                      .then(r => r.json())
+                      .then(d => {
+                        if (d.success) {
+                          showToast(`Email sent to ${email}`, 'success')
+                          console.log('Admission link:', d.link)
+                        } else {
+                          alert('Error: ' + d.error)
+                        }
+                      })
+                      .catch(e => alert('Failed: ' + e.message))
+                  }}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium flex items-center gap-2"
+                >
+                  <Mail size={16} />
+                  Send Admission Form Link
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
