@@ -91,10 +91,8 @@ export default function EmailTemplateModal({ isOpen, onClose, app, lead, onSendS
     }
   }
 
-  if (!isOpen) return null
-
   return (
-    <Modal onClose={onClose}>
+    <Modal open={isOpen} onClose={onClose}>
       <div className="p-6 max-w-2xl">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Mail size={24} className="text-indigo-600" />
