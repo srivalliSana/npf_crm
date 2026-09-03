@@ -778,16 +778,10 @@ export default function ApplicationDetails() {
               {associatedApp?.appNo && (
                 <button
                   type="button"
-                  onMouseEnter={() => console.log('[HOVER] Button hovered')}
-                  onMouseDown={() => console.log('[MOUSEDOWN] Button pressed')}
-                  onClick={(e) => {
-                    console.log('[CLICK] Button clicked!', e)
-                    e.preventDefault()
-                    e.stopPropagation()
-                    console.log('[ACTION] Setting modal to true')
-                    setShowAdmissionMethodModal(true)
+                  onClick={() => {
+                    console.log('[SIMPLE CLICK] Opening modal...')
+                    setShowAdmissionMethodModal(!showAdmissionMethodModal)
                   }}
-                  style={{ pointerEvents: 'auto', cursor: 'pointer' }}
                   className={`w-full text-xs font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
                     associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
                       ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
