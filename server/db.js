@@ -801,6 +801,22 @@ export async function initDb() {
     // Index for CampusOne sync status
     await client.query(`CREATE INDEX IF NOT EXISTS idx_applications_campusone_status ON applications (campusone_sync_status);`).catch(() => {})
 
+    // Admission details tokens for secure email links
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admission_tokens (
+        id SERIAL PRIMARY KEY,
+        app_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+        token VARCHAR(255) UNIQUE NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        sent_at TIMESTAMP DEFAULT NOW(),
+        filled_at TIMESTAMP,
+        expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '30 days',
+        tenant_id INTEGER DEFAULT 1
+      );
+    `).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_admission_tokens_token ON admission_tokens(token);`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_admission_tokens_app ON admission_tokens(app_id, tenant_id);`).catch(() => {})
+
     console.log('--- CCRM PostgreSQL Database Schema Bootstrapped & Seeded Successfully ---')
   } catch (err) {
     console.error('Failed to initialize CCRM database schema:', err)
@@ -820,7 +836,7 @@ const TENANT_TABLES = [
   'esse_leads', 'ftl_leads', 'gtib_leads', 'gttech_leads', 'social_comments',
   'drip_sequences', 'drip_enrollments', 'email_campaigns', 'calls',
   'call_logs', 'whatsapp_logs', 'email_logs', 'sms_logs', 'queries', 'teams',
-  'finance_verifications'
+  'finance_verifications', 'admission_tokens'
 ]
 
 export async function initTenancy() {

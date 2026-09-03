@@ -529,6 +529,33 @@ export default function ApplicationManager() {
                       >
                         <Mail size={14} />
                       </a>
+                      {/* Send Admission Details */}
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          const token = localStorage.getItem('ccrm_token')
+                          const email = app.email || prompt('Enter student email:')
+                          if (!email) return
+                          fetch(`/api/applications/${app.id}/send-admission-details`, {
+                            method: 'POST',
+                            headers: {
+                              'Authorization': `Bearer ${token}`,
+                              'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ email })
+                          })
+                            .then(r => r.json())
+                            .then(d => {
+                              if (d.success) alert(`Email sent to ${email}`)
+                              else alert('Error: ' + d.error)
+                            })
+                            .catch(e => alert('Failed: ' + e.message))
+                        }}
+                        className="p-1.5 rounded hover:bg-purple-50 text-gray-400 hover:text-purple-600"
+                        title="Send admission details form"
+                      >
+                        <Mail size={14} />
+                      </button>
                       {/* Edit */}
                       <button
                         onClick={e => handleOpenEdit(e, app)}
