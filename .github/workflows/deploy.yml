@@ -1,0 +1,49 @@
+name: Deploy Phases 4-8
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy to Production
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+            echo "🚀 Starting deployment..."
+            cd /var/www/ccrm
+
+            # Pull latest code
+            echo "📥 Pulling from GitHub..."
+            git pull origin main
+
+            # Build frontend
+            echo "🔨 Building frontend..."
+            cd ccrm
+            npm run build
+            cd ..
+
+            # Restart backend
+            echo "🔄 Restarting backend..."
+            pkill -f "node.*index.js" || true
+            sleep 2
+            nohup node server/index.js > /var/log/ccrm-backend.log 2>&1 &
+
+            # Wait for backend to start
+            sleep 5
+
+            # Test endpoints
+            echo "✅ Testing endpoints..."
+            bash /tmp/test-phases-4-8.sh || true
+
+            echo "🎉 Deployment complete!"
