@@ -2368,8 +2368,9 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                   Send Admission Form Link
                 </button>
               </div>
+            </div>
 
-              {/* Step 2: Send Login Credentials */}
+            {/* Step 2: Send Login Credentials */}
               <div className="bg-green-50 border border-green-200 rounded-lg p-6">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">✅ Step 2: Send Login Credentials</h3>
                 <p className="text-gray-700 mb-4">After verifying admission details, send student their login credentials to access the portal and pay fees.</p>
