@@ -23,11 +23,11 @@ export default function Modal({ open, onClose, title, subtitle, children, footer
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-slide-in"
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className={`bg-white rounded-2xl shadow-dropdown w-full ${SIZES[size] || SIZES.md} overflow-hidden animate-scale-up`}
+        className={`bg-white rounded-2xl shadow-lg w-full ${SIZES[size] || SIZES.md} overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || onClose) && (
