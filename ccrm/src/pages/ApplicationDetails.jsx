@@ -775,7 +775,7 @@ export default function ApplicationDetails() {
               {associatedApp?.appNo && (
                 <button
                   type="button"
-                  onClick={() => setShowAdmissionMethodModal(true)}
+                  onClick={() => { console.log('Fill Admission Details clicked'); setShowAdmissionMethodModal(true) }}
                   className={`w-full text-xs font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
                     associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
                       ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
