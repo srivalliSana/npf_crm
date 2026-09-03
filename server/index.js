@@ -448,12 +448,20 @@ async function createMailTransporter(tenantId = 1) {
 }
 
 // Fire-and-forget alert email (counselor notifications, OTPs, etc.)
-async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1) {
+// Supports both text and HTML formats
+async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1, htmlBody = null) {
   console.log(`[Mail] To: ${recipient} | Sub: ${subject}`)
   try {
     const cfg = await createMailTransporter(tenantId)
     if (cfg.error) { console.warn('[Mail] Skipped —', cfg.error); return }
-    await cfg.transporter.sendMail({ from: cfg.from, to: recipient, subject, text: messageBody })
+    const mailOptions = {
+      from: cfg.from,
+      to: recipient,
+      subject,
+      text: messageBody
+    }
+    if (htmlBody) mailOptions.html = htmlBody
+    await cfg.transporter.sendMail(mailOptions)
     console.log(`[Mail] Sent to ${recipient}`)
   } catch (e) {
     console.error(`[Mail] Failed for ${recipient}:`, e.message)
@@ -7935,8 +7943,54 @@ app.post('/api/applications/:id/send-admission-details', authenticateToken, asyn
     const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
     const admissionLink = `${baseUrl}/admission-details/${token}`
 
-    // Email subject and body
+    // Email subject and body (HTML format)
     const emailSubject = `Complete Your Admission Details - Application ${app.app_no}`
+    const emailHtml = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px;">
+          <h1 style="margin: 0; font-size: 24px;">📋 Admission Details Required</h1>
+        </div>
+
+        <p>Dear <strong>${app.name}</strong>,</p>
+
+        <p>We're pleased to move forward with your admission process! To complete your enrollment, please fill out your admission details by clicking the button below:</p>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${admissionLink}" style="background-color: #4f46e5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Complete Admission Details →
+          </a>
+        </div>
+
+        <p style="background-color: #f0f9ff; padding: 15px; border-left: 4px solid #4f46e5; border-radius: 4px;">
+          <strong>Or copy this link:</strong><br>
+          <code style="word-break: break-all; font-size: 12px;">${admissionLink}</code>
+        </p>
+
+        <h3 style="margin-top: 30px; color: #4f46e5;">📝 You'll be asked to provide:</h3>
+        <ul style="list-style: none; padding: 0;">
+          <li style="padding: 5px 0;">✓ Personal Information (address, date of birth, parents' names)</li>
+          <li style="padding: 5px 0;">✓ Academic Details (10th, 12th, graduation marks)</li>
+          <li style="padding: 5px 0;">✓ Certifications & Achievements</li>
+          <li style="padding: 5px 0;">✓ Emergency Contact Information</li>
+        </ul>
+
+        <p style="margin-top: 30px; color: #666; font-size: 13px;">
+          <strong>Important:</strong> This link will expire in <strong>30 days</strong>. If you've already filled out your details, you can update them anytime.
+        </p>
+
+        <p style="margin-top: 20px; color: #666; font-size: 13px;">
+          <strong>Questions?</strong> Please contact our admissions team or reply to this email.
+        </p>
+
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px;">
+          <p>Best regards,<br><strong>Admissions Team</strong><br>
+          <em>Centurion University of Technology and Management</em></p>
+        </div>
+      </div>
+    </div>
+    `
+
     const emailBody = `
 Dear ${app.name},
 
@@ -7944,17 +7998,29 @@ We're pleased to move forward with your admission process. To complete your enro
 
 ${admissionLink}
 
-This link will expire in 30 days. If you have any questions, please contact our admissions team.
+You'll be asked to provide:
+• Personal Information (address, date of birth, parents' names)
+• Academic Details (10th, 12th, graduation marks)
+• Certifications & Achievements
+• Emergency Contact Information
+
+This link will expire in 30 days. If you've already filled out your details, you can update them anytime.
+
+Questions? Please contact our admissions team.
 
 Best regards,
 Admissions Team
+Centurion University of Technology and Management
     `.trim()
 
-    // TODO: Integrate with your email service (Nodemailer, SendGrid, SES, etc.)
-    // For now, log to console
-    console.log(`[ADMISSION EMAIL] To: ${email}`)
-    console.log(`Subject: ${emailSubject}`)
-    console.log(`Link: ${admissionLink}`)
+    // Send email via AWS SES (using existing nodemailer setup)
+    await sendSystemMailAlert(
+      email,
+      emailSubject,
+      emailBody,
+      req.tenantId,
+      emailHtml
+    )
 
     res.json({
       success: true,
