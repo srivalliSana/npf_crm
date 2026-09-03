@@ -49,6 +49,8 @@ import ProgramsManager from './pages/ProgramsManager'
 import DocumentVerification from './pages/DocumentVerification'
 import FinanceVerification from './pages/FinanceVerification'
 import AdmissionDetailsForm from './pages/AdmissionDetailsForm'
+import StudentLogin from './pages/StudentLogin'
+import StudentDashboard from './pages/StudentDashboard'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -95,6 +97,8 @@ export default function App() {
           <Route path="verify-email/:appNo" element={<VerifyEmail />} />
           <Route path="document-upload/:token" element={<DocumentUpload />} />
           <Route path="admission-details/:token" element={<AdmissionDetailsForm />} />
+          <Route path="student-login" element={<StudentLogin />} />
+          <Route path="student-dashboard" element={<StudentDashboard />} />
 
           {/* ── Login — redirect inside if already authenticated ──
               basename (set above from the URL) already handles the tenant
