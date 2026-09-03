@@ -7195,29 +7195,7 @@ const distPath = path.join(__dirname, '..', 'ccrm', 'dist')
 if (fs.existsSync(distPath)) {
   // Serve hashed static assets (JS/CSS) with long-term cache — safe because filenames change on rebuild
   app.use(express.static(distPath, { etag: true, maxAge: '1y', index: false }))
-
-  // Root → cutm16 marketing landing page (dist/landing/index.html) if present.
-  // Falls back to the React app so nothing breaks if the landing build is missing.
-  const landingIndex = path.join(distPath, 'landing', 'index.html')
-  app.get('/', (req, res) => {
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-    if (fs.existsSync(landingIndex)) return res.sendFile(landingIndex, { etag: false, lastModified: false })
-    res.sendFile(path.join(distPath, 'index.html'), { etag: false, lastModified: false })
-  })
-
-  // Catch-all: always serve the React index.html fresh — NO etag/cache so browser never gets a stale 304
-  app.get('*', (req, res) => {
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-    res.set('Pragma', 'no-cache')
-    res.set('Expires', '0')
-    res.sendFile(path.join(distPath, 'index.html'), { etag: false, lastModified: false })
-  })
   console.log(`[Static] Serving React build from: ${distPath}`)
-} else {
-  console.warn(`[Static] dist folder not found at ${distPath}. Run: cd ccrm && npm run build`)
-  app.get('*', (req, res) => {
-    res.status(503).send('Frontend not built. Run: cd ccrm && npm run build')
-  })
 }
 
 // --- DAILY CRON JOBS: Email Report + S3 Backup ---
@@ -8608,6 +8586,25 @@ app.post('/api/send-template-email', authenticateToken, async (req, res) => {
     } catch (err) {
       console.error('[Cron Auto-Assign]', err.message)
     }
+  })
+
+  // ─── SPA Catch-all: Serve React for all unknown routes (after all API routes) ────────────────────
+  // Root
+  app.get('/', (req, res) => {
+    if (!fs.existsSync(distPath)) return res.status(503).send('Frontend not built. Run: cd ccrm && npm run build')
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    const landingIndex = path.join(distPath, 'landing', 'index.html')
+    if (fs.existsSync(landingIndex)) return res.sendFile(landingIndex, { etag: false, lastModified: false })
+    res.sendFile(path.join(distPath, 'index.html'), { etag: false, lastModified: false })
+  })
+
+  // Catch-all for SPA routes (MUST be last)
+  app.get('*', (req, res) => {
+    if (!fs.existsSync(distPath)) return res.status(503).send('Frontend not built. Run: cd ccrm && npm run build')
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    res.set('Pragma', 'no-cache')
+    res.set('Expires', '0')
+    res.sendFile(path.join(distPath, 'index.html'), { etag: false, lastModified: false })
   })
 
   app.listen(PORT, '0.0.0.0', () => {
