@@ -748,6 +748,59 @@ export async function initDb() {
     // 'Application' | 'Semester' — lets one app_no carry two payment records
     await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS fee_type VARCHAR(30) DEFAULT 'Application';`).catch(() => {})
 
+    // ═══════════════════════════════════════════════════════════════
+    // ═ PHASES 4-8: BOOKING FEE, VERIFICATION, REGISTRATION & ERPS ═
+    // ═══════════════════════════════════════════════════════════════
+
+    // Phase 4: Booking Fee Module
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS booking_fee_amount INTEGER DEFAULT 0;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS booking_fee_paid_at TIMESTAMP;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS booking_fee_status VARCHAR(30) DEFAULT 'Pending';`).catch(() => {}) // Pending | Paid
+
+    // Phase 5: Document Verification
+    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS verified_by VARCHAR(255) DEFAULT '';`).catch(() => {})
+    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP;`).catch(() => {})
+    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT '';`).catch(() => {})
+    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_mandatory BOOLEAN DEFAULT FALSE;`).catch(() => {})
+
+    // Phase 6: Finance Verification
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS finance_verifications (
+        id SERIAL PRIMARY KEY,
+        app_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
+        tenant_id INTEGER DEFAULT 1,
+        application_fee_verified BOOLEAN DEFAULT FALSE,
+        booking_fee_verified BOOLEAN DEFAULT FALSE,
+        full_course_fee_verified BOOLEAN DEFAULT FALSE,
+        verified_by VARCHAR(255) DEFAULT '',
+        verified_at TIMESTAMP,
+        rejection_reason TEXT DEFAULT '',
+        status VARCHAR(30) DEFAULT 'Pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS finance_status VARCHAR(30) DEFAULT 'Pending';`).catch(() => {}) // Pending | Verified | Rejected
+
+    // Phase 7: Registration Number Generation
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS registration_number VARCHAR(100) UNIQUE;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS reg_number_generated_at TIMESTAMP;`).catch(() => {})
+
+    // Phase 8: CampusOne API Integration
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS campusone_student_id VARCHAR(100);`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS campusone_sync_status VARCHAR(30) DEFAULT 'Pending';`).catch(() => {}) // Pending | Success | Failed
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS campusone_sync_error TEXT DEFAULT '';`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS campusone_synced_at TIMESTAMP;`).catch(() => {})
+
+    // Index for finance verifications
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_finance_verifications_app ON finance_verifications (app_id);`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_finance_verifications_tenant ON finance_verifications (tenant_id);`).catch(() => {})
+
+    // Index for registration number lookups
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_applications_reg_number ON applications (registration_number);`).catch(() => {})
+
+    // Index for CampusOne sync status
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_applications_campusone_status ON applications (campusone_sync_status);`).catch(() => {})
+
     console.log('--- CCRM PostgreSQL Database Schema Bootstrapped & Seeded Successfully ---')
   } catch (err) {
     console.error('Failed to initialize CCRM database schema:', err)
@@ -766,7 +819,8 @@ const TENANT_TABLES = [
   'rcs_templates', 'rcs_messages', 'upload_logs', 'lead_assignment_counter',
   'esse_leads', 'ftl_leads', 'gtib_leads', 'gttech_leads', 'social_comments',
   'drip_sequences', 'drip_enrollments', 'email_campaigns', 'calls',
-  'call_logs', 'whatsapp_logs', 'email_logs', 'sms_logs', 'queries', 'teams'
+  'call_logs', 'whatsapp_logs', 'email_logs', 'sms_logs', 'queries', 'teams',
+  'finance_verifications'
 ]
 
 export async function initTenancy() {

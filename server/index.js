@@ -7580,6 +7580,325 @@ async function startServer() {
     }
   })
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ═ PHASES 4-8: BOOKING FEE, VERIFICATION, REGISTRATION & ERPS ═════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Phase 4: Booking Fee Payment ────────────────────────────────────────────────
+app.post('/api/applications/:id/booking-fee-payment', authenticateToken, async (req, res) => {
+  const { id } = req.params
+  const { amount, method, transactionId } = req.body
+  try {
+    // Fetch application
+    const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
+    if (!appRes.rows.length) return res.status(404).json({ error: 'Application not found.' })
+    const app = appRes.rows[0]
+
+    // Check: Application fee must be paid first
+    if (app.pay_status !== 'Payment Approved') {
+      return res.status(400).json({ error: 'Application fee must be paid first.' })
+    }
+
+    // Update application with booking fee
+    await pool.query(
+      `UPDATE applications SET booking_fee_amount = $1, booking_fee_status = 'Paid', booking_fee_paid_at = NOW()
+       WHERE id = $2 AND tenant_id = $3;`,
+      [amount, id, req.tenantId]
+    )
+
+    // Record payment
+    await pool.query(
+      `INSERT INTO payments (name, app_no, amount, method, status, date, txn_id, fee_type, tenant_id)
+       VALUES ($1, $2, $3, $4, 'Approved', NOW()::VARCHAR, $5, 'Booking Fee', $6);`,
+      [app.name, app.app_no, amount, method || 'online', transactionId || '', req.tenantId]
+    )
+
+    res.json({ success: true, message: 'Booking fee paid successfully.' })
+  } catch (e) {
+    console.error('[POST /api/applications/:id/booking-fee-payment]', e.message)
+    res.status(500).json({ error: 'Failed to process booking fee payment.' })
+  }
+})
+
+// ── Phase 5: Document Verification ──────────────────────────────────────────────
+app.get('/api/documents/verify', authenticateToken, async (req, res) => {
+  const { app_id } = req.query
+  try {
+    // Admins can verify any application's documents
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin only.' })
+    }
+
+    const docs = await pool.query(
+      `SELECT * FROM documents WHERE student = (SELECT name FROM applications WHERE id = $1 AND tenant_id = $2)
+       AND tenant_id = $2 ORDER BY type;`,
+      [app_id, req.tenantId]
+    )
+    res.json(docs.rows)
+  } catch (e) {
+    console.error('[GET /api/documents/verify]', e.message)
+    res.status(500).json({ error: 'Failed to fetch documents.' })
+  }
+})
+
+app.put('/api/documents/:id/verify', authenticateToken, async (req, res) => {
+  const { id } = req.params
+  const { status, rejectionReason } = req.body
+  try {
+    if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+    if (!['Pending', 'Verified', 'Rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status.' })
+    }
+
+    await pool.query(
+      `UPDATE documents SET status = $1, verified_by = $2, verified_at = NOW(), rejection_reason = $3
+       WHERE id = $4 AND tenant_id = $5;`,
+      [status, req.user.email, rejectionReason || '', id, req.tenantId]
+    )
+
+    res.json({ success: true, message: 'Document verification updated.' })
+  } catch (e) {
+    console.error('[PUT /api/documents/:id/verify]', e.message)
+    res.status(500).json({ error: 'Failed to update document verification.' })
+  }
+})
+
+// ── Phase 6: Finance Verification ───────────────────────────────────────────────
+app.get('/api/finance-verifications', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+
+    const fv = await pool.query(
+      `SELECT fv.*, a.name, a.app_no, a.email, a.mobile
+       FROM finance_verifications fv
+       JOIN applications a ON fv.app_id = a.id
+       WHERE fv.tenant_id = $1 ORDER BY fv.created_at DESC;`,
+      [req.tenantId]
+    )
+    res.json(fv.rows)
+  } catch (e) {
+    console.error('[GET /api/finance-verifications]', e.message)
+    res.status(500).json({ error: 'Failed to fetch finance verifications.' })
+  }
+})
+
+app.post('/api/finance-verifications', authenticateToken, async (req, res) => {
+  const { app_id, appFeeVerified, bookingFeeVerified, fullCourseFeeVerified, status } = req.body
+  try {
+    if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+
+    // Create or update finance verification
+    const existing = await pool.query(
+      'SELECT id FROM finance_verifications WHERE app_id = $1 AND tenant_id = $2;',
+      [app_id, req.tenantId]
+    )
+
+    let result
+    if (existing.rows.length) {
+      result = await pool.query(
+        `UPDATE finance_verifications SET
+           application_fee_verified = $1, booking_fee_verified = $2, full_course_fee_verified = $3,
+           verified_by = $4, verified_at = NOW(), status = $5
+         WHERE app_id = $6 AND tenant_id = $7 RETURNING *;`,
+        [appFeeVerified, bookingFeeVerified, fullCourseFeeVerified, req.user.email, status, app_id, req.tenantId]
+      )
+    } else {
+      result = await pool.query(
+        `INSERT INTO finance_verifications (app_id, tenant_id, application_fee_verified, booking_fee_verified,
+         full_course_fee_verified, verified_by, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;`,
+        [app_id, req.tenantId, appFeeVerified, bookingFeeVerified, fullCourseFeeVerified, req.user.email, status]
+      )
+    }
+
+    // Update application finance_status
+    await pool.query(
+      'UPDATE applications SET finance_status = $1 WHERE id = $2 AND tenant_id = $3;',
+      [status, app_id, req.tenantId]
+    )
+
+    res.json({ success: true, verification: result.rows[0] })
+  } catch (e) {
+    console.error('[POST /api/finance-verifications]', e.message)
+    res.status(500).json({ error: 'Failed to create finance verification.' })
+  }
+})
+
+// ── Phase 7: Registration Number Generation ─────────────────────────────────────
+app.post('/api/applications/:id/generate-registration', authenticateToken, async (req, res) => {
+  const { id } = req.params
+  try {
+    if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+
+    // Fetch application
+    const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
+    if (!appRes.rows.length) return res.status(404).json({ error: 'Application not found.' })
+    const app = appRes.rows[0]
+
+    // Check: Already generated?
+    if (app.registration_number) {
+      return res.status(400).json({ error: 'Registration number already generated.' })
+    }
+
+    // Check all preconditions
+    const preconditions = {
+      applicationSubmitted: app.form_status === 'Complete',
+      applicationFeePaid: app.pay_status === 'Payment Approved',
+      bookingFeePaid: app.booking_fee_status === 'Paid',
+      documentsVerified: true, // Check if all mandatory docs are verified
+      financeVerified: app.finance_status === 'Verified'
+    }
+
+    // Verify documents
+    const mandatoryDocs = await pool.query(
+      `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Verified' THEN 1 ELSE 0 END) as verified
+       FROM documents WHERE student = $1 AND is_mandatory = TRUE AND tenant_id = $2;`,
+      [app.name, req.tenantId]
+    )
+    if (mandatoryDocs.rows[0].total > 0 && mandatoryDocs.rows[0].verified !== mandatoryDocs.rows[0].total) {
+      preconditions.documentsVerified = false
+    }
+
+    // Check all preconditions
+    const allMet = Object.values(preconditions).every(v => v)
+    if (!allMet) {
+      return res.status(400).json({
+        error: 'Not all preconditions met for registration number generation.',
+        preconditions
+      })
+    }
+
+    // Get tenant config for prefix
+    const tenantRes = await pool.query('SELECT slug FROM tenants WHERE id = $1;', [req.tenantId])
+    const tenant = tenantRes.rows[0]
+    const prefix = tenant?.slug?.toUpperCase().substring(0, 4) || 'CCRM'
+
+    // Generate registration number: REG-PREFIX-YEAR-SEQUENTIAL
+    const year = new Date().getFullYear()
+    const countRes = await pool.query(
+      `SELECT COUNT(*) as count FROM applications WHERE registration_number LIKE $1 AND tenant_id = $2;`,
+      [`${prefix}-%`, req.tenantId]
+    )
+    const sequential = String(countRes.rows[0].count + 1).padStart(5, '0')
+    const regNumber = `${prefix}-${year}-${sequential}`
+
+    // Update application with registration number
+    await pool.query(
+      `UPDATE applications SET registration_number = $1, reg_number_generated_at = NOW()
+       WHERE id = $2 AND tenant_id = $3;`,
+      [regNumber, id, req.tenantId]
+    )
+
+    res.json({ success: true, registrationNumber: regNumber, message: 'Registration number generated successfully.' })
+  } catch (e) {
+    console.error('[POST /api/applications/:id/generate-registration]', e.message)
+    res.status(500).json({ error: 'Failed to generate registration number.' })
+  }
+})
+
+// ── Phase 8: CampusOne API Integration ───────────────────────────────────────────
+app.post('/api/applications/:id/sync-campusone', authenticateToken, async (req, res) => {
+  const { id } = req.params
+  try {
+    if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+
+    // Fetch application
+    const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
+    if (!appRes.rows.length) return res.status(404).json({ error: 'Application not found.' })
+    const app = appRes.rows[0]
+
+    // Precondition: Registration number must be generated
+    if (!app.registration_number) {
+      return res.status(400).json({ error: 'Registration number must be generated first.' })
+    }
+
+    // Check for CampusOne API credentials in integration_settings
+    const configRes = await pool.query(
+      'SELECT value FROM integration_settings WHERE key = $1 AND tenant_id = $2;',
+      ['campusone_api_endpoint', req.tenantId]
+    )
+    const campusoneEndpoint = configRes.rows[0]?.value
+    if (!campusoneEndpoint) {
+      return res.status(400).json({ error: 'CampusOne API not configured for this tenant.' })
+    }
+
+    // Package student payload
+    const payload = {
+      studentName: app.name,
+      email: app.email,
+      mobile: app.mobile,
+      applicationNumber: app.app_no,
+      registrationNumber: app.registration_number,
+      program: app.course || app.school_dept || '',
+      campus: app.campus || '',
+      applicationFee: app.pay_status === 'Payment Approved' ? 1 : 0,
+      bookingFee: app.booking_fee_status === 'Paid' ? app.booking_fee_amount : 0,
+      admissionDetails: app.admission_details || {}
+    }
+
+    // Call CampusOne API
+    let campusoneStudentId = null
+    let syncError = ''
+    try {
+      const fetch = (await import('node-fetch')).default
+      const response = await fetch(campusoneEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        timeout: 10000
+      })
+      const result = await response.json()
+
+      if (!response.ok) {
+        syncError = result.error || 'CampusOne API returned an error.'
+      } else {
+        campusoneStudentId = result.studentId || result.id
+      }
+    } catch (apiError) {
+      syncError = apiError.message
+    }
+
+    // Update application with sync status
+    const syncStatus = campusoneStudentId ? 'Success' : 'Failed'
+    await pool.query(
+      `UPDATE applications SET campusone_sync_status = $1, campusone_student_id = $2,
+       campusone_sync_error = $3, campusone_synced_at = NOW()
+       WHERE id = $4 AND tenant_id = $5;`,
+      [syncStatus, campusoneStudentId || null, syncError, id, req.tenantId]
+    )
+
+    res.json({
+      success: syncStatus === 'Success',
+      syncStatus,
+      campusoneStudentId,
+      error: syncError || null,
+      message: syncStatus === 'Success'
+        ? `Successfully synced to CampusOne. Student ID: ${campusoneStudentId}`
+        : `Failed to sync: ${syncError}`
+    })
+  } catch (e) {
+    console.error('[POST /api/applications/:id/sync-campusone]', e.message)
+    res.status(500).json({ error: 'Failed to sync with CampusOne.' })
+  }
+})
+
+// Get sync status
+app.get('/api/applications/:id/campusone-status', authenticateToken, async (req, res) => {
+  const { id } = req.params
+  try {
+    const r = await pool.query(
+      `SELECT campusone_sync_status, campusone_student_id, campusone_sync_error, campusone_synced_at
+       FROM applications WHERE id = $1 AND tenant_id = $2;`,
+      [id, req.tenantId]
+    )
+    if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
+    res.json(r.rows[0])
+  } catch (e) {
+    console.error('[GET /api/applications/:id/campusone-status]', e.message)
+    res.status(500).json({ error: 'Failed to fetch CampusOne sync status.' })
+  }
+})
+
   // --- SCHEDULED AUTO-ASSIGN: Every hour, assign all unassigned leads (regular + GT) ---
   cron.schedule('0 * * * *', async () => {
     try {
