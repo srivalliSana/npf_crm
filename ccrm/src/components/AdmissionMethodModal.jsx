@@ -3,6 +3,7 @@ import { FileText, Mail, Loader } from 'lucide-react'
 import { Modal } from './ui'
 
 export default function AdmissionMethodModal({ isOpen, onClose, app, onConfirm }) {
+  console.log('AdmissionMethodModal rendered, isOpen:', isOpen)
   const [method, setMethod] = useState(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
