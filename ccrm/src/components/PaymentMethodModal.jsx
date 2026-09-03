@@ -55,10 +55,8 @@ export default function PaymentMethodModal({ isOpen, onClose, app, onConfirm }) 
     }
   }
 
-  if (!isOpen) return null
-
   return (
-    <Modal onClose={onClose}>
+    <Modal open={isOpen} onClose={onClose}>
       <div className="p-6 max-w-md">
         <h2 className="text-xl font-bold text-gray-900 mb-2">Payment Method</h2>
         <p className="text-gray-600 mb-6">How would {app?.name} like to pay?</p>
