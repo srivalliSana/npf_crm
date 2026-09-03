@@ -9,6 +9,7 @@ import {
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
 import LeadJourney from '../components/LeadJourney'
+import AdmissionMethodModal from '../components/AdmissionMethodModal'
 import { Modal, Button } from '../components/ui'
 
 // Ameyo calls removed — use EasyGoIVR via initiateCall() from context
@@ -150,6 +151,7 @@ export default function ApplicationDetails() {
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [letterSending, setLetterSending]         = useState(false)
   const [showAdmissionModal, setShowAdmissionModal] = useState(false)
+  const [showAdmissionMethodModal, setShowAdmissionMethodModal] = useState(false)
   const [admissionEmail, setAdmissionEmail] = useState('')
   const [admissionSending, setAdmissionSending] = useState(false)
   const [adForm, setAdForm] = useState(() => ({
@@ -772,7 +774,7 @@ export default function ApplicationDetails() {
               {/* Admission Details — appears once app exists */}
               {associatedApp?.appNo && (
                 <button
-                  onClick={() => setShowAdmissionForm(true)}
+                  onClick={() => setShowAdmissionMethodModal(true)}
                   className={`w-full text-xs font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
                     associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
                       ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
@@ -2411,6 +2413,21 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
               </div>
             </div>
           )}
+
+          {/* Admission Method Modal - Choose Manual or Online */}
+          <AdmissionMethodModal
+            isOpen={showAdmissionMethodModal}
+            onClose={() => setShowAdmissionMethodModal(false)}
+            app={associatedApp}
+            onConfirm={(method) => {
+              setShowAdmissionMethodModal(false)
+              if (method === 'manual') {
+                setShowAdmissionForm(true)
+              } else if (method === 'online') {
+                showToast('Email sent! Student can now fill details via the secure link.', 'success')
+              }
+            }}
+          />
 
           {/* Admission Details Modal */}
           {showAdmissionModal && (
