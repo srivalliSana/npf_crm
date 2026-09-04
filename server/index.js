@@ -1624,7 +1624,15 @@ app.get('/api/applications/next-app-id', async (req, res) => {
 
 app.get('/api/applications', authenticateToken, async (req, res) => {
   try {
-    const appsRes = await pool.query('SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept", email_verified AS "emailVerified", semester_fee_status AS "semesterFeeStatus", erp_access_granted AS "erpAccessGranted", erp_access_granted_at AS "erpAccessGrantedAt" FROM applications WHERE tenant_id = $1 ORDER BY id DESC;', [req.tenantId])
+    const appsRes = await pool.query(`SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept", email_verified AS "emailVerified", semester_fee_status AS "semesterFeeStatus", erp_access_granted AS "erpAccessGranted", erp_access_granted_at AS "erpAccessGrantedAt",
+      admission_details_status, admission_details_reviewed_by, admission_details_reviewed_at,
+      booking_fee_status, booking_fee_amount, booking_fee_paid_at,
+      admission_full_details, registration_fee_paid, registration_fee_paid_at,
+      provisional_admission_status, provisional_admission_at,
+      registration_number, reg_number_generated_at,
+      tuition_fee_paid, tuition_fee_paid_at, tuition_fee_amount,
+      finance_status, campusone_sync_status, campusone_student_id, campusone_sync_error, campusone_synced_at
+      FROM applications WHERE tenant_id = $1 ORDER BY id DESC;`, [req.tenantId])
     res.json(appsRes.rows)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch applications.' })
