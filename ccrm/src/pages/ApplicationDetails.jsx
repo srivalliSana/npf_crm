@@ -773,19 +773,50 @@ export default function ApplicationDetails() {
               )}
               {/* Admission Details — appears once app exists */}
               {associatedApp?.appNo && (
-                <button
-                  type="button"
-                  onClick={() => { console.log('Fill Admission Details clicked'); setShowAdmissionMethodModal(true) }}
-                  className={`w-full text-xs font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
-                    associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
-                      ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
-                      : 'bg-orange-500 hover:bg-orange-600 text-white'
-                  }`}
-                >
-                  {associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
-                    ? '✓ Admission Details Filled — Edit'
-                    : '📝 Fill Admission Details'}
-                </button>
+                <>
+                  {showAdmissionMethodModal ? (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => { setShowAdmissionMethodModal(false); setShowAdmissionForm(true) }}
+                        className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <span>📝</span> Manual Entry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAdmissionMethodModal(false)
+                          showToast('Email link sent! Student can fill details via email.', 'success')
+                        }}
+                        className="w-full text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <span>✉️</span> Online Form (Email)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAdmissionMethodModal(false)}
+                        className="w-full text-xs bg-gray-300 hover:bg-gray-400 text-gray-900 font-semibold py-1.5 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowAdmissionMethodModal(true)}
+                      className={`w-full text-xs font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
+                        associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
+                          ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
+                          : 'bg-orange-500 hover:bg-orange-600 text-white'
+                      }`}
+                    >
+                      {associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
+                        ? '✓ Admission Details Filled — Edit'
+                        : '📝 Fill Admission Details'}
+                    </button>
+                  )}
+                </>
               )}
               {/* Payment — show when app exists and payment not yet done */}
               {associatedApp && !['Paid','Payment Done'].includes(associatedApp.payStatus) && (
