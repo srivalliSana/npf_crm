@@ -12,6 +12,8 @@ export const RESERVED_SLUGS = [
   'payments', 'documents', 'calendar', 'settings', 'integrations',
   'integration-settings', 'leaderboard', 'email-campaigns', 'drip-workflows',
   'comms-report', 'help', 'profile', 'transfer-approvals', 'users', 'api',
+  'verify-email', 'document-upload', 'admission-details', 'student-login',
+  'student-dashboard',
 ]
 
 export function getUrlTenantSlug() {
