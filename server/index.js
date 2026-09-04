@@ -106,6 +106,8 @@ const PUBLIC_API = [
   /^\/api\/student\//,           // student portal login/status
   /^\/api\/tenant\/public$/,     // login/landing branding
   /^\/api\/calls\/webhook$/,     // telephony callback
+  /^\/api\/admission-details\//, // public admission-details form (email link, no login)
+  /^\/api\/document-upload\//,   // public document-upload form (email link, no login)
 ]
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) return next()          // static / SPA assets
@@ -8021,7 +8023,7 @@ app.get('/api/admission-details/:token', async (req, res) => {
     // Find token in database
     const r = await pool.query(
       `SELECT at.app_id, at.email, a.id, a.name, a.email as app_email, a.mobile, a.course,
-              a.program, a.admission_details, at.filled_at, at.expires_at
+              a.admission_details, at.filled_at, at.expires_at
        FROM admission_tokens at
        JOIN applications a ON a.id = at.app_id
        WHERE at.token = $1 AND at.expires_at > NOW()`,
@@ -8032,7 +8034,7 @@ app.get('/api/admission-details/:token', async (req, res) => {
       return res.status(404).json({ error: 'Invalid or expired admission link.' })
     }
 
-    const { app_id, name, app_email, mobile, course, program, admission_details, filled_at } = r.rows[0]
+    const { app_id, name, app_email, mobile, course, admission_details, filled_at } = r.rows[0]
 
     res.json({
       success: true,
@@ -8041,8 +8043,7 @@ app.get('/api/admission-details/:token', async (req, res) => {
         name,
         email: app_email,
         mobile,
-        course,
-        program
+        course
       },
       admissionDetails: admission_details || {},
       alreadyFilled: !!filled_at
