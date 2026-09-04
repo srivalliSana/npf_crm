@@ -128,8 +128,8 @@ export default function App() {
             <Route path="applications/:id" element={<ApplicationDetails />} />
             <Route path="dashboard"        element={<Dashboard />} />
             <Route path="platform-tenants" element={<PlatformTenants />} />
-            <Route path="programs"         element={<ProgramsManager />} />
             <Route element={<RoleGuard roles={['Admin']} />}>
+              <Route path="programs"              element={<ProgramsManager />} />
               <Route path="document-verification" element={<DocumentVerification />} />
               <Route path="finance-verification"  element={<FinanceVerification />} />
             </Route>

@@ -2254,7 +2254,87 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
         </div>
       )}
 
-      {/* ─── PHASE 7-8: Registration Number & CampusOne Sync ─── */}
+      {/* ─── 3-STEP ADMISSION JOURNEY: counselor review → booking fee →      ─── */}
+      {/* ─── full form/registration fee → docs/tuition fee → CampusOne       ─── */}
+      {isApp && isAdmin && (
+        <div className="mt-6 card">
+          <h3 className="text-lg font-bold text-gray-900 mb-4 pb-4 border-b">Admission Journey Pipeline</h3>
+
+          {record?.admission_details && Object.keys(record.admission_details).length > 0 && (
+            <div className="mb-4 p-4 rounded-lg border bg-gray-50 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Step 1 — Admission Details (Basic + Academic)</p>
+                <p className={`text-xs mt-1 font-semibold ${
+                  record.admission_details_status === 'Approved' ? 'text-green-600'
+                  : record.admission_details_status === 'Rejected' ? 'text-red-600' : 'text-amber-600'
+                }`}>
+                  {record.admission_details_status || 'Pending'} review
+                  {record.admission_details_reviewed_by ? ` — by ${record.admission_details_reviewed_by}` : ''}
+                </p>
+              </div>
+              {(record.admission_details_status || 'Pending') === 'Pending' && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const token = localStorage.getItem('ccrm_token')
+                      fetch(`/api/applications/${record.id}/approve-admission-details`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ status: 'Approved' })
+                      }).then(r => r.json()).then(d => {
+                        if (d.success) { showToast?.('✅ Admission details approved.', 'success'); fetchAllData() }
+                        else alert('Error: ' + d.error)
+                      }).catch(e => alert('Failed: ' + e.message))
+                    }}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => {
+                      const token = localStorage.getItem('ccrm_token')
+                      fetch(`/api/applications/${record.id}/approve-admission-details`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ status: 'Rejected' })
+                      }).then(r => r.json()).then(d => {
+                        if (d.success) { showToast?.('Admission details sent back for correction.', 'info'); fetchAllData() }
+                        else alert('Error: ' + d.error)
+                      }).catch(e => alert('Failed: ' + e.message))
+                    }}
+                    className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg"
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <ul className="space-y-2 text-sm">
+            <li className={`flex items-center gap-2 ${record?.booking_fee_status === 'Paid' ? 'text-green-600' : 'text-gray-500'}`}>
+              <span>{record?.booking_fee_status === 'Paid' ? '✓' : '○'}</span> Step 1 — Booking Fee Paid
+            </li>
+            <li className={`flex items-center gap-2 ${record?.admission_full_details && Object.keys(record.admission_full_details).length > 0 ? 'text-green-600' : 'text-gray-500'}`}>
+              <span>{record?.admission_full_details && Object.keys(record.admission_full_details).length > 0 ? '✓' : '○'}</span> Step 2 — Full Admission Form Submitted
+            </li>
+            <li className={`flex items-center gap-2 ${record?.registration_fee_paid ? 'text-green-600' : 'text-gray-500'}`}>
+              <span>{record?.registration_fee_paid ? '✓' : '○'}</span> Step 2 — Registration Fee Paid
+            </li>
+            <li className={`flex items-center gap-2 ${record?.provisional_admission_status === 'Granted' ? 'text-green-600' : 'text-gray-500'}`}>
+              <span>{record?.provisional_admission_status === 'Granted' ? '✓' : '○'}</span> Provisional Admission Granted
+            </li>
+            <li className={`flex items-center gap-2 ${record?.tuition_fee_paid ? 'text-green-600' : 'text-gray-500'}`}>
+              <span>{record?.tuition_fee_paid ? '✓' : '○'}</span> Step 3 — Tuition Fee Paid
+            </li>
+            <li className={`flex items-center gap-2 ${record?.campusone_sync_status === 'Success' ? 'text-green-600' : 'text-gray-500'}`}>
+              <span>{record?.campusone_sync_status === 'Success' ? '✓' : '○'}</span> Step 3 — Synced to CampusOne
+            </li>
+          </ul>
+        </div>
+      )}
+
+      {/* ─── PHASE 7-8: Registration Number & CampusOne Sync (legacy manual path) ─── */}
       {isApp && isAdmin && (
         <div className="mt-6 space-y-4">
           {/* Phase 7: Registration Number Generation */}

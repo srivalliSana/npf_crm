@@ -2152,6 +2152,129 @@ async function grantErpAccess(appNo, tenantId = 1) {
   }
 }
 
+// Helper — Registration Fee approved → auto-generate the registration number
+// (same PREFIX-YEAR-SEQUENTIAL scheme as the old manual Phase-7 button) and grant
+// provisional admission. No-op if a registration number already exists.
+async function grantProvisionalAdmission(appId, tenantId = 1) {
+  try {
+    const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [appId, tenantId])
+    const app = appRes.rows[0]
+    if (!app) return
+    let regNumber = app.registration_number
+    if (!regNumber) {
+      const tenantRes = await pool.query('SELECT slug FROM tenants WHERE id = $1;', [tenantId])
+      const prefix = tenantRes.rows[0]?.slug?.toUpperCase().substring(0, 4) || 'CCRM'
+      const year = new Date().getFullYear()
+      const countRes = await pool.query(
+        `SELECT COUNT(*) as count FROM applications WHERE registration_number LIKE $1 AND tenant_id = $2;`,
+        [`${prefix}-%`, tenantId]
+      )
+      const sequential = String(Number(countRes.rows[0].count) + 1).padStart(5, '0')
+      regNumber = `${prefix}-${year}-${sequential}`
+      await pool.query(
+        `UPDATE applications SET registration_number = $1, reg_number_generated_at = NOW() WHERE id = $2 AND tenant_id = $3;`,
+        [regNumber, appId, tenantId]
+      )
+    }
+    await pool.query(
+      `UPDATE applications SET provisional_admission_status = 'Granted', provisional_admission_at = NOW()
+       WHERE id = $1 AND tenant_id = $2;`,
+      [appId, tenantId]
+    )
+    if (app.email) {
+      await sendSystemMailAlert(
+        app.email,
+        `Provisional Admission Granted — ${app.app_no}`,
+        `Dear ${app.name},\n\nCongratulations! Your registration fee has been received and your provisional admission is confirmed.\n\nRegistration Number: ${regNumber}\nProgram: ${app.course}\n\nNext step: upload your documents and pay the tuition fee to complete your admission.\n\nBest regards,\nCUTM Admissions Team`,
+        tenantId
+      )
+    }
+    console.log(`[Provisional Admission] Granted for ${app.app_no} (reg# ${regNumber})`)
+  } catch (e) {
+    console.error('[grantProvisionalAdmission]', e.message)
+  }
+}
+
+// Helper — the actual CampusOne API call, extracted so both the manual "Sync"
+// button and the automatic Step-3 trigger (tuition paid + docs verified) share
+// one implementation.
+async function syncApplicationToCampusOne(app, tenantId = 1) {
+  const configRes = await pool.query(
+    'SELECT value FROM integration_settings WHERE key = $1 AND tenant_id = $2;',
+    ['campusone_api_endpoint', tenantId]
+  )
+  const campusoneEndpoint = configRes.rows[0]?.value
+  if (!campusoneEndpoint) return { success: false, syncStatus: null, error: 'CampusOne API not configured for this tenant.' }
+
+  const payload = {
+    studentName: app.name,
+    email: app.email,
+    mobile: app.mobile,
+    applicationNumber: app.app_no,
+    registrationNumber: app.registration_number,
+    program: app.course || app.school_dept || '',
+    campus: app.campus || '',
+    bookingFee: app.booking_fee_status === 'Paid' ? app.booking_fee_amount : 0,
+    tuitionFee: app.tuition_fee_paid ? app.tuition_fee_amount : 0,
+    admissionDetails: app.admission_details || {},
+    admissionFullDetails: app.admission_full_details || {}
+  }
+
+  let campusoneStudentId = null
+  let syncError = ''
+  try {
+    const fetch = (await import('node-fetch')).default
+    const response = await fetch(campusoneEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      timeout: 10000
+    })
+    const result = await response.json()
+    if (!response.ok) syncError = result.error || 'CampusOne API returned an error.'
+    else campusoneStudentId = result.studentId || result.id
+  } catch (apiError) {
+    syncError = apiError.message
+  }
+
+  const syncStatus = campusoneStudentId ? 'Success' : 'Failed'
+  await pool.query(
+    `UPDATE applications SET campusone_sync_status = $1, campusone_student_id = $2,
+     campusone_sync_error = $3, campusone_synced_at = NOW()
+     WHERE id = $4 AND tenant_id = $5;`,
+    [syncStatus, campusoneStudentId || null, syncError, app.id, tenantId]
+  )
+
+  return { success: syncStatus === 'Success', syncStatus, campusoneStudentId, error: syncError || null }
+}
+
+// Helper — Step-3 auto-trigger: once tuition fee is paid AND every mandatory
+// document (linked by app_id, not the old fragile name-match) is Verified, push
+// the application to CampusOne automatically. Safe to call repeatedly — no-ops
+// once already Success, and no-ops silently if CampusOne isn't configured yet.
+async function checkAndAutoSyncCampusOne(appId, tenantId = 1) {
+  try {
+    const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [appId, tenantId])
+    const app = appRes.rows[0]
+    if (!app || !app.tuition_fee_paid || app.campusone_sync_status === 'Success') return
+
+    const mandatory = await pool.query(
+      `SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'Verified' THEN 1 ELSE 0 END) AS verified
+       FROM documents WHERE app_id = $1 AND is_mandatory = TRUE AND tenant_id = $2;`,
+      [appId, tenantId]
+    )
+    const { total, verified } = mandatory.rows[0]
+    if (Number(total) === 0 || Number(verified) !== Number(total)) return // still waiting on docs
+
+    if (!app.registration_number) await grantProvisionalAdmission(appId, tenantId) // safety net
+    const refreshed = (await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [appId, tenantId])).rows[0]
+    const result = await syncApplicationToCampusOne(refreshed, tenantId)
+    console.log(`[Auto CampusOne Sync] ${refreshed.app_no}: ${result.syncStatus || result.error}`)
+  } catch (e) {
+    console.error('[checkAndAutoSyncCampusOne]', e.message)
+  }
+}
+
 app.post('/api/payments/:id/submit-utr', async (req, res) => {
   const { id } = req.params
   const { utrNumber, payMode } = req.body
@@ -2166,13 +2289,21 @@ app.post('/api/payments/:id/submit-utr', async (req, res) => {
     `, [utrNumber, payMode || 'offline', new Date().toLocaleDateString('en-IN'), id, req.tenantId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Payment not found.' })
 
-    if (r.rows[0].feeType === 'Semester') {
-      await pool.query(`UPDATE applications SET semester_fee_status = 'Payment Done' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
-    } else {
-      // Also update linked application pay status
-      await pool.query(`UPDATE applications SET pay_status = 'Payment Done' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
-      // Auto-send provisional letter (non-blocking)
-      autoSendAdmissionLetter(r.rows[0].appNo, utrNumber, req.tenantId).catch(() => {})
+    // Each fee_type needs its own branch — a binary Semester/else split silently
+    // misfired application-fee side effects (provisional letter + OTP email) onto
+    // Booking/Registration/Tuition fee submissions.
+    switch (r.rows[0].feeType) {
+      case 'Semester':
+        await pool.query(`UPDATE applications SET semester_fee_status = 'Payment Done' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
+        break
+      case 'Booking Fee':
+      case 'Registration Fee':
+      case 'Tuition Fee':
+        // No application-level status change yet — that happens on approval.
+        break
+      default: // 'Application'
+        await pool.query(`UPDATE applications SET pay_status = 'Payment Done' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
+        autoSendAdmissionLetter(r.rows[0].appNo, utrNumber, req.tenantId).catch(() => {})
     }
 
     res.json(r.rows[0])
@@ -2191,20 +2322,45 @@ app.post('/api/payments/:id/approve', async (req, res) => {
       RETURNING id, name, app_no AS "appNo", amount, status, utr_number AS "utrNumber", fee_type AS "feeType";
     `, [id, req.tenantId])
     if (!r.rows[0]) return res.status(400).json({ error: 'Payment not found or not in Payment Done status.' })
+    const { appNo, feeType, name } = r.rows[0]
 
-    if (r.rows[0].feeType === 'Semester') {
-      await pool.query(`UPDATE applications SET semester_fee_status = 'Paid', erp_access_granted = true, erp_access_granted_at = NOW() WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
-      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
-        [`1st semester fee paid — ERP access granted: ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now', req.tenantId])
-      grantErpAccess(r.rows[0].appNo, req.tenantId).catch(() => {})
-    } else {
-      await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1 AND tenant_id = $2;`, [r.rows[0].appNo, req.tenantId])
-      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
-        [`Payment approved: ₹25,000 — ${r.rows[0].appNo} (${r.rows[0].name})`, 'Just now', req.tenantId])
-      // Auto-send provisional letter (non-blocking)
-      autoSendAdmissionLetter(r.rows[0].appNo, r.rows[0].utrNumber || 'N/A', req.tenantId).catch(() => {})
-      // Gate next step behind email OTP verification (non-blocking)
-      sendApplicationEmailOtp(r.rows[0].appNo, req.tenantId).catch(() => {})
+    switch (feeType) {
+      case 'Semester':
+        await pool.query(`UPDATE applications SET semester_fee_status = 'Paid', erp_access_granted = true, erp_access_granted_at = NOW() WHERE app_no = $1 AND tenant_id = $2;`, [appNo, req.tenantId])
+        await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+          [`1st semester fee paid — ERP access granted: ${appNo} (${name})`, 'Just now', req.tenantId])
+        grantErpAccess(appNo, req.tenantId).catch(() => {})
+        break
+
+      case 'Booking Fee': {
+        const appRes = await pool.query(`UPDATE applications SET booking_fee_status = 'Paid', booking_fee_paid_at = NOW() WHERE app_no = $1 AND tenant_id = $2 RETURNING id;`, [appNo, req.tenantId])
+        await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+          [`Booking fee paid: ${appNo} (${name})`, 'Just now', req.tenantId])
+        break
+      }
+
+      case 'Registration Fee': {
+        const appRes = await pool.query(`UPDATE applications SET registration_fee_paid = true, registration_fee_paid_at = NOW() WHERE app_no = $1 AND tenant_id = $2 RETURNING id;`, [appNo, req.tenantId])
+        await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+          [`Registration fee paid — provisional admission granted: ${appNo} (${name})`, 'Just now', req.tenantId])
+        if (appRes.rows[0]) grantProvisionalAdmission(appRes.rows[0].id, req.tenantId).catch(() => {})
+        break
+      }
+
+      case 'Tuition Fee': {
+        const appRes = await pool.query(`UPDATE applications SET tuition_fee_paid = true, tuition_fee_paid_at = NOW() WHERE app_no = $1 AND tenant_id = $2 RETURNING id;`, [appNo, req.tenantId])
+        await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+          [`Tuition fee paid: ${appNo} (${name})`, 'Just now', req.tenantId])
+        if (appRes.rows[0]) checkAndAutoSyncCampusOne(appRes.rows[0].id, req.tenantId).catch(() => {})
+        break
+      }
+
+      default: // 'Application'
+        await pool.query(`UPDATE applications SET pay_status = 'Paid' WHERE app_no = $1 AND tenant_id = $2;`, [appNo, req.tenantId])
+        await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+          [`Payment approved: ₹25,000 — ${appNo} (${name})`, 'Just now', req.tenantId])
+        autoSendAdmissionLetter(appNo, r.rows[0].utrNumber || 'N/A', req.tenantId).catch(() => {})
+        sendApplicationEmailOtp(appNo, req.tenantId).catch(() => {})
     }
 
     res.json(r.rows[0])
@@ -3711,10 +3867,10 @@ app.put('/api/tenant/config', authenticateToken, async (req, res) => {
   } catch (e) { console.error('[tenant/config PUT]', e.message); res.status(500).json({ error: 'Failed to save tenant config.' }) }
 })
 
-// ── PROGRAMS: Global program management (all authenticated users can read) ─────
+// ── PROGRAMS: tenant-scoped program/fee master (each tenant manages its own) ───
 app.get('/api/programs', authenticateToken, async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM programs ORDER BY name;')
+    const r = await pool.query('SELECT * FROM programs WHERE tenant_id = $1 ORDER BY name;', [req.tenantId])
     res.json(r.rows)
   } catch (e) {
     console.error('[GET /api/programs]', e.message)
@@ -3723,13 +3879,13 @@ app.get('/api/programs', authenticateToken, async (req, res) => {
 })
 
 app.post('/api/programs', authenticateToken, async (req, res) => {
-  if (!req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Platform admin only.' })
+  if (req.user?.role !== 'Admin' && !req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Admin only.' })
   const { name, application_fee, registration_fee, tuition_fee, min_amount_to_pay } = req.body
   if (!name?.trim()) return res.status(400).json({ error: 'Program name is required.' })
   try {
     const r = await pool.query(
-      'INSERT INTO programs (name, application_fee, registration_fee, tuition_fee, min_amount_to_pay) VALUES ($1, $2, $3, $4, $5) RETURNING *;',
-      [name, application_fee || 0, registration_fee || 0, tuition_fee || 0, min_amount_to_pay || 0]
+      'INSERT INTO programs (tenant_id, name, application_fee, registration_fee, tuition_fee, min_amount_to_pay) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;',
+      [req.tenantId, name, application_fee || 0, registration_fee || 0, tuition_fee || 0, min_amount_to_pay || 0]
     )
     res.status(201).json(r.rows[0])
   } catch (e) {
@@ -3740,14 +3896,14 @@ app.post('/api/programs', authenticateToken, async (req, res) => {
 })
 
 app.put('/api/programs/:id', authenticateToken, async (req, res) => {
-  if (!req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Platform admin only.' })
+  if (req.user?.role !== 'Admin' && !req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Admin only.' })
   const { id } = req.params
   const { name, application_fee, registration_fee, tuition_fee, min_amount_to_pay } = req.body
   if (!name?.trim()) return res.status(400).json({ error: 'Program name is required.' })
   try {
     const r = await pool.query(
-      'UPDATE programs SET name = $1, application_fee = $2, registration_fee = $3, tuition_fee = $4, min_amount_to_pay = $5, updated_at = NOW() WHERE id = $6 RETURNING *;',
-      [name, application_fee || 0, registration_fee || 0, tuition_fee || 0, min_amount_to_pay || 0, id]
+      'UPDATE programs SET name = $1, application_fee = $2, registration_fee = $3, tuition_fee = $4, min_amount_to_pay = $5, updated_at = NOW() WHERE id = $6 AND tenant_id = $7 RETURNING *;',
+      [name, application_fee || 0, registration_fee || 0, tuition_fee || 0, min_amount_to_pay || 0, id, req.tenantId]
     )
     if (r.rows.length === 0) return res.status(404).json({ error: 'Program not found.' })
     res.json(r.rows[0])
@@ -3759,10 +3915,10 @@ app.put('/api/programs/:id', authenticateToken, async (req, res) => {
 })
 
 app.delete('/api/programs/:id', authenticateToken, async (req, res) => {
-  if (!req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Platform admin only.' })
+  if (req.user?.role !== 'Admin' && !req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Admin only.' })
   const { id } = req.params
   try {
-    const r = await pool.query('DELETE FROM programs WHERE id = $1 RETURNING id;', [id])
+    const r = await pool.query('DELETE FROM programs WHERE id = $1 AND tenant_id = $2 RETURNING id;', [id, req.tenantId])
     if (r.rows.length === 0) return res.status(404).json({ error: 'Program not found.' })
     res.json({ success: true, id })
   } catch (e) {
@@ -7582,23 +7738,26 @@ app.post('/api/applications/:id/booking-fee-payment', authenticateToken, async (
     if (!appRes.rows.length) return res.status(404).json({ error: 'Application not found.' })
     const app = appRes.rows[0]
 
-    // Check: Application fee must be paid first
-    if (app.pay_status !== 'Payment Approved') {
-      return res.status(400).json({ error: 'Application fee must be paid first.' })
+    // Step-1 gate: a counselor must approve the admission-details form before
+    // the booking fee can be collected (staff recording a payment taken offline).
+    if (app.admission_details_status !== 'Approved') {
+      return res.status(400).json({ error: 'Admission details must be approved by a counselor first.' })
     }
+
+    const bookingAmount = amount || 1000
 
     // Update application with booking fee
     await pool.query(
       `UPDATE applications SET booking_fee_amount = $1, booking_fee_status = 'Paid', booking_fee_paid_at = NOW()
        WHERE id = $2 AND tenant_id = $3;`,
-      [amount, id, req.tenantId]
+      [bookingAmount, id, req.tenantId]
     )
 
     // Record payment
     await pool.query(
       `INSERT INTO payments (name, app_no, amount, method, status, date, txn_id, fee_type, tenant_id)
-       VALUES ($1, $2, $3, $4, 'Approved', NOW()::VARCHAR, $5, 'Booking Fee', $6);`,
-      [app.name, app.app_no, amount, method || 'online', transactionId || '', req.tenantId]
+       VALUES ($1, $2, $3, $4, 'Paid', NOW()::VARCHAR, $5, 'Booking Fee', $6);`,
+      [app.name, app.app_no, bookingAmount, method || 'online', transactionId || '', req.tenantId]
     )
 
     res.json({ success: true, message: 'Booking fee paid successfully.' })
@@ -7617,9 +7776,13 @@ app.get('/api/documents/verify', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Admin only.' })
     }
 
+    // Prefer the reliable app_id link; fall back to the legacy name-match for
+    // documents uploaded before that column existed.
     const docs = await pool.query(
-      `SELECT * FROM documents WHERE student = (SELECT name FROM applications WHERE id = $1 AND tenant_id = $2)
-       AND tenant_id = $2 ORDER BY type;`,
+      `SELECT * FROM documents
+       WHERE tenant_id = $2
+         AND (app_id = $1 OR (app_id IS NULL AND student = (SELECT name FROM applications WHERE id = $1 AND tenant_id = $2)))
+       ORDER BY type;`,
       [app_id, req.tenantId]
     )
     res.json(docs.rows)
@@ -7638,11 +7801,16 @@ app.put('/api/documents/:id/verify', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Invalid status.' })
     }
 
-    await pool.query(
+    const updated = await pool.query(
       `UPDATE documents SET status = $1, verified_by = $2, verified_at = NOW(), rejection_reason = $3
-       WHERE id = $4 AND tenant_id = $5;`,
+       WHERE id = $4 AND tenant_id = $5 RETURNING app_id;`,
       [status, req.user.email, rejectionReason || '', id, req.tenantId]
     )
+
+    // Step-3 auto-trigger: this doc might have been the last mandatory one pending.
+    if (status === 'Verified' && updated.rows[0]?.app_id) {
+      checkAndAutoSyncCampusOne(updated.rows[0].app_id, req.tenantId).catch(() => {})
+    }
 
     res.json({ success: true, message: 'Document verification updated.' })
   } catch (e) {
@@ -7893,6 +8061,45 @@ app.get('/api/applications/:id/campusone-status', authenticateToken, async (req,
 
 // POST /api/applications/:id/send-admission-details
 // Admin sends email link to student to fill admission details
+// Step-1 gate: counselor/Admin approves or rejects the student-submitted
+// admission_details before the booking fee can be collected.
+app.post('/api/applications/:id/approve-admission-details', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body
+    if (!['Approved', 'Rejected'].includes(status)) {
+      return res.status(400).json({ error: "Status must be 'Approved' or 'Rejected'." })
+    }
+    if (req.user?.role !== 'Admin' && !['Manager', 'Counselor'].includes(req.user?.role)) {
+      return res.status(403).json({ error: 'Admin/Manager/Counselor only.' })
+    }
+
+    const r = await pool.query(
+      `UPDATE applications SET admission_details_status = $1, admission_details_reviewed_by = $2, admission_details_reviewed_at = NOW()
+       WHERE id = $3 AND tenant_id = $4 RETURNING id, name, app_no, email;`,
+      [status, req.user.email, id, req.tenantId]
+    )
+    if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
+    const app = r.rows[0]
+
+    if (app.email) {
+      sendSystemMailAlert(
+        app.email,
+        `Admission Details ${status} — ${app.app_no}`,
+        status === 'Approved'
+          ? `Dear ${app.name},\n\nYour admission details have been reviewed and approved. Please proceed to pay the booking fee to continue your admission process.\n\nBest regards,\nCUTM Admissions Team`
+          : `Dear ${app.name},\n\nYour admission details need a correction. Please revisit the form link sent to you earlier and resubmit.\n\nBest regards,\nCUTM Admissions Team`,
+        req.tenantId
+      ).catch(() => {})
+    }
+
+    res.json({ success: true, message: `Admission details ${status.toLowerCase()}.` })
+  } catch (e) {
+    console.error('[POST /api/applications/:id/approve-admission-details]', e.message)
+    res.status(500).json({ error: 'Failed to update admission details review status.' })
+  }
+})
+
 app.post('/api/applications/:id/send-admission-details', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
@@ -8016,37 +8223,76 @@ Centurion University of Technology and Management
 
 // GET /api/admission-details/:token
 // Public endpoint - retrieve application by token (no auth required)
+// Shared checklist of document types the Step-3 upload screen asks for. Caste
+// Certificate only applies when the student picked a non-General caste category.
+const ADMISSION_DOC_CHECKLIST = (caste) => [
+  { type: '10th Marksheet', mandatory: true },
+  { type: '12th Marksheet', mandatory: true },
+  { type: 'Graduation Marksheet', mandatory: false },
+  { type: 'ID Proof', mandatory: true },
+  { type: 'Passport Photo', mandatory: true },
+  { type: 'Transfer Certificate', mandatory: true },
+  { type: 'Migration Certificate', mandatory: true },
+  { type: 'Caste Certificate', mandatory: !!caste && caste !== 'General' }
+]
+
+// Resolve the token → { app, tokenRow } or null, shared by every public journey route below.
+async function loadAdmissionJourneyByToken(token) {
+  const r = await pool.query(
+    `SELECT at.tenant_id AS token_tenant_id, at.filled_at, at.expires_at, a.*
+     FROM admission_tokens at
+     JOIN applications a ON a.id = at.app_id
+     WHERE at.token = $1 AND at.expires_at > NOW()`,
+    [token]
+  )
+  return r.rows[0] || null
+}
+
 app.get('/api/admission-details/:token', async (req, res) => {
   try {
     const { token } = req.params
+    const app = await loadAdmissionJourneyByToken(token)
+    if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
 
-    // Find token in database
-    const r = await pool.query(
-      `SELECT at.app_id, at.email, a.id, a.name, a.email as app_email, a.mobile, a.course,
-              a.admission_details, at.filled_at, at.expires_at
-       FROM admission_tokens at
-       JOIN applications a ON a.id = at.app_id
-       WHERE at.token = $1 AND at.expires_at > NOW()`,
-      [token]
+    const tenantId = app.token_tenant_id || app.tenant_id || 1
+
+    // Program's registration/tuition-minimum fee, if a matching program exists
+    const progRes = await pool.query(
+      'SELECT registration_fee, tuition_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;',
+      [tenantId, app.course]
     )
+    const program = progRes.rows[0] || { registration_fee: 0, tuition_fee: 0, min_amount_to_pay: 0 }
 
-    if (!r.rows.length) {
-      return res.status(404).json({ error: 'Invalid or expired admission link.' })
+    // Document checklist + current status (only once provisional admission is granted)
+    let documents = []
+    if (app.provisional_admission_status === 'Granted') {
+      const docsRes = await pool.query('SELECT id, type, status, file_url FROM documents WHERE app_id = $1 AND tenant_id = $2;', [app.id, tenantId])
+      const byType = Object.fromEntries(docsRes.rows.map(d => [d.type, d]))
+      documents = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste).map(item => ({
+        ...item,
+        uploaded: !!byType[item.type],
+        status: byType[item.type]?.status || null
+      }))
     }
-
-    const { app_id, name, app_email, mobile, course, admission_details, filled_at } = r.rows[0]
 
     res.json({
       success: true,
-      application: {
-        id: app_id,
-        name,
-        email: app_email,
-        mobile,
-        course
-      },
-      admissionDetails: admission_details || {},
-      alreadyFilled: !!filled_at
+      application: { id: app.id, name: app.name, email: app.email, mobile: app.mobile, course: app.course },
+      admissionDetails: app.admission_details || {},
+      alreadyFilled: !!app.filled_at,
+      admissionDetailsStatus: app.admission_details_status,
+      admissionDetailsReviewNote: app.admission_details_reviewed_at ? { by: app.admission_details_reviewed_by, at: app.admission_details_reviewed_at } : null,
+      bookingFeeStatus: app.booking_fee_status,
+      bookingFeeAmount: app.booking_fee_amount || 1000,
+      admissionFullDetails: app.admission_full_details || {},
+      registrationFeePaid: !!app.registration_fee_paid,
+      registrationFeeAmount: program.registration_fee || 0,
+      provisionalAdmissionStatus: app.provisional_admission_status,
+      registrationNumber: app.registration_number,
+      documents,
+      tuitionFeeAmount: program.min_amount_to_pay || 0,
+      tuitionFeePaid: !!app.tuition_fee_paid,
+      campusoneSyncStatus: app.campusone_sync_status
     })
   } catch (e) {
     console.error('[GET /api/admission-details/:token]', e.message)
@@ -8055,48 +8301,134 @@ app.get('/api/admission-details/:token', async (req, res) => {
 })
 
 // POST /api/admission-details/:token
-// Public endpoint - submit admission details form
+// Public endpoint - submit Step-1 (basic + academic) admission details form
 app.post('/api/admission-details/:token', async (req, res) => {
   try {
     const { token } = req.params
     const details = req.body
 
-    // Find and validate token
-    const r = await pool.query(
-      `SELECT app_id FROM admission_tokens
-       WHERE token = $1 AND expires_at > NOW()`,
-      [token]
-    )
+    const app = await loadAdmissionJourneyByToken(token)
+    if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
 
-    if (!r.rows.length) {
-      return res.status(404).json({ error: 'Invalid or expired admission link.' })
-    }
+    // A resubmission after rejection goes back to Pending for another review.
+    const resetStatus = app.admission_details_status === 'Rejected'
 
-    const app_id = r.rows[0].app_id
-
-    // Save admission details to application
     await pool.query(
-      `UPDATE applications
-       SET admission_details = $1::jsonb
-       WHERE id = $2`,
-      [JSON.stringify(details), app_id]
+      `UPDATE applications SET admission_details = $1::jsonb
+       ${resetStatus ? ", admission_details_status = 'Pending', admission_details_reviewed_by = '', admission_details_reviewed_at = NULL" : ''}
+       WHERE id = $2 AND tenant_id = $3`,
+      [JSON.stringify(details), app.id, app.token_tenant_id]
     )
 
-    // Mark token as filled
-    await pool.query(
-      `UPDATE admission_tokens
-       SET filled_at = NOW()
-       WHERE token = $1`,
-      [token]
-    )
+    await pool.query(`UPDATE admission_tokens SET filled_at = NOW() WHERE token = $1`, [token])
 
-    res.json({
-      success: true,
-      message: 'Admission details saved successfully.'
-    })
+    res.json({ success: true, message: 'Admission details saved successfully.' })
   } catch (e) {
     console.error('[POST /api/admission-details/:token]', e.message)
     res.status(500).json({ error: 'Failed to save admission details.' })
+  }
+})
+
+// POST /api/admission-details/:token/full-form
+// Public — Step-2 fuller admission form (guardian/financial/prior institution/
+// bank/hostel), unlocked once the booking fee is paid.
+app.post('/api/admission-details/:token/full-form', async (req, res) => {
+  try {
+    const { token } = req.params
+    const app = await loadAdmissionJourneyByToken(token)
+    if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
+    if (app.booking_fee_status !== 'Paid') {
+      return res.status(400).json({ error: 'Booking fee must be paid before the full admission form is available.' })
+    }
+    await pool.query(
+      `UPDATE applications SET admission_full_details = $1::jsonb WHERE id = $2 AND tenant_id = $3`,
+      [JSON.stringify(req.body || {}), app.id, app.token_tenant_id]
+    )
+    res.json({ success: true, message: 'Full admission form saved successfully.' })
+  } catch (e) {
+    console.error('[POST /api/admission-details/:token/full-form]', e.message)
+    res.status(500).json({ error: 'Failed to save the full admission form.' })
+  }
+})
+
+// POST /api/admission-details/:token/submit-payment
+// Public — student self-reports a UTR for Booking/Registration/Tuition fee.
+// Creates a Payment-Done row for staff to approve via the existing Payments
+// screen (POST /api/payments/:id/approve), rather than auto-trusting the claim.
+app.post('/api/admission-details/:token/submit-payment', async (req, res) => {
+  try {
+    const { token } = req.params
+    const { feeType, utrNumber, amount } = req.body
+    if (!['Booking Fee', 'Registration Fee', 'Tuition Fee'].includes(feeType)) {
+      return res.status(400).json({ error: 'Invalid fee type.' })
+    }
+    if (!utrNumber) return res.status(400).json({ error: 'UTR/Reference number required.' })
+
+    const app = await loadAdmissionJourneyByToken(token)
+    if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
+
+    if (feeType === 'Booking Fee' && app.admission_details_status !== 'Approved') {
+      return res.status(400).json({ error: 'Admission details must be approved by a counselor first.' })
+    }
+    if (feeType === 'Registration Fee' && app.booking_fee_status !== 'Paid') {
+      return res.status(400).json({ error: 'Booking fee must be paid first.' })
+    }
+    if (feeType === 'Tuition Fee' && app.provisional_admission_status !== 'Granted') {
+      return res.status(400).json({ error: 'Provisional admission must be granted first.' })
+    }
+
+    const r = await pool.query(
+      `INSERT INTO payments (name, app_no, amount, method, status, date, utr_number, pay_mode, fee_type, tenant_id)
+       VALUES ($1, $2, $3, 'online', 'Payment Done', $4, $5, 'offline', $6, $7) RETURNING id;`,
+      [app.name, app.app_no, amount || 0, new Date().toLocaleDateString('en-IN'), utrNumber, feeType, app.token_tenant_id]
+    )
+
+    res.json({ success: true, paymentId: r.rows[0].id, message: 'Payment submitted — awaiting admin approval.' })
+  } catch (e) {
+    console.error('[POST /api/admission-details/:token/submit-payment]', e.message)
+    res.status(500).json({ error: 'Failed to submit payment.' })
+  }
+})
+
+// POST /api/admission-details/:token/documents
+// Public, multipart — Step-3 document upload, unlocked once provisional
+// admission is granted. Linked by app_id (not the old fragile name-match).
+app.post('/api/admission-details/:token/documents', uploadDoc.single('file'), async (req, res) => {
+  try {
+    const { token } = req.params
+    const { type } = req.body
+    if (!type) return res.status(400).json({ error: 'Document type is required.' })
+    if (!req.file) return res.status(400).json({ error: 'File is required.' })
+
+    const app = await loadAdmissionJourneyByToken(token)
+    if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
+    if (app.provisional_admission_status !== 'Granted') {
+      return res.status(400).json({ error: 'Documents can only be uploaded after provisional admission is granted.' })
+    }
+
+    const checklist = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste)
+    const item = checklist.find(c => c.type === type)
+    const fileUrl = `/uploads/documents/${req.file.filename}`
+
+    const existing = await pool.query('SELECT id FROM documents WHERE app_id = $1 AND type = $2 AND tenant_id = $3;', [app.id, type, app.token_tenant_id])
+    if (existing.rows.length) {
+      await pool.query(
+        `UPDATE documents SET file_url = $1, status = 'Pending', upload_date = $2, verified_by = '', verified_at = NULL, rejection_reason = ''
+         WHERE id = $3;`,
+        [fileUrl, new Date().toLocaleDateString('en-IN'), existing.rows[0].id]
+      )
+    } else {
+      await pool.query(
+        `INSERT INTO documents (student, app_id, type, status, upload_date, file_url, is_mandatory, tenant_id)
+         VALUES ($1, $2, $3, 'Pending', $4, $5, $6, $7);`,
+        [app.name, app.id, type, new Date().toLocaleDateString('en-IN'), fileUrl, item?.mandatory ?? false, app.token_tenant_id]
+      )
+    }
+
+    res.json({ success: true, message: 'Document uploaded — pending verification.' })
+  } catch (e) {
+    console.error('[POST /api/admission-details/:token/documents]', e.message)
+    res.status(500).json({ error: 'Failed to upload document.' })
   }
 })
 
@@ -8327,7 +8659,7 @@ app.post('/api/applications/:id/pay-fee', authenticateToken, async (req, res) =>
 
     // Get application
     const app = await pool.query(
-      'SELECT id, application_fee_paid, registration_fee_paid FROM applications WHERE id = $1 AND tenant_id = $2',
+      'SELECT id, name, app_no, application_fee_paid, registration_fee_paid FROM applications WHERE id = $1 AND tenant_id = $2',
       [id, req.tenantId]
     )
 
@@ -8356,12 +8688,14 @@ app.post('/api/applications/:id/pay-fee', authenticateToken, async (req, res) =>
 
     await pool.query(updateQuery, [id])
 
-    // Record payment
+    // Record payment (columns must match the real `payments` schema — this insert
+    // previously referenced app_id/transaction_id, neither of which exists, so it
+    // silently failed via the trailing .catch every time)
     await pool.query(
-      `INSERT INTO payments (app_id, amount, status, method, transaction_id, fee_type, tenant_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id, amount, 'Approved', 'online', transactionId || '', `${feeType}_fee`, req.tenantId]
-    ).catch(() => {})
+      `INSERT INTO payments (name, app_no, amount, status, method, txn_id, fee_type, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [appData.name, appData.app_no, amount, 'Paid', 'online', transactionId || '', `${feeType}_fee`, req.tenantId]
+    ).catch((e) => console.error('[pay-fee] payment insert failed:', e.message))
 
     // After registration fee paid, auto-generate admission number
     if (feeType === 'registration') {
