@@ -786,8 +786,10 @@ export default function ApplicationDetails() {
                       <button
                         type="button"
                         onClick={async () => {
+                          console.log('Online Form button clicked, app id:', associatedApp?.id)
                           try {
                             const token = localStorage.getItem('ccrm_token')
+                            console.log('Sending email, token:', token ? 'exists' : 'missing')
                             const response = await fetch('/api/send-template-email', {
                               method: 'POST',
                               headers: {
