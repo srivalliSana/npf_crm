@@ -8530,7 +8530,9 @@ app.post('/api/send-template-email', authenticateToken, async (req, res) => {
     }
 
     // Send email via SES
+    console.log(`[Email] About to send to ${appData.email}, template: ${template_type}`)
     await sendSystemMailAlert(appData.email, subject, emailBody, req.tenantId, emailHtml)
+    console.log(`[Email] Completed for ${appData.email}`)
 
     // Log the email
     await pool.query(
