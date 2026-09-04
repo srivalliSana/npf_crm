@@ -1664,6 +1664,9 @@ export default function ApplicationDetails() {
                   deleteDocument={deleteDocument}
                   showToast={showToast}
                   currentUser={currentUser}
+                  record={record}
+                  isApp={isApp}
+                  fetchAllData={fetchAllData}
                 />
               )}
             </div>
@@ -2045,7 +2048,7 @@ function PostAdmissionPanel({ application: app, currentUser, showToast, fetchAll
 }
 
 // ── Inline Documents Tab — upload + verify in the lead window directly ───────
-function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocStatus, deleteDocument, showToast, currentUser, leadId }) {
+function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocStatus, deleteDocument, showToast, currentUser, leadId, record, isApp, fetchAllData }) {
   const fileRef = React.useRef(null)
   const [docType, setDocType]   = React.useState('10th Marksheet')
   const [uploading, setUploading] = React.useState(false)
