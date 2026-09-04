@@ -23,7 +23,8 @@ export default function ProgramsManager() {
 
   const fetchPrograms = async () => {
     try {
-      const res = await fetch('/api/programs')
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch('/api/programs', { headers: { 'Authorization': `Bearer ${token}` } })
       if (res.ok) setPrograms(await res.json())
     } catch (e) {
       console.error('Failed to fetch programs:', e)

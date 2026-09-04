@@ -838,6 +838,56 @@ export async function initDb() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_admission_tokens_token ON admission_tokens(token);`).catch(() => {})
     await client.query(`CREATE INDEX IF NOT EXISTS idx_admission_tokens_app ON admission_tokens(app_id, tenant_id);`).catch(() => {})
 
+    // ═══════════════════════════════════════════════════════════════
+    // ═ 3-STEP ADMISSION JOURNEY: counselor review → booking fee →  ═
+    // ═ full form → registration fee/provisional admission →       ═
+    // ═ documents + tuition fee → CampusOne                        ═
+    // ═══════════════════════════════════════════════════════════════
+
+    // Step 1 gate: counselor approves/rejects the basic+academic admission_details
+    // blob before the student is allowed to pay the booking fee.
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_details_status VARCHAR(30) DEFAULT 'Pending';`).catch(() => {}) // Pending | Approved | Rejected
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_details_reviewed_by VARCHAR(255) DEFAULT '';`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_details_reviewed_at TIMESTAMP;`).catch(() => {})
+
+    // Step 2: the fuller admission form (guardian/financial/prior institution/bank/
+    // hostel) filled once the booking fee is paid — kept separate from admission_details
+    // since it's a distinct, later stage of the same journey.
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_full_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS provisional_admission_status VARCHAR(30) DEFAULT 'Pending';`).catch(() => {}) // Pending | Granted
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS provisional_admission_at TIMESTAMP;`).catch(() => {})
+
+    // Step 3: ties uploaded documents to a specific application (older lead-stage
+    // uploads keep matching by student name; new journey uploads always set this).
+    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS app_id INTEGER REFERENCES applications(id) ON DELETE CASCADE;`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_documents_app_id ON documents(app_id);`).catch(() => {})
+    // Best-effort backfill: link old name-matched rows to their application where the
+    // name is unambiguous (exactly one application with that name in the tenant).
+    await client.query(`
+      UPDATE documents d SET app_id = a.id
+      FROM applications a
+      WHERE d.app_id IS NULL AND d.student = a.name AND d.tenant_id = a.tenant_id
+        AND (SELECT COUNT(*) FROM applications a2 WHERE a2.name = d.student AND a2.tenant_id = d.tenant_id) = 1;
+    `).catch(() => {})
+
+    // Programs master — was already live on production with this exact shape but had
+    // no migration in code (a fresh DB/new tenant never got this table). Tracking it
+    // here for real; per-tenant so each tenant manages its own program fee list.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS programs (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+        name VARCHAR(255) NOT NULL,
+        application_fee NUMERIC(10,2) DEFAULT 0,
+        registration_fee NUMERIC(10,2) DEFAULT 0,
+        tuition_fee NUMERIC(10,2) DEFAULT 0,
+        min_amount_to_pay NUMERIC(10,2) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(tenant_id, name)
+      );
+    `).catch(() => {})
+
     // Email templates for counselors to send various communications
     await client.query(`
       CREATE TABLE IF NOT EXISTS email_templates (
