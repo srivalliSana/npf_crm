@@ -785,9 +785,32 @@ export default function ApplicationDetails() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setShowAdmissionMethodModal(false)
-                          showToast('Email link sent! Student can fill details via email.', 'success')
+                        onClick={async () => {
+                          try {
+                            const token = localStorage.getItem('ccrm_token')
+                            const response = await fetch('/api/send-template-email', {
+                              method: 'POST',
+                              headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                              },
+                              body: JSON.stringify({
+                                app_id: associatedApp.id,
+                                template_type: 'admission_details',
+                                amount: 0,
+                                customMessage: 'Please fill your admission details to complete your application.'
+                              })
+                            })
+                            const data = await response.json()
+                            if (response.ok) {
+                              showToast('✅ Email sent! Student can now fill details via the secure link.', 'success')
+                              setShowAdmissionMethodModal(false)
+                            } else {
+                              showToast(data.error || 'Failed to send email', 'error')
+                            }
+                          } catch (e) {
+                            showToast('Error: ' + e.message, 'error')
+                          }
                         }}
                         className="w-full text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
                       >
