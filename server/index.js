@@ -3888,12 +3888,13 @@ app.get('/api/programs', authenticateToken, async (req, res) => {
 
 app.post('/api/programs', authenticateToken, async (req, res) => {
   if (req.user?.role !== 'Admin' && !req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Admin only.' })
-  const { name, application_fee, registration_fee, tuition_fee, min_amount_to_pay } = req.body
+  const { name, application_fee, booking_fee, registration_fee, min_due_provisional, tuition_fee, min_amount_to_pay } = req.body
   if (!name?.trim()) return res.status(400).json({ error: 'Program name is required.' })
   try {
     const r = await pool.query(
-      'INSERT INTO programs (tenant_id, name, application_fee, registration_fee, tuition_fee, min_amount_to_pay) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;',
-      [req.tenantId, name, application_fee || 0, registration_fee || 0, tuition_fee || 0, min_amount_to_pay || 0]
+      `INSERT INTO programs (tenant_id, name, application_fee, booking_fee, registration_fee, min_due_provisional, tuition_fee, min_amount_to_pay)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;`,
+      [req.tenantId, name, application_fee || 0, booking_fee ?? 1000, registration_fee || 0, min_due_provisional || 0, tuition_fee || 0, min_amount_to_pay || 0]
     )
     res.status(201).json(r.rows[0])
   } catch (e) {
@@ -3906,12 +3907,13 @@ app.post('/api/programs', authenticateToken, async (req, res) => {
 app.put('/api/programs/:id', authenticateToken, async (req, res) => {
   if (req.user?.role !== 'Admin' && !req.user?.isPlatformAdmin) return res.status(403).json({ error: 'Admin only.' })
   const { id } = req.params
-  const { name, application_fee, registration_fee, tuition_fee, min_amount_to_pay } = req.body
+  const { name, application_fee, booking_fee, registration_fee, min_due_provisional, tuition_fee, min_amount_to_pay } = req.body
   if (!name?.trim()) return res.status(400).json({ error: 'Program name is required.' })
   try {
     const r = await pool.query(
-      'UPDATE programs SET name = $1, application_fee = $2, registration_fee = $3, tuition_fee = $4, min_amount_to_pay = $5, updated_at = NOW() WHERE id = $6 AND tenant_id = $7 RETURNING *;',
-      [name, application_fee || 0, registration_fee || 0, tuition_fee || 0, min_amount_to_pay || 0, id, req.tenantId]
+      `UPDATE programs SET name = $1, application_fee = $2, booking_fee = $3, registration_fee = $4, min_due_provisional = $5,
+       tuition_fee = $6, min_amount_to_pay = $7, updated_at = NOW() WHERE id = $8 AND tenant_id = $9 RETURNING *;`,
+      [name, application_fee || 0, booking_fee ?? 1000, registration_fee || 0, min_due_provisional || 0, tuition_fee || 0, min_amount_to_pay || 0, id, req.tenantId]
     )
     if (r.rows.length === 0) return res.status(404).json({ error: 'Program not found.' })
     res.json(r.rows[0])
@@ -7752,7 +7754,8 @@ app.post('/api/applications/:id/booking-fee-payment', authenticateToken, async (
       return res.status(400).json({ error: 'Admission details must be approved by a counselor first.' })
     }
 
-    const bookingAmount = amount || 1000
+    const progRes = await pool.query('SELECT booking_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
+    const bookingAmount = amount || progRes.rows[0]?.booking_fee || 1000
 
     // Update application with booking fee
     await pool.query(
@@ -8264,12 +8267,13 @@ app.get('/api/admission-details/:token', async (req, res) => {
 
     const tenantId = app.token_tenant_id || app.tenant_id || 1
 
-    // Program's registration/tuition-minimum fee, if a matching program exists
+    // Fee amounts are admin-set per program (per tenant) via Programs Manager —
+    // booking_fee/min_due_provisional gate Steps 1-2, min_amount_to_pay gates Step 3.
     const progRes = await pool.query(
-      'SELECT registration_fee, tuition_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;',
+      'SELECT booking_fee, registration_fee, min_due_provisional, tuition_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;',
       [tenantId, app.course]
     )
-    const program = progRes.rows[0] || { registration_fee: 0, tuition_fee: 0, min_amount_to_pay: 0 }
+    const program = progRes.rows[0] || { booking_fee: 1000, registration_fee: 0, min_due_provisional: 0, tuition_fee: 0, min_amount_to_pay: 0 }
 
     // Document checklist + current status (only once provisional admission is granted)
     let documents = []
@@ -8291,10 +8295,10 @@ app.get('/api/admission-details/:token', async (req, res) => {
       admissionDetailsStatus: app.admission_details_status,
       admissionDetailsReviewNote: app.admission_details_reviewed_at ? { by: app.admission_details_reviewed_by, at: app.admission_details_reviewed_at } : null,
       bookingFeeStatus: app.booking_fee_status,
-      bookingFeeAmount: app.booking_fee_amount || 1000,
+      bookingFeeAmount: app.booking_fee_amount || program.booking_fee || 1000,
       admissionFullDetails: app.admission_full_details || {},
       registrationFeePaid: !!app.registration_fee_paid,
-      registrationFeeAmount: program.registration_fee || 0,
+      registrationFeeAmount: program.min_due_provisional || program.registration_fee || 0,
       provisionalAdmissionStatus: app.provisional_admission_status,
       registrationNumber: app.registration_number,
       documents,
@@ -8383,6 +8387,23 @@ app.post('/api/admission-details/:token/submit-payment', async (req, res) => {
     }
     if (feeType === 'Tuition Fee' && app.provisional_admission_status !== 'Granted') {
       return res.status(400).json({ error: 'Provisional admission must be granted first.' })
+    }
+
+    // Each fee's minimum is admin-set per program (Programs Manager) — enforce it
+    // server-side rather than trusting whatever amount the client sends.
+    const tenantId = app.token_tenant_id || app.tenant_id || 1
+    const progRes = await pool.query(
+      'SELECT booking_fee, min_due_provisional, registration_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;',
+      [tenantId, app.course]
+    )
+    const program = progRes.rows[0] || {}
+    const minRequired = {
+      'Booking Fee': program.booking_fee || 1000,
+      'Registration Fee': program.min_due_provisional || program.registration_fee || 0,
+      'Tuition Fee': program.min_amount_to_pay || 0
+    }[feeType]
+    if (Number(amount || 0) < Number(minRequired)) {
+      return res.status(400).json({ error: `Minimum amount required for ${feeType} is ₹${minRequired}.` })
     }
 
     const r = await pool.query(

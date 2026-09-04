@@ -887,6 +887,12 @@ export async function initDb() {
         UNIQUE(tenant_id, name)
       );
     `).catch(() => {})
+    // Booking fee (Step 1) and the minimum-due-for-provisional-admission (Step 2)
+    // are both admin-set per program too — registration_fee stays the informational
+    // "full" amount, min_due_provisional is what actually gates provisional admission
+    // (mirrors the existing tuition_fee/min_amount_to_pay full-vs-minimum-due pattern).
+    await client.query(`ALTER TABLE programs ADD COLUMN IF NOT EXISTS booking_fee NUMERIC(10,2) DEFAULT 1000;`).catch(() => {})
+    await client.query(`ALTER TABLE programs ADD COLUMN IF NOT EXISTS min_due_provisional NUMERIC(10,2) DEFAULT 0;`).catch(() => {})
 
     // Email templates for counselors to send various communications
     await client.query(`
