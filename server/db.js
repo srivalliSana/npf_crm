@@ -597,22 +597,27 @@ export async function initDb() {
     const leadsCountRes = await client.query('SELECT COUNT(*) FROM leads;')
     if (parseInt(leadsCountRes.rows[0].count) === 0) {
       console.log('Seeding initial leads...')
+      // NOTE: reg_date (col 9) was missing from every row but the first here —
+      // each row silently supplied only 11 of the 12 bound params, which crashes
+      // initDb outright on any genuinely empty database (pg error 08P01). Never
+      // triggered on this production DB since leads was never empty, but a fresh
+      // install/new tenant hit it every time. Backfilled '' for "not yet registered".
       const seedLeads = [
         ['Ravi Kumar Sharma', 'ravi.sharma@gmail.com', '9876543210', 'Andhra Pradesh', 'Visakhapatnam', 'B.Tech CSE', 'Facebook Ads', 'Vikram Kumar', '26/05/2026, 12:42 PM', 82, 'Qualified Leads', 'green'],
-        ['Priya Devi Nayak', 'priya.nayak@yahoo.com', '9845123456', 'Odisha', 'Bhubaneswar', 'BBA', 'Walk-in', 'Anita S.', 0, 'Untouched', 'red'],
-        ['Arjun Patel', 'arjun.patel@gmail.com', '9765432109', 'Andhra Pradesh', 'Guntur', 'MBA', 'LinkedIn', 'Rahul V.', 35, 'Unqualified Leads', 'orange'],
-        ['Sneha Reddy', 'sneha.reddy@outlook.com', '9654321098', 'Telangana', 'Hyderabad', 'B.Tech CSE', 'Google Ads', 'Meena P.', 0, 'Untouched', 'red'],
-        ['Kiran Babu Rao', 'kiran.rao@gmail.com', '9543210987', 'Odisha', 'Cuttack', 'B.Tech CSE', 'Referral', 'Vikram Kumar', 74, 'Qualified Leads', 'green'],
-        ['Ananya Mishra', 'ananya.mishra@gmail.com', '9432109876', 'Odisha', 'Rourkela', 'B.Tech CSE', 'Website', 'Suresh D.', 0, 'Untouched', 'red'],
-        ['Suresh Chandra Das', 'suresh.das@rediffmail.com', '9321098765', 'Andhra Pradesh', 'Vijayawada', 'B.Tech CSE', 'Education Fair', 'Kavitha R.', 68, 'Qualified Leads', 'green'],
-        ['Deepika Mohapatra', 'deepika.m@gmail.com', '9210987654', 'Odisha', 'Berhampur', 'B.Tech CSE', 'Facebook Ads', 'Deepak M.', 28, 'Unqualified Leads', 'orange'],
-        ['Rajesh Kumar Sahu', 'rajesh.sahu@gmail.com', '9109876543', 'Odisha', 'Sambalpur', 'B.Tech CSE', 'SMS Campaign', 'Preethi N.', 0, 'Untouched', 'red'],
-        ['Lakshmi Priya', 'lakshmi.priya@gmail.com', '9098765432', 'Andhra Pradesh', 'Nellore', 'B.Tech CSE', 'Referral', 'Arun K.', 91, 'Qualified Leads', 'green'],
-        ['Venkat Narayana', 'venkat.n@gmail.com', '8987654321', 'Andhra Pradesh', 'Kurnool', 'B.Tech CSE', 'Google Ads', 'Sunita B.', 0, 'Untouched', 'red'],
-        ['Sushma Rani Behera', 'sushma.behera@gmail.com', '8876543210', 'Odisha', 'Puri', 'B.Tech CSE', 'Walk-in', 'Vikram Kumar', 77, 'Qualified Leads', 'green'],
-        ['Manoj Kumar Tripathy', 'manoj.tripathy@gmail.com', '8765432109', 'Odisha', 'Balasore', 'B.Tech CSE', 'LinkedIn', 'Anita S.', 65, 'Qualified Leads', 'green'],
-        ['Pooja Agarwal', 'pooja.agarwal@gmail.com', '8654321098', 'West Bengal', 'Kolkata', 'B.Tech CSE', 'Facebook Ads', 'Rahul V.', 0, 'Untouched', 'red'],
-        ['Santosh Kumar Jena', 'santosh.jena@gmail.com', '8543210987', 'Odisha', 'Kendrapara', 'B.Tech CSE', 'Referral', 'Meena P.', 58, 'Qualified Leads', 'green']
+        ['Priya Devi Nayak', 'priya.nayak@yahoo.com', '9845123456', 'Odisha', 'Bhubaneswar', 'BBA', 'Walk-in', 'Anita S.', '', 0, 'Untouched', 'red'],
+        ['Arjun Patel', 'arjun.patel@gmail.com', '9765432109', 'Andhra Pradesh', 'Guntur', 'MBA', 'LinkedIn', 'Rahul V.', '', 35, 'Unqualified Leads', 'orange'],
+        ['Sneha Reddy', 'sneha.reddy@outlook.com', '9654321098', 'Telangana', 'Hyderabad', 'B.Tech CSE', 'Google Ads', 'Meena P.', '', 0, 'Untouched', 'red'],
+        ['Kiran Babu Rao', 'kiran.rao@gmail.com', '9543210987', 'Odisha', 'Cuttack', 'B.Tech CSE', 'Referral', 'Vikram Kumar', '', 74, 'Qualified Leads', 'green'],
+        ['Ananya Mishra', 'ananya.mishra@gmail.com', '9432109876', 'Odisha', 'Rourkela', 'B.Tech CSE', 'Website', 'Suresh D.', '', 0, 'Untouched', 'red'],
+        ['Suresh Chandra Das', 'suresh.das@rediffmail.com', '9321098765', 'Andhra Pradesh', 'Vijayawada', 'B.Tech CSE', 'Education Fair', 'Kavitha R.', '', 68, 'Qualified Leads', 'green'],
+        ['Deepika Mohapatra', 'deepika.m@gmail.com', '9210987654', 'Odisha', 'Berhampur', 'B.Tech CSE', 'Facebook Ads', 'Deepak M.', '', 28, 'Unqualified Leads', 'orange'],
+        ['Rajesh Kumar Sahu', 'rajesh.sahu@gmail.com', '9109876543', 'Odisha', 'Sambalpur', 'B.Tech CSE', 'SMS Campaign', 'Preethi N.', '', 0, 'Untouched', 'red'],
+        ['Lakshmi Priya', 'lakshmi.priya@gmail.com', '9098765432', 'Andhra Pradesh', 'Nellore', 'B.Tech CSE', 'Referral', 'Arun K.', '', 91, 'Qualified Leads', 'green'],
+        ['Venkat Narayana', 'venkat.n@gmail.com', '8987654321', 'Andhra Pradesh', 'Kurnool', 'B.Tech CSE', 'Google Ads', 'Sunita B.', '', 0, 'Untouched', 'red'],
+        ['Sushma Rani Behera', 'sushma.behera@gmail.com', '8876543210', 'Odisha', 'Puri', 'B.Tech CSE', 'Walk-in', 'Vikram Kumar', '', 77, 'Qualified Leads', 'green'],
+        ['Manoj Kumar Tripathy', 'manoj.tripathy@gmail.com', '8765432109', 'Odisha', 'Balasore', 'B.Tech CSE', 'LinkedIn', 'Anita S.', '', 65, 'Qualified Leads', 'green'],
+        ['Pooja Agarwal', 'pooja.agarwal@gmail.com', '8654321098', 'West Bengal', 'Kolkata', 'B.Tech CSE', 'Facebook Ads', 'Rahul V.', '', 0, 'Untouched', 'red'],
+        ['Santosh Kumar Jena', 'santosh.jena@gmail.com', '8543210987', 'Odisha', 'Kendrapara', 'B.Tech CSE', 'Referral', 'Meena P.', '', 58, 'Qualified Leads', 'green']
       ]
       for (const l of seedLeads) {
         await client.query(`
