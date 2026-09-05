@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { CheckCircle2, AlertCircle, Loader, Clock, Upload, ChevronLeft, ChevronRight, Check, Pencil } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Loader, Clock, Upload, ChevronLeft, ChevronRight, Check, Pencil, Users, BookOpen, Building2, Briefcase, Phone, Mail, Globe } from 'lucide-react'
 import { INDIA_STATES, getDistrictsForState, CASTE_CATEGORIES } from '../data/indiaLocations'
 
 const LOGO_URL = 'https://crm.cutmap.ac.in/landing/images/logo.jpg'
 const SUPPORT_EMAIL = 'admissions@cutmap.ac.in'
+const HERO_GRADIENT = 'linear-gradient(135deg, #064e3b 0%, #065f46 20%, #0d9488 50%, #0369a1 75%, #1e40af 100%)'
+const STATS = [
+  { value: '10,000+', label: 'Students', icon: Users },
+  { value: '100+', label: 'Programs', icon: BookOpen },
+  { value: '4', label: 'Campuses', icon: Building2 },
+  { value: '95%', label: 'Placements', icon: Briefcase },
+]
 
 // One token drives the whole journey: fill basic details → counselor approval →
 // booking fee → fuller admission form → registration fee → provisional admission
@@ -25,74 +32,137 @@ function macroStageIndex(j) {
   return 0
 }
 
-// ── Shell: page background + centered card column, used by every screen ──
-function Shell({ children }) {
+// ── Page shell: full-width, Inter font, top navbar + bottom footer on every screen ──
+function PageShell({ children }) {
   return (
-    <div className="min-h-screen" style={{ background: '#f2ede6' }}>
-      <div className="max-w-2xl mx-auto px-4 py-10 sm:py-14">{children}</div>
+    <div className="min-h-screen w-full bg-gray-50 font-sans flex flex-col">
+      <nav className="w-full bg-white border-b border-gray-100 sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src={LOGO_URL} alt="Centurion University" className="h-10 w-auto" />
+          </div>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-teal-700 transition-colors">
+            <Mail size={15} /> Need help? {SUPPORT_EMAIL}
+          </a>
+        </div>
+      </nav>
+
+      <main className="flex-1 w-full">{children}</main>
+
+      <footer className="w-full bg-gray-950 text-gray-400 mt-auto">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 py-10">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-8">
+            <div>
+              <img src={LOGO_URL} alt="Centurion University" className="h-10 w-auto brightness-0 invert opacity-80 mb-3" />
+              <p className="text-xs leading-relaxed text-gray-500">Centurion University of Technology and Management — Building careers, transforming lives since 2010.</p>
+            </div>
+            <div>
+              <h4 className="text-white text-sm font-semibold mb-3">Contact</h4>
+              <ul className="space-y-2.5 text-xs">
+                <li><a href="tel:+917065569969" className="flex items-center gap-2 hover:text-white transition-colors"><Phone size={13} /> +91 70655 69969</a></li>
+                <li><a href={`mailto:${SUPPORT_EMAIL}`} className="flex items-center gap-2 hover:text-white transition-colors"><Mail size={13} /> {SUPPORT_EMAIL}</a></li>
+                <li><a href="https://www.cutmap.ac.in" target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-white transition-colors"><Globe size={13} /> www.cutmap.ac.in</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-white text-sm font-semibold mb-3">Need Assistance?</h4>
+              <p className="text-xs leading-relaxed text-gray-500">If you face any issue with this admission portal, reach out to our admissions team and we'll help you right away.</p>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 pt-5 text-xs text-gray-600 text-center sm:text-left">
+            © {new Date().getFullYear()} Centurion University of Technology and Management. All rights reserved.
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
 
-// ── Branded header: logo + student summary + macro journey stepper ──
-function AppHeader({ application, macroStep }) {
+// ── Hero: vibrant welcome banner (same gradient as the public site) + macro stepper ──
+function Hero({ application, macroStep }) {
   return (
-    <div className="mb-6">
-      <div className="flex items-center gap-3 mb-6">
-        <img src={LOGO_URL} alt="Centurion University" className="h-14 w-auto" />
-        <div className="text-xs text-gray-500 leading-tight ml-auto text-right">
-          <div className="uppercase tracking-wide font-semibold text-gray-600">CUTM Admissions</div>
-          <div>Admission Journey Portal</div>
+    <div className="relative overflow-hidden" style={{ background: HERO_GRADIENT }}>
+      <div className="absolute inset-0 pointer-events-none" style={{
+        backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)',
+        backgroundSize: '36px 36px'
+      }} />
+      <div className="absolute top-0 right-1/4 w-72 h-72 rounded-full bg-blue-300/20 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-1/5 w-56 h-56 rounded-full bg-cyan-300/15 blur-3xl pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto px-5 lg:px-8 pt-10 pb-20 sm:pt-14 sm:pb-24 relative z-10">
+        <div className="inline-flex items-center gap-2 bg-yellow-400/15 border border-yellow-400/30 text-yellow-300 text-xs font-bold px-4 py-1.5 rounded-full mb-5">
+          🎓 CUEE 2026 Admission Journey
+        </div>
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight mb-3 tracking-tight max-w-2xl">
+          {application ? <>Welcome, <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-300">{application.name.split(' ')[0]}</span>!</> : 'Your Admission Journey'}
+        </h1>
+        <p className="text-teal-100 text-base sm:text-lg max-w-xl mb-8">
+          {application ? <>You're on your way to <strong className="text-white">{application.course || 'Centurion University'}</strong>. Just a few quick steps left.</> : 'NAAC A+ accredited, 100+ programs, 95% placement record.'}
+        </p>
+
+        <div className="grid grid-cols-4 gap-4 sm:gap-8 max-w-lg">
+          {STATS.map(stat => (
+            <div key={stat.label} className="text-center sm:text-left">
+              <div className="text-xl sm:text-2xl font-extrabold text-white">{stat.value}</div>
+              <div className="text-teal-200 text-[10px] sm:text-xs mt-0.5">{stat.label}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {application && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 mb-6 flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <p className="font-bold text-gray-900">{application.name}</p>
-            <p className="text-sm text-gray-500">{application.course || 'N/A'} · {application.email}</p>
+      {/* Macro stepper — floats as an elevated white card overlapping the hero's bottom edge */}
+      {typeof macroStep === 'number' && (
+        <div className="max-w-4xl mx-auto px-5 lg:px-8 relative z-10" style={{ marginBottom: '-2.75rem' }}>
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 px-5 sm:px-8 py-5">
+            <ol className="flex items-center w-full">
+              {JOURNEY_STAGES.map((label, i) => (
+                <li key={label} className="flex-1 flex items-center last:flex-none">
+                  <div className="flex flex-col items-center flex-shrink-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
+                      i < macroStep ? 'bg-emerald-600 border-emerald-600 text-white'
+                      : i === macroStep ? 'text-white border-transparent' : 'bg-white border-gray-300 text-gray-400'
+                    }`} style={i === macroStep ? { background: 'linear-gradient(135deg,#0d9488,#0369a1)' } : undefined}>
+                      {i < macroStep ? <Check size={15} /> : i + 1}
+                    </div>
+                    <span className={`mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-center leading-tight ${i <= macroStep ? 'text-gray-700' : 'text-gray-400'}`} style={{ maxWidth: 70 }}>
+                      {label}
+                    </span>
+                  </div>
+                  {i < JOURNEY_STAGES.length - 1 && (
+                    <div className={`flex-1 h-0.5 mx-1 mb-4 ${i < macroStep ? 'bg-emerald-600' : 'bg-gray-200'}`} />
+                  )}
+                </li>
+              ))}
+            </ol>
           </div>
-          <div className="text-xs text-gray-400 font-mono">{application.mobile}</div>
         </div>
       )}
+    </div>
+  )
+}
 
-      {typeof macroStep === 'number' && (
-        <ol className="flex items-center w-full mb-2">
-          {JOURNEY_STAGES.map((label, i) => (
-            <li key={label} className="flex-1 flex items-center last:flex-none">
-              <div className="flex flex-col items-center flex-shrink-0">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
-                  i < macroStep ? 'bg-emerald-600 border-emerald-600 text-white'
-                  : i === macroStep ? 'bg-[#7a1f2b] border-[#7a1f2b] text-white'
-                  : 'bg-white border-gray-300 text-gray-400'
-                }`}>
-                  {i < macroStep ? <Check size={14} /> : i + 1}
-                </div>
-                <span className={`mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-center leading-tight ${i <= macroStep ? 'text-gray-700' : 'text-gray-400'}`} style={{ maxWidth: 64 }}>
-                  {label}
-                </span>
-              </div>
-              {i < JOURNEY_STAGES.length - 1 && (
-                <div className={`flex-1 h-0.5 mx-1 mb-4 ${i < macroStep ? 'bg-emerald-600' : 'bg-gray-200'}`} />
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
+// ── Content column: constrains width for readability inside the full-width page.
+// afterHero=false (no Hero above it, e.g. the error screen) skips the top padding
+// that normally compensates for the Hero's floating stepper card overlap. ──
+function Content({ children, afterHero = true }) {
+  return <div className="max-w-4xl mx-auto px-5 lg:px-8 pb-16" style={{ paddingTop: afterHero ? '4rem' : '3rem' }}>{children}</div>
+}
+
+function ApplicantBar({ application }) {
+  if (!application) return null
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 mb-6 flex items-center justify-between flex-wrap gap-2">
+      <div>
+        <p className="font-bold text-gray-900">{application.name}</p>
+        <p className="text-sm text-gray-500">{application.course || 'N/A'} · {application.email}</p>
+      </div>
+      <div className="text-xs text-gray-400 font-mono">{application.mobile}</div>
     </div>
   )
 }
 
 function Card({ children, className = '' }) {
   return <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-8 ${className}`}>{children}</div>
-}
-
-function Footer() {
-  return (
-    <p className="text-center text-xs text-gray-400 mt-8">
-      Need help? Contact <a href={`mailto:${SUPPORT_EMAIL}`} className="text-[#7a1f2b] font-medium hover:underline">{SUPPORT_EMAIL}</a>
-    </p>
-  )
 }
 
 function Field({ label, required, children, hint }) {
@@ -106,7 +176,9 @@ function Field({ label, required, children, hint }) {
     </div>
   )
 }
-const inputCls = "w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#7a1f2b]/30 focus:border-[#7a1f2b] outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-400"
+const inputCls = "w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-600 outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-400"
+const primaryBtnCls = "text-white shadow-lg shadow-teal-900/10 hover:brightness-110 transition-all"
+const primaryBtnStyle = { background: 'linear-gradient(135deg,#0d9488,#0369a1)' }
 
 // ── Generic step-wizard: progress dots + Back/Next, used by both the basic-
 // details form and the fuller Step-2 form so neither dumps everything at once ──
@@ -130,12 +202,14 @@ function StepWizard({ steps, onFinish, finishLabel = 'Submit', submitting }) {
       {/* Step progress */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-[#7a1f2b] uppercase tracking-wide">Step {stepIndex + 1} of {steps.length}</span>
+          <span className="text-xs font-bold text-teal-700 uppercase tracking-wide">Step {stepIndex + 1} of {steps.length}</span>
           <span className="text-xs text-gray-400">{step.title}</span>
         </div>
         <div className="flex gap-1.5">
           {steps.map((s, i) => (
-            <div key={s.title} className={`h-1.5 flex-1 rounded-full ${i <= stepIndex ? 'bg-[#7a1f2b]' : 'bg-gray-200'}`} />
+            <div key={s.title} className="h-1.5 flex-1 rounded-full bg-gray-200 overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={i <= stepIndex ? { ...primaryBtnStyle, width: '100%' } : { width: 0 }} />
+            </div>
           ))}
         </div>
       </div>
@@ -160,7 +234,8 @@ function StepWizard({ steps, onFinish, finishLabel = 'Submit', submitting }) {
         </button>
         <button
           type="button" onClick={goNext} disabled={submitting}
-          className="flex items-center gap-1.5 px-6 py-2.5 rounded-lg text-sm font-bold text-white bg-[#7a1f2b] hover:bg-[#621826] disabled:opacity-50"
+          className={`flex items-center gap-1.5 px-6 py-2.5 rounded-lg text-sm font-bold disabled:opacity-50 ${primaryBtnCls}`}
+          style={primaryBtnStyle}
         >
           {submitting ? <Loader size={16} className="animate-spin" /> : isLast ? <Check size={16} /> : null}
           {isLast ? (submitting ? 'Submitting...' : finishLabel) : 'Continue'}
@@ -210,7 +285,7 @@ function PaymentScreen({ token, feeType, amount, title, description, onSubmitted
         <Clock size={44} className="text-amber-500 mx-auto mb-4" />
         <h2 className="text-xl font-bold text-gray-900 mb-2">Payment Submitted</h2>
         <p className="text-gray-600 text-sm">Your {title.toLowerCase()} reference has been submitted and is awaiting admin confirmation. This page will update once it's approved.</p>
-        <button type="button" onClick={() => window.location.reload()} className="mt-5 px-5 py-2.5 bg-[#7a1f2b] text-white rounded-lg hover:bg-[#621826] text-sm font-semibold">
+        <button type="button" onClick={() => window.location.reload()} className={`mt-5 px-5 py-2.5 rounded-lg text-sm font-semibold ${primaryBtnCls}`} style={primaryBtnStyle}>
           Check status
         </button>
       </Card>
@@ -221,9 +296,9 @@ function PaymentScreen({ token, feeType, amount, title, description, onSubmitted
     <Card>
       <h2 className="text-xl font-bold text-gray-900 mb-1">{title}</h2>
       <p className="text-gray-500 text-sm mb-4">{description}</p>
-      <div className="bg-[#f4ede1] border border-[#e6d9c3] rounded-lg p-4 mb-5">
+      <div className="bg-teal-50 border border-teal-100 rounded-lg p-4 mb-5">
         <p className="text-sm text-gray-600">Amount to pay</p>
-        <p className="font-bold text-2xl text-[#7a1f2b]">₹{Number(amount || 0).toLocaleString('en-IN')}</p>
+        <p className="font-bold text-2xl text-teal-700">₹{Number(amount || 0).toLocaleString('en-IN')}</p>
       </div>
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -234,7 +309,7 @@ function PaymentScreen({ token, feeType, amount, title, description, onSubmitted
             className={inputCls}
           />
         </Field>
-        <button type="submit" disabled={submitting} className="w-full sm:w-auto px-6 py-2.5 bg-[#7a1f2b] text-white rounded-lg hover:bg-[#621826] disabled:opacity-50 font-semibold flex items-center justify-center gap-2">
+        <button type="submit" disabled={submitting} className={`w-full sm:w-auto px-6 py-2.5 rounded-lg disabled:opacity-50 font-semibold flex items-center justify-center gap-2 ${primaryBtnCls}`} style={primaryBtnStyle}>
           {submitting ? <Loader size={16} className="animate-spin" /> : <Check size={16} />} {submitting ? 'Submitting...' : 'Submit Payment Reference'}
         </button>
       </form>
@@ -343,23 +418,25 @@ export default function AdmissionDetailsForm() {
   }
 
   if (loading) {
-    return <Shell><div className="text-center py-24"><Loader size={40} className="animate-spin text-[#7a1f2b] mx-auto mb-4" /><p className="text-gray-600 text-sm">Loading your admission journey...</p></div></Shell>
+    return (
+      <PageShell>
+        <div className="text-center py-24"><Loader size={40} className="animate-spin text-teal-700 mx-auto mb-4" /><p className="text-gray-600 text-sm">Loading your admission journey...</p></div>
+      </PageShell>
+    )
   }
 
   if (error) {
     return (
-      <Shell>
-        <div className="flex items-center gap-3 mb-8 justify-center">
-          <img src={LOGO_URL} alt="Centurion University" className="h-12 w-auto" />
-        </div>
-        <Card className="max-w-md mx-auto text-center">
-          <AlertCircle size={44} className="text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Invalid Link</h2>
-          <p className="text-gray-600 text-sm mb-3">{error}</p>
-          <p className="text-xs text-gray-400">Please check your email for the correct link or contact admissions.</p>
-        </Card>
-        <Footer />
-      </Shell>
+      <PageShell>
+        <Content afterHero={false}>
+          <Card className="max-w-md mx-auto text-center">
+            <AlertCircle size={44} className="text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Invalid Link</h2>
+            <p className="text-gray-600 text-sm mb-3">{error}</p>
+            <p className="text-xs text-gray-400">Please check your email for the correct link or contact admissions.</p>
+          </Card>
+        </Content>
+      </PageShell>
     )
   }
 
@@ -370,15 +447,17 @@ export default function AdmissionDetailsForm() {
   // ── Screen: done ──
   if (j.campusoneSyncStatus === 'Success') {
     return (
-      <Shell>
-        <AppHeader application={j.application} macroStep={5} />
-        <Card className="text-center">
-          <CheckCircle2 size={52} className="text-emerald-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Admission Complete 🎉</h2>
-          <p className="text-gray-600 text-sm">Your registration number is <span className="font-mono font-bold text-gray-900">{j.registrationNumber}</span>. All your details and documents have been sent for enrollment. Welcome aboard!</p>
-        </Card>
-        <Footer />
-      </Shell>
+      <PageShell>
+        <Hero application={j.application} macroStep={5} />
+        <Content>
+          <ApplicantBar application={j.application} />
+          <Card className="text-center">
+            <CheckCircle2 size={52} className="text-emerald-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Admission Complete 🎉</h2>
+            <p className="text-gray-600 text-sm">Your registration number is <span className="font-mono font-bold text-gray-900">{j.registrationNumber}</span>. All your details and documents have been sent for enrollment. Welcome aboard!</p>
+          </Card>
+        </Content>
+      </PageShell>
     )
   }
 
@@ -386,70 +465,74 @@ export default function AdmissionDetailsForm() {
   if (j.provisionalAdmissionStatus === 'Granted') {
     const allMandatoryVerified = j.documents.filter(d => d.mandatory).every(d => d.status === 'Verified')
     return (
-      <Shell>
-        <AppHeader application={j.application} macroStep={macroStep} />
-        <Card className="mb-6">
-          <CheckCircle2 size={36} className="text-emerald-600 mb-2" />
-          <h2 className="text-xl font-bold text-gray-900 mb-1">Provisional Admission Granted</h2>
-          <p className="text-gray-500 text-sm">Registration Number: <span className="font-mono font-bold text-gray-800">{j.registrationNumber}</span>. Upload your documents and pay the tuition fee below to complete your admission.</p>
-        </Card>
-
-        <Card className="mb-6">
-          <h3 className="font-bold text-gray-900 mb-4">📄 Document Checklist</h3>
-          <div className="space-y-2.5">
-            {j.documents.map(doc => (
-              <div key={doc.type} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
-                <div>
-                  <p className="font-semibold text-gray-800 text-sm">{doc.type} {doc.mandatory && <span className="text-red-500">*</span>}</p>
-                  <p className="text-xs text-gray-500">
-                    {doc.status === 'Verified' ? '✅ Verified' : doc.status === 'Rejected' ? '❌ Rejected — please re-upload' : doc.uploaded ? '⏳ Uploaded, pending verification' : 'Not uploaded yet'}
-                  </p>
-                </div>
-                <label className="px-3 py-1.5 bg-[#7a1f2b] hover:bg-[#621826] text-white text-xs font-semibold rounded-lg cursor-pointer flex items-center gap-1.5 flex-shrink-0">
-                  <Upload size={13} /> {doc.uploaded ? 'Re-upload' : 'Upload'}
-                  <input type="file" className="hidden" onChange={(e) => e.target.files[0] && handleDocUpload(doc.type, e.target.files[0])} />
-                </label>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {!j.tuitionFeePaid ? (
-          <PaymentScreen
-            token={token} feeType="Tuition Fee" amount={j.tuitionFeeAmount}
-            title="Pay Minimum Tuition Fee" description="Pay the minimum tuition fee assigned to your program to finish your admission."
-            onSubmitted={fetchJourney}
-          />
-        ) : (
-          <Card className="text-center">
-            <Clock size={36} className="text-amber-500 mx-auto mb-3" />
-            <p className="text-gray-700 font-semibold text-sm">Tuition fee received. {allMandatoryVerified ? 'Finalizing your admission...' : 'Waiting for all mandatory documents to be verified.'}</p>
+      <PageShell>
+        <Hero application={j.application} macroStep={macroStep} />
+        <Content>
+          <ApplicantBar application={j.application} />
+          <Card className="mb-6">
+            <CheckCircle2 size={36} className="text-emerald-600 mb-2" />
+            <h2 className="text-xl font-bold text-gray-900 mb-1">Provisional Admission Granted</h2>
+            <p className="text-gray-500 text-sm">Registration Number: <span className="font-mono font-bold text-gray-800">{j.registrationNumber}</span>. Upload your documents and pay the tuition fee below to complete your admission.</p>
           </Card>
-        )}
-        <Footer />
-      </Shell>
+
+          <Card className="mb-6">
+            <h3 className="font-bold text-gray-900 mb-4">📄 Document Checklist</h3>
+            <div className="space-y-2.5">
+              {j.documents.map(doc => (
+                <div key={doc.type} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm">{doc.type} {doc.mandatory && <span className="text-red-500">*</span>}</p>
+                    <p className="text-xs text-gray-500">
+                      {doc.status === 'Verified' ? '✅ Verified' : doc.status === 'Rejected' ? '❌ Rejected — please re-upload' : doc.uploaded ? '⏳ Uploaded, pending verification' : 'Not uploaded yet'}
+                    </p>
+                  </div>
+                  <label className="px-3 py-1.5 text-white text-xs font-semibold rounded-lg cursor-pointer flex items-center gap-1.5 flex-shrink-0 hover:brightness-110 transition-all" style={primaryBtnStyle}>
+                    <Upload size={13} /> {doc.uploaded ? 'Re-upload' : 'Upload'}
+                    <input type="file" className="hidden" onChange={(e) => e.target.files[0] && handleDocUpload(doc.type, e.target.files[0])} />
+                  </label>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {!j.tuitionFeePaid ? (
+            <PaymentScreen
+              token={token} feeType="Tuition Fee" amount={j.tuitionFeeAmount}
+              title="Pay Minimum Tuition Fee" description="Pay the minimum tuition fee assigned to your program to finish your admission."
+              onSubmitted={fetchJourney}
+            />
+          ) : (
+            <Card className="text-center">
+              <Clock size={36} className="text-amber-500 mx-auto mb-3" />
+              <p className="text-gray-700 font-semibold text-sm">Tuition fee received. {allMandatoryVerified ? 'Finalizing your admission...' : 'Waiting for all mandatory documents to be verified.'}</p>
+            </Card>
+          )}
+        </Content>
+      </PageShell>
     )
   }
 
   // ── Screen: registration fee (after full form submitted) ──
   if (fullFormSubmitted) {
     return (
-      <Shell>
-        <AppHeader application={j.application} macroStep={macroStep} />
-        {!j.registrationFeePaid ? (
-          <PaymentScreen
-            token={token} feeType="Registration Fee" amount={j.registrationFeeAmount}
-            title="Pay Registration Fee" description="Pay your registration fee to receive provisional admission."
-            onSubmitted={fetchJourney}
-          />
-        ) : (
-          <Card className="text-center">
-            <Clock size={36} className="text-amber-500 mx-auto mb-3" />
-            <p className="text-gray-700 font-semibold text-sm">Registration fee received. Finalizing your provisional admission...</p>
-          </Card>
-        )}
-        <Footer />
-      </Shell>
+      <PageShell>
+        <Hero application={j.application} macroStep={macroStep} />
+        <Content>
+          <ApplicantBar application={j.application} />
+          {!j.registrationFeePaid ? (
+            <PaymentScreen
+              token={token} feeType="Registration Fee" amount={j.registrationFeeAmount}
+              title="Pay Registration Fee" description="Pay your registration fee to receive provisional admission."
+              onSubmitted={fetchJourney}
+            />
+          ) : (
+            <Card className="text-center">
+              <Clock size={36} className="text-amber-500 mx-auto mb-3" />
+              <p className="text-gray-700 font-semibold text-sm">Registration fee received. Finalizing your provisional admission...</p>
+            </Card>
+          )}
+        </Content>
+      </PageShell>
     )
   }
 
@@ -501,10 +584,10 @@ export default function AdmissionDetailsForm() {
             </div>
             <div className="flex flex-wrap gap-6 pt-1">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
-                <input type="checkbox" name="hostelRequired" checked={fullFormData.hostelRequired} onChange={handleFullFormChange} className="w-4 h-4 accent-[#7a1f2b]" /> Hostel Required
+                <input type="checkbox" name="hostelRequired" checked={fullFormData.hostelRequired} onChange={handleFullFormChange} className="w-4 h-4 accent-teal-700" /> Hostel Required
               </label>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
-                <input type="checkbox" name="transportRequired" checked={fullFormData.transportRequired} onChange={handleFullFormChange} className="w-4 h-4 accent-[#7a1f2b]" /> Transport Required
+                <input type="checkbox" name="transportRequired" checked={fullFormData.transportRequired} onChange={handleFullFormChange} className="w-4 h-4 accent-teal-700" /> Transport Required
               </label>
             </div>
           </>
@@ -512,41 +595,47 @@ export default function AdmissionDetailsForm() {
       }
     ]
     return (
-      <Shell>
-        <AppHeader application={j.application} macroStep={macroStep} />
-        <StepWizard steps={steps} onFinish={handleSubmitFullForm} finishLabel="Submit Full Admission Form" submitting={submitting} />
-        <Footer />
-      </Shell>
+      <PageShell>
+        <Hero application={j.application} macroStep={macroStep} />
+        <Content>
+          <ApplicantBar application={j.application} />
+          <StepWizard steps={steps} onFinish={handleSubmitFullForm} finishLabel="Submit Full Admission Form" submitting={submitting} />
+        </Content>
+      </PageShell>
     )
   }
 
   // ── Screen: approved, awaiting booking fee ──
   if (j.admissionDetailsStatus === 'Approved') {
     return (
-      <Shell>
-        <AppHeader application={j.application} macroStep={macroStep} />
-        <PaymentScreen
-          token={token} feeType="Booking Fee" amount={j.bookingFeeAmount}
-          title="Pay Booking Fee" description="Your admission details are approved! Pay the booking fee to secure your seat and proceed."
-          onSubmitted={fetchJourney}
-        />
-        <Footer />
-      </Shell>
+      <PageShell>
+        <Hero application={j.application} macroStep={macroStep} />
+        <Content>
+          <ApplicantBar application={j.application} />
+          <PaymentScreen
+            token={token} feeType="Booking Fee" amount={j.bookingFeeAmount}
+            title="Pay Booking Fee" description="Your admission details are approved! Pay the booking fee to secure your seat and proceed."
+            onSubmitted={fetchJourney}
+          />
+        </Content>
+      </PageShell>
     )
   }
 
   // ── Screen: submitted, awaiting counselor review ──
   if (j.alreadyFilled && j.admissionDetailsStatus === 'Pending') {
     return (
-      <Shell>
-        <AppHeader application={j.application} macroStep={macroStep} />
-        <Card className="text-center">
-          <Clock size={44} className="text-amber-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Awaiting Counselor Review</h2>
-          <p className="text-gray-600 text-sm">Your admission details have been submitted and are being reviewed by our admissions team. You'll be notified by email once approved.</p>
-        </Card>
-        <Footer />
-      </Shell>
+      <PageShell>
+        <Hero application={j.application} macroStep={macroStep} />
+        <Content>
+          <ApplicantBar application={j.application} />
+          <Card className="text-center">
+            <Clock size={44} className="text-amber-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Awaiting Counselor Review</h2>
+            <p className="text-gray-600 text-sm">Your admission details have been submitted and are being reviewed by our admissions team. You'll be notified by email once approved.</p>
+          </Card>
+        </Content>
+      </PageShell>
     )
   }
 
@@ -656,7 +745,7 @@ export default function AdmissionDetailsForm() {
         <div className="space-y-4">
           <textarea className={inputCls} name="extraCurricularActivities" value={formData.extraCurricularActivities} onChange={handleChange} placeholder="Extra-Curricular Activities" rows="2" />
           <label className="flex items-center gap-2.5 text-sm font-semibold text-gray-700 cursor-pointer">
-            <input type="checkbox" name="scholarshipRequired" checked={formData.scholarshipRequired} onChange={handleChange} className="w-4 h-4 accent-[#7a1f2b]" /> Scholarship/Financial Aid Required
+            <input type="checkbox" name="scholarshipRequired" checked={formData.scholarshipRequired} onChange={handleChange} className="w-4 h-4 accent-teal-700" /> Scholarship/Financial Aid Required
           </label>
           <textarea className={inputCls} name="medicalConditions" value={formData.medicalConditions} onChange={handleChange} placeholder="Medical Conditions (if any)" rows="2" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -678,7 +767,7 @@ export default function AdmissionDetailsForm() {
             ['Additional', [['Emergency Contact', formData.emergencyContactName], ['Emergency Phone', formData.emergencyContactPhone], ['Scholarship Needed', formData.scholarshipRequired ? 'Yes' : 'No']]]
           ].map(([section, rows]) => (
             <div key={section} className="border border-gray-100 rounded-lg p-4">
-              <p className="text-xs font-bold text-[#7a1f2b] uppercase tracking-wide mb-1">{section}</p>
+              <p className="text-xs font-bold text-teal-700 uppercase tracking-wide mb-1">{section}</p>
               {rows.map(([label, value]) => <React.Fragment key={label}>{reviewRow(label, value)}</React.Fragment>)}
             </div>
           ))}
@@ -689,16 +778,18 @@ export default function AdmissionDetailsForm() {
   ]
 
   return (
-    <Shell>
-      <AppHeader application={j.application} macroStep={macroStep} />
-      {rejected && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="font-bold text-red-900 text-sm">Changes Requested</p>
-          <p className="text-sm text-red-800">Your admission details need a correction — please review and resubmit below.</p>
-        </div>
-      )}
-      <StepWizard steps={step1Steps} onFinish={handleSubmitStep1} finishLabel="Submit for Review" submitting={submitting} />
-      <Footer />
-    </Shell>
+    <PageShell>
+      <Hero application={j.application} macroStep={macroStep} />
+      <Content>
+        <ApplicantBar application={j.application} />
+        {rejected && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="font-bold text-red-900 text-sm">Changes Requested</p>
+            <p className="text-sm text-red-800">Your admission details need a correction — please review and resubmit below.</p>
+          </div>
+        )}
+        <StepWizard steps={step1Steps} onFinish={handleSubmitStep1} finishLabel="Submit for Review" submitting={submitting} />
+      </Content>
+    </PageShell>
   )
 }
