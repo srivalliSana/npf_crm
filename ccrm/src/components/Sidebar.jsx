@@ -6,10 +6,11 @@ import {
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
   Trophy, Mail, Globe, ExternalLink, Zap, Radio,
   PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall, Layers, MessageCircle, Building2, GraduationCap,
-  CheckCircle, DollarSign
+  CheckCircle, DollarSign, Gauge, Network, X
 } from 'lucide-react'
 import { APP_VERSION } from '../version'
 import { useCcrm } from '../context/CcrmContext'
+import { usePermissions } from '../hooks/usePermissions'
 
 const NAV_ITEMS = [
   { icon: Building2,       label: 'Tenants',            to: '/platform-tenants',       platformOnly: true },
@@ -36,7 +37,8 @@ const NAV_ITEMS = [
   { icon: CreditCard,      label: 'Payments',      to: '/payments',         roles: null },
   { icon: Calendar,        label: 'Calendar',      to: '/calendar',         roles: null },
   { icon: FileCheck,       label: 'Documents',     to: '/documents',        roles: null },
-  { icon: PieChart,        label: 'Analytics',     to: '/analytics',        roles: ['Admin', 'Manager'] },
+  { icon: Gauge,           label: 'Command Centre', to: '/command-centre',  roles: ['Admin', 'Manager'], permission: 'commandcentre.view' },
+  { icon: PieChart,        label: 'Analytics',     to: '/analytics',        roles: ['Admin', 'Manager'], permission: 'analytics.view' },
   { icon: Activity,        label: 'Productivity',  to: '/productivity',     roles: ['Admin', 'Manager'] },
   { icon: BarChart2,       label: 'Call Report',   to: '/call-activity',    roles: ['Admin', 'Manager'] },
   { icon: MessageCircle,   label: 'Social Comments', to: '/social-comments', roles: ['Admin', 'Manager'] },
@@ -49,19 +51,29 @@ const NAV_ITEMS = [
   { icon: Shield,          label: 'Users',         to: '/users',            roles: ['Admin'] },
   { icon: ExternalLink,    label: 'Transfers',     to: '/transfer-approvals', roles: ['Admin', 'Manager'] },
   { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin'] },
+  { icon: Network,         label: 'Integration Hub', to: '/integration-hub', roles: ['Admin'], permission: 'integrations.view' },
+  { icon: Plug,            label: 'Integration Health', to: '/integration-health', roles: ['Admin'] },
   { icon: Server,          label: 'Server Health', to: '/server-health',    roles: ['Admin'] },
-  { icon: ShieldCheck,     label: 'Security & Access', to: '/security',      roles: ['Admin'] },
+  { icon: ShieldCheck,     label: 'Security & Access', to: '/security',      roles: ['Admin'], permission: 'security.view' },
+  { icon: ScrollText,      label: 'Compliance',    to: '/compliance',       roles: ['Admin'], permission: 'compliance.view' },
   { icon: Building2,       label: 'Organization',  to: '/org-settings',     roles: ['Admin'] },
   { icon: Settings,        label: 'Settings',      to: '/settings',         roles: null },
   { icon: HelpCircle,      label: 'Help',          to: '/help',             roles: null },
 ]
 
-export default function Sidebar({ onLogout, user, expanded = true }) {
+export default function Sidebar({ onLogout, user, expanded = true, isMobile = false, open = true, onClose }) {
   const navigate = useNavigate()
   const { tenantConfig } = useCcrm()
   const userRole = user?.role || 'Counselor'
   const isSuper = !!user?.isSuperAdmin   // Super Admin bypasses entity gating, sees all
   const [openSubmenu, setOpenSubmenu] = useState(null)
+  // Items carrying a `permission` are shown only if the account actually holds
+  // it, so the menu can't offer a page the API will refuse. Until the lookup
+  // resolves (or if it failed) the older role check decides, so the menu never
+  // flickers empty and an offline lookup can't hide the whole app.
+  const { can, loading: permsLoading, failed: permsFailed } = usePermissions()
+  const permissionAllows = (item) =>
+    (!item.permission || permsLoading || permsFailed) ? true : can(item.permission)
 
   // Entity model from per-tenant config (falls back to Centurion's CUTM/GT layout)
   const cfgEntities = Array.isArray(tenantConfig?.entities) ? tenantConfig.entities : []
@@ -82,6 +94,7 @@ export default function Sidebar({ onLogout, user, expanded = true }) {
     if (isSuper) return true                              // Super Admin sees everything
     if (item.label === 'Website Leads') return hasGT      // only if granted a GT entity
     if (item.label === 'Leads') return userRole === 'Admin' || hasMain  // Admins always see; others need main entity
+    if (item.permission) return permissionAllows(item)    // permission wins over the role name
     return !item.roles || item.roles.includes(userRole)   // admin still sees admin-only items
   }).map(item => {
     // Build the GT submenu (Overview + one entry per granted GT entity)
@@ -92,9 +105,17 @@ export default function Sidebar({ onLogout, user, expanded = true }) {
     return item
   })
 
+  // On mobile the sidebar is a full-width-ish overlay that slides in, rather
+  // than a permanently reserved column — the page below it keeps the whole
+  // viewport. On desktop it stays exactly as before.
+  const shell = isMobile
+    ? `w-64 z-50 transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`
+    : `z-50 transition-[width] duration-200 ${expanded ? 'w-56' : 'w-16'}`
+
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-100 shadow-soft flex flex-col z-50 transition-[width] duration-200 ${expanded ? 'w-56' : 'w-16'}`}
+      className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-100 shadow-soft flex flex-col ${shell}`}
+      aria-hidden={isMobile && !open}
     >
       {/* Logo */}
       <div
@@ -106,10 +127,19 @@ export default function Sidebar({ onLogout, user, expanded = true }) {
             ? <img src={brand.logoUrl} alt="logo" className="w-full h-full object-contain" />
             : <span className="text-white font-extrabold text-xl leading-none">{brand.logoText || 'C'}</span>}
         </div>
-        <div className={`overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`overflow-hidden transition-opacity duration-200 flex-1 ${expanded ? 'opacity-100' : 'opacity-0'}`}>
           <div className="text-gray-900 font-extrabold text-sm leading-tight whitespace-nowrap">{brand.shortName || 'CCRM'}</div>
           <div className="text-gray-400 text-[10px] leading-tight whitespace-nowrap">{brand.tagline || 'Admissions'}</div>
         </div>
+        {isMobile && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onClose?.() }}
+            className="p-1.5 -mr-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition"
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Nav items */}

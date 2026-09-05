@@ -27,11 +27,11 @@ export default function Modal({ open, onClose, title, subtitle, children, footer
       onClick={onClose}
     >
       <div
-        className={`bg-white rounded-2xl shadow-lg w-full ${SIZES[size] || SIZES.md} overflow-hidden`}
+        className={`bg-white rounded-2xl shadow-lg w-full ${SIZES[size] || SIZES.md} max-h-[90vh] flex flex-col overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || onClose) && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
             <div>
               {title && <h2 className="font-bold text-gray-900 text-base">{title}</h2>}
               {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
@@ -43,8 +43,8 @@ export default function Modal({ open, onClose, title, subtitle, children, footer
             )}
           </div>
         )}
-        <div className="p-6">{children}</div>
-        {footer && <div className="flex gap-3 px-6 pb-6">{footer}</div>}
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">{children}</div>
+        {footer && <div className="flex gap-3 px-6 pb-6 pt-4 flex-shrink-0 border-t border-gray-100">{footer}</div>}
       </div>
     </div>
   )

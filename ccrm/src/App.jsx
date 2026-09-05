@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { useCcrm } from './context/CcrmContext'
+import { usePermissions } from './hooks/usePermissions'
 import { getUrlTenantSlug } from './tenantSlug'
 import Login from './pages/Login'
 import Layout from './components/Layout'
@@ -51,6 +52,10 @@ import FinanceVerification from './pages/FinanceVerification'
 import AdmissionDetailsForm from './pages/AdmissionDetailsForm'
 import StudentLogin from './pages/StudentLogin'
 import StudentDashboard from './pages/StudentDashboard'
+import CommandCentre from './pages/CommandCentre'
+import Compliance from './pages/Compliance'
+import IntegrationHub from './pages/IntegrationHub'
+import IntegrationHealth from './pages/IntegrationHealth'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -67,6 +72,28 @@ function RoleGuard({ roles }) {
   const privileged = currentUser.isSuperAdmin || currentUser.isPlatformAdmin
   if (roles && !privileged && !roles.includes(currentUser.role)) return <Navigate to="/leads" replace />
   return <Outlet />
+}
+
+// ── Permission guard — gates on what the server will actually allow ─────────
+// RoleGuard checks the role *name*, which can't reflect a permission an admin
+// granted through Security → Roles. These routes gate on the same permission
+// the API enforces, so granting it genuinely opens the page instead of
+// admitting the user to a screen that then 403s on every request.
+//
+// `roles` is the fallback for when the permission lookup itself failed (an
+// older server, or a transient error) — degrading to the previous role check
+// rather than locking anyone out.
+function PermissionGuard({ permission, roles }) {
+  const { currentUser } = useCcrm()
+  const { can, loading, failed } = usePermissions()
+  if (!currentUser) return <Navigate to="/login" replace />
+  const privileged = currentUser.isSuperAdmin || currentUser.isPlatformAdmin
+  if (privileged) return <Outlet />
+  if (loading) return null                       // brief; avoids a redirect flash
+  const allowed = failed
+    ? (!roles || roles.includes(currentUser.role))
+    : can(permission)
+  return allowed ? <Outlet /> : <Navigate to="/leads" replace />
 }
 
 export default function App() {
@@ -135,8 +162,17 @@ export default function App() {
             </Route>
             <Route path="reports"          element={<Reports />} />
             <Route path="productivity"     element={<ProductivityReport />} />
-            <Route element={<RoleGuard roles={['Admin','Manager']} />}>
+            {/* Gated on the permission the API enforces, not the role name */}
+            <Route element={<PermissionGuard permission="commandcentre.view" roles={['Admin','Manager']} />}>
+              <Route path="command-centre" element={<CommandCentre />} />
+            </Route>
+            <Route element={<PermissionGuard permission="analytics.view" roles={['Admin','Manager']} />}>
               <Route path="analytics"      element={<Analytics />} />
+            </Route>
+            <Route element={<PermissionGuard permission="compliance.view" roles={['Admin']} />}>
+              <Route path="compliance"     element={<Compliance />} />
+            </Route>
+            <Route element={<RoleGuard roles={['Admin','Manager']} />}>
               <Route path="logs"           element={<UploadLogs />} />
               <Route path="call-activity"  element={<CallActivityReport />} />
               <Route path="workbook-import" element={<WorkbookImport />} />
@@ -144,8 +180,10 @@ export default function App() {
             </Route>
             <Route element={<RoleGuard roles={['Admin']} />}>
               <Route path="server-health"      element={<ServerHealth />} />
-              <Route path="security"           element={<SecurityAccess />} />
               <Route path="org-settings"       element={<OrgSettings />} />
+            </Route>
+            <Route element={<PermissionGuard permission="security.view" roles={['Admin']} />}>
+              <Route path="security"           element={<SecurityAccess />} />
             </Route>
             <Route path="campaigns"        element={<Campaigns />} />
             <Route path="tasks"            element={<Tasks />} />
@@ -157,6 +195,10 @@ export default function App() {
             <Route element={<RoleGuard roles={['Admin']} />}>
               <Route path="integrations"     element={<Integrations />} />
               <Route path="integration-settings" element={<IntegrationSettings />} />
+              <Route path="integration-health" element={<IntegrationHealth />} />
+            </Route>
+            <Route element={<PermissionGuard permission="integrations.view" roles={['Admin']} />}>
+              <Route path="integration-hub"  element={<IntegrationHub />} />
             </Route>
             <Route path="leaderboard"      element={<Leaderboard />} />
             <Route path="email-campaigns"  element={<EmailCampaigns />} />

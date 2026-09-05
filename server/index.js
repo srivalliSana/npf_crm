@@ -17,6 +17,16 @@ import axios from 'axios'
 const execAsync = promisify(exec)
 
 // Import webhook handlers
+import { initModuleSchema } from './lib/schema.js'
+import { JWT_SECRET, authenticateToken } from './lib/auth.js'
+import { auditMiddleware, recordAudit, recordLogin, clientIp } from './lib/audit.js'
+import { issueSession, newJti, primeSessionCache, isRevoked } from './lib/sessions.js'
+import { encryptSecret, decryptSecret, isSecretKey, SETTINGS_MASK } from './lib/secrets.js'
+import analyticsRouter from './routes/analytics.js'
+import complianceRouter from './routes/compliance.js'
+import securityRouter from './routes/security.js'
+import integrationHubRouter, { runScheduledSyncJobs } from './routes/integration-hub.js'
+
 import gtechWebhook from './webhooks/gttech.js'
 import ftlWebhook from './webhooks/ftl.js'
 import gtibWebhook from './webhooks/gtib.js'
@@ -27,7 +37,6 @@ const __dirname = path.dirname(__filename)
 
 const app = express()
 const PORT = process.env.PORT || 5000
-const JWT_SECRET = process.env.JWT_SECRET || 'ccrm-jwt-secret-key-2026'
 
 // Disable Express ETags globally — hashed asset filenames handle cache-busting
 app.set('etag', false)
@@ -65,13 +74,23 @@ app.use(async (req, _res, next) => {
     const token = (req.headers['authorization'] || '').split(' ')[1]
     if (token) {
       const decoded = jwt.verify(token, JWT_SECRET)
-      if (decoded) {
+      // A revoked session must be rejected everywhere, not only on the routes
+      // that happen to call authenticateToken — otherwise "sign out this
+      // device" would leave most of the API still reachable by that token.
+      if (decoded && decoded.jti && isRevoked(decoded.jti)) {
+        req.authRejected = true          // signed out elsewhere
+      } else if (decoded) {
         req.authValid = true
+        req.tokenUser = decoded          // actor for the audit trail
         // JWT tenant_id takes precedence over domain (user logged into specific tenant)
         if (decoded.tenant_id) tid = decoded.tenant_id
       }
     }
-  } catch { /* invalid/expired token → use domain or default */ }
+  } catch {
+    // Malformed / expired signature. Flag it so the gate below can tell "your
+    // session ended" apart from "you sent no credentials at all".
+    if ((req.headers['authorization'] || '').split(' ')[1]) req.authRejected = true
+  }
   req.tenantId = tid
   next()
 })
@@ -112,9 +131,27 @@ const PUBLIC_API = [
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) return next()          // static / SPA assets
   if (PUBLIC_API.some(re => re.test(req.path))) return next()
+  // A token that was presented and rejected (expired, or its session revoked)
+  // gets the same 403 + wording authenticateToken uses, which is what the
+  // frontend's fetch patch watches for to clear the session and return the user
+  // to /login. A bare 401 would leave them staring at silent failures instead.
+  if (req.authRejected) return res.status(403).json({ error: 'Invalid or expired token.' })
   if (!req.authValid) return res.status(401).json({ error: 'Authentication required.' })
   next()
 })
+
+// ── Audit trail: record every mutating /api call (item 26/29) ────────────────
+// Registered before any route so its res.on('finish') hook is attached for all
+// of them; it writes after the response is sent and never fails the request.
+app.use(auditMiddleware())
+
+// ── Feature modules (items 25–30) ───────────────────────────────────────────
+// Each router authenticates and permission-checks itself; mounted here so they
+// resolve well before the SPA catch-all registered in startServer().
+app.use('/api/analytics',       analyticsRouter)
+app.use('/api/compliance',      complianceRouter)
+app.use('/api/security',        securityRouter)
+app.use('/api/integration-hub', integrationHubRouter)
 
 // Setup Static and Upload Folders
 const uploadDirs = [
@@ -161,19 +198,6 @@ const uploadAvatar = multer({ storage: avatarStorage })
 const uploadDoc = multer({ storage: docStorage })
 
 // --- JWT AUTHENTICATION MIDDLEWARE ---
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization']
-  const token = authHeader && authHeader.split(' ')[1]
-  if (!token) return res.status(401).json({ error: 'Access token missing.' })
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid or expired token.' })
-    req.user = user
-    req.tenantId = user.tenant_id || 1   // multi-tenant scope (Phase 1: defaults to Centurion)
-    next()
-  })
-}
-
 // Admin-only middleware (verify JWT then check role from DB)
 async function adminOnly(req, res, next) {
   const authHeader = req.headers['authorization']
@@ -649,27 +673,40 @@ app.post('/api/auth/login', async (req, res) => {
         [email]
       )
     }
+    // Every outcome below is written to login_events — a security dashboard that
+    // only sees successes cannot show a brute-force attempt.
+    const loginCtx = { tenantId: lookupTenantId, email, method: 'password', ip: clientIp(req), userAgent: req.headers['user-agent'] }
+
     if (userRes.rows.length === 0) {
+      await recordLogin({ ...loginCtx, success: false, reason: 'No such account' })
       return res.status(400).json({ error: 'Invalid email or password.' })
     }
 
     const user = userRes.rows[0]
     if (user.password !== password) {
+      await recordLogin({ ...loginCtx, userId: user.id, success: false, reason: 'Wrong password' })
       return res.status(400).json({ error: 'Invalid email or password.' })
     }
 
     if (user.status !== 'Active') {
+      await recordLogin({ ...loginCtx, userId: user.id, success: false, reason: 'Account inactive' })
       return res.status(403).json({ error: 'Account is inactive. Please contact administrator.' })
     }
     const tStat = await pool.query('SELECT status FROM tenants WHERE id = $1;', [user.tenant_id || 1])
     if (tStat.rows[0] && tStat.rows[0].status !== 'Active') {
+      await recordLogin({ ...loginCtx, userId: user.id, success: false, reason: 'Tenant suspended' })
       return res.status(403).json({ error: 'This organization is suspended. Please contact support.' })
     }
 
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
     await pool.query('UPDATE users SET last_login = $1 WHERE id = $2;', [lastLoginStr, user.id])
-    
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1, is_platform_admin: !!user.is_platform_admin }, JWT_SECRET, { expiresIn: '7d' })
+
+    // jti binds the token to a user_sessions row so it can be revoked before
+    // its 7-day expiry (see lib/sessions.js).
+    const jti = newJti()
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1, is_platform_admin: !!user.is_platform_admin, jti }, JWT_SECRET, { expiresIn: '7d' })
+    await issueSession({ tenantId: user.tenant_id || 1, userId: user.id, email: user.email, jti, method: 'password', ip: loginCtx.ip, userAgent: loginCtx.userAgent })
+    await recordLogin({ ...loginCtx, tenantId: user.tenant_id || 1, userId: user.id, success: true, reason: '' })
     
     res.json({
       token,
@@ -724,11 +761,14 @@ app.post('/api/auth/google', async (req, res) => {
     if (existing.rows.length > 0) {
       // Update last_login and picture; preserve role/team/status
       const u = existing.rows[0]
+      const gCtx = { tenantId: u.tenant_id || 1, userId: u.id, email, method: 'google', ip: clientIp(req), userAgent: req.headers['user-agent'] }
       if (u.status !== 'Active') {
+        await recordLogin({ ...gCtx, success: false, reason: 'Account inactive' })
         return res.status(403).json({ error: 'Account is inactive. Contact your administrator.' })
       }
       const tStat = await pool.query('SELECT status FROM tenants WHERE id = $1;', [u.tenant_id || 1])
       if (tStat.rows[0] && tStat.rows[0].status !== 'Active') {
+        await recordLogin({ ...gCtx, success: false, reason: 'Tenant suspended' })
         return res.status(403).json({ error: 'This organization is suspended. Please contact support.' })
       }
       await pool.query(
@@ -765,7 +805,10 @@ app.post('/api/auth/google', async (req, res) => {
         [`New user registered via Google: ${user.name} (${user.email}) — role: Counselor`, 'Just now', newTenantId])
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1, is_platform_admin: !!user.is_platform_admin }, JWT_SECRET, { expiresIn: '7d' })
+    const gJti = newJti()
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id || 1, is_platform_admin: !!user.is_platform_admin, jti: gJti }, JWT_SECRET, { expiresIn: '7d' })
+    await issueSession({ tenantId: user.tenant_id || 1, userId: user.id, email: user.email, jti: gJti, method: 'google', ip: clientIp(req), userAgent: req.headers['user-agent'] })
+    await recordLogin({ tenantId: user.tenant_id || 1, userId: user.id, email: user.email, success: true, method: 'google', ip: clientIp(req), userAgent: req.headers['user-agent'] })
     res.json({
       token,
       user: {
@@ -3830,28 +3873,8 @@ app.put('/api/notifications', async (req, res) => {
 // --- INTEGRATION SETTINGS ---
 // Secret-looking keys are never returned in plaintext — only a masked sentinel,
 // so the settings endpoint can't be used to exfiltrate credentials.
-const SETTINGS_MASK = '••••••'
-const isSecretKey = (k) => /(pass|secret|token|api_key|access_key|salt|hash)/i.test(k) || /_key$/i.test(k)
-
-// Secrets-at-rest encryption (opt-in via SETTINGS_ENC_KEY env). Backward-compatible:
-// legacy plaintext values still read fine; new secret writes are AES-256-GCM encrypted.
-const _encKey = process.env.SETTINGS_ENC_KEY ? crypto.scryptSync(process.env.SETTINGS_ENC_KEY, 'ccrm-settings', 32) : null
-function encryptSecret(plain) {
-  if (!_encKey || plain == null || plain === '') return plain
-  const iv = crypto.randomBytes(12)
-  const c = crypto.createCipheriv('aes-256-gcm', _encKey, iv)
-  const enc = Buffer.concat([c.update(String(plain), 'utf8'), c.final()])
-  return 'enc:v1:' + Buffer.concat([iv, c.getAuthTag(), enc]).toString('base64')
-}
-function decryptSecret(stored) {
-  if (!_encKey || typeof stored !== 'string' || !stored.startsWith('enc:v1:')) return stored
-  try {
-    const raw = Buffer.from(stored.slice(7), 'base64')
-    const d = crypto.createDecipheriv('aes-256-gcm', _encKey, raw.subarray(0, 12))
-    d.setAuthTag(raw.subarray(12, 28))
-    return Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString('utf8')
-  } catch { return stored }
-}
+// Masking + at-rest encryption for secret settings live in lib/secrets.js,
+// so the integration registry stores credentials under the same scheme.
 
 app.get('/api/integration-settings', async (req, res) => {
   try {
@@ -7744,6 +7767,8 @@ let cronJobRunning = false  // Prevent duplicate execution
 async function startServer() {
   await initDb()
   await initTenancy()   // multi-tenant foundation (Phase 1)
+  await initModuleSchema()   // analytics / compliance / integration / security tables
+  await primeSessionCache()  // honour revocations made while this process was down
 
   // Schedule daily cron jobs at 3:00 AM IST
   cron.schedule('0 3 * * *', async () => {
@@ -8957,6 +8982,10 @@ app.post('/api/send-template-email', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to send email.' })
   }
 })
+
+  // --- SCHEDULED INTEGRATION SYNCS: every enabled job on every enabled connector ---
+  // Runs at :30 so it doesn't contend with the auto-assign sweep on the hour.
+  cron.schedule('30 * * * *', () => runScheduledSyncJobs())
 
   // --- SCHEDULED AUTO-ASSIGN: Every hour, assign all unassigned leads (regular + GT) ---
   cron.schedule('0 * * * *', async () => {
