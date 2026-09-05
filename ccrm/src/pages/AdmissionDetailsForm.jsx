@@ -53,7 +53,7 @@ function PageShell({ children }) {
         <div className="max-w-7xl mx-auto px-5 lg:px-8 py-10">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-8">
             <div>
-              <img src={LOGO_URL} alt="Centurion University" className="h-10 w-auto brightness-0 invert opacity-80 mb-3" />
+              <img src={LOGO_URL} alt="Centurion University" className="h-12 w-auto rounded-md bg-white p-1 mb-3" />
               <p className="text-xs leading-relaxed text-gray-500">Centurion University of Technology and Management — Building careers, transforming lives since 2010.</p>
             </div>
             <div>
