@@ -62,9 +62,10 @@ export default function Payments() {
   const submitUtr = async () => {
     if (!utrInput.trim()) return showToast('Enter UTR / reference number', 'error')
     try {
+      const token = localStorage.getItem('ccrm_token')
       const res = await fetch(`/api/payments/${utrPayment.id}/submit-utr`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ utrNumber: utrInput.trim(), payMode: 'offline' })
       })
       if (res.ok) {
@@ -72,7 +73,8 @@ export default function Payments() {
         setPayments(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
         showToast('UTR saved — payment marked as Payment Done', 'success')
       } else {
-        showToast('Failed to save UTR.', 'error')
+        const err = await res.json().catch(() => ({}))
+        showToast(err.error || 'Failed to save UTR.', 'error')
       }
     } catch { showToast('Network error.', 'error') }
     setUtrPayment(null); setUtrInput('')
@@ -80,11 +82,16 @@ export default function Payments() {
 
   const approveSingle = async (payment) => {
     try {
-      const res = await fetch(`/api/payments/${payment.id}/approve`, { method: 'POST' })
+      const token = localStorage.getItem('ccrm_token')
+      const res = await fetch(`/api/payments/${payment.id}/approve`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
       if (res.ok) {
         const updated = await res.json()
         setPayments(prev => prev.map(p => p.id === updated.id ? { ...p, status: 'Paid' } : p))
         showToast(`✓ Approved ${payment.appNo} — marked as Paid`, 'success')
+        fetchAllData?.()
       } else {
         const err = await res.json()
         showToast(err.error || 'Approval failed.', 'error')
@@ -97,9 +104,14 @@ export default function Payments() {
     if (!/\.(csv|xlsx|xls)$/i.test(file.name)) return showToast('Only CSV or Excel files.', 'error')
     setBulkLoading(true); setBulkResult(null)
     try {
+      const token = localStorage.getItem('ccrm_token')
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch('/api/payments/bulk-approve', { method: 'POST', body: fd })
+      const res = await fetch('/api/payments/bulk-approve', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd
+      })
       const data = await res.json()
       if (res.ok) {
         setBulkResult(data)
