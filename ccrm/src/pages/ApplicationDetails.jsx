@@ -2371,7 +2371,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
               <span>{record?.provisional_admission_status === 'Granted' ? '✓' : '○'}</span> Provisional Admission Granted
             </li>
             <li className={`flex items-center gap-2 ${record?.tuition_fee_paid ? 'text-green-600' : 'text-gray-500'}`}>
-              <span>{record?.tuition_fee_paid ? '✓' : '○'}</span> Step 3 — Tuition Fee Paid
+              <span>{record?.tuition_fee_paid ? '✓' : '○'}</span> Step 3 — Min. Due Tuition Fee Paid (per Program Master)
             </li>
             <li className={`flex items-center gap-2 ${record?.campusone_sync_status === 'Success' ? 'text-green-600' : 'text-gray-500'}`}>
               <span>{record?.campusone_sync_status === 'Success' ? '✓' : '○'}</span> Step 3 — Synced to CampusOne
@@ -2380,13 +2380,13 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
         </div>
       )}
 
-      {/* ─── PHASE 7-8: Registration Number & CampusOne Sync (legacy manual path) ─── */}
+      {/* ─── PHASE 7-8: Temporary Admission Number & CampusOne Sync (legacy manual path) ─── */}
       {isApp && isAdmin && (
         <div className="mt-6 space-y-4">
-          {/* Phase 7: Registration Number Generation */}
+          {/* Phase 7: Temporary Admission Number Generation */}
           <div className="card">
             <div className="flex items-center justify-between mb-4 pb-4 border-b">
-              <h3 className="text-lg font-bold text-gray-900">Registration Number</h3>
+              <h3 className="text-lg font-bold text-gray-900">Temporary Admission Number</h3>
               {record?.registration_number && (
                 <span className="inline-block px-3 py-1 bg-green-100 text-green-800 text-sm font-semibold rounded-full">
                   Generated
@@ -2395,15 +2395,15 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
             </div>
             {record?.registration_number ? (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <p className="text-sm text-gray-600 mb-2">Registration Number:</p>
+                <p className="text-sm text-gray-600 mb-2">Temporary Admission Number:</p>
                 <p className="text-2xl font-bold text-blue-600">{record.registration_number}</p>
                 <p className="text-xs text-gray-500 mt-2">
-                  Generated on {record.reg_number_generated_at ? new Date(record.reg_number_generated_at).toLocaleDateString() : 'N/A'}
+                  Generated on {record.reg_number_generated_at ? new Date(record.reg_number_generated_at).toLocaleDateString() : 'N/A'} — the final registration number is issued via CampusOne after enrollment.
                 </p>
               </div>
             ) : (
               <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                <p className="text-sm text-gray-600 mb-3">Preconditions for registration number generation:</p>
+                <p className="text-sm text-gray-600 mb-3">Preconditions for temporary admission number generation:</p>
                 <ul className="space-y-2 text-sm">
                   <li className={`flex items-center gap-2 ${record?.form_status === 'Complete' ? 'text-green-600' : 'text-gray-600'}`}>
                     <span>{record?.form_status === 'Complete' ? '✓' : '○'}</span> Application Submitted
@@ -2423,7 +2423,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                 </ul>
                 <button
                   onClick={() => {
-                    if (confirm('Generate registration number? All preconditions must be met.')) {
+                    if (confirm('Generate temporary admission number? All preconditions must be met.')) {
                       const token = localStorage.getItem('ccrm_token')
                       fetch(`/api/applications/${record.id}/generate-registration`, {
                         method: 'POST',
@@ -2432,7 +2432,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                         .then(r => r.json())
                         .then(d => {
                           if (d.success) {
-                            alert('Registration number generated: ' + d.registrationNumber)
+                            alert('Temporary admission number generated: ' + d.registrationNumber)
                             fetchAllData()
                           } else {
                             alert('Error: ' + d.error)
@@ -2443,7 +2443,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                   }}
                   className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
                 >
-                  Generate Registration Number
+                  Generate Temporary Admission Number
                 </button>
               </div>
             )}

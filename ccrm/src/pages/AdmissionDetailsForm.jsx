@@ -454,7 +454,7 @@ export default function AdmissionDetailsForm() {
           <Card className="text-center">
             <CheckCircle2 size={52} className="text-emerald-600 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Admission Complete 🎉</h2>
-            <p className="text-gray-600 text-sm">Your registration number is <span className="font-mono font-bold text-gray-900">{j.registrationNumber}</span>. All your details and documents have been sent for enrollment. Welcome aboard!</p>
+            <p className="text-gray-600 text-sm">Your temporary admission number is <span className="font-mono font-bold text-gray-900">{j.registrationNumber}</span>. All your details and documents have been sent for enrollment. Welcome aboard!</p>
           </Card>
         </Content>
       </PageShell>
@@ -472,7 +472,7 @@ export default function AdmissionDetailsForm() {
           <Card className="mb-6">
             <CheckCircle2 size={36} className="text-emerald-600 mb-2" />
             <h2 className="text-xl font-bold text-gray-900 mb-1">Provisional Admission Granted</h2>
-            <p className="text-gray-500 text-sm">Registration Number: <span className="font-mono font-bold text-gray-800">{j.registrationNumber}</span>. Upload your documents and pay the tuition fee below to complete your admission.</p>
+            <p className="text-gray-500 text-sm">Temporary Admission Number: <span className="font-mono font-bold text-gray-800">{j.registrationNumber}</span>. Upload your documents and pay the tuition fee below to complete your admission.</p>
           </Card>
 
           <Card className="mb-6">

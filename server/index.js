@@ -2281,14 +2281,14 @@ async function grantProvisionalAdmission(appId, tenantId = 1) {
       await sendSystemMailAlert(
         app.email,
         `Provisional Admission Granted — ${app.app_no}`,
-        `Dear ${app.name},\n\nCongratulations! Your registration fee has been received and your provisional admission is confirmed.\n\nRegistration Number: ${regNumber}\nProgram: ${app.course}\n\nNext step: upload your documents and pay the tuition fee to complete your admission.\n\nBest regards,\nCUTM Admissions Team`,
+        `Dear ${app.name},\n\nCongratulations! Your registration fee has been received and your provisional admission is confirmed.\n\nTemporary Admission Number: ${regNumber}\nProgram: ${app.course}\n\nNext step: upload your documents and pay the tuition fee to complete your admission.\n\nBest regards,\nCUTM Admissions Team`,
         tenantId,
         brandedEmailHtml({
           badge: 'GRANTED',
           tone: 'success',
           title: 'Provisional Admission Granted',
           bodyHtml: `<p>Dear <strong>${app.name}</strong>,</p><p>Congratulations! Your registration fee has been received and your provisional admission is confirmed.</p><p style="color:#666;font-size:13px;">Next step: upload your documents and pay the tuition fee to complete your admission.</p>`,
-          details: [['Registration Number', regNumber], ['Program', app.course]]
+          details: [['Temporary Admission Number', regNumber], ['Program', app.course]]
         })
       )
     }
@@ -8038,7 +8038,7 @@ app.post('/api/applications/:id/generate-registration', authenticateToken, async
       [regNumber, id, req.tenantId]
     )
 
-    res.json({ success: true, registrationNumber: regNumber, message: 'Registration number generated successfully.' })
+    res.json({ success: true, registrationNumber: regNumber, message: 'Temporary admission number generated successfully.' })
   } catch (e) {
     console.error('[POST /api/applications/:id/generate-registration]', e.message)
     res.status(500).json({ error: 'Failed to generate registration number.' })
