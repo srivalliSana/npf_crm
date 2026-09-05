@@ -540,10 +540,14 @@ export function CcrmProvider({ children }) {
         }
         return
       }
-    } catch {}
-
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, ...data } : l))
-    showToast('Lead details updated.', 'success')
+      // Real failure (401/403/500/etc) — do NOT silently patch local state and
+      // claim success; that previously masked every rejected save (most often
+      // an expired/missing token) as a fake "Lead details updated."
+      const err = await res.json().catch(() => ({}))
+      showToast(err.error || `Failed to update lead (${res.status}).`, 'error')
+    } catch (e) {
+      showToast('Network error — lead not updated: ' + e.message, 'error')
+    }
   }
 
   const deleteLead = async (id) => {
@@ -631,9 +635,12 @@ export function CcrmProvider({ children }) {
 
   const updateApplication = async (id, data) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch(`/api/applications/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(data)
       })
       if (res.ok) {
@@ -641,34 +648,20 @@ export function CcrmProvider({ children }) {
         setApplications(prev => prev.map(a => a.id === id ? updated : a))
         showToast('Application updated.', 'success')
 
-        const pays = await fetch('/api/payments')
+        const pays = await fetch('/api/payments', { headers })
         if (pays.ok) setPayments(await pays.json())
 
         return
       }
-    } catch {}
-
-    setApplications(prev => prev.map(a => a.id === id ? { ...a, ...data } : a))
-    
-    if (data.payStatus) {
-      const app = applications.find(a => a.id === id)
-      if (app) {
-        setPayments(prev => prev.map(p => {
-          if (p.appNo === app.appNo) {
-            const isApproved = data.payStatus === 'Approved' || data.payStatus === 'Payment Approved'
-            return {
-              ...p,
-              status: isApproved ? 'Approved' : (data.payStatus === 'Failed' ? 'Failed' : 'Pending'),
-              date: isApproved ? new Date().toLocaleDateString('en-IN') : p.date,
-              txnId: isApproved && !p.txnId ? `TXN${Math.floor(100000 + Math.random() * 900000)}` : p.txnId
-            }
-          }
-          return p
-        }))
-      }
+      // Real failure — this endpoint requires auth and this call previously sent
+      // NO Authorization header at all, so every save always got a 401 here and
+      // silently fell back to patching only local state while still claiming
+      // success. Fail loudly instead so a rejected save is actually visible.
+      const err = await res.json().catch(() => ({}))
+      showToast(err.error || `Failed to update application (${res.status}).`, 'error')
+    } catch (e) {
+      showToast('Network error — application not updated: ' + e.message, 'error')
     }
-
-    showToast('Application updated.', 'success')
   }
 
   // Task Actions
