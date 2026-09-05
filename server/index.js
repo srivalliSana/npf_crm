@@ -449,6 +449,68 @@ async function createMailTransporter(tenantId = 1) {
   return { transporter, from: `"${fromName}" <${user}>`, error: null }
 }
 
+// Shared branded HTML wrapper for every outgoing system email — one consistent
+// look (logo header, colored info banner, optional details table, CTA button,
+// footer) instead of each call site hand-rolling its own ad-hoc HTML.
+// badgeColor/accentColor: 'info' (teal, default) | 'success' (green) | 'warn' (amber)
+function brandedEmailHtml({ badge = 'INFO', tone = 'info', title, timestamp, bodyHtml, details, ctaText, ctaUrl, consoleLabel = 'CUTM ADMISSIONS · CCRM' }) {
+  const TONES = {
+    info:    { accent: '#0f6674', badgeBg: '#0f6674' },
+    success: { accent: '#1a7a4c', badgeBg: '#1a7a4c' },
+    warn:    { accent: '#a45c09', badgeBg: '#a45c09' }
+  }
+  const { accent, badgeBg } = TONES[tone] || TONES.info
+
+  const detailsRows = (details || []).map(([k, v]) => `
+    <tr>
+      <td style="padding:12px 16px;border-bottom:1px solid #eee;color:#777;font-size:13px;width:38%;">${k}</td>
+      <td style="padding:12px 16px;border-bottom:1px solid #eee;color:#222;font-size:13px;font-family:'SFMono-Regular',Consolas,monospace;">${v}</td>
+    </tr>`).join('')
+
+  return `
+  <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif;background:#f2ede6;padding:24px 12px;">
+    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+      <table role="presentation" width="100%" style="border-collapse:collapse;">
+        <tr>
+          <td style="padding:20px 24px;vertical-align:middle;">
+            <img src="https://crm.cutmap.ac.in/landing/images/logo.jpg" alt="Centurion University" width="120" style="display:block;">
+          </td>
+          <td style="padding:20px 24px;text-align:right;vertical-align:middle;color:#8a8a8a;font-size:11px;letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;">
+            ${consoleLabel}
+          </td>
+        </tr>
+      </table>
+      <div style="height:4px;background:#b08d2b;"></div>
+
+      <div style="background:#eef3f5;border-left:4px solid ${accent};padding:20px 24px;">
+        <span style="display:inline-block;background:${badgeBg};color:#fff;font-size:11px;font-weight:700;letter-spacing:0.5px;padding:4px 10px;border-radius:12px;text-transform:uppercase;">${badge}</span>
+        <h2 style="margin:12px 0 4px;font-size:20px;color:#1a1a1a;">${title}</h2>
+        ${timestamp ? `<p style="margin:0;color:#888;font-size:13px;">${timestamp}</p>` : ''}
+      </div>
+
+      <div style="padding:24px;">
+        <div style="color:#333;font-size:14px;line-height:1.65;">${bodyHtml}</div>
+
+        ${details && details.length ? `
+        <div style="margin-top:20px;border:1px solid #eee;border-radius:6px;overflow:hidden;">
+          <div style="background:#f4ede1;padding:10px 16px;font-size:11px;font-weight:700;letter-spacing:0.5px;color:#8a7550;text-transform:uppercase;">Details</div>
+          <table role="presentation" width="100%" style="border-collapse:collapse;">${detailsRows}</table>
+        </div>` : ''}
+
+        ${ctaUrl ? `
+        <div style="margin-top:24px;">
+          <a href="${ctaUrl}" style="background:#7a1f2b;color:#fff;text-decoration:none;padding:14px 26px;border-radius:6px;font-weight:700;font-size:14px;display:inline-block;">${ctaText} →</a>
+        </div>` : ''}
+      </div>
+
+      <div style="background:#f7f5f2;padding:16px 24px;color:#888;font-size:12px;border-top:1px solid #eee;">
+        Automated message from <strong>CUTM Admissions</strong>. Do not reply to this message.<br>
+        Support: <a href="mailto:admissions@cutmap.ac.in" style="color:#7a1f2b;">admissions@cutmap.ac.in</a>
+      </div>
+    </div>
+  </div>`
+}
+
 // Fire-and-forget alert email (counselor notifications, OTPs, etc.)
 // Supports both text and HTML formats
 async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1, htmlBody = null) {
@@ -2105,6 +2167,13 @@ async function autoSendAdmissionLetter(appNo, utrNumber, tenantId = 1) {
       cc: details.parentEmail ? [details.parentEmail] : [],
       subject: `Provisional Admission (${appNo}) — ${app.course || 'CUTM Program'}`,
       text: `Dear ${details.studentName || app.name},\n\nCongratulations! Your payment has been received and your Provisional Admission Letter is attached.\n\nReference ID: ${appNo}\nUTR: ${utrNumber}\nProgram: ${app.course}\nCampus: ${app.campus}\n\nBest regards,\nCUTM Admissions Team`,
+      html: brandedEmailHtml({
+        badge: 'CONFIRMED',
+        tone: 'success',
+        title: 'Provisional Admission Confirmed',
+        bodyHtml: `<p>Dear <strong>${details.studentName || app.name}</strong>,</p><p>Congratulations! Your payment has been received. Your Provisional Admission Letter is attached to this email as a PDF.</p>`,
+        details: [['Reference ID', appNo], ['UTR', utrNumber], ['Program', app.course], ['Campus', app.campus]]
+      }),
       attachments: [{ filename: `Provisional_Letter_${appNo}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
     })
     await pool.query(`UPDATE applications SET admission_letter_sent_at = NOW() WHERE app_no = $1 AND tenant_id = $2;`, [appNo, tenantId])
@@ -2131,7 +2200,16 @@ async function sendApplicationEmailOtp(appNo, tenantId = 1) {
       app.email,
       `Verify your email — Admission ${appNo}`,
       `Dear ${app.name},\n\nYour application fee payment has been received. Please verify your email to continue your admission process.\n\nYour verification OTP: ${otp}\n\nVerify here: ${verifyUrl}\n\nThis OTP is valid for 30 minutes. Your Admission Reference is ${appNo}.\n\nBest regards,\nCUTM Admissions Team`,
-      tenantId
+      tenantId,
+      brandedEmailHtml({
+        badge: 'ACTION REQUIRED',
+        tone: 'info',
+        title: 'Verify Your Email',
+        bodyHtml: `<p>Dear <strong>${app.name}</strong>,</p><p>Your application fee payment has been received. Please verify your email to continue your admission process.</p><p style="margin-top:16px;">Your verification code:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px;color:#0f6674;">${otp}</p><p style="color:#666;font-size:13px;">This code is valid for 30 minutes.</p>`,
+        details: [['Admission Reference', appNo]],
+        ctaText: 'Verify Email',
+        ctaUrl: verifyUrl
+      })
     )
     console.log(`[Email Verify] OTP sent for ${appNo}`)
   } catch (e) {
@@ -2152,7 +2230,14 @@ async function grantErpAccess(appNo, tenantId = 1) {
       app.email,
       `ERP Access Granted — ${appNo}`,
       `Dear ${app.name},\n\nYour 1st semester fee payment has been received and you now have access to the Student ERP.\n\nUse your Admission Number as your login ID until your permanent Student ID is issued: ${appNo}\n\nWelcome aboard!\n\nBest regards,\nCUTM Admissions Team`,
-      tenantId
+      tenantId,
+      brandedEmailHtml({
+        badge: 'CONFIRMED',
+        tone: 'success',
+        title: 'ERP Access Granted',
+        bodyHtml: `<p>Dear <strong>${app.name}</strong>,</p><p>Your 1st semester fee payment has been received and you now have access to the Student ERP. Welcome aboard!</p><p style="color:#666;font-size:13px;">Use your Admission Number as your login ID until your permanent Student ID is issued.</p>`,
+        details: [['Admission Number (Login ID)', appNo]]
+      })
     )
     console.log(`[ERP Access] Granted + notified for ${appNo}`)
   } catch (e) {
@@ -2194,7 +2279,14 @@ async function grantProvisionalAdmission(appId, tenantId = 1) {
         app.email,
         `Provisional Admission Granted — ${app.app_no}`,
         `Dear ${app.name},\n\nCongratulations! Your registration fee has been received and your provisional admission is confirmed.\n\nRegistration Number: ${regNumber}\nProgram: ${app.course}\n\nNext step: upload your documents and pay the tuition fee to complete your admission.\n\nBest regards,\nCUTM Admissions Team`,
-        tenantId
+        tenantId,
+        brandedEmailHtml({
+          badge: 'GRANTED',
+          tone: 'success',
+          title: 'Provisional Admission Granted',
+          bodyHtml: `<p>Dear <strong>${app.name}</strong>,</p><p>Congratulations! Your registration fee has been received and your provisional admission is confirmed.</p><p style="color:#666;font-size:13px;">Next step: upload your documents and pay the tuition fee to complete your admission.</p>`,
+          details: [['Registration Number', regNumber], ['Program', app.course]]
+        })
       )
     }
     console.log(`[Provisional Admission] Granted for ${app.app_no} (reg# ${regNumber})`)
@@ -7424,57 +7516,44 @@ async function sendProductivityEmailReport() {
 
     // Build HTML email
     const dateStr = new Date().toLocaleDateString('en-IN')
-    const htmlBody = `
-      <html>
-        <body style="font-family: Arial, sans-serif;">
-          <h2>Productivity Report — ${dateStr}</h2>
-          <p>Daily counselor-wise lead and application metrics.</p>
-
-          <h3>KPI Summary</h3>
-          <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
-            <tr style="background-color: #f0f0f0;">
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Total Leads</strong></td>
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>${(kpi.totalLeads || 0).toLocaleString()}</strong></td>
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Untouched</strong></td>
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>${(kpi.untouched || 0).toLocaleString()}</strong></td>
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Interested</strong></td>
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>${(kpi.interested || 0).toLocaleString()}</strong></td>
+    const htmlBody = brandedEmailHtml({
+      badge: 'REPORT',
+      tone: 'info',
+      title: `Productivity Report — ${dateStr}`,
+      timestamp: 'Sent automatically at 3:00 AM IST',
+      bodyHtml: `
+        <p>Daily counselor-wise lead and application metrics.</p>
+        <h3 style="margin-top:20px;color:#1a1a1a;font-size:15px;">Counselor-wise Breakdown</h3>
+        <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+          <tr style="background-color: #0f6674; color: white;">
+            <th style="border: 1px solid #ddd; padding: 8px;">Counselor Name</th>
+            <th style="border: 1px solid #ddd; padding: 8px;">Leads</th>
+            <th style="border: 1px solid #ddd; padding: 8px;">Untouched</th>
+            <th style="border: 1px solid #ddd; padding: 8px;">Interested</th>
+            <th style="border: 1px solid #ddd; padding: 8px;">Process for Pay</th>
+            <th style="border: 1px solid #ddd; padding: 8px;">Payment Success</th>
+          </tr>
+          ${counselRes.rows.map(r => `
+            <tr style="background-color: ${counselRes.rows.indexOf(r) % 2 === 0 ? '#f9f9f9' : 'white'};">
+              <td style="border: 1px solid #ddd; padding: 8px;">${r.name}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.leads || 0).toLocaleString()}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.untouched || 0).toLocaleString()}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.interested || 0).toLocaleString()}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.processPay || 0).toLocaleString()}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.paymentSuccess || 0).toLocaleString()}</td>
             </tr>
-            <tr style="background-color: #f9f9f9;">
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Applications</strong></td>
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>${(applications || 0).toLocaleString()}</strong></td>
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Enrolments</strong></td>
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>${(enrolments || 0).toLocaleString()}</strong></td>
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>Revenue (₹)</strong></td>
-              <td style="border: 1px solid #ddd; padding: 8px;"><strong>₹${(revenue / 100000).toFixed(2)}L</strong></td>
-            </tr>
-          </table>
-
-          <h3>Counselor-wise Breakdown</h3>
-          <table style="border-collapse: collapse; width: 100%;">
-            <tr style="background-color: #0066cc; color: white;">
-              <th style="border: 1px solid #ddd; padding: 8px;">Counselor Name</th>
-              <th style="border: 1px solid #ddd; padding: 8px;">Leads</th>
-              <th style="border: 1px solid #ddd; padding: 8px;">Untouched</th>
-              <th style="border: 1px solid #ddd; padding: 8px;">Interested</th>
-              <th style="border: 1px solid #ddd; padding: 8px;">Process for Pay</th>
-              <th style="border: 1px solid #ddd; padding: 8px;">Payment Success</th>
-            </tr>
-            ${counselRes.rows.map(r => `
-              <tr style="background-color: ${counselRes.rows.indexOf(r) % 2 === 0 ? '#f9f9f9' : 'white'};">
-                <td style="border: 1px solid #ddd; padding: 8px;">${r.name}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.leads || 0).toLocaleString()}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.untouched || 0).toLocaleString()}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.interested || 0).toLocaleString()}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.processPay || 0).toLocaleString()}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${(r.paymentSuccess || 0).toLocaleString()}</td>
-              </tr>
-            `).join('')}
-          </table>
-          <p style="margin-top: 20px; color: #666; font-size: 12px;">Sent automatically at 3:00 AM IST</p>
-        </body>
-      </html>
-    `
+          `).join('')}
+        </table>
+      `,
+      details: [
+        ['Total Leads', (kpi.totalLeads || 0).toLocaleString()],
+        ['Untouched', (kpi.untouched || 0).toLocaleString()],
+        ['Interested', (kpi.interested || 0).toLocaleString()],
+        ['Applications', (applications || 0).toLocaleString()],
+        ['Enrolments', (enrolments || 0).toLocaleString()],
+        ['Revenue', `₹${(revenue / 100000).toFixed(2)}L`]
+      ]
+    })
 
     // Send emails (per-tenant SMTP)
     const cfg = await createMailTransporter(tid)
@@ -8094,13 +8173,32 @@ app.post('/api/applications/:id/approve-admission-details', authenticateToken, a
     const app = r.rows[0]
 
     if (app.email) {
+      const tokenRes = await pool.query(
+        `SELECT token FROM admission_tokens WHERE app_id = $1 AND tenant_id = $2 ORDER BY sent_at DESC LIMIT 1;`,
+        [id, req.tenantId]
+      )
+      const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
+      const continueLink = tokenRes.rows[0] ? `${baseUrl}/admission-details/${tokenRes.rows[0].token}` : null
+      const approved = status === 'Approved'
+
       sendSystemMailAlert(
         app.email,
         `Admission Details ${status} — ${app.app_no}`,
-        status === 'Approved'
+        approved
           ? `Dear ${app.name},\n\nYour admission details have been reviewed and approved. Please proceed to pay the booking fee to continue your admission process.\n\nBest regards,\nCUTM Admissions Team`
           : `Dear ${app.name},\n\nYour admission details need a correction. Please revisit the form link sent to you earlier and resubmit.\n\nBest regards,\nCUTM Admissions Team`,
-        req.tenantId
+        req.tenantId,
+        brandedEmailHtml({
+          badge: approved ? 'APPROVED' : 'ACTION NEEDED',
+          tone: approved ? 'success' : 'warn',
+          title: approved ? 'Admission Details Approved' : 'Correction Needed',
+          bodyHtml: approved
+            ? `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission details have been reviewed and approved. Please proceed to pay the booking fee to continue your admission process.</p>`
+            : `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission details need a correction. Please revisit the form and resubmit.</p>`,
+          details: [['Application #', app.app_no]],
+          ctaText: approved ? 'Pay Booking Fee' : 'Update Your Details',
+          ctaUrl: continueLink
+        })
       ).catch(() => {})
     }
 
@@ -8143,51 +8241,26 @@ app.post('/api/applications/:id/send-admission-details', authenticateToken, asyn
 
     // Email subject and body (HTML format)
     const emailSubject = `Complete Your Admission Details - Application ${app.app_no}`
-    const emailHtml = `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px;">
-          <h1 style="margin: 0; font-size: 24px;">📋 Admission Details Required</h1>
-        </div>
-
+    const emailHtml = brandedEmailHtml({
+      badge: 'ACTION REQUIRED',
+      tone: 'info',
+      title: 'Admission Details Required',
+      bodyHtml: `
         <p>Dear <strong>${app.name}</strong>,</p>
-
-        <p>We're pleased to move forward with your admission process! To complete your enrollment, please fill out your admission details by clicking the button below:</p>
-
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${admissionLink}" style="background-color: #4f46e5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-            Complete Admission Details →
-          </a>
-        </div>
-
-        <p style="background-color: #f0f9ff; padding: 15px; border-left: 4px solid #4f46e5; border-radius: 4px;">
-          <strong>Or copy this link:</strong><br>
-          <code style="word-break: break-all; font-size: 12px;">${admissionLink}</code>
-        </p>
-
-        <h3 style="margin-top: 30px; color: #4f46e5;">📝 You'll be asked to provide:</h3>
-        <ul style="list-style: none; padding: 0;">
-          <li style="padding: 5px 0;">✓ Personal Information (address, date of birth, parents' names)</li>
-          <li style="padding: 5px 0;">✓ Academic Details (10th, 12th, graduation marks)</li>
-          <li style="padding: 5px 0;">✓ Certifications & Achievements</li>
-          <li style="padding: 5px 0;">✓ Emergency Contact Information</li>
+        <p>We're pleased to move forward with your admission process! To complete your enrollment, please fill out your admission details using the button below.</p>
+        <p style="margin-top:20px;font-weight:600;color:#1a1a1a;">You'll be asked to provide:</p>
+        <ul style="padding-left:18px;margin:8px 0;">
+          <li>Personal Information (address, date of birth, parents' names)</li>
+          <li>Academic Details (10th, 12th, graduation marks)</li>
+          <li>Certifications &amp; Achievements</li>
+          <li>Emergency Contact Information</li>
         </ul>
-
-        <p style="margin-top: 30px; color: #666; font-size: 13px;">
-          <strong>Important:</strong> This link will expire in <strong>30 days</strong>. If you've already filled out your details, you can update them anytime.
-        </p>
-
-        <p style="margin-top: 20px; color: #666; font-size: 13px;">
-          <strong>Questions?</strong> Please contact our admissions team or reply to this email.
-        </p>
-
-        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px;">
-          <p>Best regards,<br><strong>Admissions Team</strong><br>
-          <em>Centurion University of Technology and Management</em></p>
-        </div>
-      </div>
-    </div>
-    `
+        <p style="margin-top:16px;color:#666;font-size:13px;"><strong>Important:</strong> this link expires in 30 days. If you've already filled it out, you can update it anytime.</p>
+      `,
+      details: [['Application #', app.app_no], ['Link (if button doesn\'t work)', admissionLink]],
+      ctaText: 'Complete Admission Details',
+      ctaUrl: admissionLink
+    })
 
     const emailBody = `
 Dear ${app.name},
@@ -8505,52 +8578,19 @@ app.post('/api/applications/:id/send-login-credentials', authenticateToken, asyn
 
     // Email content
     const emailSubject = `Your Student Portal Login - Application ${app.app_no}`
-    const emailHtml = `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: linear-gradient(to right, #10b981, #059669); color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px;">
-          <h1 style="margin: 0; font-size: 24px;">✅ Welcome to Student Portal</h1>
-        </div>
-
+    const emailHtml = brandedEmailHtml({
+      badge: 'VERIFIED',
+      tone: 'success',
+      title: 'Welcome to the Student Portal',
+      bodyHtml: `
         <p>Dear <strong>${app.name}</strong>,</p>
-
-        <p>Your admission details have been verified! You can now access the student portal to:</p>
-
-        <ul style="list-style: none; padding: 0;">
-          <li style="padding: 8px 0;">✓ View your admission details</li>
-          <li style="padding: 8px 0;">✓ Pay application fee</li>
-          <li style="padding: 8px 0;">✓ Pay registration fee</li>
-          <li style="padding: 8px 0;">✓ Pay tuition fee</li>
-          <li style="padding: 8px 0;">✓ View your admission number</li>
-        </ul>
-
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${loginLink}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-            Login to Portal →
-          </a>
-        </div>
-
-        <div style="background-color: #f0fdf4; padding: 15px; border-left: 4px solid #10b981; border-radius: 4px; margin: 30px 0;">
-          <h3 style="margin-top: 0; color: #10b981;">Login Credentials:</h3>
-          <p style="font-size: 14px; margin: 5px 0;">
-            <strong>Email:</strong> ${app.email}
-          </p>
-          <p style="font-size: 14px; margin: 5px 0;">
-            <strong>Password:</strong> <code style="background: white; padding: 5px 10px; border-radius: 3px; font-weight: bold;">${password}</code>
-          </p>
-        </div>
-
-        <p style="color: #666; font-size: 13px;">
-          <strong>Important:</strong> Please change your password after your first login for security.
-        </p>
-
-        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px;">
-          <p>Best regards,<br><strong>Admissions Team</strong><br>
-          <em>Centurion University of Technology and Management</em></p>
-        </div>
-      </div>
-    </div>
-    `
+        <p>Your admission details have been verified! You can now access the student portal to view your admission details, pay your application/registration/tuition fees, and view your admission number.</p>
+        <p style="margin-top:16px;color:#666;font-size:13px;"><strong>Important:</strong> please change your password after your first login for security.</p>
+      `,
+      details: [['Email', app.email], ['Password', password]],
+      ctaText: 'Login to Portal',
+      ctaUrl: loginLink
+    })
 
     const emailBody = `
 Dear ${app.name},
@@ -8848,16 +8888,15 @@ app.post('/api/send-template-email', authenticateToken, async (req, res) => {
       const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
       const formLink = `${baseUrl}/admission-details/${linkToken}`
 
-      emailHtml = `<div style="font-family: Arial; max-width: 600px; margin: 0 auto;">
-        <h2>Complete Your Admission Details</h2>
-        <p>Dear ${appData.name},</p>
-        <p>Please complete your admission details by clicking the button below:</p>
-        <a href="${formLink}" style="background: #4f46e5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0;">
-          Fill Admission Details →
-        </a>
-        <p>Or copy this link: <code>${formLink}</code></p>
-        <p>Link expires in 30 days.</p>
-      </div>`
+      emailHtml = brandedEmailHtml({
+        badge: 'ACTION REQUIRED',
+        tone: 'info',
+        title: 'Complete Your Admission Details',
+        bodyHtml: `<p>Dear <strong>${appData.name}</strong>,</p><p>Please complete your admission details using the button below. This link expires in 30 days.</p>`,
+        details: [['Application #', appData.app_no]],
+        ctaText: 'Fill Admission Details',
+        ctaUrl: formLink
+      })
 
       emailBody = `Dear ${appData.name},\n\nPlease complete your admission details:\n${formLink}\n\nLink expires in 30 days.`
     } else if (['application_fee', 'registration_fee', 'tuition_fee', 'other_fee'].includes(template_type)) {
@@ -8869,26 +8908,23 @@ app.post('/api/send-template-email', authenticateToken, async (req, res) => {
         'other_fee': 'Fee'
       }
 
-      emailHtml = `<div style="font-family: Arial; max-width: 600px; margin: 0 auto;">
-        <h2>${feeNames[template_type]}</h2>
-        <p>Dear ${appData.name},</p>
-        <p>Amount Due: <strong>₹${amount}</strong></p>
-        <p>${customMessage || ''}</p>
-        <p>Please make the payment as soon as possible.</p>
-        <p>Application #: ${appData.app_no}</p>
-      </div>`
+      emailHtml = brandedEmailHtml({
+        badge: 'PAYMENT DUE',
+        tone: 'warn',
+        title: feeNames[template_type],
+        bodyHtml: `<p>Dear <strong>${appData.name}</strong>,</p>${customMessage ? `<p>${customMessage}</p>` : ''}<p>Please make the payment as soon as possible.</p>`,
+        details: [['Amount Due', `₹${amount}`], ['Application #', appData.app_no]]
+      })
 
       emailBody = `Dear ${appData.name},\n\n${feeNames[template_type]}: ₹${amount}\n\n${customMessage || ''}\n\nApplication #: ${appData.app_no}`
     } else if (template_type === 'admission_complete') {
-      emailHtml = `<div style="font-family: Arial; max-width: 600px; margin: 0 auto;">
-        <h2>Welcome to Centurion University</h2>
-        <p>Dear ${appData.name},</p>
-        <p>Congratulations! Your admission has been confirmed.</p>
-        <p><strong>Application #:</strong> ${appData.app_no}</p>
-        <p><strong>Course:</strong> ${appData.course}</p>
-        <p><strong>Campus:</strong> ${appData.campus}</p>
-        <p>${customMessage || ''}</p>
-      </div>`
+      emailHtml = brandedEmailHtml({
+        badge: 'CONFIRMED',
+        tone: 'success',
+        title: 'Welcome to Centurion University',
+        bodyHtml: `<p>Dear <strong>${appData.name}</strong>,</p><p>Congratulations! Your admission has been confirmed.</p>${customMessage ? `<p>${customMessage}</p>` : ''}`,
+        details: [['Application #', appData.app_no], ['Course', appData.course], ['Campus', appData.campus]]
+      })
 
       emailBody = `Dear ${appData.name},\n\nCongratulations! Your admission has been confirmed.\n\nApplication #: ${appData.app_no}\nCourse: ${appData.course}\nCampus: ${appData.campus}\n\n${customMessage || ''}`
     }
