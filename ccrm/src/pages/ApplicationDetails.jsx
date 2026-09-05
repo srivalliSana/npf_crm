@@ -328,15 +328,12 @@ export default function ApplicationDetails() {
       formInterest, email: studentEmail, mobile: studentMobile, altMobile,
       name: studentName, state: studentState, city: studentCity,
       campus, school, course, owner, source,
-      leadDetails: associatedLead?.leadDetails || record.leadDetails || {
-        parentName: '', parentMobile: '', parentEmail: '',
-        aadharNumber: '', address: '', pincode: '',
-        tenthBoard: '', tenthSchool: '', tenthPercentage: '', tenthYear: '',
-        twelfthBoard: '', twelfthSchool: '', twelfthPercentage: '', twelfthYear: '',
-        schoolDept: '',
-      },
+      leadDetails: leadDetailsDefaults(),
     })
-  }, [record?.id])
+    // Re-run once the real record (with admissionDetails/leadDetails) arrives,
+    // not just when navigating between different ids — record?.id alone stays
+    // the same across the initial-empty → fully-loaded transition.
+  }, [record?.id, JSON.stringify(record?.admissionDetails), JSON.stringify(associatedLead?.leadDetails)])
 
   // Dynamic Timeline State stored inside the lead/app or generated
   const [localTimeline, setLocalTimeline] = useState(() => {
