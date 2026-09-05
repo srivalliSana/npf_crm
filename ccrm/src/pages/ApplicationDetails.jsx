@@ -127,13 +127,27 @@ export default function ApplicationDetails() {
   // shape wherever the two overlap, so staff see it without hunting through
   // the separate "View Details" panel. Existing lead data always wins.
   const leadDetailsDefaults = () => {
+    // Merge per-field, not whole-object — an existing leadDetails object with
+    // blank strings (the common case right after lead/app creation) is still
+    // truthy, so an object-level `||` fallback never reached the wizard data.
+    const existing = associatedLead?.leadDetails || record.leadDetails || {}
     const ad = record.admissionDetails || {}
-    return associatedLead?.leadDetails || record.leadDetails || {
-      parentName: ad.fatherName || '', parentMobile: '', parentEmail: '',
-      aadharNumber: '', address: ad.address || '', pincode: ad.pincode || '',
-      tenthBoard: ad.tenthBoard || '', tenthSchool: '', tenthPercentage: ad.tenthPercentage || '', tenthYear: '',
-      twelfthBoard: ad.twelfthBoard || '', twelfthSchool: '', twelfthPercentage: ad.twelfthPercentage || '', twelfthYear: '',
-      schoolDept: '',
+    return {
+      parentName: existing.parentName || ad.fatherName || '',
+      parentMobile: existing.parentMobile || '',
+      parentEmail: existing.parentEmail || '',
+      aadharNumber: existing.aadharNumber || '',
+      address: existing.address || ad.address || '',
+      pincode: existing.pincode || ad.pincode || '',
+      tenthBoard: existing.tenthBoard || ad.tenthBoard || '',
+      tenthSchool: existing.tenthSchool || '',
+      tenthPercentage: existing.tenthPercentage || ad.tenthPercentage || '',
+      tenthYear: existing.tenthYear || '',
+      twelfthBoard: existing.twelfthBoard || ad.twelfthBoard || '',
+      twelfthSchool: existing.twelfthSchool || '',
+      twelfthPercentage: existing.twelfthPercentage || ad.twelfthPercentage || '',
+      twelfthYear: existing.twelfthYear || '',
+      schoolDept: existing.schoolDept || '',
     }
   }
   const leadStage = record.stage && !isApp ? record.stage : (associatedLead?.stage || 'Contacted')
