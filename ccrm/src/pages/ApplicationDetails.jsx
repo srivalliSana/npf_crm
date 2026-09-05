@@ -2050,6 +2050,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
   const [uploading, setUploading] = React.useState(false)
   const [dragOver, setDragOver] = React.useState(false)
   const [generatingLink, setGeneratingLink] = React.useState(false)
+  const [showAdmissionDetailsView, setShowAdmissionDetailsView] = React.useState(false)
   const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
 
   const REQUIRED = [
@@ -2259,7 +2260,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
         <div className="mt-6 card">
           <h3 className="text-lg font-bold text-gray-900 mb-4 pb-4 border-b">Admission Journey Pipeline</h3>
 
-          {record?.admission_details && Object.keys(record.admission_details).length > 0 && (
+          {record?.admissionDetails && Object.keys(record.admissionDetails).length > 0 && (
             <div className="mb-4 p-4 rounded-lg border bg-gray-50 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-gray-800">Step 1 — Admission Details (Basic + Academic)</p>
@@ -2271,6 +2272,13 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                   {record.admission_details_reviewed_by ? ` — by ${record.admission_details_reviewed_by}` : ''}
                 </p>
               </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAdmissionDetailsView(v => !v)}
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg"
+                >
+                  {showAdmissionDetailsView ? 'Hide Details' : 'View Details'}
+                </button>
               {(record.admission_details_status || 'Pending') === 'Pending' && (
                 <div className="flex gap-2">
                   <button
@@ -2307,6 +2315,23 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                   </button>
                 </div>
               )}
+              </div>
+            </div>
+          )}
+
+          {showAdmissionDetailsView && record?.admissionDetails && (
+            <div className="mb-4 p-4 rounded-lg border bg-white">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Submitted Admission Details</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 text-sm">
+                {Object.entries(record.admissionDetails).map(([key, value]) => (
+                  value !== '' && value !== null && value !== undefined && (
+                    <div key={key}>
+                      <p className="text-xs text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                      <p className="text-gray-800 font-medium break-words">{String(value)}</p>
+                    </div>
+                  )
+                ))}
+              </div>
             </div>
           )}
 
