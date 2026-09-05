@@ -1764,7 +1764,7 @@ app.put('/api/applications/:id', async (req, res) => {
           stage       = COALESCE($10, stage),
           owner       = COALESCE($11, owner),
           date        = COALESCE($12, date),
-          admission_details = COALESCE($13::jsonb, admission_details)
+          admission_details = COALESCE(admission_details, '{}'::jsonb) || COALESCE($13::jsonb, '{}'::jsonb)
       WHERE id = $14 AND tenant_id = $15
       RETURNING id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date;
     `, [name ?? null, appNo ?? null, email ?? null, mobile ?? null, formStatus ?? null, payStatus ?? null, payMethod ?? null, campus ?? null, course ?? null, stage ?? null, owner ?? null, date ?? null, leadDetails ? JSON.stringify(leadDetails) : null, id, req.tenantId])
@@ -1808,9 +1808,12 @@ app.put('/api/applications/:id/admission-details', async (req, res) => {
   const { id } = req.params
   const details = req.body || {}
   try {
+    // Merge (||), not replace — admission_details is also written by the
+    // public admission-details wizard and by Lead Details "Edit Information";
+    // a wholesale SET here would silently wipe whatever the other wrote.
     const r = await pool.query(`
       UPDATE applications
-      SET admission_details = $1::jsonb,
+      SET admission_details = COALESCE(admission_details, '{}'::jsonb) || $1::jsonb,
           school_dept       = COALESCE($2, school_dept)
       WHERE id = $3 AND tenant_id = $4
       RETURNING id, app_no AS "appNo", admission_details AS "admissionDetails", school_dept AS "schoolDept";
@@ -8398,8 +8401,11 @@ app.post('/api/admission-details/:token', async (req, res) => {
     // A resubmission after rejection goes back to Pending for another review.
     const resetStatus = app.admission_details_status === 'Rejected'
 
+    // Merge (||), not replace — this same column is also written by the internal
+    // Lead Details "Edit Information" form and the manual admission-details modal;
+    // a wholesale SET here would silently wipe whatever staff already entered.
     await pool.query(
-      `UPDATE applications SET admission_details = $1::jsonb
+      `UPDATE applications SET admission_details = COALESCE(admission_details, '{}'::jsonb) || $1::jsonb
        ${resetStatus ? ", admission_details_status = 'Pending', admission_details_reviewed_by = '', admission_details_reviewed_at = NULL" : ''}
        WHERE id = $2 AND tenant_id = $3`,
       [JSON.stringify(details), app.id, app.token_tenant_id]

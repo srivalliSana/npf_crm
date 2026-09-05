@@ -117,8 +117,25 @@ export default function ApplicationDetails() {
   const studentName = record.name || ''
   const studentEmail = record.email || ''
   const studentMobile = record.mobile || ''
-  const studentState = record.state || associatedLead?.state || 'Odisha'
-  const studentCity = record.city || associatedLead?.city || 'Bhubaneswar'
+  // applications has no state/city columns of its own — fall back to the linked
+  // lead's, then to whatever the student entered via the public admission-details
+  // wizard (record.admissionDetails), before finally defaulting.
+  const studentState = record.state || associatedLead?.state || record.admissionDetails?.state || 'Odisha'
+  const studentCity = record.city || associatedLead?.city || record.admissionDetails?.city || 'Bhubaneswar'
+
+  // Maps the student's wizard submission onto the Lead Details tab's field
+  // shape wherever the two overlap, so staff see it without hunting through
+  // the separate "View Details" panel. Existing lead data always wins.
+  const leadDetailsDefaults = () => {
+    const ad = record.admissionDetails || {}
+    return associatedLead?.leadDetails || record.leadDetails || {
+      parentName: ad.fatherName || '', parentMobile: '', parentEmail: '',
+      aadharNumber: '', address: ad.address || '', pincode: ad.pincode || '',
+      tenthBoard: ad.tenthBoard || '', tenthSchool: '', tenthPercentage: ad.tenthPercentage || '', tenthYear: '',
+      twelfthBoard: ad.twelfthBoard || '', twelfthSchool: '', twelfthPercentage: ad.twelfthPercentage || '', twelfthYear: '',
+      schoolDept: '',
+    }
+  }
   const leadStage = record.stage && !isApp ? record.stage : (associatedLead?.stage || 'Contacted')
   const appStage = isApp ? record.stage : (associatedApp?.stage || 'Unverified')
   const score = record.score || associatedLead?.score || 68
@@ -286,13 +303,7 @@ export default function ApplicationDetails() {
     owner,
     source,
     // Comprehensive lead details (saved as JSONB to leads.lead_details)
-    leadDetails: associatedLead?.leadDetails || record.leadDetails || {
-      parentName: '', parentMobile: '', parentEmail: '',
-      aadharNumber: '', address: '', pincode: '',
-      tenthBoard: '', tenthSchool: '', tenthPercentage: '', tenthYear: '',
-      twelfthBoard: '', twelfthSchool: '', twelfthPercentage: '', twelfthYear: '',
-      schoolDept: '',
-    },
+    leadDetails: leadDetailsDefaults(),
   })
 
   // Re-sync the edit form when the resolved record changes (navigation or a
