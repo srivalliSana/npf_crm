@@ -1034,7 +1034,30 @@ export async function initTenancy() {
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255) UNIQUE NULL;`).catch(() => {})
     // Default leadId prefix for this tenant's public inquiry API (e.g. "CUEDU26").
     // '' = fall back to the CULDAI26/CULDSM26 default computed per-lead.
+    // Every part of this — including the "CU" — is tenant-editable; nothing
+    // about the prefix is actually hardcoded, "CULDAI"/"CULDSM" are just the
+    // fallback used until a tenant sets its own (see Lead ID Formats page).
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS lead_id_prefix VARCHAR(20) DEFAULT '';`).catch(() => {})
+    // Same idea, for social-media-sourced leads specifically — kept separate
+    // from lead_id_prefix so a tenant can tell direct vs. social leads apart
+    // in the ID itself, the way the CULDAI/CULDSM default already does.
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS lead_id_prefix_social VARCHAR(20) DEFAULT '';`).catch(() => {})
+    // Two-digit admission-season code (the "26" in CULDAI26). '' = follow the
+    // platform-wide default in platform_settings, so most tenants never touch
+    // this and one place (Lead ID Formats → "Start new season") rolls everyone
+    // forward each cycle; a tenant can still pin its own if its intake calendar
+    // doesn't match the shared one.
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS lead_id_season VARCHAR(4) DEFAULT '';`).catch(() => {})
+
+    // Small key/value store for platform-wide settings that don't belong to
+    // any one tenant — currently just the default admission-season code.
+    await client.query(`CREATE TABLE IF NOT EXISTS platform_settings (
+      key VARCHAR(100) PRIMARY KEY,
+      value TEXT,
+      updated_at TIMESTAMP DEFAULT NOW()
+    );`).catch(() => {})
+    await client.query(`INSERT INTO platform_settings (key, value) VALUES ('default_lead_season', '26')
+      ON CONFLICT (key) DO NOTHING;`).catch(() => {})
 
     // Default tenant = Centurion (id 1). Existing rows backfill to it via DEFAULT 1.
     await client.query(`INSERT INTO tenants (id, name, slug, allowed_domains)

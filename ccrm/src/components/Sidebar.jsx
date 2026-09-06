@@ -6,7 +6,7 @@ import {
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
   Trophy, Mail, Globe, ExternalLink, Zap, Radio,
   PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall, Layers, MessageCircle, Building2, GraduationCap,
-  CheckCircle, DollarSign, Gauge, Network, X
+  CheckCircle, DollarSign, Gauge, Network, X, Tag
 } from 'lucide-react'
 import { APP_VERSION } from '../version'
 import { useCcrm } from '../context/CcrmContext'
@@ -14,6 +14,7 @@ import { usePermissions } from '../hooks/usePermissions'
 
 const NAV_ITEMS = [
   { icon: Building2,       label: 'Tenants',            to: '/platform-tenants',       platformOnly: true },
+  { icon: Tag,             label: 'Lead ID Formats',    to: '/lead-id-settings',       platformOnly: true },
   { icon: LayoutDashboard, label: 'Dashboard',          to: '/dashboard',              roles: null },
   { icon: GraduationCap,   label: 'Programs',           to: '/programs',               roles: ['Admin'] },
   { icon: Users,           label: 'Leads',              to: '/leads',                  roles: null },

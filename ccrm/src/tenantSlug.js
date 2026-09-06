@@ -14,7 +14,7 @@ export const RESERVED_SLUGS = [
   'comms-report', 'help', 'profile', 'transfer-approvals', 'users', 'api',
   'verify-email', 'document-upload', 'admission-details', 'student-login',
   'student-dashboard', 'command-centre', 'compliance', 'integration-hub',
-  'integration-health', 'programs',
+  'integration-health', 'programs', 'lead-id-settings',
 ]
 
 export function getUrlTenantSlug() {
