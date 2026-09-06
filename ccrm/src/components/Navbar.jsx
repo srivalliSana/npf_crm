@@ -50,7 +50,7 @@ function useBreadcrumb() {
   })
 }
 
-export default function Navbar({ onToggleSidebar, onLogout, user, expanded = true }) {
+export default function Navbar({ onToggleSidebar, onLogout, user, expanded = true, isMobile = false }) {
   const navigate = useNavigate()
   const { notifications, markNotificationRead, markAllNotificationsRead, tenantConfig } = useCcrm()
   const orgName = tenantConfig?.name || 'Centurion University of Technology and Management'
@@ -71,13 +71,14 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
 
   return (
     <>
-      <header className={`fixed top-0 ${expanded ? 'left-56' : 'left-16'} right-0 h-14 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-soft flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
+      <header className={`fixed top-0 ${isMobile ? 'left-0' : expanded ? 'left-56' : 'left-16'} right-0 h-14 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-soft flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
         {/* Left — sidebar toggle + breadcrumb */}
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onToggleSidebar}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors flex-shrink-0"
-            title="Toggle sidebar"
+            title={isMobile ? 'Open menu' : 'Toggle sidebar'}
+            aria-label={isMobile ? 'Open menu' : 'Toggle sidebar'}
           >
             <Menu size={19} />
           </button>
