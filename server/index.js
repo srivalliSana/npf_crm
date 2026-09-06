@@ -4086,7 +4086,7 @@ app.get('/api/platform/tenants', platformAdminOnly, async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT t.id, t.name, t.slug, t.status, t.plan, t.allowed_domains AS "allowedDomains", t.created_at AS "createdAt",
-             t.lead_id_prefix AS "leadIdPrefix",
+             t.lead_id_prefix AS "leadIdPrefix", t.lead_id_prefix_social AS "leadIdPrefixSocial", t.lead_id_season AS "leadIdSeason",
              (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id = t.id) AS users,
              (SELECT COUNT(*)::int FROM leads l WHERE l.tenant_id = t.id) AS leads
       FROM tenants t ORDER BY t.id;
@@ -4108,6 +4108,7 @@ const RESERVED_TENANT_SLUGS = [
   'payments', 'documents', 'calendar', 'settings', 'integrations',
   'integration-settings', 'leaderboard', 'email-campaigns', 'drip-workflows',
   'comms-report', 'help', 'profile', 'transfer-approvals', 'users', 'api',
+  'lead-id-settings',
 ]
 
 app.post('/api/platform/tenants', platformAdminOnly, async (req, res) => {
@@ -4149,7 +4150,7 @@ app.post('/api/platform/tenants', platformAdminOnly, async (req, res) => {
 
 // Suspend / activate / rename a tenant
 app.patch('/api/platform/tenants/:id', platformAdminOnly, async (req, res) => {
-  const { status, name, allowedDomains, plan, leadIdPrefix } = req.body
+  const { status, name, allowedDomains, plan, leadIdPrefix, leadIdPrefixSocial, leadIdSeason } = req.body
   if (Number(req.params.id) === 1 && status && status !== 'Active') {
     return res.status(400).json({ error: 'The primary tenant cannot be suspended.' })
   }
@@ -4160,13 +4161,37 @@ app.patch('/api/platform/tenants/:id', platformAdminOnly, async (req, res) => {
     if (plan !== undefined)           { params.push(plan); sets.push(`plan = $${params.length}`) }
     if (allowedDomains !== undefined) { params.push(Array.isArray(allowedDomains) ? allowedDomains.join(',') : String(allowedDomains || '')); sets.push(`allowed_domains = $${params.length}`) }
     if (leadIdPrefix !== undefined)   { params.push(String(leadIdPrefix || '').trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 20)); sets.push(`lead_id_prefix = $${params.length}`) }
+    if (leadIdPrefixSocial !== undefined) { params.push(String(leadIdPrefixSocial || '').trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 20)); sets.push(`lead_id_prefix_social = $${params.length}`) }
+    if (leadIdSeason !== undefined)   { params.push(String(leadIdSeason || '').trim().replace(/\D/g, '').slice(0, 4)); sets.push(`lead_id_season = $${params.length}`) }
     if (!sets.length) return res.json({ message: 'Nothing to update.' })
     params.push(req.params.id)
-    const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, slug, status, plan, allowed_domains AS "allowedDomains", lead_id_prefix AS "leadIdPrefix";`, params)
+    const r = await pool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, name, slug, status, plan, allowed_domains AS "allowedDomains", lead_id_prefix AS "leadIdPrefix", lead_id_prefix_social AS "leadIdPrefixSocial", lead_id_season AS "leadIdSeason";`, params)
     if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found.' })
-    logAudit(req.user, 'tenant.update', { targetTenantId: req.params.id, targetType: 'tenant', targetId: req.params.id, details: { status, name, plan, allowedDomains, leadIdPrefix } })
+    logAudit(req.user, 'tenant.update', { targetTenantId: req.params.id, targetType: 'tenant', targetId: req.params.id, details: { status, name, plan, allowedDomains, leadIdPrefix, leadIdPrefixSocial, leadIdSeason } })
     res.json(r.rows[0])
   } catch (e) { console.error('[platform/tenants PATCH]', e.message); res.status(500).json({ error: 'Failed to update tenant.' }) }
+})
+
+// Platform-wide lead-ID defaults — currently just the shared admission-season
+// code every tenant without its own override falls back to. A separate,
+// tiny endpoint rather than folding into /tenants, since it isn't scoped to
+// any one tenant.
+app.get('/api/platform/lead-id-defaults', platformAdminOnly, async (req, res) => {
+  try {
+    const r = await pool.query("SELECT value FROM platform_settings WHERE key = 'default_lead_season';")
+    res.json({ defaultSeason: r.rows[0]?.value || '26' })
+  } catch (e) { console.error('[platform/lead-id-defaults GET]', e.message); res.status(500).json({ error: 'Failed to load defaults.' }) }
+})
+
+app.patch('/api/platform/lead-id-defaults', platformAdminOnly, async (req, res) => {
+  const season = String(req.body.defaultSeason || '').replace(/\D/g, '').slice(0, 4)
+  if (!season) return res.status(400).json({ error: 'defaultSeason must be a year code, e.g. "26".' })
+  try {
+    await pool.query(`INSERT INTO platform_settings (key, value, updated_at) VALUES ('default_lead_season', $1, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW();`, [season])
+    logAudit(req.user, 'platform.lead_id_season.update', { details: { season } })
+    res.json({ defaultSeason: season })
+  } catch (e) { console.error('[platform/lead-id-defaults PATCH]', e.message); res.status(500).json({ error: 'Failed to update the default season.' }) }
 })
 
 // List a tenant's admin accounts (platform admin only) — used by the Edit Organization modal
@@ -6056,14 +6081,24 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
     const score = calculateLeadScore({ source: source || 'Website', stage: 'Untouched', mobile, email, course })
     const leadSource = source?.toLowerCase().includes('facebook') ? 'facebook' : 'form'
     // Same social-vs-direct classification used everywhere else in the app —
-    // drives which default prefix (CULDSM26 / CULDAI26) this lead's reference
-    // ID gets, unless this tenant has its own configured prefix (set from the
-    // Edit Organization modal), or the caller passed one directly in `prefix`.
+    // drives which default prefix (CULDSM.. / CULDAI..) this lead's reference
+    // ID gets, unless this tenant has its own configured prefix and/or season
+    // (set from Platform → Lead ID Formats), or the caller passed a full
+    // prefix directly in `prefix`. Nothing here is actually hardcoded to any
+    // tenant — CULDAI/CULDSM/26 are just the fallback until a tenant sets
+    // its own base and/or the platform default season moves on.
     const socialList = ['meta', 'facebook', 'instagram', 'linkedin', 'twitter', 'whatsapp', 'telegram', 'social media']
     const sourceType = socialList.includes((source || '').toLowerCase()) ? 'sm' : 'ai'
-    const tenantRow = await pool.query('SELECT lead_id_prefix FROM tenants WHERE id = $1;', [tenantId])
-    const tenantPrefix = tenantRow.rows[0]?.lead_id_prefix || ''
-    const refPrefix = cleanPrefix || tenantPrefix || (sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26')
+    const tenantRow = await pool.query('SELECT lead_id_prefix, lead_id_prefix_social, lead_id_season FROM tenants WHERE id = $1;', [tenantId])
+    const tRow = tenantRow.rows[0] || {}
+    const tenantBase = (sourceType === 'sm' ? (tRow.lead_id_prefix_social || tRow.lead_id_prefix) : tRow.lead_id_prefix) || ''
+    const defaultBase = sourceType === 'sm' ? 'CULDSM' : 'CULDAI'
+    let season = tRow.lead_id_season || ''
+    if (!season) {
+      const seasonRow = await pool.query("SELECT value FROM platform_settings WHERE key = 'default_lead_season';")
+      season = seasonRow.rows[0]?.value || '26'
+    }
+    const refPrefix = cleanPrefix || `${tenantBase || defaultBase}${season}`
     const owner = await getNextAssignee(tenantId)
     const insertRes = await pool.query(`
       INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, source_type, lead_ref_prefix, tenant_id)

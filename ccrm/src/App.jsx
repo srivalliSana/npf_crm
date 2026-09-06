@@ -32,6 +32,7 @@ import DocumentUpload from './pages/DocumentUpload'
 import Analytics from './pages/Analytics'
 import SocialComments from './pages/SocialComments'
 import PlatformTenants from './pages/PlatformTenants'
+import LeadIdSettings from './pages/LeadIdSettings'
 import OrgSettings from './pages/OrgSettings'
 import ServerHealth from './pages/ServerHealth'
 import SecurityAccess from './pages/SecurityAccess'
@@ -155,6 +156,7 @@ export default function App() {
             <Route path="applications/:id" element={<ApplicationDetails />} />
             <Route path="dashboard"        element={<Dashboard />} />
             <Route path="platform-tenants" element={<PlatformTenants />} />
+            <Route path="lead-id-settings" element={<LeadIdSettings />} />
             <Route element={<RoleGuard roles={['Admin']} />}>
               <Route path="programs"              element={<ProgramsManager />} />
               <Route path="document-verification" element={<DocumentVerification />} />
