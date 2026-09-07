@@ -8737,7 +8737,11 @@ app.post('/api/student-login', async (req, res) => {
 
     const tenantId = await resolveSlugTenant(tenantSlug)
     const r = await pool.query(
-      'SELECT id, name, app_no, email, course, admission_number, student_password FROM applications WHERE LOWER(email) = LOWER($1) AND tenant_id = $2;',
+      // A student can legitimately have more than one application in the same
+      // tenant (e.g. applied for two courses) — without an explicit order,
+      // Postgres may return either one, so a login can non-deterministically
+      // land on a row that was never sent a password. Most recent wins.
+      'SELECT id, name, app_no, email, course, admission_number, student_password FROM applications WHERE LOWER(email) = LOWER($1) AND tenant_id = $2 ORDER BY id DESC LIMIT 1;',
       [email, tenantId]
     )
     if (!r.rows.length || !r.rows[0].student_password) return res.status(401).json({ error: 'Invalid email or password.' })
@@ -8768,7 +8772,7 @@ app.post('/api/student-login/google', async (req, res) => {
 
     const tenantId = await resolveSlugTenant(tenantSlug)
     const r = await pool.query(
-      'SELECT id, name, app_no, email, course, admission_number FROM applications WHERE LOWER(email) = LOWER($1) AND tenant_id = $2;',
+      'SELECT id, name, app_no, email, course, admission_number FROM applications WHERE LOWER(email) = LOWER($1) AND tenant_id = $2 ORDER BY id DESC LIMIT 1;',
       [email, tenantId]
     )
     if (!r.rows.length) return res.status(404).json({ error: 'No application found for this email in this organization. Sign in with the email you applied with.' })
