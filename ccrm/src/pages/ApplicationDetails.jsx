@@ -497,7 +497,10 @@ export default function ApplicationDetails() {
           )
           const idRes = await fetch(`/api/applications/next-app-id?type=${isSM ? 'sm' : 'ai'}`)
           const { appNo } = await idRes.json()
-          await addApplication({
+          // addApplication already surfaces its own error toast on failure and
+          // returns null rather than faking a locally-numbered record — do not
+          // show a success toast unless it actually gave back a saved application.
+          const created = await addApplication({
             name: studentName,
             email: studentEmail,
             mobile: studentMobile,
@@ -510,7 +513,7 @@ export default function ApplicationDetails() {
             appNo,
             owner: record.owner || ''
           })
-          showToast(`📋 Application ${appNo} created — visible in Application Manager`, 'success')
+          if (created) showToast(`📋 Application ${appNo} created — visible in Application Manager`, 'success')
         } catch (e) {
           showToast('Application auto-creation failed — create manually.', 'warning')
         }

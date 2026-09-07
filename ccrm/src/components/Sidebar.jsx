@@ -83,10 +83,18 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
   const gtLabel = (code) => cfgEntities.find(e => e.code === code)?.label || code
   const brand = tenantConfig?.branding || {}
 
-  // Entity access (admin-granted): which lead sets this user can see
+  // Entity access (admin-granted): which lead sets this user can see.
+  // Only tenants that actually opted into the entity model (a non-empty
+  // `entities` config, e.g. Centurion's CUTM/CUTMAP/GT split) should gate on
+  // it — a tenant that never configured any (CU EDU, Jagannath University)
+  // falls back to Centurion's own CUTM/CUTMAP codes otherwise, and a
+  // counselor there would need their `entities` field to coincidentally
+  // contain "CUTM" — a code meaningless to their organization — just to see
+  // their own Leads page.
+  const usesEntityModel = cfgEntities.length > 0
   const userEntities = String(user?.entities || MAIN_CODES[0] || '').split(',').map(s => s.trim()).filter(Boolean)
   const hasGT   = userEntities.some(e => GT_CODES.includes(e))
-  const hasMain = userEntities.some(e => MAIN_CODES.includes(e))
+  const hasMain = !usesEntityModel || userEntities.some(e => MAIN_CODES.includes(e))
 
   const isPlatformAdmin = !!user?.isPlatformAdmin
   const visibleItems = NAV_ITEMS.filter(item => {
