@@ -1785,6 +1785,7 @@ app.post('/api/applications', async (req, res) => {
 
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
+    console.error('[POST /api/applications]', err.message, { name, appNo: finalAppNo, tenantId: req.tenantId })
     res.status(500).json({ error: 'Failed to create application.' })
   }
 })

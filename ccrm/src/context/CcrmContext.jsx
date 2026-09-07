@@ -579,6 +579,15 @@ export function CcrmProvider({ children }) {
   }
 
   // Application Actions
+  // Returns the created application, or null on failure. Used to silently
+  // fall back to a client-only object with a locally-guessed id when the
+  // POST failed — that id (Math.max(loaded ids) + 1) is only ever a guess
+  // at what the server would assign, and a real row created moments later
+  // by someone else can land on that exact same id. Everything downstream
+  // (the "Online Form" email button, payment lookups) trusts `id` as if it
+  // came from the server, so a collision silently sends actions — including
+  // emails — at a completely unrelated tenant's application. Surfacing the
+  // real failure is strictly better than papering over it with a fake id.
   const addApplication = async (appData) => {
     try {
       const res = await fetch('/api/applications', {
@@ -590,47 +599,21 @@ export function CcrmProvider({ children }) {
         const added = await res.json()
         setApplications(prev => [added, ...prev])
         showToast(`Application ${added.appNo} submitted.`, 'success')
-        
+
         const pays = await fetch('/api/payments')
         if (pays.ok) setPayments(await pays.json())
 
         return added
       }
-    } catch {}
-
-    const nextId = applications.length > 0 ? Math.max(...applications.map(a => a.id)) + 1 : 1
-    const newApp = {
-      ...appData,
-      id: nextId,
-      appNo: appData.appNo || `CUEE2026${Math.floor(1000 + Math.random() * 9000)}`,
-      formStatus: appData.formStatus || 'Incomplete',
-      payStatus: appData.payStatus || 'Payment Pending',
-      payMethod: appData.payMethod || '',
-      stage: appData.stage || 'Application Started'
+      const err = await res.json().catch(() => ({}))
+      console.error('[addApplication] server rejected the request:', res.status, err)
+      showToast(err.error || 'Failed to create the application. Please try again.', 'error')
+      return null
+    } catch (e) {
+      console.error('[addApplication] network error:', e.message)
+      showToast('Failed to create the application — check your connection and try again.', 'error')
+      return null
     }
-    setApplications(prev => [newApp, ...prev])
-    
-    // Auto-create initial payments record if needed
-    const paymentExists = payments.some(p => p.appNo === newApp.appNo)
-    if (!paymentExists) {
-      const nextPayId = payments.length > 0 ? Math.max(...payments.map(p => p.id)) + 1 : 1
-      const newPayment = {
-        id: nextPayId,
-        name: newApp.name,
-        appNo: newApp.appNo,
-        amount: 25000,
-        method: newApp.payMethod,
-        status: newApp.payStatus === 'Approved' ? 'Approved' : 'Pending',
-        date: newApp.payStatus === 'Approved' ? new Date().toLocaleDateString('en-IN') : '',
-        txnId: newApp.payStatus === 'Approved' ? `TXN${Math.floor(100000 + Math.random() * 900000)}` : ''
-      }
-      setPayments(prev => [newPayment, ...prev])
-    }
-
-    showToast(`Application ${newApp.appNo} submitted.`, 'success')
-    addNotification(`Application submitted: ${newApp.name} (${newApp.appNo})`)
-    refreshCounselors()
-    return newApp
   }
 
   const updateApplication = async (id, data) => {
