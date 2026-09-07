@@ -2076,6 +2076,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
   const [dragOver, setDragOver] = React.useState(false)
   const [generatingLink, setGeneratingLink] = React.useState(false)
   const [showAdmissionDetailsView, setShowAdmissionDetailsView] = React.useState(false)
+  const [showFullDetailsView, setShowFullDetailsView] = React.useState(false)
   const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
 
   const REQUIRED = [
@@ -2350,6 +2351,81 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
               <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 text-sm">
                 {Object.entries(record.admissionDetails).map(([key, value]) => (
                   value !== '' && value !== null && value !== undefined && (
+                    <div key={key}>
+                      <p className="text-xs text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                      <p className="text-gray-800 font-medium break-words">{String(value)}</p>
+                    </div>
+                  )
+                ))}
+              </div>
+            </div>
+          )}
+
+          {record?.admission_full_details && Object.keys(record.admission_full_details).length > 0 && (
+            <div className="mb-4 p-4 rounded-lg border bg-gray-50 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Step 2 — Full Admission Form (Personal/Parent/Address/Program/Academic + Documents)</p>
+                <p className={`text-xs mt-1 font-semibold ${
+                  record.admission_full_details_status === 'Approved' ? 'text-green-600'
+                  : record.admission_full_details_status === 'Rejected' ? 'text-red-600' : 'text-amber-600'
+                }`}>
+                  {record.admission_full_details_status || 'Pending'} review
+                  {record.admission_full_details_reviewed_by ? ` — by ${record.admission_full_details_reviewed_by}` : ''}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowFullDetailsView(v => !v)}
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg"
+                >
+                  {showFullDetailsView ? 'Hide Details' : 'View Details'}
+                </button>
+                {(record.admission_full_details_status || 'Pending') === 'Pending' && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const token = localStorage.getItem('ccrm_token')
+                        fetch(`/api/applications/${record.id}/approve-full-details`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ status: 'Approved' })
+                        }).then(r => r.json()).then(d => {
+                          if (d.success) { showToast?.('✅ Admission form approved.', 'success'); fetchAllData() }
+                          else alert('Error: ' + d.error)
+                        }).catch(e => alert('Failed: ' + e.message))
+                      }}
+                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => {
+                        const token = localStorage.getItem('ccrm_token')
+                        fetch(`/api/applications/${record.id}/approve-full-details`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ status: 'Rejected' })
+                        }).then(r => r.json()).then(d => {
+                          if (d.success) { showToast?.('Admission form sent back for correction.', 'info'); fetchAllData() }
+                          else alert('Error: ' + d.error)
+                        }).catch(e => alert('Failed: ' + e.message))
+                      }}
+                      className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {showFullDetailsView && record?.admission_full_details && (
+            <div className="mb-4 p-4 rounded-lg border bg-white">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Submitted Full Admission Form</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 text-sm">
+                {Object.entries(record.admission_full_details).map(([key, value]) => (
+                  value !== '' && value !== null && value !== undefined && value !== false && (
                     <div key={key}>
                       <p className="text-xs text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
                       <p className="text-gray-800 font-medium break-words">{String(value)}</p>

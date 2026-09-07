@@ -1747,7 +1747,8 @@ app.get('/api/applications', authenticateToken, async (req, res) => {
     const appsRes = await pool.query(`SELECT id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", admission_letter_sent_at AS "admissionLetterSentAt", school_dept AS "schoolDept", email_verified AS "emailVerified", semester_fee_status AS "semesterFeeStatus", erp_access_granted AS "erpAccessGranted", erp_access_granted_at AS "erpAccessGrantedAt",
       admission_details_status, admission_details_reviewed_by, admission_details_reviewed_at,
       booking_fee_status, booking_fee_amount, booking_fee_paid_at,
-      admission_full_details, registration_fee_paid, registration_fee_paid_at,
+      admission_full_details, admission_full_details_status, admission_full_details_reviewed_by, admission_full_details_reviewed_at,
+      registration_fee_paid, registration_fee_paid_at,
       provisional_admission_status, provisional_admission_at,
       registration_number, reg_number_generated_at,
       tuition_fee_paid, tuition_fee_paid_at, tuition_fee_amount,
@@ -8378,6 +8379,58 @@ app.post('/api/applications/:id/approve-admission-details', authenticateToken, a
   }
 })
 
+// Step 2 gate: counselor approves/rejects the fuller admission form (personal/
+// parent/address/program/academic details + documents) before the student can
+// pay the registration fee. Same shape as approve-admission-details above.
+app.post('/api/applications/:id/approve-full-details', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status, note } = req.body
+    if (!['Approved', 'Rejected'].includes(status)) {
+      return res.status(400).json({ error: "Status must be 'Approved' or 'Rejected'." })
+    }
+    if (req.user?.role !== 'Admin' && !['Manager', 'Counselor'].includes(req.user?.role)) {
+      return res.status(403).json({ error: 'Admin/Manager/Counselor only.' })
+    }
+
+    const r = await pool.query(
+      `UPDATE applications SET admission_full_details_status = $1, admission_full_details_reviewed_by = $2, admission_full_details_reviewed_at = NOW()
+       WHERE id = $3 AND tenant_id = $4 RETURNING id, name, app_no, email;`,
+      [status, req.user.email, id, req.tenantId]
+    )
+    if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
+    const app = r.rows[0]
+
+    if (app.email) {
+      const approved = status === 'Approved'
+      sendSystemMailAlert(
+        app.email,
+        `Admission Form ${status} — ${app.app_no}`,
+        approved
+          ? `Dear ${app.name},\n\nYour admission form has been reviewed and approved. Please log in to your student portal to pay the registration fee and continue your admission.\n\nBest regards,\nCUTM Admissions Team`
+          : `Dear ${app.name},\n\nYour admission form needs a correction. Please log in to your student portal, review your details, and resubmit.\n\nBest regards,\nCUTM Admissions Team`,
+        req.tenantId,
+        brandedEmailHtml({
+          badge: approved ? 'APPROVED' : 'ACTION NEEDED',
+          tone: approved ? 'success' : 'warn',
+          title: approved ? 'Admission Form Approved' : 'Correction Needed',
+          bodyHtml: approved
+            ? `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission form has been reviewed and approved. Please log in to your student portal to pay the registration fee and continue your admission.</p>`
+            : `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission form needs a correction${note ? `: ${note}` : '.'} Please log in and resubmit.</p>`,
+          details: [['Application #', app.app_no]],
+          ctaText: 'Go to Student Portal',
+          ctaUrl: `${process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'}/student-login`
+        })
+      ).catch(() => {})
+    }
+
+    res.json({ success: true, message: `Admission form ${status.toLowerCase()}.` })
+  } catch (e) {
+    console.error('[POST /api/applications/:id/approve-full-details]', e.message)
+    res.status(500).json({ error: 'Failed to update admission form review status.' })
+  }
+})
+
 app.post('/api/applications/:id/send-admission-details', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
@@ -8529,9 +8582,11 @@ async function buildAdmissionJourneyResponse(app) {
   )
   const program = progRes.rows[0] || { booking_fee: 1000, registration_fee: 0, min_due_provisional: 0, tuition_fee: 0, min_amount_to_pay: 0 }
 
-  // Document checklist + current status (only once provisional admission is granted)
+  // Document checklist + current status — visible once the booking fee is paid,
+  // since Upload Documents is now a tab of the fuller admission form (Step 2),
+  // not something that waits until after provisional admission is granted.
   let documents = []
-  if (app.provisional_admission_status === 'Granted') {
+  if (app.booking_fee_status === 'Paid') {
     const docsRes = await pool.query('SELECT id, type, status, file_url FROM documents WHERE app_id = $1 AND tenant_id = $2;', [app.id, tenantId])
     const byType = Object.fromEntries(docsRes.rows.map(d => [d.type, d]))
     documents = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste).map(item => ({
@@ -8551,6 +8606,8 @@ async function buildAdmissionJourneyResponse(app) {
     bookingFeeStatus: app.booking_fee_status,
     bookingFeeAmount: app.booking_fee_amount || program.booking_fee || 1000,
     admissionFullDetails: app.admission_full_details || {},
+    admissionFullDetailsStatus: app.admission_full_details_status,
+    admissionFullDetailsReviewNote: app.admission_full_details_reviewed_at ? { by: app.admission_full_details_reviewed_by, at: app.admission_full_details_reviewed_at } : null,
     registrationFeePaid: !!app.registration_fee_paid,
     registrationFeeAmount: program.min_due_provisional || program.registration_fee || 0,
     provisionalAdmissionStatus: app.provisional_admission_status,
@@ -8558,7 +8615,11 @@ async function buildAdmissionJourneyResponse(app) {
     documents,
     tuitionFeeAmount: program.min_amount_to_pay || 0,
     tuitionFeePaid: !!app.tuition_fee_paid,
-    campusoneSyncStatus: app.campusone_sync_status
+    campusoneSyncStatus: app.campusone_sync_status,
+    // Informational total — the registration fee + full tuition fee, shown
+    // alongside "amount you are paying now" so the student sees the whole
+    // picture even though each stage only ever collects its own fixed amount.
+    programTotalFee: (Number(program.min_due_provisional || program.registration_fee) || 0) + (Number(program.tuition_fee) || 0)
   }
 }
 
@@ -8617,8 +8678,12 @@ app.post('/api/admission-details/:token/full-form', async (req, res) => {
     if (app.booking_fee_status !== 'Paid') {
       return res.status(400).json({ error: 'Booking fee must be paid before the full admission form is available.' })
     }
+    // Every submit (first time, or a resubmit after a counselor rejection) goes
+    // back to Pending for another review.
     await pool.query(
-      `UPDATE applications SET admission_full_details = $1::jsonb WHERE id = $2 AND tenant_id = $3`,
+      `UPDATE applications SET admission_full_details = $1::jsonb,
+       admission_full_details_status = 'Pending', admission_full_details_reviewed_by = '', admission_full_details_reviewed_at = NULL
+       WHERE id = $2 AND tenant_id = $3`,
       [JSON.stringify(req.body || {}), app.id, app.token_tenant_id]
     )
     res.json({ success: true, message: 'Full admission form saved successfully.' })
@@ -8647,8 +8712,8 @@ app.post('/api/admission-details/:token/submit-payment', async (req, res) => {
     if (feeType === 'Booking Fee' && app.admission_details_status !== 'Approved') {
       return res.status(400).json({ error: 'Admission details must be approved by a counselor first.' })
     }
-    if (feeType === 'Registration Fee' && app.booking_fee_status !== 'Paid') {
-      return res.status(400).json({ error: 'Booking fee must be paid first.' })
+    if (feeType === 'Registration Fee' && app.admission_full_details_status !== 'Approved') {
+      return res.status(400).json({ error: 'Your admission form must be approved by a counselor first.' })
     }
     if (feeType === 'Tuition Fee' && app.provisional_admission_status !== 'Granted') {
       return res.status(400).json({ error: 'Provisional admission must be granted first.' })
@@ -8696,8 +8761,8 @@ app.post('/api/admission-details/:token/documents', uploadDoc.single('file'), as
 
     const app = await loadAdmissionJourneyByToken(token)
     if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
-    if (app.provisional_admission_status !== 'Granted') {
-      return res.status(400).json({ error: 'Documents can only be uploaded after provisional admission is granted.' })
+    if (app.booking_fee_status !== 'Paid') {
+      return res.status(400).json({ error: 'Documents can only be uploaded after the booking fee is paid.' })
     }
 
     const checklist = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste)
@@ -8840,7 +8905,12 @@ app.post('/api/student-portal/full-form', authenticateToken, requireStudent, asy
     if (app.booking_fee_status !== 'Paid') {
       return res.status(400).json({ error: 'Booking fee must be paid before the full admission form is available.' })
     }
-    await pool.query(`UPDATE applications SET admission_full_details = $1::jsonb WHERE id = $2 AND tenant_id = $3`, [JSON.stringify(req.body || {}), app.id, req.tenantId])
+    await pool.query(
+      `UPDATE applications SET admission_full_details = $1::jsonb,
+       admission_full_details_status = 'Pending', admission_full_details_reviewed_by = '', admission_full_details_reviewed_at = NULL
+       WHERE id = $2 AND tenant_id = $3`,
+      [JSON.stringify(req.body || {}), app.id, req.tenantId]
+    )
     res.json({ success: true, message: 'Full admission form saved successfully.' })
   } catch (e) {
     console.error('[POST /api/student-portal/full-form]', e.message)
@@ -8871,8 +8941,8 @@ app.post('/api/student-portal/submit-payment', authenticateToken, requireStudent
     if (feeType === 'Booking Fee' && app.admission_details_status !== 'Approved') {
       return res.status(400).json({ error: 'Admission details must be approved by a counselor first.' })
     }
-    if (feeType === 'Registration Fee' && app.booking_fee_status !== 'Paid') {
-      return res.status(400).json({ error: 'Booking fee must be paid first.' })
+    if (feeType === 'Registration Fee' && app.admission_full_details_status !== 'Approved') {
+      return res.status(400).json({ error: 'Your admission form must be approved by a counselor first.' })
     }
     if (feeType === 'Tuition Fee' && app.provisional_admission_status !== 'Granted') {
       return res.status(400).json({ error: 'Provisional admission must be granted first.' })
@@ -9000,10 +9070,11 @@ app.post('/api/student-portal/verify-payment', authenticateToken, requireStudent
     await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
       [`₹${amountRupees} entry fee paid online — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
 
-    // CU EDU's funnel has no separate registration-fee stage — paying the
-    // entry fee unlocks document upload directly, via the same function the
-    // registration-fee approval uses elsewhere (registration number + email).
-    await grantProvisionalAdmission(app.id, req.tenantId)
+    // Paying the entry fee unlocks the fuller admission form (personal/parent/
+    // address/program/academic details + documents) next — same pipeline every
+    // other tenant follows (full form → counselor approval → registration fee
+    // → provisional admission), rather than a CU EDU-only shortcut straight to
+    // provisional admission.
 
     res.json({ success: true })
   } catch (e) {
@@ -9022,8 +9093,8 @@ app.post('/api/student-portal/documents', authenticateToken, requireStudent, upl
 
     const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
     if (!app) return res.status(404).json({ error: 'Application not found.' })
-    if (app.provisional_admission_status !== 'Granted') {
-      return res.status(400).json({ error: 'Documents can only be uploaded after provisional admission is granted.' })
+    if (app.booking_fee_status !== 'Paid') {
+      return res.status(400).json({ error: 'Documents can only be uploaded after the booking fee is paid.' })
     }
 
     const checklist = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste)
