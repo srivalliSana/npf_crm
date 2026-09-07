@@ -6081,6 +6081,81 @@ app.get('/api/reports/leaderboard', authenticateToken, async (req, res) => {
   }
 })
 
+// Generates a temp password, stores it (bcrypt-hashed), and emails a login
+// link + credentials. Used by the manual "resend" endpoint, by
+// approve-admission-details (fires the moment Step 1 is approved), and by
+// autoProvisionCuEduApplication below (CU EDU's funnel has no Step-1 review
+// to wait for). Deliberately kept at true top-level scope — some of those
+// callers live inside server/index.js's oddly-nested startServer() function
+// further down the file; this needs to be reachable from both sides of that
+// boundary, not just from within it.
+async function sendPortalLoginEmail(app, tenantId) {
+  const password = crypto.randomBytes(6).toString('hex')
+  const hashedPassword = await bcrypt.hash(password, 10)
+
+  await pool.query(
+    `UPDATE applications SET student_password = $1, student_login_email_sent_at = NOW() WHERE id = $2 AND tenant_id = $3`,
+    [hashedPassword, app.id, tenantId]
+  )
+
+  const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
+  const loginLink = `${baseUrl}/student-login`
+
+  const emailHtml = brandedEmailHtml({
+    badge: 'APPROVED',
+    tone: 'success',
+    title: 'Your Student Portal Is Ready',
+    bodyHtml: `
+      <p>Dear <strong>${app.name}</strong>,</p>
+      <p>Your admission details have been approved. You can now log in anytime to pay your fees and upload your documents — at your own pace, in any order, whenever you're ready. No need to do everything in one sitting.</p>
+      <p style="margin-top:16px;color:#666;font-size:13px;"><strong>Tip:</strong> you can also sign in with Google using this same email address — no password to remember.</p>
+    `,
+    details: [['Email', app.email], ['Temporary Password', password]],
+    ctaText: 'Log In to Your Portal',
+    ctaUrl: loginLink
+  })
+
+  const emailBody = `
+Dear ${app.name},
+
+Your admission details have been approved. You can now log in anytime to pay fees and upload documents, at your own pace.
+
+Login Link: ${loginLink}
+Email: ${app.email}
+Temporary Password: ${password}
+
+You can also sign in with Google using this same email address.
+
+Best regards,
+Admissions Team
+  `.trim()
+
+  await sendSystemMailAlert(app.email, `Your Student Portal Login — ${app.app_no}`, emailBody, tenantId, emailHtml)
+}
+
+// CU EDU only: a lead that clears OTP verification on cuedu.in gets an
+// application (and portal login) immediately — no counselor has to review
+// and convert it first, unlike every other tenant's higher-touch funnel.
+// admission_details_status starts 'Approved' for the same reason: there is
+// no manual Step-1 review in this funnel, so the portal's very first gate
+// is correctly the payment, not "awaiting review".
+async function autoProvisionCuEduApplication(lead, tenantId) {
+  const seqRes = await pool.query(`SELECT lpad(nextval('cueeap_seq')::text, 4, '0') AS num;`).catch(() => ({ rows: [{ num: String(Date.now()).slice(-4) }] }))
+  const appNo = `CUEEAP26${seqRes.rows[0].num}`
+
+  const insertRes = await pool.query(`
+    INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, campus, course, stage, owner, date, admission_details_status, tenant_id)
+    VALUES ($1, $2, $3, $4, 'Incomplete', 'Payment Pending', 'Online', $5, 'Application Started', $6, $7, 'Approved', $8)
+    RETURNING id, name, app_no, email, mobile, course;
+  `, [lead.name, appNo, lead.email, lead.mobile, lead.course, lead.owner || 'Unassigned', new Date().toLocaleDateString('en-IN'), tenantId])
+
+  const app = insertRes.rows[0]
+  await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+    [`New online application: ${app.name} (${app.app_no}) — awaiting ₹1000 payment`, 'Just now', tenantId])
+  await sendPortalLoginEmail(app, tenantId)
+  return app
+}
+
 // --- FEATURE 10: PUBLIC INQUIRY FORM ---
 app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
   const { name, email, mobile, state, city, course, source, prefix } = req.body
@@ -8678,75 +8753,9 @@ async function tenantSlugFor(tenantId) {
   return r.rows[0]?.slug || ''
 }
 
-// CU EDU only: a lead that clears OTP verification on cuedu.in gets an
-// application (and portal login) immediately — no counselor has to review
-// and convert it first, unlike every other tenant's higher-touch funnel.
-// admission_details_status starts 'Approved' for the same reason: there is
-// no manual Step-1 review in this funnel, so the portal's very first gate
-// is correctly the payment, not "awaiting review".
-async function autoProvisionCuEduApplication(lead, tenantId) {
-  const seqRes = await pool.query(`SELECT lpad(nextval('cueeap_seq')::text, 4, '0') AS num;`).catch(() => ({ rows: [{ num: String(Date.now()).slice(-4) }] }))
-  const appNo = `CUEEAP26${seqRes.rows[0].num}`
-
-  const insertRes = await pool.query(`
-    INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, campus, course, stage, owner, date, admission_details_status, tenant_id)
-    VALUES ($1, $2, $3, $4, 'Incomplete', 'Payment Pending', 'Online', $5, 'Application Started', $6, $7, 'Approved', $8)
-    RETURNING id, name, app_no, email, mobile, course;
-  `, [lead.name, appNo, lead.email, lead.mobile, lead.course, lead.owner || 'Unassigned', new Date().toLocaleDateString('en-IN'), tenantId])
-
-  const app = insertRes.rows[0]
-  await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
-    [`New online application: ${app.name} (${app.app_no}) — awaiting ₹1000 payment`, 'Just now', tenantId])
-  await sendPortalLoginEmail(app, tenantId)
-  return app
-}
-
-// Generates a temp password, stores it (bcrypt-hashed), and emails a login
-// link + credentials. Shared by the manual "resend" endpoint below and by
-// approve-admission-details, which calls this the moment Step 1 is approved.
-async function sendPortalLoginEmail(app, tenantId) {
-  const password = crypto.randomBytes(6).toString('hex')
-  const hashedPassword = await bcrypt.hash(password, 10)
-
-  await pool.query(
-    `UPDATE applications SET student_password = $1, student_login_email_sent_at = NOW() WHERE id = $2 AND tenant_id = $3`,
-    [hashedPassword, app.id, tenantId]
-  )
-
-  const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
-  const loginLink = `${baseUrl}/student-login`
-
-  const emailHtml = brandedEmailHtml({
-    badge: 'APPROVED',
-    tone: 'success',
-    title: 'Your Student Portal Is Ready',
-    bodyHtml: `
-      <p>Dear <strong>${app.name}</strong>,</p>
-      <p>Your admission details have been approved. You can now log in anytime to pay your fees and upload your documents — at your own pace, in any order, whenever you're ready. No need to do everything in one sitting.</p>
-      <p style="margin-top:16px;color:#666;font-size:13px;"><strong>Tip:</strong> you can also sign in with Google using this same email address — no password to remember.</p>
-    `,
-    details: [['Email', app.email], ['Temporary Password', password]],
-    ctaText: 'Log In to Your Portal',
-    ctaUrl: loginLink
-  })
-
-  const emailBody = `
-Dear ${app.name},
-
-Your admission details have been approved. You can now log in anytime to pay fees and upload documents, at your own pace.
-
-Login Link: ${loginLink}
-Email: ${app.email}
-Temporary Password: ${password}
-
-You can also sign in with Google using this same email address.
-
-Best regards,
-Admissions Team
-  `.trim()
-
-  await sendSystemMailAlert(app.email, `Your Student Portal Login — ${app.app_no}`, emailBody, tenantId, emailHtml)
-}
+// autoProvisionCuEduApplication and sendPortalLoginEmail live at true
+// top-level scope (near /api/public/inquiry, further up this file) — they
+// must be callable from outside this section, not just from within it.
 
 // POST /api/applications/:id/send-login-credentials
 // Manual resend — the same email approve-admission-details sends automatically.
