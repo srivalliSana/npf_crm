@@ -4,6 +4,23 @@ import {
   LogOut, AlertCircle, CheckCircle2, Clock, FileText, Award, Loader,
   Upload, IndianRupee, ShieldCheck
 } from 'lucide-react'
+import { getUrlTenantSlug } from '../tenantSlug'
+
+// Loads Razorpay's Checkout script once and reuses it — the widget itself
+// is only ever needed on CU EDU's booking-fee step.
+let razorpayScriptPromise = null
+function loadRazorpayScript() {
+  if (window.Razorpay) return Promise.resolve(true)
+  if (razorpayScriptPromise) return razorpayScriptPromise
+  razorpayScriptPromise = new Promise((resolve) => {
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.onload = () => resolve(true)
+    script.onerror = () => resolve(false)
+    document.body.appendChild(script)
+  })
+  return razorpayScriptPromise
+}
 
 const DOC_LABELS = {
   '10th Marksheet': '10th Marksheet',
@@ -99,11 +116,14 @@ function DocRow({ type, mandatory, uploaded, status, onUpload, uploading }) {
 
 export default function StudentDashboard() {
   const navigate = useNavigate()
+  const tenantSlug = getUrlTenantSlug()
+  const isCuEdu = tenantSlug === 'cuedu'
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [data, setData] = useState(null)
   const [submittingFee, setSubmittingFee] = useState(null)
   const [uploadingDoc, setUploadingDoc] = useState(null)
+  const [payingGateway, setPayingGateway] = useState(false)
   const [toast, setToast] = useState('')
 
   const fetchData = async () => {
@@ -141,6 +161,50 @@ export default function StudentDashboard() {
       flash('❌ Network error — please try again.')
     } finally {
       setSubmittingFee(null)
+    }
+  }
+
+  // CU EDU only — a real Razorpay checkout instead of the UTR-then-review
+  // flow: order created server-side, and the resulting signature is verified
+  // server-side too before anything is marked paid (never trusted from here).
+  const payViaGateway = async () => {
+    setPayingGateway(true)
+    try {
+      const ok = await loadRazorpayScript()
+      if (!ok) { flash('❌ Could not load the payment window. Check your connection and try again.'); return }
+
+      const orderRes = await fetch('/api/student-portal/create-payment-order', { method: 'POST', headers: authHeaders() })
+      const order = await orderRes.json()
+      if (!orderRes.ok) { flash(`❌ ${order.error}`); return }
+
+      const rzp = new window.Razorpay({
+        key: order.keyId,
+        order_id: order.orderId,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'CU EDU Admissions',
+        description: 'Application entry fee',
+        prefill: { name: order.name, email: order.email },
+        handler: async (response) => {
+          try {
+            const verifyRes = await fetch('/api/student-portal/verify-payment', {
+              method: 'POST', headers: authHeaders(), body: JSON.stringify(response)
+            })
+            const v = await verifyRes.json()
+            if (!verifyRes.ok) { flash(`❌ ${v.error}`); return }
+            flash('✅ Payment received — your portal is now unlocked.')
+            fetchData()
+          } catch {
+            flash('❌ Payment went through, but confirming it failed — contact admissions with your payment id.')
+          }
+        },
+        modal: { ondismiss: () => flash('Payment window closed.') }
+      })
+      rzp.open()
+    } catch {
+      flash('❌ Could not start the payment. Please try again.')
+    } finally {
+      setPayingGateway(false)
     }
   }
 
@@ -243,19 +307,37 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* Step: Booking Fee */}
+        {/* Step: Entry / Booking Fee */}
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><ShieldCheck size={20} className="text-purple-600" /> Booking Fee</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><ShieldCheck size={20} className="text-purple-600" /> {isCuEdu ? 'Entry Fee' : 'Booking Fee'}</h2>
           {!bookingUnlocked ? (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">Your admission details are still under review — the booking fee will unlock once a counselor approves them.</p>
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">Your admission details are still under review — the fee will unlock once a counselor approves them.</p>
+          ) : isCuEdu ? (
+            bookingPaid ? (
+              <p className="text-sm text-green-700 font-medium">✓ Paid — your portal is unlocked</p>
+            ) : (
+              <div className="border rounded-lg p-4">
+                <p className="text-2xl font-bold text-gray-900 mb-1">₹{Number(bookingFeeAmount || 1000).toLocaleString('en-IN')}</p>
+                <p className="text-sm text-gray-600 mb-4">Pay once to unlock document upload — no waiting on manual review.</p>
+                <button
+                  onClick={payViaGateway}
+                  disabled={payingGateway}
+                  className="w-full py-2.5 px-4 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {payingGateway ? <Loader size={16} className="animate-spin" /> : <IndianRupee size={16} />}
+                  {payingGateway ? 'Opening secure payment...' : `Pay ₹${Number(bookingFeeAmount || 1000).toLocaleString('en-IN')} to continue`}
+                </button>
+              </div>
+            )
           ) : (
             <FeeCard title="Booking Fee" blurb="Locks in your seat" amount={bookingFeeAmount} status={bookingFeeStatus}
               onSubmit={(utr) => submitPayment('Booking Fee', bookingFeeAmount, utr)} submitting={submittingFee === 'Booking Fee'} />
           )}
         </div>
 
-        {/* Step: Registration Fee */}
-        {bookingPaid && (
+        {/* Step: Registration Fee — CU EDU's funnel has no separate stage for this;
+            paying the entry fee above unlocks documents directly. */}
+        {bookingPaid && !isCuEdu && (
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><Award size={20} className="text-purple-600" /> Registration Fee</h2>
             <FeeCard title="Registration Fee" blurb="Grants provisional admission" amount={registrationFeeAmount} status={registrationPaid ? 'Paid' : null}
