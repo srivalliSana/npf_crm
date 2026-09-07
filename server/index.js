@@ -124,6 +124,7 @@ const PUBLIC_API = [
   /^\/api\/webhooks\//,          // all inbound webhooks (Meta, Google, GT forms, rcssms…)
   /^\/api\/public\//,            // public inquiry form
   /^\/api\/student\//,           // student portal login/status
+  /^\/api\/student-login(\/|$)/, // student portal login (password + Google) — a login endpoint can't require a token to reach it
   /^\/api\/tenant\/public$/,     // login/landing branding
   /^\/api\/calls\/webhook$/,     // telephony callback
   /^\/api\/admission-details\//, // public admission-details form (email link, no login)
