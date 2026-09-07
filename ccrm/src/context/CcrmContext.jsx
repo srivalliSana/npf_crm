@@ -590,9 +590,12 @@ export function CcrmProvider({ children }) {
   // real failure is strictly better than papering over it with a fake id.
   const addApplication = async (appData) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch('/api/applications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(appData)
       })
       if (res.ok) {
@@ -600,7 +603,7 @@ export function CcrmProvider({ children }) {
         setApplications(prev => [added, ...prev])
         showToast(`Application ${added.appNo} submitted.`, 'success')
 
-        const pays = await fetch('/api/payments')
+        const pays = await fetch('/api/payments', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
         if (pays.ok) setPayments(await pays.json())
 
         return added
@@ -787,9 +790,12 @@ export function CcrmProvider({ children }) {
   // Document Verification Actions
   const updateDocStatus = async (id, status) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch(`/api/documents/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ status })
       })
       if (res.ok) {
@@ -797,15 +803,19 @@ export function CcrmProvider({ children }) {
         showToast(`Document status marked as ${status}.`, 'info')
         return
       }
-    } catch {}
-
-    setDocuments(prev => prev.map(d => d.id === id ? { ...d, status } : d))
-    showToast(`Document status marked as ${status}.`, 'info')
+      // Real failure (401/403/500) — don't silently patch local state and
+      // claim success; that previously masked every rejected save.
+      const err = await res.json().catch(() => ({}))
+      showToast(err.error || `Failed to update document (${res.status}).`, 'error')
+    } catch (e) {
+      showToast('Network error — document not updated: ' + e.message, 'error')
+    }
   }
 
   const deleteApplication = async (id) => {
     try {
-      await fetch(`/api/applications/${id}`, { method: 'DELETE' })
+      const token = localStorage.getItem('ccrm_token')
+      await fetch(`/api/applications/${id}`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} })
     } catch {}
     setApplications(prev => prev.filter(a => a.id !== id))
     showToast('Application deleted.', 'success')
@@ -813,7 +823,8 @@ export function CcrmProvider({ children }) {
 
   const deleteDocument = async (id) => {
     try {
-      await fetch(`/api/documents/${id}`, { method: 'DELETE' })
+      const token = localStorage.getItem('ccrm_token')
+      await fetch(`/api/documents/${id}`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} })
     } catch {}
     setDocuments(prev => prev.filter(d => d.id !== id))
     showToast('Document deleted.', 'success')
@@ -821,9 +832,12 @@ export function CcrmProvider({ children }) {
 
   const uploadDocument = async (docData) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch('/api/documents', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(docData)
       })
       if (res.ok) {
@@ -847,11 +861,17 @@ export function CcrmProvider({ children }) {
   }
 
   // Payment Actions
+  // Returns the created payment, or null on failure — no locally-guessed id
+  // fallback (see addApplication's comment: a guessed id collides with a
+  // real one from any tenant, and everything downstream trusts it blindly).
   const addPayment = async (payData) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch('/api/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payData)
       })
       if (res.ok) {
@@ -860,24 +880,23 @@ export function CcrmProvider({ children }) {
         showToast('Payment link generated.', 'success')
         return added
       }
-    } catch {}
-
-    const nextId = payments.length > 0 ? Math.max(...payments.map(p => p.id)) + 1 : 1
-    const newPay = {
-      ...payData,
-      id: nextId,
-      date: payData.date || new Date().toLocaleDateString('en-IN')
+      const err = await res.json().catch(() => ({}))
+      showToast(err.error || `Failed to record payment (${res.status}).`, 'error')
+      return null
+    } catch (e) {
+      showToast('Network error — payment not recorded: ' + e.message, 'error')
+      return null
     }
-    setPayments(prev => [newPay, ...prev])
-    showToast('Payment link generated.', 'success')
-    return newPay
   }
 
   const updatePaymentStatus = async (id, status) => {
     try {
+      const token = localStorage.getItem('ccrm_token')
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch(`/api/payments/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ status })
       })
       if (res.ok) {
@@ -886,21 +905,11 @@ export function CcrmProvider({ children }) {
         showToast(`Payment status updated to ${status}.`, 'info')
         return
       }
-    } catch {}
-
-    setPayments(prev => prev.map(p => {
-      if (p.id === id) {
-        const isApproved = status === 'Approved'
-        return {
-          ...p,
-          status,
-          date: isApproved ? new Date().toLocaleDateString('en-IN') : p.date,
-          txnId: isApproved && !p.txnId ? `TXN${Math.floor(100000 + Math.random() * 900000)}` : p.txnId
-        }
-      }
-      return p
-    }))
-    showToast(`Payment status updated to ${status}.`, 'info')
+      const err = await res.json().catch(() => ({}))
+      showToast(err.error || `Failed to update payment (${res.status}).`, 'error')
+    } catch (e) {
+      showToast('Network error — payment not updated: ' + e.message, 'error')
+    }
   }
 
   // Campaign Actions
