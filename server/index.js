@@ -2418,6 +2418,20 @@ async function syncApplicationToCampusOne(app, tenantId = 1) {
   return { success: syncStatus === 'Success', syncStatus, campusoneStudentId, error: syncError || null }
 }
 
+// Shared by the document-upload gate (Step 2 now waits on this) and the
+// CampusOne auto-sync trigger below — "every mandatory document, linked by
+// app_id, is Verified." A tenant with zero mandatory documents configured
+// counts as not-ready rather than vacuously done.
+async function allMandatoryDocsVerified(appId, tenantId = 1) {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'Verified' THEN 1 ELSE 0 END) AS verified
+     FROM documents WHERE app_id = $1 AND is_mandatory = TRUE AND tenant_id = $2;`,
+    [appId, tenantId]
+  )
+  const { total, verified } = r.rows[0]
+  return Number(total) > 0 && Number(total) === Number(verified)
+}
+
 // Helper — Step-3 auto-trigger: once tuition fee is paid AND every mandatory
 // document (linked by app_id, not the old fragile name-match) is Verified, push
 // the application to CampusOne automatically. Safe to call repeatedly — no-ops
@@ -2428,13 +2442,7 @@ async function checkAndAutoSyncCampusOne(appId, tenantId = 1) {
     const app = appRes.rows[0]
     if (!app || !app.tuition_fee_paid || app.campusone_sync_status === 'Success') return
 
-    const mandatory = await pool.query(
-      `SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'Verified' THEN 1 ELSE 0 END) AS verified
-       FROM documents WHERE app_id = $1 AND is_mandatory = TRUE AND tenant_id = $2;`,
-      [appId, tenantId]
-    )
-    const { total, verified } = mandatory.rows[0]
-    if (Number(total) === 0 || Number(verified) !== Number(total)) return // still waiting on docs
+    if (!(await allMandatoryDocsVerified(appId, tenantId))) return // still waiting on docs
 
     if (!app.registration_number) await grantProvisionalAdmission(appId, tenantId) // safety net
     const refreshed = (await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [appId, tenantId])).rows[0]
@@ -8582,10 +8590,11 @@ async function buildAdmissionJourneyResponse(app) {
   )
   const program = progRes.rows[0] || { booking_fee: 1000, registration_fee: 0, min_due_provisional: 0, tuition_fee: 0, min_amount_to_pay: 0 }
 
-  // Document checklist + current status — visible once the booking fee is paid,
-  // since Upload Documents is now a tab of the fuller admission form (Step 2),
-  // not something that waits until after provisional admission is granted.
+  // Document checklist + current status — its own standalone step right after
+  // the booking fee is paid, gating the fuller admission form (Step 2) rather
+  // than waiting until after provisional admission is granted.
   let documents = []
+  let documentsVerified = false
   if (app.booking_fee_status === 'Paid') {
     const docsRes = await pool.query('SELECT id, type, status, file_url FROM documents WHERE app_id = $1 AND tenant_id = $2;', [app.id, tenantId])
     const byType = Object.fromEntries(docsRes.rows.map(d => [d.type, d]))
@@ -8594,6 +8603,7 @@ async function buildAdmissionJourneyResponse(app) {
       uploaded: !!byType[item.type],
       status: byType[item.type]?.status || null
     }))
+    documentsVerified = await allMandatoryDocsVerified(app.id, tenantId)
   }
 
   return {
@@ -8613,6 +8623,7 @@ async function buildAdmissionJourneyResponse(app) {
     provisionalAdmissionStatus: app.provisional_admission_status,
     registrationNumber: app.registration_number,
     documents,
+    documentsVerified,
     tuitionFeeAmount: program.min_amount_to_pay || 0,
     tuitionFeePaid: !!app.tuition_fee_paid,
     campusoneSyncStatus: app.campusone_sync_status,
@@ -8668,8 +8679,9 @@ app.post('/api/admission-details/:token', async (req, res) => {
 })
 
 // POST /api/admission-details/:token/full-form
-// Public — Step-2 fuller admission form (guardian/financial/prior institution/
-// bank/hostel), unlocked once the booking fee is paid.
+// Public — Step-2 fuller admission form (Personal/Parent/Address/Program/
+// Academic details), unlocked once the booking fee is paid AND every
+// mandatory document from the standalone upload step is Verified.
 app.post('/api/admission-details/:token/full-form', async (req, res) => {
   try {
     const { token } = req.params
@@ -8677,6 +8689,9 @@ app.post('/api/admission-details/:token/full-form', async (req, res) => {
     if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
     if (app.booking_fee_status !== 'Paid') {
       return res.status(400).json({ error: 'Booking fee must be paid before the full admission form is available.' })
+    }
+    if (!(await allMandatoryDocsVerified(app.id, app.token_tenant_id))) {
+      return res.status(400).json({ error: 'All mandatory documents must be verified before the full admission form is available.' })
     }
     // Every submit (first time, or a resubmit after a counselor rejection) goes
     // back to Pending for another review.
@@ -8904,6 +8919,9 @@ app.post('/api/student-portal/full-form', authenticateToken, requireStudent, asy
     if (!app) return res.status(404).json({ error: 'Application not found.' })
     if (app.booking_fee_status !== 'Paid') {
       return res.status(400).json({ error: 'Booking fee must be paid before the full admission form is available.' })
+    }
+    if (!(await allMandatoryDocsVerified(app.id, req.tenantId))) {
+      return res.status(400).json({ error: 'All mandatory documents must be verified before the full admission form is available.' })
     }
     await pool.query(
       `UPDATE applications SET admission_full_details = $1::jsonb,

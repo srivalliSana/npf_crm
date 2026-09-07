@@ -21,12 +21,13 @@ const STATS = [
 // screen is next, and the two data-entry screens (basic details, full form) are
 // themselves broken into short wizard steps so nobody faces a 25-field wall at once.
 
-const JOURNEY_STAGES = ['Details', 'Booking Fee', 'Full Form', 'Registration Fee', 'Docs & Tuition']
+const JOURNEY_STAGES = ['Details', 'Booking Fee', 'Documents', 'Full Form', 'Registration Fee', 'Tuition']
 
 function macroStageIndex(j) {
   if (!j) return 0
-  if (j.provisionalAdmissionStatus === 'Granted') return 4
-  if (j.admissionFullDetailsStatus === 'Approved') return 3
+  if (j.provisionalAdmissionStatus === 'Granted') return 5
+  if (j.admissionFullDetailsStatus === 'Approved') return 4
+  if (j.documentsVerified) return 3
   if (j.bookingFeeStatus === 'Paid') return 2
   if (j.admissionDetailsStatus === 'Approved') return 1
   return 0
@@ -437,7 +438,7 @@ export default function AdmissionDetailsForm() {
   if (j.campusoneSyncStatus === 'Success') {
     return (
       <PageShell>
-        <Hero application={j.application} macroStep={5} />
+        <Hero application={j.application} macroStep={6} />
         <Content>
           <ApplicantBar application={j.application} />
           <Card className="text-center">
@@ -450,9 +451,9 @@ export default function AdmissionDetailsForm() {
     )
   }
 
-  // ── Screen: provisional admission granted → documents + tuition fee ──
+  // ── Screen: provisional admission granted → tuition fee. Documents are
+  // already verified by this point (the standalone upload step, earlier). ──
   if (j.provisionalAdmissionStatus === 'Granted') {
-    const allMandatoryVerified = j.documents.filter(d => d.mandatory).every(d => d.status === 'Verified')
     return (
       <PageShell>
         <Hero application={j.application} macroStep={macroStep} />
@@ -461,27 +462,7 @@ export default function AdmissionDetailsForm() {
           <Card className="mb-6">
             <CheckCircle2 size={36} className="text-emerald-600 mb-2" />
             <h2 className="text-xl font-bold text-gray-900 mb-1">Provisional Admission Granted</h2>
-            <p className="text-gray-500 text-sm">Temporary Admission Number: <span className="font-mono font-bold text-gray-800">{j.registrationNumber}</span>. Upload your documents and pay the tuition fee below to complete your admission.</p>
-          </Card>
-
-          <Card className="mb-6">
-            <h3 className="font-bold text-gray-900 mb-4">📄 Document Checklist</h3>
-            <div className="space-y-2.5">
-              {j.documents.map(doc => (
-                <div key={doc.type} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
-                  <div>
-                    <p className="font-semibold text-gray-800 text-sm">{doc.type} {doc.mandatory && <span className="text-red-500">*</span>}</p>
-                    <p className="text-xs text-gray-500">
-                      {doc.status === 'Verified' ? '✅ Verified' : doc.status === 'Rejected' ? '❌ Rejected — please re-upload' : doc.uploaded ? '⏳ Uploaded, pending verification' : 'Not uploaded yet'}
-                    </p>
-                  </div>
-                  <label className="px-3 py-1.5 text-white text-xs font-semibold rounded-lg cursor-pointer flex items-center gap-1.5 flex-shrink-0 hover:brightness-110 transition-all" style={primaryBtnStyle}>
-                    <Upload size={13} /> {doc.uploaded ? 'Re-upload' : 'Upload'}
-                    <input type="file" className="hidden" onChange={(e) => e.target.files[0] && handleDocUpload(doc.type, e.target.files[0])} />
-                  </label>
-                </div>
-              ))}
-            </div>
+            <p className="text-gray-500 text-sm">Temporary Admission Number: <span className="font-mono font-bold text-gray-800">{j.registrationNumber}</span>. Pay the tuition fee below to complete your admission.</p>
           </Card>
 
           {!j.tuitionFeePaid ? (
@@ -493,7 +474,7 @@ export default function AdmissionDetailsForm() {
           ) : (
             <Card className="text-center">
               <Clock size={36} className="text-amber-500 mx-auto mb-3" />
-              <p className="text-gray-700 font-semibold text-sm">Tuition fee received. {allMandatoryVerified ? 'Finalizing your admission...' : 'Waiting for all mandatory documents to be verified.'}</p>
+              <p className="text-gray-700 font-semibold text-sm">Tuition fee received. Finalizing your admission...</p>
             </Card>
           )}
         </Content>
@@ -543,18 +524,52 @@ export default function AdmissionDetailsForm() {
   }
 
   // ── Screen: booking fee paid → fuller admission form (Personal/Parent's/
-  // Address/Program/Academic details + Upload Documents) ──
-  if (j.bookingFeeStatus === 'Paid') {
+  // Address/Program/Academic details) — only once every mandatory document
+  // from the standalone upload step below is Verified. ──
+  if (j.bookingFeeStatus === 'Paid' && j.documentsVerified) {
     return (
       <PageShell>
         <Hero application={j.application} macroStep={macroStep} />
         <Content>
           <ApplicantBar application={j.application} />
           <FullAdmissionForm
-            app={j.application} initialData={j.admissionFullDetails} documents={j.documents}
-            onSubmit={handleSubmitFullForm} onUploadDoc={handleDocUpload} submitting={submitting}
+            app={j.application} initialData={j.admissionFullDetails}
+            onSubmit={handleSubmitFullForm} submitting={submitting}
             rejected={j.admissionFullDetailsStatus === 'Rejected'} reviewNote={j.admissionFullDetailsReviewNote}
           />
+        </Content>
+      </PageShell>
+    )
+  }
+
+  // ── Screen: booking fee paid → upload & verify documents (its own step,
+  // right after the fee, before the fuller admission form unlocks) ──
+  if (j.bookingFeeStatus === 'Paid') {
+    return (
+      <PageShell>
+        <Hero application={j.application} macroStep={macroStep} />
+        <Content>
+          <ApplicantBar application={j.application} />
+          <Card>
+            <h2 className="text-xl font-bold text-gray-900 mb-1">📄 Upload Documents</h2>
+            <p className="text-gray-500 text-sm mb-5">Upload every document below — your fuller admission form unlocks once all mandatory ones are verified.</p>
+            <div className="space-y-2.5">
+              {j.documents.map(doc => (
+                <div key={doc.type} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm">{doc.type} {doc.mandatory && <span className="text-red-500">*</span>}</p>
+                    <p className="text-xs text-gray-500">
+                      {doc.status === 'Verified' ? '✅ Verified' : doc.status === 'Rejected' ? '❌ Rejected — please re-upload' : doc.uploaded ? '⏳ Uploaded, pending verification' : 'Not uploaded yet'}
+                    </p>
+                  </div>
+                  <label className="px-3 py-1.5 text-white text-xs font-semibold rounded-lg cursor-pointer flex items-center gap-1.5 flex-shrink-0 hover:brightness-110 transition-all" style={primaryBtnStyle}>
+                    <Upload size={13} /> {doc.uploaded ? 'Re-upload' : 'Upload'}
+                    <input type="file" className="hidden" onChange={(e) => e.target.files[0] && handleDocUpload(doc.type, e.target.files[0])} />
+                  </label>
+                </div>
+              ))}
+            </div>
+          </Card>
         </Content>
       </PageShell>
     )
