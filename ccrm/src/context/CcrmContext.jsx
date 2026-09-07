@@ -85,6 +85,14 @@ export function CcrmProvider({ children }) {
   const [loading, setLoading] = useState(true)   // global initial-data loading flag
   const [leadsTotal, setLeadsTotal] = useState(0)
 
+  // Every mutating fetch needs this — many call sites below used to omit it
+  // entirely, which the backend's global auth gate rejects with a flat 401.
+  // Spread onto a headers object: { 'Content-Type': ..., ...authHeader() }.
+  const authHeader = () => {
+    const token = localStorage.getItem('ccrm_token')
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  }
+
   // Toast system state
   const [toasts, setToasts] = useState([])
 
@@ -365,7 +373,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify({ email, password, tenantSlug })
       })
       if (res.ok) {
@@ -655,7 +663,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch('/api/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify(taskData)
       })
       if (res.ok) {
@@ -704,7 +712,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch(`/api/tasks/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify({ status: nextStatus })
       })
       if (res.ok) {
@@ -728,7 +736,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch('/api/queries', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify(queryData)
       })
       if (res.ok) {
@@ -755,7 +763,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch(`/api/queries/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify({ status })
       })
       if (res.ok) {
@@ -773,7 +781,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch(`/api/queries/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify({ status: 'In Progress' })
       })
       if (res.ok) {
@@ -917,7 +925,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch('/api/campaigns', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify(campData)
       })
       if (res.ok) {
@@ -949,7 +957,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch(`/api/campaigns/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify({ status: nextStatus })
       })
       if (res.ok) {
@@ -975,7 +983,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch('/api/leads/check-duplicate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify({ mobile, email })
       })
       if (res.ok) return await res.json()
@@ -1142,7 +1150,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch('/api/drip/enroll', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify({ leadId: lead.id, leadName: lead.name, leadEmail: lead.email, leadMobile: lead.mobile })
       })
       if (res.ok) {
@@ -1161,7 +1169,7 @@ export function CcrmProvider({ children }) {
       const integCfg = JSON.parse(localStorage.getItem('ccrm_integrations') || '{}')?.razorpay || {}
       const res = await fetch('/api/payments/generate-link', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify({ appNo, name, email, mobile, amount, paymentId, razorpayConfig: integCfg })
       })
       if (res.ok) {
@@ -1180,7 +1188,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch('/api/calls', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify(callData)
       })
       if (res.ok) {
@@ -1251,7 +1259,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch('/api/targets', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify(targetData)
       })
       if (res.ok) {
@@ -1275,7 +1283,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch('/api/email-campaigns', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify(campData)
       })
       if (res.ok) {
@@ -1290,7 +1298,7 @@ export function CcrmProvider({ children }) {
   }
   const sendEmailCampaign = async (id) => {
     try {
-      const res = await fetch(`/api/email-campaigns/${id}/send`, { method: 'POST' })
+      const res = await fetch(`/api/email-campaigns/${id}/send`, { method: 'POST', headers: authHeader() })
       if (res.ok) {
         const data = await res.json()
         setEmailCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'Sent', sentCount: data.sent } : c))
@@ -1302,7 +1310,7 @@ export function CcrmProvider({ children }) {
   }
   const deleteEmailCampaign = async (id) => {
     try {
-      await fetch(`/api/email-campaigns/${id}`, { method: 'DELETE' })
+      await fetch(`/api/email-campaigns/${id}`, { method: 'DELETE', headers: authHeader() })
       setEmailCampaigns(prev => prev.filter(c => c.id !== id))
       showToast('Campaign deleted.', 'info')
     } catch {}
@@ -1315,7 +1323,7 @@ export function CcrmProvider({ children }) {
     try {
       const res = await fetch('/api/events', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify(eventData)
       })
       if (res.ok) {
