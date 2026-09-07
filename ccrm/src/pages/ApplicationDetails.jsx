@@ -2364,7 +2364,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
           {record?.admission_full_details && Object.keys(record.admission_full_details).length > 0 && (
             <div className="mb-4 p-4 rounded-lg border bg-gray-50 flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-gray-800">Step 2 — Full Admission Form (Personal/Parent/Address/Program/Academic + Documents)</p>
+                <p className="text-sm font-semibold text-gray-800">Step 2 — Full Admission Form (Personal/Parent/Address/Program/Academic)</p>
                 <p className={`text-xs mt-1 font-semibold ${
                   record.admission_full_details_status === 'Approved' ? 'text-green-600'
                   : record.admission_full_details_status === 'Rejected' ? 'text-red-600' : 'text-amber-600'
@@ -2438,13 +2438,13 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
 
           <ul className="space-y-2 text-sm">
             <li className={`flex items-center gap-2 ${record?.booking_fee_status === 'Paid' ? 'text-green-600' : 'text-gray-500'}`}>
-              <span>{record?.booking_fee_status === 'Paid' ? '✓' : '○'}</span> Step 1 — Booking Fee Paid
+              <span>{record?.booking_fee_status === 'Paid' ? '✓' : '○'}</span> Application Fee (Step 1) Paid
             </li>
             <li className={`flex items-center gap-2 ${record?.admission_full_details && Object.keys(record.admission_full_details).length > 0 ? 'text-green-600' : 'text-gray-500'}`}>
               <span>{record?.admission_full_details && Object.keys(record.admission_full_details).length > 0 ? '✓' : '○'}</span> Step 2 — Full Admission Form Submitted
             </li>
             <li className={`flex items-center gap-2 ${record?.registration_fee_paid ? 'text-green-600' : 'text-gray-500'}`}>
-              <span>{record?.registration_fee_paid ? '✓' : '○'}</span> Step 2 — Registration Fee Paid
+              <span>{record?.registration_fee_paid ? '✓' : '○'}</span> Registration Fee (always ₹0 — auto-cleared on approval)
             </li>
             <li className={`flex items-center gap-2 ${record?.provisional_admission_status === 'Granted' ? 'text-green-600' : 'text-gray-500'}`}>
               <span>{record?.provisional_admission_status === 'Granted' ? '✓' : '○'}</span> Provisional Admission Granted
@@ -2491,7 +2491,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                     <span>{record?.pay_status === 'Payment Approved' ? '✓' : '○'}</span> Application Fee Paid
                   </li>
                   <li className={`flex items-center gap-2 ${record?.booking_fee_status === 'Paid' ? 'text-green-600' : 'text-gray-600'}`}>
-                    <span>{record?.booking_fee_status === 'Paid' ? '✓' : '○'}</span> Booking Fee Paid
+                    <span>{record?.booking_fee_status === 'Paid' ? '✓' : '○'}</span> Application Fee (Step 1) Paid
                   </li>
                   <li className={`flex items-center gap-2 text-gray-600`}>
                     <span>○</span> All Documents Verified

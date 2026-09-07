@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  LogOut, AlertCircle, CheckCircle2, Clock, FileText, Award, Loader,
+  LogOut, AlertCircle, CheckCircle2, Clock, FileText, Loader,
   Upload, IndianRupee, ShieldCheck
 } from 'lucide-react'
 import { getUrlTenantSlug } from '../tenantSlug'
@@ -345,7 +345,7 @@ export default function StudentDashboard() {
 
   const { application: app, documents, documentsVerified, admissionDetailsStatus, bookingFeeStatus, bookingFeeAmount,
     admissionFullDetails, admissionFullDetailsStatus, admissionFullDetailsReviewNote,
-    registrationFeePaid, registrationFeeAmount, provisionalAdmissionStatus, registrationNumber,
+    provisionalAdmissionStatus, registrationNumber,
     tuitionFeeAmount, tuitionFeePaid, campusoneSyncStatus, programTotalFee } = data
 
   const bookingUnlocked = admissionDetailsStatus === 'Approved'
@@ -354,7 +354,6 @@ export default function StudentDashboard() {
   const fullDetailsApproved = admissionFullDetailsStatus === 'Approved'
   const fullDetailsPending = fullFormSubmitted && admissionFullDetailsStatus === 'Pending'
   const fullDetailsRejected = admissionFullDetailsStatus === 'Rejected'
-  const registrationPaid = !!registrationFeePaid
   const provisionalGranted = provisionalAdmissionStatus === 'Granted'
   const mandatoryDocs = documents.filter(d => d.mandatory)
   const allMandatoryVerified = mandatoryDocs.length > 0 && mandatoryDocs.every(d => d.status === 'Verified')
@@ -401,9 +400,9 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* Step: Entry / Booking Fee */}
+        {/* Step: Application Fee */}
         <div className="bg-white rounded-xl shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5"><ShieldCheck size={24} className="text-purple-600" /> {isCuEdu ? 'Entry Fee' : 'Booking Fee'}</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5"><ShieldCheck size={24} className="text-purple-600" /> Application Fee</h2>
           {!bookingUnlocked ? (
             <p className="text-base text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">Your admission details are still under review — the fee will unlock once a counselor approves them.</p>
           ) : isCuEdu ? (
@@ -424,7 +423,7 @@ export default function StudentDashboard() {
               </div>
             )
           ) : (
-            <FeeCard title="Booking Fee" blurb="Locks in your seat" amount={bookingFeeAmount} status={bookingFeeStatus}
+            <FeeCard title="Application Fee" blurb="Confirms your application" amount={bookingFeeAmount} status={bookingFeeStatus}
               onSubmit={(utr) => submitPayment('Booking Fee', bookingFeeAmount, utr)} submitting={submittingFee === 'Booking Fee'} />
           )}
         </div>
@@ -446,8 +445,8 @@ export default function StudentDashboard() {
 
         {/* Step 3: the fuller admission form — personal/parent/address/program/
             academic details — unlocked once all mandatory documents are
-            verified, and reviewed by a counselor before the registration
-            fee unlocks. */}
+            verified. Approval grants provisional admission directly — there's
+            no registration fee anymore, it's always ₹0. */}
         {bookingPaid && documentsVerified && !fullDetailsApproved && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5 px-1"><FileText size={24} className="text-purple-600" /> Complete Your Admission Form</h2>
@@ -464,18 +463,6 @@ export default function StudentDashboard() {
                 rejected={fullDetailsRejected} reviewNote={admissionFullDetailsReviewNote}
               />
             )}
-          </div>
-        )}
-
-        {/* Step: Registration Fee */}
-        {fullDetailsApproved && (
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5"><Award size={24} className="text-purple-600" /> Registration Fee</h2>
-            {!registrationPaid && (
-              <p className="text-sm text-gray-500 mb-4">Total Program Fee: <span className="font-semibold text-gray-700">₹{Number(programTotalFee || 0).toLocaleString('en-IN')}</span></p>
-            )}
-            <FeeCard title="Registration Fee" blurb="Grants provisional admission" amount={registrationFeeAmount} status={registrationPaid ? 'Paid' : null}
-              onSubmit={(utr) => submitPayment('Registration Fee', registrationFeeAmount, utr)} submitting={submittingFee === 'Registration Fee'} />
           </div>
         )}
 
