@@ -14,6 +14,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { promisify } from 'util'
 import { exec } from 'child_process'
 import axios from 'axios'
+import bcrypt from 'bcryptjs'
 const execAsync = promisify(exec)
 
 // Import webhook handlers
@@ -8258,33 +8259,35 @@ app.post('/api/applications/:id/approve-admission-details', authenticateToken, a
     const app = r.rows[0]
 
     if (app.email) {
-      const tokenRes = await pool.query(
-        `SELECT token FROM admission_tokens WHERE app_id = $1 AND tenant_id = $2 ORDER BY sent_at DESC LIMIT 1;`,
-        [id, req.tenantId]
-      )
-      const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
-      const continueLink = tokenRes.rows[0] ? `${baseUrl}/admission-details/${tokenRes.rows[0].token}` : null
       const approved = status === 'Approved'
-
-      sendSystemMailAlert(
-        app.email,
-        `Admission Details ${status} — ${app.app_no}`,
-        approved
-          ? `Dear ${app.name},\n\nYour admission details have been reviewed and approved. Please proceed to pay the booking fee to continue your admission process.\n\nBest regards,\nCUTM Admissions Team`
-          : `Dear ${app.name},\n\nYour admission details need a correction. Please revisit the form link sent to you earlier and resubmit.\n\nBest regards,\nCUTM Admissions Team`,
-        req.tenantId,
-        brandedEmailHtml({
-          badge: approved ? 'APPROVED' : 'ACTION NEEDED',
-          tone: approved ? 'success' : 'warn',
-          title: approved ? 'Admission Details Approved' : 'Correction Needed',
-          bodyHtml: approved
-            ? `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission details have been reviewed and approved. Please proceed to pay the booking fee to continue your admission process.</p>`
-            : `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission details need a correction. Please revisit the form and resubmit.</p>`,
-          details: [['Application #', app.app_no]],
-          ctaText: approved ? 'Pay Booking Fee' : 'Update Your Details',
-          ctaUrl: continueLink
-        })
-      ).catch(() => {})
+      if (approved) {
+        // Step 1 approved → the student gets a persistent portal login instead
+        // of another one-shot link, so they can pay the booking fee and every
+        // fee/document after it whenever they're ready, not all in one sitting.
+        sendPortalLoginEmail(app, req.tenantId).catch((e) => console.error('[approve-admission-details] portal email failed:', e.message))
+      } else {
+        const tokenRes = await pool.query(
+          `SELECT token FROM admission_tokens WHERE app_id = $1 AND tenant_id = $2 ORDER BY sent_at DESC LIMIT 1;`,
+          [id, req.tenantId]
+        )
+        const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
+        const continueLink = tokenRes.rows[0] ? `${baseUrl}/admission-details/${tokenRes.rows[0].token}` : null
+        sendSystemMailAlert(
+          app.email,
+          `Admission Details ${status} — ${app.app_no}`,
+          `Dear ${app.name},\n\nYour admission details need a correction. Please revisit the form link sent to you earlier and resubmit.\n\nBest regards,\nCUTM Admissions Team`,
+          req.tenantId,
+          brandedEmailHtml({
+            badge: 'ACTION NEEDED',
+            tone: 'warn',
+            title: 'Correction Needed',
+            bodyHtml: `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission details need a correction. Please revisit the form and resubmit.</p>`,
+            details: [['Application #', app.app_no]],
+            ctaText: 'Update Your Details',
+            ctaUrl: continueLink
+          })
+        ).catch(() => {})
+      }
     }
 
     res.json({ success: true, message: `Admission details ${status.toLowerCase()}.` })
@@ -8417,53 +8420,73 @@ async function loadAdmissionJourneyByToken(token) {
   return r.rows[0] || null
 }
 
+// Same shape as the token loader above, keyed by a logged-in student's own
+// application id instead — used by the persistent student-portal login so
+// both entry points (an emailed link, or a remembered login) see identical
+// data through identical logic.
+async function loadAdmissionJourneyByAppId(appId, tenantId) {
+  const r = await pool.query(
+    `SELECT $2::int AS token_tenant_id, NULL::timestamp AS filled_at, NULL::timestamp AS expires_at, a.*
+     FROM applications a WHERE a.id = $1 AND a.tenant_id = $2`,
+    [appId, tenantId]
+  )
+  return r.rows[0] || null
+}
+
+// Builds the journey response GET /api/admission-details/:token and
+// GET /api/student-portal both return — one place computing "what stage is
+// this applicant at", so a token visit and a portal login can never disagree
+// about it.
+async function buildAdmissionJourneyResponse(app) {
+  const tenantId = app.token_tenant_id || app.tenant_id || 1
+
+  // Fee amounts are admin-set per program (per tenant) via Programs Manager —
+  // booking_fee/min_due_provisional gate Steps 1-2, min_amount_to_pay gates Step 3.
+  const progRes = await pool.query(
+    'SELECT booking_fee, registration_fee, min_due_provisional, tuition_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;',
+    [tenantId, app.course]
+  )
+  const program = progRes.rows[0] || { booking_fee: 1000, registration_fee: 0, min_due_provisional: 0, tuition_fee: 0, min_amount_to_pay: 0 }
+
+  // Document checklist + current status (only once provisional admission is granted)
+  let documents = []
+  if (app.provisional_admission_status === 'Granted') {
+    const docsRes = await pool.query('SELECT id, type, status, file_url FROM documents WHERE app_id = $1 AND tenant_id = $2;', [app.id, tenantId])
+    const byType = Object.fromEntries(docsRes.rows.map(d => [d.type, d]))
+    documents = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste).map(item => ({
+      ...item,
+      uploaded: !!byType[item.type],
+      status: byType[item.type]?.status || null
+    }))
+  }
+
+  return {
+    success: true,
+    application: { id: app.id, name: app.name, email: app.email, mobile: app.mobile, course: app.course, appNo: app.app_no },
+    admissionDetails: app.admission_details || {},
+    alreadyFilled: !!app.filled_at,
+    admissionDetailsStatus: app.admission_details_status,
+    admissionDetailsReviewNote: app.admission_details_reviewed_at ? { by: app.admission_details_reviewed_by, at: app.admission_details_reviewed_at } : null,
+    bookingFeeStatus: app.booking_fee_status,
+    bookingFeeAmount: app.booking_fee_amount || program.booking_fee || 1000,
+    admissionFullDetails: app.admission_full_details || {},
+    registrationFeePaid: !!app.registration_fee_paid,
+    registrationFeeAmount: program.min_due_provisional || program.registration_fee || 0,
+    provisionalAdmissionStatus: app.provisional_admission_status,
+    registrationNumber: app.registration_number,
+    documents,
+    tuitionFeeAmount: program.min_amount_to_pay || 0,
+    tuitionFeePaid: !!app.tuition_fee_paid,
+    campusoneSyncStatus: app.campusone_sync_status
+  }
+}
+
 app.get('/api/admission-details/:token', async (req, res) => {
   try {
     const { token } = req.params
     const app = await loadAdmissionJourneyByToken(token)
     if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
-
-    const tenantId = app.token_tenant_id || app.tenant_id || 1
-
-    // Fee amounts are admin-set per program (per tenant) via Programs Manager —
-    // booking_fee/min_due_provisional gate Steps 1-2, min_amount_to_pay gates Step 3.
-    const progRes = await pool.query(
-      'SELECT booking_fee, registration_fee, min_due_provisional, tuition_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;',
-      [tenantId, app.course]
-    )
-    const program = progRes.rows[0] || { booking_fee: 1000, registration_fee: 0, min_due_provisional: 0, tuition_fee: 0, min_amount_to_pay: 0 }
-
-    // Document checklist + current status (only once provisional admission is granted)
-    let documents = []
-    if (app.provisional_admission_status === 'Granted') {
-      const docsRes = await pool.query('SELECT id, type, status, file_url FROM documents WHERE app_id = $1 AND tenant_id = $2;', [app.id, tenantId])
-      const byType = Object.fromEntries(docsRes.rows.map(d => [d.type, d]))
-      documents = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste).map(item => ({
-        ...item,
-        uploaded: !!byType[item.type],
-        status: byType[item.type]?.status || null
-      }))
-    }
-
-    res.json({
-      success: true,
-      application: { id: app.id, name: app.name, email: app.email, mobile: app.mobile, course: app.course },
-      admissionDetails: app.admission_details || {},
-      alreadyFilled: !!app.filled_at,
-      admissionDetailsStatus: app.admission_details_status,
-      admissionDetailsReviewNote: app.admission_details_reviewed_at ? { by: app.admission_details_reviewed_by, at: app.admission_details_reviewed_at } : null,
-      bookingFeeStatus: app.booking_fee_status,
-      bookingFeeAmount: app.booking_fee_amount || program.booking_fee || 1000,
-      admissionFullDetails: app.admission_full_details || {},
-      registrationFeePaid: !!app.registration_fee_paid,
-      registrationFeeAmount: program.min_due_provisional || program.registration_fee || 0,
-      provisionalAdmissionStatus: app.provisional_admission_status,
-      registrationNumber: app.registration_number,
-      documents,
-      tuitionFeeAmount: program.min_amount_to_pay || 0,
-      tuitionFeePaid: !!app.tuition_fee_paid,
-      campusoneSyncStatus: app.campusone_sync_status
-    })
+    res.json(await buildAdmissionJourneyResponse(app))
   } catch (e) {
     console.error('[GET /api/admission-details/:token]', e.message)
     res.status(500).json({ error: 'Failed to fetch admission details form.' })
@@ -8623,147 +8646,109 @@ app.post('/api/admission-details/:token/documents', uploadDoc.single('file'), as
 })
 
 // ════════════════════════════════════════════════════════════════════════════════
-// STUDENT PORTAL: Login + Fee Payment + Admission Number
+// STUDENT PORTAL: persistent login + fee submission + document upload
+//
+// This replaces the old "pay-fee" endpoint, which let a student mark their own
+// fee paid by just claiming a transaction id — no gateway signature, no staff
+// review. Every fee submission here instead lands in the same `payments`
+// table (status='Payment Done') the token-based journey already uses, so
+// staff approve it on the existing Payments page exactly as they do today —
+// one trust model, regardless of which door the student came through.
 // ════════════════════════════════════════════════════════════════════════════════
 
-// POST /api/applications/:id/send-login-credentials
-// Counselor sends login credentials email to student after verifying admission details
-app.post('/api/applications/:id/send-login-credentials', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params
+// Generates a temp password, stores it (bcrypt-hashed), and emails a login
+// link + credentials. Shared by the manual "resend" endpoint below and by
+// approve-admission-details, which calls this the moment Step 1 is approved.
+async function sendPortalLoginEmail(app, tenantId) {
+  const password = crypto.randomBytes(6).toString('hex')
+  const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Only admins/counselors can send login credentials
-    if (req.user?.role !== 'Admin' && req.user?.role !== 'Counselor') {
-      return res.status(403).json({ error: 'Admin only.' })
-    }
+  await pool.query(
+    `UPDATE applications SET student_password = $1, student_login_email_sent_at = NOW() WHERE id = $2 AND tenant_id = $3`,
+    [hashedPassword, app.id, tenantId]
+  )
 
-    // Get application
-    const r = await pool.query(
-      'SELECT id, name, email, app_no FROM applications WHERE id = $1 AND tenant_id = $2',
-      [id, req.tenantId]
-    )
-    if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
+  const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
+  const loginLink = `${baseUrl}/student-login`
 
-    const app = r.rows[0]
+  const emailHtml = brandedEmailHtml({
+    badge: 'APPROVED',
+    tone: 'success',
+    title: 'Your Student Portal Is Ready',
+    bodyHtml: `
+      <p>Dear <strong>${app.name}</strong>,</p>
+      <p>Your admission details have been approved. You can now log in anytime to pay your fees and upload your documents — at your own pace, in any order, whenever you're ready. No need to do everything in one sitting.</p>
+      <p style="margin-top:16px;color:#666;font-size:13px;"><strong>Tip:</strong> you can also sign in with Google using this same email address — no password to remember.</p>
+    `,
+    details: [['Email', app.email], ['Temporary Password', password]],
+    ctaText: 'Log In to Your Portal',
+    ctaUrl: loginLink
+  })
 
-    // Generate random password (12 characters)
-    const password = crypto.randomBytes(6).toString('hex')
-
-    // Store hashed password
-    const hashedPassword = crypto.createHash('sha256').update(password).digest('hex')
-
-    // Update application with password
-    await pool.query(
-      `UPDATE applications
-       SET student_password = $1, student_login_email_sent_at = NOW()
-       WHERE id = $2`,
-      [hashedPassword, id]
-    )
-
-    // Build student portal link
-    const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
-    const loginLink = `${baseUrl}/student-login`
-
-    // Email content
-    const emailSubject = `Your Student Portal Login - Application ${app.app_no}`
-    const emailHtml = brandedEmailHtml({
-      badge: 'VERIFIED',
-      tone: 'success',
-      title: 'Welcome to the Student Portal',
-      bodyHtml: `
-        <p>Dear <strong>${app.name}</strong>,</p>
-        <p>Your admission details have been verified! You can now access the student portal to view your admission details, pay your application/registration/tuition fees, and view your admission number.</p>
-        <p style="margin-top:16px;color:#666;font-size:13px;"><strong>Important:</strong> please change your password after your first login for security.</p>
-      `,
-      details: [['Email', app.email], ['Password', password]],
-      ctaText: 'Login to Portal',
-      ctaUrl: loginLink
-    })
-
-    const emailBody = `
+  const emailBody = `
 Dear ${app.name},
 
-Your admission details have been verified! You can now access the student portal.
+Your admission details have been approved. You can now log in anytime to pay fees and upload documents, at your own pace.
 
 Login Link: ${loginLink}
-
-Login Credentials:
 Email: ${app.email}
-Password: ${password}
+Temporary Password: ${password}
 
-You can now:
-- View your admission details
-- Pay application fee
-- Pay registration fee
-- Pay tuition fee
-- View your admission number
-
-Please change your password after your first login for security.
+You can also sign in with Google using this same email address.
 
 Best regards,
 Admissions Team
-Centurion University of Technology and Management
-    `.trim()
+  `.trim()
 
-    // Send email via AWS SES
-    await sendSystemMailAlert(app.email, emailSubject, emailBody, req.tenantId, emailHtml)
+  await sendSystemMailAlert(app.email, `Your Student Portal Login — ${app.app_no}`, emailBody, tenantId, emailHtml)
+}
 
-    res.json({
-      success: true,
-      message: 'Login credentials email sent successfully.'
-    })
+// POST /api/applications/:id/send-login-credentials
+// Manual resend — the same email approve-admission-details sends automatically.
+app.post('/api/applications/:id/send-login-credentials', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    if (req.user?.role !== 'Admin' && req.user?.role !== 'Counselor') {
+      return res.status(403).json({ error: 'Admin only.' })
+    }
+    const r = await pool.query('SELECT id, name, email, app_no FROM applications WHERE id = $1 AND tenant_id = $2', [id, req.tenantId])
+    if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
+    await sendPortalLoginEmail(r.rows[0], req.tenantId)
+    res.json({ success: true, message: 'Login credentials email sent successfully.' })
   } catch (e) {
     console.error('[POST /api/applications/:id/send-login-credentials]', e.message)
     res.status(500).json({ error: 'Failed to send login credentials email.' })
   }
 })
 
-// POST /api/student-login
-// Student portal login
+// Common shape for both login methods below.
+function issueStudentSession(app, tenantId) {
+  return jwt.sign({ appId: app.id, email: app.email, role: 'Student', tenant_id: tenantId }, JWT_SECRET, { expiresIn: '7d' })
+}
+
+// POST /api/student-login — email + password.
+// Tenant-scoped: email is unique per tenant, not globally, so the same
+// address could legitimately be a different applicant in a different tenant.
 app.post('/api/student-login', async (req, res) => {
   try {
-    const { email, password } = req.body
+    const { email, password, tenantSlug } = req.body
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required.' })
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required.' })
-    }
-
-    // Get application by email
+    const tenantId = await resolveSlugTenant(tenantSlug)
     const r = await pool.query(
-      'SELECT id, name, app_no, email, course, admission_number FROM applications WHERE email = $1',
-      [email]
+      'SELECT id, name, app_no, email, course, admission_number, student_password FROM applications WHERE LOWER(email) = LOWER($1) AND tenant_id = $2;',
+      [email, tenantId]
     )
-
-    if (!r.rows.length) {
-      return res.status(401).json({ error: 'Invalid email or password.' })
-    }
+    if (!r.rows.length || !r.rows[0].student_password) return res.status(401).json({ error: 'Invalid email or password.' })
 
     const app = r.rows[0]
-    const hashedPassword = crypto.createHash('sha256').update(password).digest('hex')
-
-    // Verify password
-    if (app.student_password !== hashedPassword) {
-      return res.status(401).json({ error: 'Invalid email or password.' })
-    }
-
-    // Generate student JWT token (different from admin token)
-    const studentToken = jwt.sign(
-      { appId: app.id, email: app.email, role: 'Student' },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    )
+    const ok = await bcrypt.compare(password, app.student_password)
+    if (!ok) return res.status(401).json({ error: 'Invalid email or password.' })
 
     res.json({
       success: true,
-      token: studentToken,
-      application: {
-        id: app.id,
-        name: app.name,
-        email: app.email,
-        appNo: app.app_no,
-        course: app.course,
-        admissionNumber: app.admission_number
-      }
+      token: issueStudentSession(app, tenantId),
+      application: { id: app.id, name: app.name, email: app.email, appNo: app.app_no, course: app.course, admissionNumber: app.admission_number }
     })
   } catch (e) {
     console.error('[POST /api/student-login]', e.message)
@@ -8771,131 +8756,153 @@ app.post('/api/student-login', async (req, res) => {
   }
 })
 
-// GET /api/student-portal
-// Get student's application data for portal
-app.get('/api/student-portal', authenticateToken, async (req, res) => {
+// POST /api/student-login/google — student already has an application; Google
+// only proves who they are, it never creates one (unlike staff Google login,
+// which self-provisions an account — a student's account is created by the
+// admissions process, not by signing in).
+app.post('/api/student-login/google', async (req, res) => {
   try {
-    // Check if user is a student
-    if (req.user?.role !== 'Student') {
-      return res.status(403).json({ error: 'Student portal only.' })
-    }
+    const { email, tenantSlug } = req.body
+    if (!email) return res.status(400).json({ error: 'Email required.' })
 
+    const tenantId = await resolveSlugTenant(tenantSlug)
     const r = await pool.query(
-      `SELECT id, name, email, mobile, app_no, course, campus, admission_details,
-              admission_number, admission_number_generated_at,
-              application_fee_amount, application_fee_paid, application_fee_paid_at,
-              registration_fee_amount, registration_fee_paid, registration_fee_paid_at,
-              tuition_fee_amount, tuition_fee_paid, tuition_fee_paid_at
-       FROM applications WHERE id = $1`,
-      [req.user.appId]
+      'SELECT id, name, app_no, email, course, admission_number FROM applications WHERE LOWER(email) = LOWER($1) AND tenant_id = $2;',
+      [email, tenantId]
     )
+    if (!r.rows.length) return res.status(404).json({ error: 'No application found for this email in this organization. Sign in with the email you applied with.' })
 
-    if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
+    const app = r.rows[0]
+    res.json({
+      success: true,
+      token: issueStudentSession(app, tenantId),
+      application: { id: app.id, name: app.name, email: app.email, appNo: app.app_no, course: app.course, admissionNumber: app.admission_number }
+    })
+  } catch (e) {
+    console.error('[POST /api/student-login/google]', e.message)
+    res.status(500).json({ error: 'Google sign-in failed.' })
+  }
+})
 
-    res.json(r.rows[0])
+function requireStudent(req, res, next) {
+  if (req.user?.role !== 'Student') return res.status(403).json({ error: 'Student portal only.' })
+  next()
+}
+
+// GET /api/student-portal — same response shape as GET /api/admission-details/:token,
+// so the portal and the emailed link can never show two different stories.
+app.get('/api/student-portal', authenticateToken, requireStudent, async (req, res) => {
+  try {
+    const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
+    if (!app) return res.status(404).json({ error: 'Application not found.' })
+    res.json(await buildAdmissionJourneyResponse(app))
   } catch (e) {
     console.error('[GET /api/student-portal]', e.message)
     res.status(500).json({ error: 'Failed to fetch application data.' })
   }
 })
 
-// POST /api/applications/:id/pay-fee
-// Student pays a specific fee (application, registration, or tuition)
-app.post('/api/applications/:id/pay-fee', authenticateToken, async (req, res) => {
+// POST /api/student-portal/full-form — Step-2 form, same rule as the token version.
+app.post('/api/student-portal/full-form', authenticateToken, requireStudent, async (req, res) => {
   try {
-    const { id } = req.params
-    const { feeType, amount, transactionId } = req.body
-
-    if (!feeType || !['application', 'registration', 'tuition'].includes(feeType)) {
-      return res.status(400).json({ error: 'Invalid fee type. Must be: application, registration, or tuition' })
+    const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
+    if (!app) return res.status(404).json({ error: 'Application not found.' })
+    if (app.booking_fee_status !== 'Paid') {
+      return res.status(400).json({ error: 'Booking fee must be paid before the full admission form is available.' })
     }
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'Valid amount required.' })
-    }
-
-    // Get application
-    const app = await pool.query(
-      'SELECT id, name, app_no, application_fee_paid, registration_fee_paid FROM applications WHERE id = $1 AND tenant_id = $2',
-      [id, req.tenantId]
-    )
-
-    if (!app.rows.length) return res.status(404).json({ error: 'Application not found.' })
-
-    const appData = app.rows[0]
-
-    // Enforce payment sequence
-    if (feeType === 'registration' && !appData.application_fee_paid) {
-      return res.status(400).json({ error: 'Application fee must be paid first.' })
-    }
-
-    if (feeType === 'tuition' && !appData.registration_fee_paid) {
-      return res.status(400).json({ error: 'Registration fee must be paid first.' })
-    }
-
-    // Update payment status based on fee type
-    let updateQuery = ''
-    if (feeType === 'application') {
-      updateQuery = 'UPDATE applications SET application_fee_paid = TRUE, application_fee_paid_at = NOW() WHERE id = $1'
-    } else if (feeType === 'registration') {
-      updateQuery = 'UPDATE applications SET registration_fee_paid = TRUE, registration_fee_paid_at = NOW() WHERE id = $1'
-    } else if (feeType === 'tuition') {
-      updateQuery = 'UPDATE applications SET tuition_fee_paid = TRUE, tuition_fee_paid_at = NOW() WHERE id = $1'
-    }
-
-    await pool.query(updateQuery, [id])
-
-    // Record payment (columns must match the real `payments` schema — this insert
-    // previously referenced app_id/transaction_id, neither of which exists, so it
-    // silently failed via the trailing .catch every time)
-    await pool.query(
-      `INSERT INTO payments (name, app_no, amount, status, method, txn_id, fee_type, tenant_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [appData.name, appData.app_no, amount, 'Paid', 'online', transactionId || '', `${feeType}_fee`, req.tenantId]
-    ).catch((e) => console.error('[pay-fee] payment insert failed:', e.message))
-
-    // After registration fee paid, auto-generate admission number
-    if (feeType === 'registration') {
-      const appDetails = await pool.query(
-        'SELECT admission_number FROM applications WHERE id = $1',
-        [id]
-      )
-
-      if (!appDetails.rows[0]?.admission_number) {
-        // Generate admission number: ADMSOL26XXXX
-        const year = new Date().getFullYear().toString().slice(2)
-        const tenantPrefix = 'ADMSOL' // Can be customized per tenant
-
-        // Get max sequential number
-        const lastApp = await pool.query(
-          `SELECT admission_number FROM applications
-           WHERE admission_number LIKE $1
-           ORDER BY admission_number DESC LIMIT 1`,
-          [`${tenantPrefix}${year}%`]
-        )
-
-        let seqNum = 1
-        if (lastApp.rows.length > 0) {
-          const lastNum = parseInt(lastApp.rows[0].admission_number.slice(-4))
-          seqNum = lastNum + 1
-        }
-
-        const admissionNumber = `${tenantPrefix}${year}${String(seqNum).padStart(4, '0')}`
-
-        await pool.query(
-          `UPDATE applications SET admission_number = $1, admission_number_generated_at = NOW() WHERE id = $2`,
-          [admissionNumber, id]
-        )
-      }
-    }
-
-    res.json({
-      success: true,
-      message: `${feeType} fee paid successfully.`
-    })
+    await pool.query(`UPDATE applications SET admission_full_details = $1::jsonb WHERE id = $2 AND tenant_id = $3`, [JSON.stringify(req.body || {}), app.id, req.tenantId])
+    res.json({ success: true, message: 'Full admission form saved successfully.' })
   } catch (e) {
-    console.error('[POST /api/applications/:id/pay-fee]', e.message)
-    res.status(500).json({ error: 'Failed to process payment.' })
+    console.error('[POST /api/student-portal/full-form]', e.message)
+    res.status(500).json({ error: 'Failed to save the full admission form.' })
+  }
+})
+
+// POST /api/student-portal/submit-payment — student self-reports a UTR;
+// staff still approves it via the existing Payments page. Mirrors
+// /api/admission-details/:token/submit-payment exactly, just keyed by the
+// logged-in student's own application instead of a token.
+app.post('/api/student-portal/submit-payment', authenticateToken, requireStudent, async (req, res) => {
+  try {
+    const { feeType, utrNumber, amount } = req.body
+    if (!['Booking Fee', 'Registration Fee', 'Tuition Fee'].includes(feeType)) {
+      return res.status(400).json({ error: 'Invalid fee type.' })
+    }
+    if (!utrNumber) return res.status(400).json({ error: 'UTR/Reference number required.' })
+
+    const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
+    if (!app) return res.status(404).json({ error: 'Application not found.' })
+
+    if (feeType === 'Booking Fee' && app.admission_details_status !== 'Approved') {
+      return res.status(400).json({ error: 'Admission details must be approved by a counselor first.' })
+    }
+    if (feeType === 'Registration Fee' && app.booking_fee_status !== 'Paid') {
+      return res.status(400).json({ error: 'Booking fee must be paid first.' })
+    }
+    if (feeType === 'Tuition Fee' && app.provisional_admission_status !== 'Granted') {
+      return res.status(400).json({ error: 'Provisional admission must be granted first.' })
+    }
+
+    const progRes = await pool.query(
+      'SELECT booking_fee, min_due_provisional, registration_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;',
+      [req.tenantId, app.course]
+    )
+    const program = progRes.rows[0] || {}
+    const minRequired = {
+      'Booking Fee': program.booking_fee || 1000,
+      'Registration Fee': program.min_due_provisional || program.registration_fee || 0,
+      'Tuition Fee': program.min_amount_to_pay || 0
+    }[feeType]
+    if (Number(amount || 0) < Number(minRequired)) {
+      return res.status(400).json({ error: `Minimum amount required for ${feeType} is ₹${minRequired}.` })
+    }
+
+    const r = await pool.query(
+      `INSERT INTO payments (name, app_no, amount, method, status, date, utr_number, pay_mode, fee_type, tenant_id)
+       VALUES ($1, $2, $3, 'online', 'Payment Done', $4, $5, 'offline', $6, $7) RETURNING id;`,
+      [app.name, app.app_no, amount || 0, new Date().toLocaleDateString('en-IN'), utrNumber, feeType, req.tenantId]
+    )
+    res.json({ success: true, paymentId: r.rows[0].id, message: 'Payment submitted — awaiting admin approval.' })
+  } catch (e) {
+    console.error('[POST /api/student-portal/submit-payment]', e.message)
+    res.status(500).json({ error: 'Failed to submit payment.' })
+  }
+})
+
+// POST /api/student-portal/documents — multipart upload, same checklist and
+// gating rule as the token version, keyed by app_id instead of a token.
+app.post('/api/student-portal/documents', authenticateToken, requireStudent, uploadDoc.single('file'), async (req, res) => {
+  try {
+    const { type } = req.body
+    if (!type) return res.status(400).json({ error: 'Document type is required.' })
+    if (!req.file) return res.status(400).json({ error: 'File is required.' })
+
+    const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
+    if (!app) return res.status(404).json({ error: 'Application not found.' })
+    if (app.provisional_admission_status !== 'Granted') {
+      return res.status(400).json({ error: 'Documents can only be uploaded after provisional admission is granted.' })
+    }
+
+    const checklist = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste)
+    const item = checklist.find(c => c.type === type)
+    const fileUrl = `/uploads/documents/${req.file.filename}`
+
+    const existing = await pool.query('SELECT id FROM documents WHERE app_id = $1 AND type = $2 AND tenant_id = $3;', [app.id, type, req.tenantId])
+    if (existing.rows.length) {
+      await pool.query(
+        `UPDATE documents SET file_url = $1, status = 'Pending', upload_date = $2, verified_by = '', verified_at = NULL, rejection_reason = '' WHERE id = $3;`,
+        [fileUrl, new Date().toLocaleDateString('en-IN'), existing.rows[0].id]
+      )
+    } else {
+      await pool.query(
+        `INSERT INTO documents (student, app_id, type, status, upload_date, file_url, is_mandatory, tenant_id) VALUES ($1, $2, $3, 'Pending', $4, $5, $6, $7);`,
+        [app.name, app.id, type, new Date().toLocaleDateString('en-IN'), fileUrl, item?.mandatory ?? false, req.tenantId]
+      )
+    }
+    res.json({ success: true, message: 'Document uploaded — pending verification.' })
+  } catch (e) {
+    console.error('[POST /api/student-portal/documents]', e.message)
+    res.status(500).json({ error: 'Failed to upload document.' })
   }
 })
 
