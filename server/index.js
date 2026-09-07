@@ -8911,14 +8911,22 @@ app.post('/api/student-portal/submit-payment', authenticateToken, requireStudent
 // marked Paid without a staff approval step — because unlike a self-reported
 // UTR, an HMAC signature keyed with our own secret can't be forged by the
 // client, so trusting it immediately is actually safe.
+// feeType defaults to 'Booking Fee' (CU EDU's auto-trusted entry fee — see
+// verify-payment). Any other feeType (Tuition Fee, Registration Fee) is just
+// a convenience: it opens the same Razorpay window so the student isn't
+// copying a UTR out of their bank SMS by hand, but the result still goes
+// through submit-payment for staff to approve like any other UTR — this
+// endpoint only ever proves a payment happened, it never approves one.
 app.post('/api/student-portal/create-payment-order', authenticateToken, requireStudent, async (req, res) => {
   try {
-    if ((await tenantSlugFor(req.tenantId)) !== 'cuedu') {
+    const feeType = ['Booking Fee', 'Registration Fee', 'Tuition Fee'].includes(req.body?.feeType) ? req.body.feeType : 'Booking Fee'
+    if (feeType === 'Booking Fee' && (await tenantSlugFor(req.tenantId)) !== 'cuedu') {
       return res.status(403).json({ error: 'This payment method is not available for your program.' })
     }
     const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
     if (!app) return res.status(404).json({ error: 'Application not found.' })
-    if (app.booking_fee_status === 'Paid') return res.status(400).json({ error: 'This fee is already paid.' })
+    if (feeType === 'Booking Fee' && app.booking_fee_status === 'Paid') return res.status(400).json({ error: 'This fee is already paid.' })
+    if (feeType === 'Tuition Fee' && app.tuition_fee_paid) return res.status(400).json({ error: 'This fee is already paid.' })
 
     const keyId = process.env.RAZORPAY_KEY_ID
     const keySecret = process.env.RAZORPAY_KEY_SECRET
@@ -8927,8 +8935,10 @@ app.post('/api/student-portal/create-payment-order', authenticateToken, requireS
       return res.status(503).json({ error: 'Online payment is not configured yet. Please contact admissions.' })
     }
 
-    const progRes = await pool.query('SELECT booking_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
-    const amountRupees = Number(progRes.rows[0]?.booking_fee) || 1000
+    const progRes = await pool.query('SELECT booking_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
+    const program = progRes.rows[0] || {}
+    const amountRupees = feeType === 'Tuition Fee' ? (Number(program.min_amount_to_pay) || 0) : (Number(program.booking_fee) || 1000)
+    if (amountRupees <= 0) return res.status(400).json({ error: 'This fee has no amount configured yet — contact admissions.' })
 
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
     const rpRes = await fetch('https://api.razorpay.com/v1/orders', {
@@ -8938,7 +8948,7 @@ app.post('/api/student-portal/create-payment-order', authenticateToken, requireS
         amount: Math.round(amountRupees * 100), // paise
         currency: 'INR',
         receipt: app.app_no,
-        notes: { app_id: String(app.id), tenant_id: String(req.tenantId), fee_type: 'Booking Fee' }
+        notes: { app_id: String(app.id), tenant_id: String(req.tenantId), fee_type: feeType }
       })
     })
     const order = await rpRes.json()

@@ -43,40 +43,71 @@ function authHeaders(json = true) {
 // One fee's card: shows amount, status, and — while it's payable — a UTR
 // submission form. Staff still approve the payment on their existing
 // Payments page; this only ever submits proof, never marks itself paid.
-function FeeCard({ title, blurb, amount, status, onSubmit, submitting }) {
+function FeeCard({ title, blurb, amount, status, onSubmit, submitting, onPayGateway }) {
   const [utr, setUtr] = useState('')
+  const [payingGateway, setPayingGateway] = useState(false)
   const isPaid = status === 'Paid'
   const isPending = status === 'Payment Done'
 
+  const handlePayNow = async () => {
+    setPayingGateway(true)
+    try {
+      const paymentId = await onPayGateway()
+      if (!paymentId) return
+      // Auto-populate the reference field with the real payment id, then
+      // submit immediately — the student already proved the payment went
+      // through, no reason to make them click twice.
+      setUtr(paymentId)
+      onSubmit(paymentId)
+    } finally {
+      setPayingGateway(false)
+    }
+  }
+
   return (
-    <div className={`border rounded-lg p-4 ${!amount && amount !== 0 ? 'opacity-50' : ''}`}>
+    <div className={`border rounded-xl p-6 ${!amount && amount !== 0 ? 'opacity-50' : ''}`}>
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="font-semibold text-gray-900">{title}</h3>
-          <p className="text-sm text-gray-600">{blurb}</p>
+          <h3 className="font-semibold text-gray-900 text-lg">{title}</h3>
+          <p className="text-base text-gray-600">{blurb}</p>
         </div>
-        {isPaid ? <CheckCircle2 size={22} className="text-green-600 flex-shrink-0" /> : <Clock size={22} className="text-yellow-600 flex-shrink-0" />}
+        {isPaid ? <CheckCircle2 size={26} className="text-green-600 flex-shrink-0" /> : <Clock size={26} className="text-yellow-600 flex-shrink-0" />}
       </div>
-      <p className="text-2xl font-bold text-gray-900 mb-3">₹{Number(amount || 0).toLocaleString('en-IN')}</p>
+      <p className="text-4xl font-bold text-gray-900 mb-4">₹{Number(amount || 0).toLocaleString('en-IN')}</p>
 
-      {isPaid && <p className="text-sm text-green-700 font-medium">✓ Paid and approved</p>}
-      {isPending && <p className="text-sm text-amber-700 font-medium">Submitted — awaiting admin approval</p>}
+      {isPaid && <p className="text-base text-green-700 font-medium">✓ Paid and approved</p>}
+      {isPending && <p className="text-base text-amber-700 font-medium">Submitted — awaiting admin approval</p>}
       {!isPaid && !isPending && (
-        <div className="flex gap-2">
-          <input
-            value={utr}
-            onChange={(e) => setUtr(e.target.value)}
-            placeholder="UTR / transaction reference number"
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none"
-          />
-          <button
-            onClick={() => utr.trim() && onSubmit(utr.trim())}
-            disabled={submitting || !utr.trim()}
-            className="px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
-          >
-            {submitting ? <Loader size={15} className="animate-spin" /> : <IndianRupee size={15} />}
-            Submit
-          </button>
+        <div className="space-y-3">
+          {onPayGateway && (
+            <button
+              onClick={handlePayNow}
+              disabled={payingGateway || submitting}
+              className="w-full py-3 px-4 bg-purple-600 text-white text-base font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {payingGateway ? <Loader size={17} className="animate-spin" /> : <IndianRupee size={17} />}
+              {payingGateway ? 'Opening secure payment...' : 'Pay Now'}
+            </button>
+          )}
+          <div className="flex items-center gap-3 text-sm text-gray-400">
+            {onPayGateway && <><div className="h-px bg-gray-200 flex-1" />or enter a reference manually<div className="h-px bg-gray-200 flex-1" /></>}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={utr}
+              onChange={(e) => setUtr(e.target.value)}
+              placeholder="UTR / transaction reference number"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+            />
+            <button
+              onClick={() => utr.trim() && onSubmit(utr.trim())}
+              disabled={submitting || !utr.trim()}
+              className="px-5 py-2.5 bg-gray-700 text-white text-base font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
+            >
+              {submitting ? <Loader size={16} className="animate-spin" /> : null}
+              Submit
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -208,6 +239,43 @@ export default function StudentDashboard() {
     }
   }
 
+  // Used by FeeCard's "Pay Now" (Tuition Fee, and anywhere else FeeCard is
+  // used) — opens the same Razorpay window as the CU EDU entry fee, but only
+  // ever hands back the resulting payment id for the UTR field. It does not
+  // verify or approve anything itself: the UTR still goes through
+  // submit-payment for staff to review on the Payments page, same as a
+  // hand-typed UTR would. This is purely "stop making the student copy a
+  // reference number out of their bank SMS" — not a change in who can mark
+  // a fee paid.
+  const payViaGatewayForUtr = (feeType) => new Promise(async (resolve) => {
+    try {
+      const ok = await loadRazorpayScript()
+      if (!ok) { flash('❌ Could not load the payment window. Check your connection and try again.'); resolve(null); return }
+
+      const orderRes = await fetch('/api/student-portal/create-payment-order', {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ feeType })
+      })
+      const order = await orderRes.json()
+      if (!orderRes.ok) { flash(`❌ ${order.error}`); resolve(null); return }
+
+      const rzp = new window.Razorpay({
+        key: order.keyId,
+        order_id: order.orderId,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'CU EDU Admissions',
+        description: feeType,
+        prefill: { name: order.name, email: order.email },
+        handler: (response) => resolve(response.razorpay_payment_id),
+        modal: { ondismiss: () => resolve(null) }
+      })
+      rzp.open()
+    } catch {
+      flash('❌ Could not start the payment. Please try again.')
+      resolve(null)
+    }
+  })
+
   const uploadDoc = async (type, file) => {
     setUploadingDoc(type)
     try {
@@ -269,62 +337,62 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
       <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="max-w-6xl mx-auto px-6 py-5 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">📚 Student Portal</h1>
-            <p className="text-sm text-gray-600">Welcome, {app.name} · {app.appNo}</p>
+            <h1 className="text-3xl font-bold text-gray-900">📚 Student Portal</h1>
+            <p className="text-base text-gray-600 mt-0.5">Welcome, {app.name} · {app.appNo}</p>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-            <LogOut size={18} /> Logout
+          <button onClick={handleLogout} className="flex items-center gap-2 px-5 py-2.5 text-base text-gray-700 hover:bg-gray-100 rounded-lg transition">
+            <LogOut size={20} /> Logout
           </button>
         </div>
       </header>
 
       {toast && (
-        <div className="max-w-4xl mx-auto px-4 pt-4">
-          <div className="bg-gray-900 text-white text-sm rounded-lg px-4 py-2.5">{toast}</div>
+        <div className="max-w-6xl mx-auto px-6 pt-4">
+          <div className="bg-gray-900 text-white text-base rounded-lg px-5 py-3">{toast}</div>
         </div>
       )}
 
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      <main className="max-w-6xl mx-auto px-6 py-10 space-y-8">
         {/* Application summary */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><FileText size={20} className="text-blue-600" /> Your Application</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div><p className="text-gray-500">Course</p><p className="font-semibold text-gray-900">{app.course}</p></div>
-            <div><p className="text-gray-500">Application #</p><p className="font-semibold text-gray-900">{app.appNo}</p></div>
-            <div><p className="text-gray-500">Email</p><p className="font-semibold text-gray-900 truncate">{app.email}</p></div>
-            <div><p className="text-gray-500">Mobile</p><p className="font-semibold text-gray-900">{app.mobile}</p></div>
+        <div className="bg-white rounded-xl shadow-lg p-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2.5"><FileText size={24} className="text-blue-600" /> Your Application</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-base">
+            <div><p className="text-gray-500">Course</p><p className="font-semibold text-gray-900 text-lg">{app.course}</p></div>
+            <div><p className="text-gray-500">Application #</p><p className="font-semibold text-gray-900 text-lg">{app.appNo}</p></div>
+            <div><p className="text-gray-500">Email</p><p className="font-semibold text-gray-900 text-lg truncate">{app.email}</p></div>
+            <div><p className="text-gray-500">Mobile</p><p className="font-semibold text-gray-900 text-lg">{app.mobile}</p></div>
           </div>
         </div>
 
         {allComplete && (
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border-2 border-green-200 p-6 text-center">
-            <CheckCircle2 size={44} className="text-green-600 mx-auto mb-3" />
-            <h3 className="text-xl font-bold text-green-900 mb-1">🎉 Admission Complete!</h3>
-            <p className="text-green-800 text-sm">All fees paid and documents verified.{registrationNumber && <> Registration number: <strong>{registrationNumber}</strong>.</>}</p>
-            {campusoneSyncStatus === 'Success' && <p className="text-xs text-green-700 mt-2">Your records have been synced to the academic system.</p>}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-200 p-8 text-center">
+            <CheckCircle2 size={52} className="text-green-600 mx-auto mb-4" />
+            <h3 className="text-2xl font-bold text-green-900 mb-2">🎉 Admission Complete!</h3>
+            <p className="text-green-800 text-lg">All fees paid and documents verified.{registrationNumber && <> Registration number: <strong>{registrationNumber}</strong>.</>}</p>
+            {campusoneSyncStatus === 'Success' && <p className="text-sm text-green-700 mt-3">Your records have been synced to the academic system.</p>}
           </div>
         )}
 
         {/* Step: Entry / Booking Fee */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><ShieldCheck size={20} className="text-purple-600" /> {isCuEdu ? 'Entry Fee' : 'Booking Fee'}</h2>
+        <div className="bg-white rounded-xl shadow-lg p-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5"><ShieldCheck size={24} className="text-purple-600" /> {isCuEdu ? 'Entry Fee' : 'Booking Fee'}</h2>
           {!bookingUnlocked ? (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">Your admission details are still under review — the fee will unlock once a counselor approves them.</p>
+            <p className="text-base text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">Your admission details are still under review — the fee will unlock once a counselor approves them.</p>
           ) : isCuEdu ? (
             bookingPaid ? (
-              <p className="text-sm text-green-700 font-medium">✓ Paid — your portal is unlocked</p>
+              <p className="text-base text-green-700 font-medium">✓ Paid — your portal is unlocked</p>
             ) : (
-              <div className="border rounded-lg p-4">
-                <p className="text-2xl font-bold text-gray-900 mb-1">₹{Number(bookingFeeAmount || 1000).toLocaleString('en-IN')}</p>
-                <p className="text-sm text-gray-600 mb-4">Pay once to unlock document upload — no waiting on manual review.</p>
+              <div className="border rounded-xl p-6 max-w-md">
+                <p className="text-4xl font-bold text-gray-900 mb-2">₹{Number(bookingFeeAmount || 1000).toLocaleString('en-IN')}</p>
+                <p className="text-base text-gray-600 mb-5">Pay once to unlock document upload — no waiting on manual review.</p>
                 <button
                   onClick={payViaGateway}
                   disabled={payingGateway}
-                  className="w-full py-2.5 px-4 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full py-3 px-4 bg-purple-600 text-white text-base font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {payingGateway ? <Loader size={16} className="animate-spin" /> : <IndianRupee size={16} />}
+                  {payingGateway ? <Loader size={18} className="animate-spin" /> : <IndianRupee size={18} />}
                   {payingGateway ? 'Opening secure payment...' : `Pay ₹${Number(bookingFeeAmount || 1000).toLocaleString('en-IN')} to continue`}
                 </button>
               </div>
@@ -338,8 +406,8 @@ export default function StudentDashboard() {
         {/* Step: Registration Fee — CU EDU's funnel has no separate stage for this;
             paying the entry fee above unlocks documents directly. */}
         {bookingPaid && !isCuEdu && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><Award size={20} className="text-purple-600" /> Registration Fee</h2>
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5"><Award size={24} className="text-purple-600" /> Registration Fee</h2>
             <FeeCard title="Registration Fee" blurb="Grants provisional admission" amount={registrationFeeAmount} status={registrationPaid ? 'Paid' : null}
               onSubmit={(utr) => submitPayment('Registration Fee', registrationFeeAmount, utr)} submitting={submittingFee === 'Registration Fee'} />
           </div>
@@ -348,13 +416,13 @@ export default function StudentDashboard() {
         {/* Provisional admission + documents */}
         {provisionalGranted && (
           <>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
-              <h3 className="font-bold text-blue-900 mb-1">Provisional Admission Granted</h3>
-              <p className="text-sm text-blue-800">Upload the documents below in any order, whenever you have them ready — there's no deadline to do it all at once.</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+              <h3 className="font-bold text-blue-900 text-lg mb-1.5">Provisional Admission Granted</h3>
+              <p className="text-base text-blue-800">Upload the documents below in any order, whenever you have them ready — there's no deadline to do it all at once.</p>
             </div>
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2"><Upload size={20} className="text-purple-600" /> Documents</h2>
-              <p className="text-xs text-gray-500 mb-3">{mandatoryDocs.filter(d => d.status === 'Verified').length}/{mandatoryDocs.length} mandatory documents verified</p>
+            <div className="bg-white rounded-xl shadow-lg p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2.5"><Upload size={24} className="text-purple-600" /> Documents</h2>
+              <p className="text-sm text-gray-500 mb-4">{mandatoryDocs.filter(d => d.status === 'Verified').length}/{mandatoryDocs.length} mandatory documents verified</p>
               <div>
                 {documents.map((d) => (
                   <DocRow key={d.type} {...d} onUpload={uploadDoc} uploading={uploadingDoc} />
@@ -363,10 +431,11 @@ export default function StudentDashboard() {
             </div>
 
             {/* Step: Tuition Fee */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><IndianRupee size={20} className="text-purple-600" /> Tuition Fee</h2>
+            <div className="bg-white rounded-xl shadow-lg p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5"><IndianRupee size={24} className="text-purple-600" /> Tuition Fee</h2>
               <FeeCard title="Tuition Fee" blurb="Completes your enrollment" amount={tuitionFeeAmount} status={tuitionFeePaid ? 'Paid' : null}
-                onSubmit={(utr) => submitPayment('Tuition Fee', tuitionFeeAmount, utr)} submitting={submittingFee === 'Tuition Fee'} />
+                onSubmit={(utr) => submitPayment('Tuition Fee', tuitionFeeAmount, utr)} submitting={submittingFee === 'Tuition Fee'}
+                onPayGateway={() => payViaGatewayForUtr('Tuition Fee')} />
             </div>
           </>
         )}
