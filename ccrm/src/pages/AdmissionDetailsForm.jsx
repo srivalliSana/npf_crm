@@ -21,12 +21,14 @@ const STATS = [
 // screen is next, and the two data-entry screens (basic details, full form) are
 // themselves broken into short wizard steps so nobody faces a 25-field wall at once.
 
-const JOURNEY_STAGES = ['Details', 'Booking Fee', 'Documents', 'Full Form', 'Registration Fee', 'Tuition']
+const JOURNEY_STAGES = ['Details', 'Application Fee', 'Documents', 'Full Form', 'Tuition']
 
 function macroStageIndex(j) {
   if (!j) return 0
-  if (j.provisionalAdmissionStatus === 'Granted') return 5
-  if (j.admissionFullDetailsStatus === 'Approved') return 4
+  // Approving the full form grants provisional admission in the same request
+  // (the registration fee is always ₹0, nothing to wait on), so there's no
+  // separate stage between "Full Form" and provisional admission.
+  if (j.provisionalAdmissionStatus === 'Granted') return 4
   if (j.documentsVerified) return 3
   if (j.bookingFeeStatus === 'Paid') return 2
   if (j.admissionDetailsStatus === 'Approved') return 1
@@ -438,7 +440,7 @@ export default function AdmissionDetailsForm() {
   if (j.campusoneSyncStatus === 'Success') {
     return (
       <PageShell>
-        <Hero application={j.application} macroStep={6} />
+        <Hero application={j.application} macroStep={5} />
         <Content>
           <ApplicantBar application={j.application} />
           <Card className="text-center">
@@ -482,29 +484,10 @@ export default function AdmissionDetailsForm() {
     )
   }
 
-  // ── Screen: registration fee (once the fuller admission form is approved) ──
-  if (j.admissionFullDetailsStatus === 'Approved') {
-    return (
-      <PageShell>
-        <Hero application={j.application} macroStep={macroStep} />
-        <Content>
-          <ApplicantBar application={j.application} />
-          {!j.registrationFeePaid ? (
-            <PaymentScreen
-              token={token} feeType="Registration Fee" amount={j.registrationFeeAmount} totalAmount={j.programTotalFee}
-              title="Pay Registration Fee" description="Pay your registration fee to receive provisional admission."
-              onSubmitted={fetchJourney}
-            />
-          ) : (
-            <Card className="text-center">
-              <Clock size={36} className="text-amber-500 mx-auto mb-3" />
-              <p className="text-gray-700 font-semibold text-sm">Registration fee received. Finalizing your provisional admission...</p>
-            </Card>
-          )}
-        </Content>
-      </PageShell>
-    )
-  }
+  // Note: there is no separate "registration fee" screen — approving the full
+  // admission form (below) grants provisional admission directly, since the
+  // registration fee is always ₹0. The provisional-admission screen above
+  // catches every application the instant that happens.
 
   // ── Screen: full admission form submitted, awaiting counselor review ──
   if (fullFormSubmitted && j.admissionFullDetailsStatus === 'Pending') {
@@ -575,7 +558,7 @@ export default function AdmissionDetailsForm() {
     )
   }
 
-  // ── Screen: approved, awaiting booking fee ──
+  // ── Screen: approved, awaiting application fee ──
   if (j.admissionDetailsStatus === 'Approved') {
     return (
       <PageShell>
@@ -584,7 +567,7 @@ export default function AdmissionDetailsForm() {
           <ApplicantBar application={j.application} />
           <PaymentScreen
             token={token} feeType="Booking Fee" amount={j.bookingFeeAmount}
-            title="Pay Booking Fee" description="Your admission details are approved! Pay the booking fee to secure your seat and proceed."
+            title="Pay Application Fee" description="Your admission details are approved! Pay the application fee to secure your seat and proceed."
             onSubmitted={fetchJourney}
           />
         </Content>

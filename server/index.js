@@ -2348,13 +2348,13 @@ async function grantProvisionalAdmission(appId, tenantId = 1) {
       await sendSystemMailAlert(
         app.email,
         `Provisional Admission Granted — ${app.app_no}`,
-        `Dear ${app.name},\n\nCongratulations! Your registration fee has been received and your provisional admission is confirmed.\n\nTemporary Admission Number: ${regNumber}\nProgram: ${app.course}\n\nNext step: upload your documents and pay the tuition fee to complete your admission.\n\nBest regards,\nCUTM Admissions Team`,
+        `Dear ${app.name},\n\nCongratulations! Your provisional admission is confirmed.\n\nTemporary Admission Number: ${regNumber}\nProgram: ${app.course}\n\nNext step: upload your documents and pay the tuition fee to complete your admission.\n\nBest regards,\nCUTM Admissions Team`,
         tenantId,
         brandedEmailHtml({
           badge: 'GRANTED',
           tone: 'success',
           title: 'Provisional Admission Granted',
-          bodyHtml: `<p>Dear <strong>${app.name}</strong>,</p><p>Congratulations! Your registration fee has been received and your provisional admission is confirmed.</p><p style="color:#666;font-size:13px;">Next step: upload your documents and pay the tuition fee to complete your admission.</p>`,
+          bodyHtml: `<p>Dear <strong>${app.name}</strong>,</p><p>Congratulations! Your provisional admission is confirmed.</p><p style="color:#666;font-size:13px;">Next step: upload your documents and pay the tuition fee to complete your admission.</p>`,
           details: [['Temporary Admission Number', regNumber], ['Program', app.course]]
         })
       )
@@ -2513,7 +2513,7 @@ app.post('/api/payments/:id/approve', async (req, res) => {
       case 'Booking Fee': {
         const appRes = await pool.query(`UPDATE applications SET booking_fee_status = 'Paid', booking_fee_paid_at = NOW() WHERE app_no = $1 AND tenant_id = $2 RETURNING id;`, [appNo, req.tenantId])
         await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
-          [`Booking fee paid: ${appNo} (${name})`, 'Just now', req.tenantId])
+          [`Application fee paid: ${appNo} (${name})`, 'Just now', req.tenantId])
         break
       }
 
@@ -8026,10 +8026,10 @@ app.post('/api/applications/:id/booking-fee-payment', authenticateToken, async (
       [app.name, app.app_no, bookingAmount, method || 'online', transactionId || '', req.tenantId]
     )
 
-    res.json({ success: true, message: 'Booking fee paid successfully.' })
+    res.json({ success: true, message: 'Application fee paid successfully.' })
   } catch (e) {
     console.error('[POST /api/applications/:id/booking-fee-payment]', e.message)
-    res.status(500).json({ error: 'Failed to process booking fee payment.' })
+    res.status(500).json({ error: 'Failed to process application fee payment.' })
   }
 })
 
@@ -8388,8 +8388,10 @@ app.post('/api/applications/:id/approve-admission-details', authenticateToken, a
 })
 
 // Step 2 gate: counselor approves/rejects the fuller admission form (personal/
-// parent/address/program/academic details + documents) before the student can
-// pay the registration fee. Same shape as approve-admission-details above.
+// parent/address/program/academic details). Registration Fee is always ₹0 now
+// — there's nothing to collect, so approval grants provisional admission
+// directly instead of waiting on a payment step nobody would ever be asked
+// to complete. Same shape as approve-admission-details above.
 app.post('/api/applications/:id/approve-full-details', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
@@ -8409,13 +8411,25 @@ app.post('/api/applications/:id/approve-full-details', authenticateToken, async 
     if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
     const app = r.rows[0]
 
+    if (status === 'Approved') {
+      // Registration Fee is always ₹0 — record a $0 "Paid" row for the audit
+      // trail/finance reports, then grant provisional admission immediately.
+      await pool.query(
+        `INSERT INTO payments (name, app_no, amount, method, status, date, fee_type, tenant_id)
+         VALUES ($1, $2, 0, 'system', 'Paid', $3, 'Registration Fee', $4);`,
+        [app.name, app.app_no, new Date().toLocaleDateString('en-IN'), req.tenantId]
+      )
+      await pool.query(`UPDATE applications SET registration_fee_paid = true, registration_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, req.tenantId])
+      await grantProvisionalAdmission(app.id, req.tenantId)
+    }
+
     if (app.email) {
       const approved = status === 'Approved'
       sendSystemMailAlert(
         app.email,
         `Admission Form ${status} — ${app.app_no}`,
         approved
-          ? `Dear ${app.name},\n\nYour admission form has been reviewed and approved. Please log in to your student portal to pay the registration fee and continue your admission.\n\nBest regards,\nCUTM Admissions Team`
+          ? `Dear ${app.name},\n\nYour admission form has been reviewed and approved, and your provisional admission is confirmed — there is no registration fee to pay. Please log in to your student portal to upload documents and pay the tuition fee.\n\nBest regards,\nCUTM Admissions Team`
           : `Dear ${app.name},\n\nYour admission form needs a correction. Please log in to your student portal, review your details, and resubmit.\n\nBest regards,\nCUTM Admissions Team`,
         req.tenantId,
         brandedEmailHtml({
@@ -8423,7 +8437,7 @@ app.post('/api/applications/:id/approve-full-details', authenticateToken, async 
           tone: approved ? 'success' : 'warn',
           title: approved ? 'Admission Form Approved' : 'Correction Needed',
           bodyHtml: approved
-            ? `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission form has been reviewed and approved. Please log in to your student portal to pay the registration fee and continue your admission.</p>`
+            ? `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission form has been reviewed and approved, and your provisional admission is confirmed — there is no registration fee to pay.</p>`
             : `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission form needs a correction${note ? `: ${note}` : '.'} Please log in and resubmit.</p>`,
           details: [['Application #', app.app_no]],
           ctaText: 'Go to Student Portal',
@@ -8591,7 +8605,7 @@ async function buildAdmissionJourneyResponse(app) {
   const program = progRes.rows[0] || { booking_fee: 1000, registration_fee: 0, min_due_provisional: 0, tuition_fee: 0, min_amount_to_pay: 0 }
 
   // Document checklist + current status — its own standalone step right after
-  // the booking fee is paid, gating the fuller admission form (Step 2) rather
+  // the application fee is paid, gating the fuller admission form (Step 2) rather
   // than waiting until after provisional admission is granted.
   let documents = []
   let documentsVerified = false
@@ -8680,7 +8694,7 @@ app.post('/api/admission-details/:token', async (req, res) => {
 
 // POST /api/admission-details/:token/full-form
 // Public — Step-2 fuller admission form (Personal/Parent/Address/Program/
-// Academic details), unlocked once the booking fee is paid AND every
+// Academic details), unlocked once the application fee is paid AND every
 // mandatory document from the standalone upload step is Verified.
 app.post('/api/admission-details/:token/full-form', async (req, res) => {
   try {
@@ -8688,7 +8702,7 @@ app.post('/api/admission-details/:token/full-form', async (req, res) => {
     const app = await loadAdmissionJourneyByToken(token)
     if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
     if (app.booking_fee_status !== 'Paid') {
-      return res.status(400).json({ error: 'Booking fee must be paid before the full admission form is available.' })
+      return res.status(400).json({ error: 'Application fee must be paid before the full admission form is available.' })
     }
     if (!(await allMandatoryDocsVerified(app.id, app.token_tenant_id))) {
       return res.status(400).json({ error: 'All mandatory documents must be verified before the full admission form is available.' })
@@ -8777,7 +8791,7 @@ app.post('/api/admission-details/:token/documents', uploadDoc.single('file'), as
     const app = await loadAdmissionJourneyByToken(token)
     if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
     if (app.booking_fee_status !== 'Paid') {
-      return res.status(400).json({ error: 'Documents can only be uploaded after the booking fee is paid.' })
+      return res.status(400).json({ error: 'Documents can only be uploaded after the application fee is paid.' })
     }
 
     const checklist = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste)
@@ -8918,7 +8932,7 @@ app.post('/api/student-portal/full-form', authenticateToken, requireStudent, asy
     const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
     if (!app) return res.status(404).json({ error: 'Application not found.' })
     if (app.booking_fee_status !== 'Paid') {
-      return res.status(400).json({ error: 'Booking fee must be paid before the full admission form is available.' })
+      return res.status(400).json({ error: 'Application fee must be paid before the full admission form is available.' })
     }
     if (!(await allMandatoryDocsVerified(app.id, req.tenantId))) {
       return res.status(400).json({ error: 'All mandatory documents must be verified before the full admission form is available.' })
@@ -9112,7 +9126,7 @@ app.post('/api/student-portal/documents', authenticateToken, requireStudent, upl
     const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
     if (!app) return res.status(404).json({ error: 'Application not found.' })
     if (app.booking_fee_status !== 'Paid') {
-      return res.status(400).json({ error: 'Documents can only be uploaded after the booking fee is paid.' })
+      return res.status(400).json({ error: 'Documents can only be uploaded after the application fee is paid.' })
     }
 
     const checklist = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste)
