@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
-import { User, Users, MapPin, GraduationCap, BookOpen, Upload, Check, Loader, AlertCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { User, Users, MapPin, GraduationCap, BookOpen, Check, Loader, AlertCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { INDIA_STATES, CASTE_CATEGORIES } from '../data/indiaLocations'
 
 // The fuller admission form — Step 2 of the journey, unlocked once the booking
-// fee is paid. Matches the university's CampusOne intake form: six tabs a
-// student can jump between freely (not a strict linear wizard), with document
-// upload folded in as the last tab so everything the counselor needs to review
-// arrives in one submission.
+// fee is paid AND every mandatory document (its own standalone step right
+// after the fee, with its own staff-verification gate) is Verified. Matches
+// the university's CampusOne intake form: five tabs a student can jump
+// between freely (not a strict linear wizard), submitted together at the end.
 
 const TABS = [
   { key: 'personal', label: 'Personal Details', icon: User },
@@ -14,7 +14,6 @@ const TABS = [
   { key: 'address', label: 'Address Details', icon: MapPin },
   { key: 'program', label: 'Program Details', icon: GraduationCap },
   { key: 'academic', label: 'Academic Details', icon: BookOpen },
-  { key: 'documents', label: 'Upload Documents', icon: Upload },
 ]
 
 const inputCls = "w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-600 outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-400"
@@ -78,10 +77,9 @@ const REQUIRED_FIELDS = {
     ['presentCity', 'Present Town/City'], ['presentPincode', 'Present Pin Code']],
   program: [],
   academic: [['previousInstitution', 'Previous Institution Name']],
-  documents: [],
 }
 
-export default function FullAdmissionForm({ app, initialData, documents = [], onSubmit, onUploadDoc, submitting, rejected, reviewNote }) {
+export default function FullAdmissionForm({ app, initialData, onSubmit, submitting, rejected, reviewNote }) {
   const [tab, setTab] = useState('personal')
   const [data, setData] = useState(() => ({
     ...emptyData,
@@ -135,9 +133,6 @@ export default function FullAdmissionForm({ app, initialData, documents = [], on
     setErrors([])
     onSubmit(data)
   }
-
-  const mandatoryDocs = documents.filter(d => d.mandatory)
-  const mandatoryUploaded = mandatoryDocs.filter(d => d.uploaded).length
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100">
@@ -449,32 +444,6 @@ export default function FullAdmissionForm({ app, initialData, documents = [], on
               <Field label="Exam Name"><input className={inputCls} name="entranceExamName" value={data.entranceExamName} onChange={onChange} placeholder="e.g., JEE, NEET" /></Field>
               <Field label="Roll No"><input className={inputCls} name="entranceExamRollNo" value={data.entranceExamRollNo} onChange={onChange} /></Field>
               <Field label="Score / Rank"><input className={inputCls} name="entranceExamScore" value={data.entranceExamScore} onChange={onChange} /></Field>
-            </div>
-          </div>
-        )}
-
-        {tab === 'documents' && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <SectionTitle>Upload Documents</SectionTitle>
-              <span className="text-xs font-semibold text-gray-500">{mandatoryUploaded}/{mandatoryDocs.length} mandatory uploaded</span>
-            </div>
-            <div className="space-y-2.5">
-              {documents.map(doc => (
-                <div key={doc.type} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
-                  <div>
-                    <p className="font-semibold text-gray-800 text-sm">{doc.type} {doc.mandatory && <span className="text-red-500">*</span>}</p>
-                    <p className="text-xs text-gray-500">
-                      {doc.status === 'Verified' ? '✅ Verified' : doc.status === 'Rejected' ? '❌ Rejected — please re-upload' : doc.uploaded ? '⏳ Uploaded, pending verification' : 'Not uploaded yet'}
-                    </p>
-                  </div>
-                  <label className="px-3 py-1.5 text-white text-xs font-semibold rounded-lg cursor-pointer flex items-center gap-1.5 flex-shrink-0 hover:brightness-110 transition-all" style={primaryBtnStyle}>
-                    <Upload size={13} /> {doc.uploaded ? 'Re-upload' : 'Upload'}
-                    <input type="file" className="hidden" onChange={(e) => e.target.files[0] && onUploadDoc(doc.type, e.target.files[0])} />
-                  </label>
-                </div>
-              ))}
-              {documents.length === 0 && <p className="text-sm text-gray-400">No document checklist available yet.</p>}
             </div>
           </div>
         )}

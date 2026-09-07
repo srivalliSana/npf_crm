@@ -343,7 +343,7 @@ export default function StudentDashboard() {
   }
   if (!data) return null
 
-  const { application: app, documents, admissionDetailsStatus, bookingFeeStatus, bookingFeeAmount,
+  const { application: app, documents, documentsVerified, admissionDetailsStatus, bookingFeeStatus, bookingFeeAmount,
     admissionFullDetails, admissionFullDetailsStatus, admissionFullDetailsReviewNote,
     registrationFeePaid, registrationFeeAmount, provisionalAdmissionStatus, registrationNumber,
     tuitionFeeAmount, tuitionFeePaid, campusoneSyncStatus, programTotalFee } = data
@@ -412,7 +412,7 @@ export default function StudentDashboard() {
             ) : (
               <div className="border rounded-xl p-6 max-w-md">
                 <p className="text-4xl font-bold text-gray-900 mb-2">₹{Number(bookingFeeAmount || 1000).toLocaleString('en-IN')}</p>
-                <p className="text-base text-gray-600 mb-5">Pay once to unlock your admission form — no waiting on manual review.</p>
+                <p className="text-base text-gray-600 mb-5">Pay once to unlock document upload — no waiting on manual review.</p>
                 <button
                   onClick={payViaGateway}
                   disabled={payingGateway}
@@ -429,10 +429,26 @@ export default function StudentDashboard() {
           )}
         </div>
 
-        {/* Step 2: the fuller admission form — personal/parent/address/program/
-            academic details + documents — unlocked once the booking fee is paid,
-            and reviewed by a counselor before the registration fee unlocks. */}
-        {bookingPaid && !fullDetailsApproved && (
+        {/* Step 2: upload documents — its own standalone step right after the
+            booking fee, gated by staff verification before the fuller
+            admission form unlocks. */}
+        {bookingPaid && !documentsVerified && (
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2.5"><Upload size={24} className="text-purple-600" /> Upload Documents</h2>
+            <p className="text-sm text-gray-500 mb-4">{mandatoryDocs.filter(d => d.status === 'Verified').length}/{mandatoryDocs.length} mandatory documents verified — your admission form unlocks once all of them are.</p>
+            <div>
+              {documents.map((d) => (
+                <DocRow key={d.type} {...d} onUpload={uploadDoc} uploading={uploadingDoc} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: the fuller admission form — personal/parent/address/program/
+            academic details — unlocked once all mandatory documents are
+            verified, and reviewed by a counselor before the registration
+            fee unlocks. */}
+        {bookingPaid && documentsVerified && !fullDetailsApproved && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5 px-1"><FileText size={24} className="text-purple-600" /> Complete Your Admission Form</h2>
             {fullDetailsPending ? (
@@ -443,8 +459,8 @@ export default function StudentDashboard() {
               </div>
             ) : (
               <FullAdmissionForm
-                app={app} initialData={admissionFullDetails} documents={documents}
-                onSubmit={submitFullForm} onUploadDoc={uploadDoc} submitting={submittingFullForm}
+                app={app} initialData={admissionFullDetails}
+                onSubmit={submitFullForm} submitting={submittingFullForm}
                 rejected={fullDetailsRejected} reviewNote={admissionFullDetailsReviewNote}
               />
             )}
@@ -463,21 +479,15 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* Provisional admission + documents */}
+        {/* Provisional admission + tuition fee — documents are already verified
+            by this point (Step 2, above), so there's nothing left to upload
+            here in the ordinary case; a document accidentally un-verified
+            after the fact would still show up in the Step 2 card above. */}
         {provisionalGranted && (
           <>
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
               <h3 className="font-bold text-blue-900 text-lg mb-1.5">Provisional Admission Granted</h3>
-              <p className="text-base text-blue-800">Upload the documents below in any order, whenever you have them ready — there's no deadline to do it all at once.</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-lg p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2.5"><Upload size={24} className="text-purple-600" /> Documents</h2>
-              <p className="text-sm text-gray-500 mb-4">{mandatoryDocs.filter(d => d.status === 'Verified').length}/{mandatoryDocs.length} mandatory documents verified</p>
-              <div>
-                {documents.map((d) => (
-                  <DocRow key={d.type} {...d} onUpload={uploadDoc} uploading={uploadingDoc} />
-                ))}
-              </div>
+              <p className="text-base text-blue-800">Pay the tuition fee below to complete your enrollment.{registrationNumber && <> Temporary admission number: <strong>{registrationNumber}</strong>.</>}</p>
             </div>
 
             {/* Step: Tuition Fee */}
