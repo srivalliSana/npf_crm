@@ -2167,14 +2167,21 @@ app.get('/api/payments', authenticateToken, async (req, res) => {
 })
 
 app.post('/api/payments', async (req, res) => {
-  const { name, appNo, amount, method, status, date } = req.body
+  const { name, appNo, amount, method, status, date, feeType } = req.body
   const finalDate = date || new Date().toLocaleDateString('en-IN')
   try {
+    // feeType was previously silently dropped here, so every payment made
+    // through this endpoint (the "Generate/Record Payment" flow) landed on
+    // the fee_type column's DEFAULT 'Application' regardless of what was
+    // actually being collected — which sends Booking/Registration/Tuition
+    // fee payments down submit-utr/approve's "Application" branch instead
+    // (wrong side effects: an admission letter + OTP email fire instead of
+    // just flipping that fee's own status).
     const insertRes = await pool.query(`
-      INSERT INTO payments (name, app_no, amount, method, status, date, tenant_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId";
-    `, [name, appNo, amount || 25000, method || '', status || 'Pending', finalDate, req.tenantId])
+      INSERT INTO payments (name, app_no, amount, method, status, date, fee_type, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", fee_type AS "feeType";
+    `, [name, appNo, amount || 25000, method || '', status || 'Pending', finalDate, feeType || 'Application', req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to create payment transaction.' })
