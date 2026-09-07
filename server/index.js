@@ -444,12 +444,21 @@ async function createMailTransporter(tenantId = 1) {
   const user     = await getIntegrationSetting('smtp_user', tenantId)      || process.env.SMTP_USER     || ''
   const pass     = await getIntegrationSetting('smtp_pass', tenantId)      || process.env.SMTP_PASS     || ''
   const fromName = await getIntegrationSetting('smtp_from_name', tenantId) || 'CUTM Admissions'
+  // The SMTP auth username is not necessarily a valid "From" address — an
+  // AWS SES SMTP credential, the fallback for any tenant without its own
+  // Gmail/SMTP setup, is an IAM access-key id (e.g. "AKIA..."), and using it
+  // as the envelope From gets every send bounced with "501 Invalid MAIL FROM
+  // address" (that's exactly what was happening for every tenant besides the
+  // one with its own DB-stored Gmail account). Prefer a real configured From
+  // address; fall back to the auth user only when it's actually an email.
+  const fromEmail = await getIntegrationSetting('smtp_from_email', tenantId) || process.env.SMTP_FROM || (user.includes('@') ? user : '')
 
   // Return specific missing-field info so errors are actionable
   const missing = []
   if (!host) missing.push('SMTP Host (smtp.gmail.com)')
   if (!user) missing.push('Gmail Address')
   if (!pass) missing.push('App Password')
+  if (!fromEmail) missing.push('From Email Address')
   if (missing.length > 0) {
     const msg = `Missing SMTP fields: ${missing.join(', ')} — go to Integrations → Gmail/SMTP Email and re-save`
     console.warn('[Mail]', msg)
@@ -470,7 +479,7 @@ async function createMailTransporter(tenantId = 1) {
     auth: { user, pass },
     tls: { rejectUnauthorized: false }
   })
-  return { transporter, from: `"${fromName}" <${user}>`, error: null }
+  return { transporter, from: `"${fromName}" <${fromEmail}>`, error: null }
 }
 
 // Shared branded HTML wrapper for every outgoing system email — one consistent
@@ -537,11 +546,14 @@ function brandedEmailHtml({ badge = 'INFO', tone = 'info', title, timestamp, bod
 
 // Fire-and-forget alert email (counselor notifications, OTPs, etc.)
 // Supports both text and HTML formats
+// Returns { success, error } — callers that tell the user "email sent"
+// (e.g. POST /api/send-template-email) should check this rather than
+// assume it worked just because nothing threw past this function.
 async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1, htmlBody = null) {
   console.log(`[Mail] To: ${recipient} | Sub: ${subject}`)
   try {
     const cfg = await createMailTransporter(tenantId)
-    if (cfg.error) { console.warn('[Mail] Skipped —', cfg.error); return }
+    if (cfg.error) { console.warn('[Mail] Skipped —', cfg.error); return { success: false, error: cfg.error } }
     const mailOptions = {
       from: cfg.from,
       to: recipient,
@@ -551,8 +563,10 @@ async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1
     if (htmlBody) mailOptions.html = htmlBody
     await cfg.transporter.sendMail(mailOptions)
     console.log(`[Mail] Sent to ${recipient}`)
+    return { success: true, error: null }
   } catch (e) {
     console.error(`[Mail] Failed for ${recipient}:`, e.message)
+    return { success: false, error: e.message }
   }
 }
 
@@ -8998,15 +9012,30 @@ app.post('/api/send-template-email', authenticateToken, async (req, res) => {
 
     // Send email via SES
     console.log(`[Email] About to send to ${appData.email}, template: ${template_type}`)
-    await sendSystemMailAlert(appData.email, subject, emailBody, req.tenantId, emailHtml)
-    console.log(`[Email] Completed for ${appData.email}`)
+    const mailResult = await sendSystemMailAlert(appData.email, subject, emailBody, req.tenantId, emailHtml)
+    console.log(`[Email] ${mailResult.success ? 'Completed' : 'FAILED'} for ${appData.email}`)
 
-    // Log the email
+    // Log the email — real outcome either way, not just attempts that worked.
+    // email_logs' actual live columns are campaign_id/campaign_name/
+    // recipient_email/recipient_name/status/error_message/tenant_id (a
+    // second, incompatible CREATE TABLE for this same name — with app_id/
+    // template_type/subject/sent_by — was a no-op since the table already
+    // existed, so an insert naming those columns has always failed silently).
     await pool.query(
-      `INSERT INTO email_logs (tenant_id, app_id, recipient_email, template_type, subject, sent_by)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [req.tenantId, app_id, appData.email, template_type, subject, req.user?.email]
+      `INSERT INTO email_logs (tenant_id, recipient_email, campaign_name, status, error_message)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [req.tenantId, appData.email, `send-template-email:${template_type} (app ${app_id})`, mailResult.success ? 'Sent' : 'Failed', mailResult.error || '']
     ).catch(() => {})
+
+    if (!mailResult.success) {
+      // The admission-details link/token itself was still created above and
+      // is valid — just tell the truth about delivery so staff know to share
+      // it another way instead of assuming the student received it.
+      return res.status(502).json({
+        error: `Email could not be delivered: ${mailResult.error || 'unknown mail error'}`,
+        token: linkToken
+      })
+    }
 
     res.json({
       success: true,
