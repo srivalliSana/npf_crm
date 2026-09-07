@@ -6139,6 +6139,17 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
         [`New ${source || 'Website'} lead (unassigned): ${name} — assign from Lead Manager`, 'Just now', 'lead_unassigned', tenantId])
     }
 
+    // CU EDU only: this is a fully self-service online funnel with no
+    // counselor gatekeeping — every OTP-verified registration goes straight
+    // to a portal login, gated by a small upfront payment, instead of
+    // waiting on a counselor to review and convert it. Fire-and-forget so a
+    // slow/failed provisioning step never turns a successful registration
+    // into an error for the visitor.
+    if ((req.params.tenantSlug || '').toLowerCase() === 'cuedu') {
+      autoProvisionCuEduApplication({ name, email: email || pubLead.email, mobile, course: course || 'B.Tech CSE', owner }, tenantId)
+        .catch((e) => console.error('[Public Inquiry] CU EDU auto-provision failed:', e.message))
+    }
+
     // Reference ID the caller can quote — either their own supplied prefix,
     // or the same CULDAI26/CULDSM26 format shown in the CRM's own Lead
     // Manager table. The raw numeric `id` alone isn't recognizable to anyone
@@ -8655,7 +8666,40 @@ app.post('/api/admission-details/:token/documents', uploadDoc.single('file'), as
 // table (status='Payment Done') the token-based journey already uses, so
 // staff approve it on the existing Payments page exactly as they do today —
 // one trust model, regardless of which door the student came through.
+//
+// CU EDU is the one exception, by design (see create-payment-order /
+// verify-payment below): its ₹1000 entry fee is small, fixed, and meant to
+// be instant, so it's confirmed by a real Razorpay signature instead of a
+// staff-reviewed UTR — verified server-side, never trusted from the client.
 // ════════════════════════════════════════════════════════════════════════════════
+
+async function tenantSlugFor(tenantId) {
+  const r = await pool.query('SELECT slug FROM tenants WHERE id = $1;', [tenantId])
+  return r.rows[0]?.slug || ''
+}
+
+// CU EDU only: a lead that clears OTP verification on cuedu.in gets an
+// application (and portal login) immediately — no counselor has to review
+// and convert it first, unlike every other tenant's higher-touch funnel.
+// admission_details_status starts 'Approved' for the same reason: there is
+// no manual Step-1 review in this funnel, so the portal's very first gate
+// is correctly the payment, not "awaiting review".
+async function autoProvisionCuEduApplication(lead, tenantId) {
+  const seqRes = await pool.query(`SELECT lpad(nextval('cueeap_seq')::text, 4, '0') AS num;`).catch(() => ({ rows: [{ num: String(Date.now()).slice(-4) }] }))
+  const appNo = `CUEEAP26${seqRes.rows[0].num}`
+
+  const insertRes = await pool.query(`
+    INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, campus, course, stage, owner, date, admission_details_status, tenant_id)
+    VALUES ($1, $2, $3, $4, 'Incomplete', 'Payment Pending', 'Online', $5, 'Application Started', $6, $7, 'Approved', $8)
+    RETURNING id, name, app_no, email, mobile, course;
+  `, [lead.name, appNo, lead.email, lead.mobile, lead.course, lead.owner || 'Unassigned', new Date().toLocaleDateString('en-IN'), tenantId])
+
+  const app = insertRes.rows[0]
+  await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+    [`New online application: ${app.name} (${app.app_no}) — awaiting ₹1000 payment`, 'Just now', tenantId])
+  await sendPortalLoginEmail(app, tenantId)
+  return app
+}
 
 // Generates a temp password, stores it (bcrypt-hashed), and emails a login
 // link + credentials. Shared by the manual "resend" endpoint below and by
@@ -8838,6 +8882,11 @@ app.post('/api/student-portal/submit-payment', authenticateToken, requireStudent
     const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
     if (!app) return res.status(404).json({ error: 'Application not found.' })
 
+    // CU EDU's entry fee is small and fixed, so it goes through a real,
+    // instantly-verified gateway payment instead — see create-payment-order.
+    if (feeType === 'Booking Fee' && (await tenantSlugFor(req.tenantId)) === 'cuedu') {
+      return res.status(400).json({ error: 'Please use the "Pay ₹1000 to continue" button to pay this fee online.' })
+    }
     if (feeType === 'Booking Fee' && app.admission_details_status !== 'Approved') {
       return res.status(400).json({ error: 'Admission details must be approved by a counselor first.' })
     }
@@ -8871,6 +8920,104 @@ app.post('/api/student-portal/submit-payment', authenticateToken, requireStudent
   } catch (e) {
     console.error('[POST /api/student-portal/submit-payment]', e.message)
     res.status(500).json({ error: 'Failed to submit payment.' })
+  }
+})
+
+// ── CU EDU only: real Razorpay payment for the ₹1000 entry fee ──────────────
+// Two-step, standard Razorpay flow: create an order server-side (amount is
+// never trusted from the client), then verify the signature Razorpay hands
+// back before ever marking anything paid. This is the one place a fee gets
+// marked Paid without a staff approval step — because unlike a self-reported
+// UTR, an HMAC signature keyed with our own secret can't be forged by the
+// client, so trusting it immediately is actually safe.
+app.post('/api/student-portal/create-payment-order', authenticateToken, requireStudent, async (req, res) => {
+  try {
+    if ((await tenantSlugFor(req.tenantId)) !== 'cuedu') {
+      return res.status(403).json({ error: 'This payment method is not available for your program.' })
+    }
+    const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
+    if (!app) return res.status(404).json({ error: 'Application not found.' })
+    if (app.booking_fee_status === 'Paid') return res.status(400).json({ error: 'This fee is already paid.' })
+
+    const keyId = process.env.RAZORPAY_KEY_ID
+    const keySecret = process.env.RAZORPAY_KEY_SECRET
+    if (!keyId || !keySecret) {
+      console.error('[create-payment-order] RAZORPAY_KEY_ID/SECRET not configured on the server')
+      return res.status(503).json({ error: 'Online payment is not configured yet. Please contact admissions.' })
+    }
+
+    const progRes = await pool.query('SELECT booking_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
+    const amountRupees = Number(progRes.rows[0]?.booking_fee) || 1000
+
+    const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+    const rpRes = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: Math.round(amountRupees * 100), // paise
+        currency: 'INR',
+        receipt: app.app_no,
+        notes: { app_id: String(app.id), tenant_id: String(req.tenantId), fee_type: 'Booking Fee' }
+      })
+    })
+    const order = await rpRes.json()
+    if (!rpRes.ok) {
+      console.error('[create-payment-order] Razorpay rejected the order:', order)
+      return res.status(502).json({ error: order?.error?.description || 'Could not start the payment. Please try again.' })
+    }
+
+    res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId, name: app.name, email: app.email })
+  } catch (e) {
+    console.error('[POST /api/student-portal/create-payment-order]', e.message)
+    res.status(500).json({ error: 'Could not start the payment. Please try again.' })
+  }
+})
+
+app.post('/api/student-portal/verify-payment', authenticateToken, requireStudent, async (req, res) => {
+  try {
+    if ((await tenantSlugFor(req.tenantId)) !== 'cuedu') {
+      return res.status(403).json({ error: 'This payment method is not available for your program.' })
+    }
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ error: 'Incomplete payment confirmation.' })
+    }
+    const keySecret = process.env.RAZORPAY_KEY_SECRET
+    if (!keySecret) return res.status(503).json({ error: 'Online payment is not configured yet. Please contact admissions.' })
+
+    const expected = crypto.createHmac('sha256', keySecret).update(`${razorpay_order_id}|${razorpay_payment_id}`).digest('hex')
+    const expectedBuf = Buffer.from(expected, 'utf8')
+    const actualBuf = Buffer.from(String(razorpay_signature), 'utf8')
+    if (expectedBuf.length !== actualBuf.length || !crypto.timingSafeEqual(expectedBuf, actualBuf)) {
+      console.warn('[verify-payment] signature mismatch — rejecting', { appId: req.user.appId, razorpay_order_id })
+      return res.status(400).json({ error: 'Payment could not be verified.' })
+    }
+
+    const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
+    if (!app) return res.status(404).json({ error: 'Application not found.' })
+    if (app.booking_fee_status === 'Paid') return res.json({ success: true, alreadyPaid: true })
+
+    const progRes = await pool.query('SELECT booking_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
+    const amountRupees = Number(progRes.rows[0]?.booking_fee) || 1000
+
+    await pool.query(
+      `INSERT INTO payments (name, app_no, amount, method, status, date, txn_id, fee_type, tenant_id)
+       VALUES ($1, $2, $3, 'razorpay', 'Paid', $4, $5, 'Booking Fee', $6);`,
+      [app.name, app.app_no, amountRupees, new Date().toLocaleDateString('en-IN'), razorpay_payment_id, req.tenantId]
+    )
+    await pool.query(`UPDATE applications SET booking_fee_status = 'Paid', booking_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, req.tenantId])
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`₹${amountRupees} entry fee paid online — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
+
+    // CU EDU's funnel has no separate registration-fee stage — paying the
+    // entry fee unlocks document upload directly, via the same function the
+    // registration-fee approval uses elsewhere (registration number + email).
+    await grantProvisionalAdmission(app.id, req.tenantId)
+
+    res.json({ success: true })
+  } catch (e) {
+    console.error('[POST /api/student-portal/verify-payment]', e.message)
+    res.status(500).json({ error: 'Could not confirm the payment. Please contact admissions with your payment id.' })
   }
 })
 
