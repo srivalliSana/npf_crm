@@ -975,18 +975,27 @@ export async function initDb() {
       }
     ]
 
-    for (const tpl of defaultTemplates) {
-      const exists = await client.query(
-        'SELECT 1 FROM email_templates WHERE template_type = $1 AND tenant_id = 1;',
-        [tpl.type]
-      ).catch(() => ({ rows: [] }))
+    // Every tenant needs its own row per template_type — this table is
+    // tenant-scoped (POST /api/send-template-email filters on tenant_id), so
+    // a tenant that only ever got this far via the DEFAULT 1 seed below would
+    // 404 with "Template not found" on every send. Runs on every boot so an
+    // existing tenant that's missing rows (e.g. created before this loop
+    // existed) gets backfilled too, not just brand-new ones.
+    const tenantIds = await client.query('SELECT id FROM tenants;').catch(() => ({ rows: [] }))
+    for (const { id: tid } of tenantIds.rows) {
+      for (const tpl of defaultTemplates) {
+        const exists = await client.query(
+          'SELECT 1 FROM email_templates WHERE template_type = $1 AND tenant_id = $2;',
+          [tpl.type, tid]
+        ).catch(() => ({ rows: [] }))
 
-      if (exists.rows.length === 0) {
-        await client.query(
-          `INSERT INTO email_templates (tenant_id, template_type, name, subject, description, body_html, body_text, variables, is_active)
-           VALUES (1, $1, $2, $3, $4, '', '', '[]', TRUE)`,
-          [tpl.type, tpl.name, tpl.subject, tpl.description]
-        ).catch(() => {})
+        if (exists.rows.length === 0) {
+          await client.query(
+            `INSERT INTO email_templates (tenant_id, template_type, name, subject, description, body_html, body_text, variables, is_active)
+             VALUES ($1, $2, $3, $4, $5, '', '', '[]', TRUE)`,
+            [tid, tpl.type, tpl.name, tpl.subject, tpl.description]
+          ).catch(() => {})
+        }
       }
     }
 
