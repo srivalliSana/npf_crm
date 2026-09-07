@@ -862,6 +862,12 @@ export async function initDb() {
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS provisional_admission_status VARCHAR(30) DEFAULT 'Pending';`).catch(() => {}) // Pending | Granted
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS provisional_admission_at TIMESTAMP;`).catch(() => {})
 
+    // Step 2 gate: counselor also reviews the fuller admission form (same pattern as
+    // Step 1's admission_details_status) before the student can pay the registration fee.
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_full_details_status VARCHAR(30) DEFAULT 'Pending';`).catch(() => {}) // Pending | Approved | Rejected
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_full_details_reviewed_by VARCHAR(255) DEFAULT '';`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS admission_full_details_reviewed_at TIMESTAMP;`).catch(() => {})
+
     // Step 3: ties uploaded documents to a specific application (older lead-stage
     // uploads keep matching by student name; new journey uploads always set this).
     await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS app_id INTEGER REFERENCES applications(id) ON DELETE CASCADE;`).catch(() => {})

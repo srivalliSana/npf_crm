@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { CheckCircle2, AlertCircle, Loader, Clock, Upload, ChevronLeft, ChevronRight, Check, Pencil, Users, BookOpen, Building2, Briefcase, Phone, Mail, Globe } from 'lucide-react'
 import { INDIA_STATES, getDistrictsForState, CASTE_CATEGORIES } from '../data/indiaLocations'
+import FullAdmissionForm from '../components/FullAdmissionForm'
 
 const LOGO_URL = 'https://crm.cutmap.ac.in/landing/images/logo.jpg'
 const SUPPORT_EMAIL = 'admissions@cutmap.ac.in'
@@ -24,9 +25,8 @@ const JOURNEY_STAGES = ['Details', 'Booking Fee', 'Full Form', 'Registration Fee
 
 function macroStageIndex(j) {
   if (!j) return 0
-  const fullFormSubmitted = j.admissionFullDetails && Object.keys(j.admissionFullDetails).length > 0
   if (j.provisionalAdmissionStatus === 'Granted') return 4
-  if (fullFormSubmitted) return 3
+  if (j.admissionFullDetailsStatus === 'Approved') return 3
   if (j.bookingFeeStatus === 'Paid') return 2
   if (j.admissionDetailsStatus === 'Approved') return 1
   return 0
@@ -247,7 +247,7 @@ function StepWizard({ steps, onFinish, finishLabel = 'Submit', submitting }) {
 }
 
 // ── Payment screen, reused for Booking / Registration / Tuition fee ──
-function PaymentScreen({ token, feeType, amount, title, description, onSubmitted }) {
+function PaymentScreen({ token, feeType, amount, totalAmount, title, description, onSubmitted }) {
   const [utrNumber, setUtrNumber] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -296,8 +296,11 @@ function PaymentScreen({ token, feeType, amount, title, description, onSubmitted
     <Card>
       <h2 className="text-xl font-bold text-gray-900 mb-1">{title}</h2>
       <p className="text-gray-500 text-sm mb-4">{description}</p>
+      {!!totalAmount && (
+        <p className="text-sm text-gray-500 mb-2">Total Program Fee: <span className="font-semibold text-gray-700">₹{Number(totalAmount).toLocaleString('en-IN')}</span></p>
+      )}
       <div className="bg-teal-50 border border-teal-100 rounded-lg p-4 mb-5">
-        <p className="text-sm text-gray-600">Amount to pay</p>
+        <p className="text-sm text-gray-600">Amount you are paying now</p>
         <p className="font-bold text-2xl text-teal-700">₹{Number(amount || 0).toLocaleString('en-IN')}</p>
       </div>
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
@@ -336,13 +339,6 @@ export default function AdmissionDetailsForm() {
     emergencyContactName: '', emergencyContactPhone: ''
   })
 
-  const [fullFormData, setFullFormData] = useState({
-    guardianOccupation: '', guardianAnnualIncome: '', previousInstitution: '', tcNumber: '',
-    entranceExamName: '', entranceExamRollNo: '', entranceExamScore: '',
-    bankAccountNumber: '', bankIFSC: '', bankName: '',
-    hostelRequired: false, transportRequired: false
-  })
-
   const fetchJourney = () => {
     fetch(`/api/admission-details/${token}`)
       .then(r => { if (!r.ok) throw new Error('Invalid or expired link'); return r.json() })
@@ -350,9 +346,6 @@ export default function AdmissionDetailsForm() {
         setJourney(data)
         if (data.admissionDetails && Object.keys(data.admissionDetails).length > 0) {
           setFormData(prev => ({ ...prev, ...data.admissionDetails }))
-        }
-        if (data.admissionFullDetails && Object.keys(data.admissionFullDetails).length > 0) {
-          setFullFormData(prev => ({ ...prev, ...data.admissionFullDetails }))
         }
         setLoading(false)
       })
@@ -367,10 +360,6 @@ export default function AdmissionDetailsForm() {
     if (name === 'pincode') return setField('pincode', value.replace(/\D/g, '').slice(0, 6))
     if (name === 'state') { setFormData(prev => ({ ...prev, state: value, city: '' })); return }
     setField(name, type === 'checkbox' ? checked : value)
-  }
-  const handleFullFormChange = (e) => {
-    const { name, value, type, checked } = e.target
-    setFullFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
   const handleSubmitStep1 = async () => {
@@ -388,7 +377,7 @@ export default function AdmissionDetailsForm() {
     }
   }
 
-  const handleSubmitFullForm = async () => {
+  const handleSubmitFullForm = async (fullFormData) => {
     setSubmitting(true)
     try {
       const res = await fetch(`/api/admission-details/${token}/full-form`, {
@@ -497,7 +486,7 @@ export default function AdmissionDetailsForm() {
 
           {!j.tuitionFeePaid ? (
             <PaymentScreen
-              token={token} feeType="Tuition Fee" amount={j.tuitionFeeAmount}
+              token={token} feeType="Tuition Fee" amount={j.tuitionFeeAmount} totalAmount={j.programTotalFee}
               title="Pay Minimum Tuition Fee" description="Pay the minimum tuition fee assigned to your program to finish your admission."
               onSubmitted={fetchJourney}
             />
@@ -512,8 +501,8 @@ export default function AdmissionDetailsForm() {
     )
   }
 
-  // ── Screen: registration fee (after full form submitted) ──
-  if (fullFormSubmitted) {
+  // ── Screen: registration fee (once the fuller admission form is approved) ──
+  if (j.admissionFullDetailsStatus === 'Approved') {
     return (
       <PageShell>
         <Hero application={j.application} macroStep={macroStep} />
@@ -521,7 +510,7 @@ export default function AdmissionDetailsForm() {
           <ApplicantBar application={j.application} />
           {!j.registrationFeePaid ? (
             <PaymentScreen
-              token={token} feeType="Registration Fee" amount={j.registrationFeeAmount}
+              token={token} feeType="Registration Fee" amount={j.registrationFeeAmount} totalAmount={j.programTotalFee}
               title="Pay Registration Fee" description="Pay your registration fee to receive provisional admission."
               onSubmitted={fetchJourney}
             />
@@ -536,70 +525,36 @@ export default function AdmissionDetailsForm() {
     )
   }
 
-  // ── Screen: booking fee paid → fuller admission form (3-step wizard) ──
-  if (j.bookingFeeStatus === 'Paid') {
-    const steps = [
-      {
-        title: 'Guardian & Financial Information',
-        subtitle: 'Helps us understand your family background for scholarship eligibility.',
-        render: () => (
-          <>
-            <Field label="Guardian's Occupation">
-              <input className={inputCls} name="guardianOccupation" value={fullFormData.guardianOccupation} onChange={handleFullFormChange} placeholder="e.g., Farmer, Business, Salaried" />
-            </Field>
-            <Field label="Guardian's Annual Income (₹)">
-              <input className={inputCls} type="number" name="guardianAnnualIncome" value={fullFormData.guardianAnnualIncome} onChange={handleFullFormChange} placeholder="e.g., 300000" />
-            </Field>
-          </>
-        )
-      },
-      {
-        title: 'Previous Institution & Entrance Exam',
-        subtitle: 'Tell us where you studied last, and any entrance exam you took.',
-        render: () => (
-          <>
-            <Field label="Previous Institution Name">
-              <input className={inputCls} name="previousInstitution" value={fullFormData.previousInstitution} onChange={handleFullFormChange} />
-            </Field>
-            <Field label="Transfer Certificate (TC) Number">
-              <input className={inputCls} name="tcNumber" value={fullFormData.tcNumber} onChange={handleFullFormChange} />
-            </Field>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Exam Name" hint="If applicable"><input className={inputCls} name="entranceExamName" value={fullFormData.entranceExamName} onChange={handleFullFormChange} placeholder="e.g., JEE, NEET" /></Field>
-              <Field label="Roll No"><input className={inputCls} name="entranceExamRollNo" value={fullFormData.entranceExamRollNo} onChange={handleFullFormChange} /></Field>
-              <Field label="Score / Rank"><input className={inputCls} name="entranceExamScore" value={fullFormData.entranceExamScore} onChange={handleFullFormChange} /></Field>
-            </div>
-          </>
-        )
-      },
-      {
-        title: 'Bank Details & Preferences',
-        subtitle: 'Bank details are used only for refunds, if any. Choose your accommodation needs below.',
-        render: () => (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Bank Name"><input className={inputCls} name="bankName" value={fullFormData.bankName} onChange={handleFullFormChange} /></Field>
-              <Field label="Account Number"><input className={inputCls} name="bankAccountNumber" value={fullFormData.bankAccountNumber} onChange={handleFullFormChange} /></Field>
-              <Field label="IFSC Code"><input className={inputCls} name="bankIFSC" value={fullFormData.bankIFSC} onChange={handleFullFormChange} style={{ textTransform: 'uppercase' }} /></Field>
-            </div>
-            <div className="flex flex-wrap gap-6 pt-1">
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
-                <input type="checkbox" name="hostelRequired" checked={fullFormData.hostelRequired} onChange={handleFullFormChange} className="w-4 h-4 accent-teal-700" /> Hostel Required
-              </label>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
-                <input type="checkbox" name="transportRequired" checked={fullFormData.transportRequired} onChange={handleFullFormChange} className="w-4 h-4 accent-teal-700" /> Transport Required
-              </label>
-            </div>
-          </>
-        )
-      }
-    ]
+  // ── Screen: full admission form submitted, awaiting counselor review ──
+  if (fullFormSubmitted && j.admissionFullDetailsStatus === 'Pending') {
     return (
       <PageShell>
         <Hero application={j.application} macroStep={macroStep} />
         <Content>
           <ApplicantBar application={j.application} />
-          <StepWizard steps={steps} onFinish={handleSubmitFullForm} finishLabel="Submit Full Admission Form" submitting={submitting} />
+          <Card className="text-center">
+            <Clock size={44} className="text-amber-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Awaiting Counselor Review</h2>
+            <p className="text-gray-600 text-sm">Your admission form has been submitted and is being reviewed by our admissions team. You'll be notified by email once it's approved.</p>
+          </Card>
+        </Content>
+      </PageShell>
+    )
+  }
+
+  // ── Screen: booking fee paid → fuller admission form (Personal/Parent's/
+  // Address/Program/Academic details + Upload Documents) ──
+  if (j.bookingFeeStatus === 'Paid') {
+    return (
+      <PageShell>
+        <Hero application={j.application} macroStep={macroStep} />
+        <Content>
+          <ApplicantBar application={j.application} />
+          <FullAdmissionForm
+            app={j.application} initialData={j.admissionFullDetails} documents={j.documents}
+            onSubmit={handleSubmitFullForm} onUploadDoc={handleDocUpload} submitting={submitting}
+            rejected={j.admissionFullDetailsStatus === 'Rejected'} reviewNote={j.admissionFullDetailsReviewNote}
+          />
         </Content>
       </PageShell>
     )

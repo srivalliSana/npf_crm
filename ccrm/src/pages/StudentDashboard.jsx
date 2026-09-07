@@ -5,6 +5,7 @@ import {
   Upload, IndianRupee, ShieldCheck
 } from 'lucide-react'
 import { getUrlTenantSlug } from '../tenantSlug'
+import FullAdmissionForm from '../components/FullAdmissionForm'
 
 // Loads Razorpay's Checkout script once and reuses it — the widget itself
 // is only ever needed on CU EDU's booking-fee step.
@@ -155,6 +156,7 @@ export default function StudentDashboard() {
   const [submittingFee, setSubmittingFee] = useState(null)
   const [uploadingDoc, setUploadingDoc] = useState(null)
   const [payingGateway, setPayingGateway] = useState(false)
+  const [submittingFullForm, setSubmittingFullForm] = useState(false)
   const [toast, setToast] = useState('')
 
   const fetchData = async () => {
@@ -276,6 +278,25 @@ export default function StudentDashboard() {
     }
   })
 
+  // Step 2 — the fuller admission form (personal/parent/address/program/
+  // academic details + documents), unlocked once the booking fee is paid.
+  // Every submit (first time, or a resubmit after rejection) goes back to
+  // Pending for a counselor to review before the registration fee unlocks.
+  const submitFullForm = async (formData) => {
+    setSubmittingFullForm(true)
+    try {
+      const res = await fetch('/api/student-portal/full-form', { method: 'POST', headers: authHeaders(), body: JSON.stringify(formData) })
+      const d = await res.json()
+      if (!res.ok) { flash(`❌ ${d.error}`); return }
+      flash('✅ Admission form submitted — awaiting counselor review.')
+      fetchData()
+    } catch {
+      flash('❌ Network error — please try again.')
+    } finally {
+      setSubmittingFullForm(false)
+    }
+  }
+
   const uploadDoc = async (type, file) => {
     setUploadingDoc(type)
     try {
@@ -323,11 +344,16 @@ export default function StudentDashboard() {
   if (!data) return null
 
   const { application: app, documents, admissionDetailsStatus, bookingFeeStatus, bookingFeeAmount,
+    admissionFullDetails, admissionFullDetailsStatus, admissionFullDetailsReviewNote,
     registrationFeePaid, registrationFeeAmount, provisionalAdmissionStatus, registrationNumber,
-    tuitionFeeAmount, tuitionFeePaid, campusoneSyncStatus } = data
+    tuitionFeeAmount, tuitionFeePaid, campusoneSyncStatus, programTotalFee } = data
 
   const bookingUnlocked = admissionDetailsStatus === 'Approved'
   const bookingPaid = bookingFeeStatus === 'Paid'
+  const fullFormSubmitted = admissionFullDetails && Object.keys(admissionFullDetails).length > 0
+  const fullDetailsApproved = admissionFullDetailsStatus === 'Approved'
+  const fullDetailsPending = fullFormSubmitted && admissionFullDetailsStatus === 'Pending'
+  const fullDetailsRejected = admissionFullDetailsStatus === 'Rejected'
   const registrationPaid = !!registrationFeePaid
   const provisionalGranted = provisionalAdmissionStatus === 'Granted'
   const mandatoryDocs = documents.filter(d => d.mandatory)
@@ -386,7 +412,7 @@ export default function StudentDashboard() {
             ) : (
               <div className="border rounded-xl p-6 max-w-md">
                 <p className="text-4xl font-bold text-gray-900 mb-2">₹{Number(bookingFeeAmount || 1000).toLocaleString('en-IN')}</p>
-                <p className="text-base text-gray-600 mb-5">Pay once to unlock document upload — no waiting on manual review.</p>
+                <p className="text-base text-gray-600 mb-5">Pay once to unlock your admission form — no waiting on manual review.</p>
                 <button
                   onClick={payViaGateway}
                   disabled={payingGateway}
@@ -403,11 +429,35 @@ export default function StudentDashboard() {
           )}
         </div>
 
-        {/* Step: Registration Fee — CU EDU's funnel has no separate stage for this;
-            paying the entry fee above unlocks documents directly. */}
-        {bookingPaid && !isCuEdu && (
+        {/* Step 2: the fuller admission form — personal/parent/address/program/
+            academic details + documents — unlocked once the booking fee is paid,
+            and reviewed by a counselor before the registration fee unlocks. */}
+        {bookingPaid && !fullDetailsApproved && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5 px-1"><FileText size={24} className="text-purple-600" /> Complete Your Admission Form</h2>
+            {fullDetailsPending ? (
+              <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+                <Clock size={44} className="text-amber-500 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Awaiting Counselor Review</h3>
+                <p className="text-base text-gray-600">Your admission form has been submitted and is being reviewed. You'll be notified by email once it's approved.</p>
+              </div>
+            ) : (
+              <FullAdmissionForm
+                app={app} initialData={admissionFullDetails} documents={documents}
+                onSubmit={submitFullForm} onUploadDoc={uploadDoc} submitting={submittingFullForm}
+                rejected={fullDetailsRejected} reviewNote={admissionFullDetailsReviewNote}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Step: Registration Fee */}
+        {fullDetailsApproved && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5"><Award size={24} className="text-purple-600" /> Registration Fee</h2>
+            {!registrationPaid && (
+              <p className="text-sm text-gray-500 mb-4">Total Program Fee: <span className="font-semibold text-gray-700">₹{Number(programTotalFee || 0).toLocaleString('en-IN')}</span></p>
+            )}
             <FeeCard title="Registration Fee" blurb="Grants provisional admission" amount={registrationFeeAmount} status={registrationPaid ? 'Paid' : null}
               onSubmit={(utr) => submitPayment('Registration Fee', registrationFeeAmount, utr)} submitting={submittingFee === 'Registration Fee'} />
           </div>
@@ -433,6 +483,9 @@ export default function StudentDashboard() {
             {/* Step: Tuition Fee */}
             <div className="bg-white rounded-xl shadow-lg p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5"><IndianRupee size={24} className="text-purple-600" /> Tuition Fee</h2>
+              {!tuitionFeePaid && (
+                <p className="text-sm text-gray-500 mb-4">Total Program Fee: <span className="font-semibold text-gray-700">₹{Number(programTotalFee || 0).toLocaleString('en-IN')}</span></p>
+              )}
               <FeeCard title="Tuition Fee" blurb="Completes your enrollment" amount={tuitionFeeAmount} status={tuitionFeePaid ? 'Paid' : null}
                 onSubmit={(utr) => submitPayment('Tuition Fee', tuitionFeeAmount, utr)} submitting={submittingFee === 'Tuition Fee'}
                 onPayGateway={() => payViaGatewayForUtr('Tuition Fee')} />
