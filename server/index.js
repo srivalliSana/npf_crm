@@ -14,7 +14,6 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { promisify } from 'util'
 import { exec } from 'child_process'
 import axios from 'axios'
-import bcrypt from 'bcryptjs'
 const execAsync = promisify(exec)
 
 // Import webhook handlers
@@ -6081,21 +6080,19 @@ app.get('/api/reports/leaderboard', authenticateToken, async (req, res) => {
   }
 })
 
-// Generates a temp password, stores it (bcrypt-hashed), and emails a login
-// link + credentials. Used by the manual "resend" endpoint, by
-// approve-admission-details (fires the moment Step 1 is approved), and by
-// autoProvisionCuEduApplication below (CU EDU's funnel has no Step-1 review
-// to wait for). Deliberately kept at true top-level scope — some of those
-// callers live inside server/index.js's oddly-nested startServer() function
-// further down the file; this needs to be reachable from both sides of that
-// boundary, not just from within it.
+// Emails the student portal login link. Google sign-in only — no password
+// to generate, hash, reset or leak — the student just needs to sign in with
+// the same email address their application is under. Used by the manual
+// "resend" endpoint, by approve-admission-details (fires the moment Step 1
+// is approved), and by autoProvisionCuEduApplication below (CU EDU's funnel
+// has no Step-1 review to wait for). Deliberately kept at true top-level
+// scope — some of those callers live inside server/index.js's oddly-nested
+// startServer() function further down the file; this needs to be reachable
+// from both sides of that boundary, not just from within it.
 async function sendPortalLoginEmail(app, tenantId) {
-  const password = crypto.randomBytes(6).toString('hex')
-  const hashedPassword = await bcrypt.hash(password, 10)
-
   await pool.query(
-    `UPDATE applications SET student_password = $1, student_login_email_sent_at = NOW() WHERE id = $2 AND tenant_id = $3`,
-    [hashedPassword, app.id, tenantId]
+    `UPDATE applications SET student_login_email_sent_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+    [app.id, tenantId]
   )
 
   const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
@@ -6108,9 +6105,9 @@ async function sendPortalLoginEmail(app, tenantId) {
     bodyHtml: `
       <p>Dear <strong>${app.name}</strong>,</p>
       <p>Your admission details have been approved. You can now log in anytime to pay your fees and upload your documents — at your own pace, in any order, whenever you're ready. No need to do everything in one sitting.</p>
-      <p style="margin-top:16px;color:#666;font-size:13px;"><strong>Tip:</strong> you can also sign in with Google using this same email address — no password to remember.</p>
+      <p style="margin-top:16px;color:#666;font-size:13px;">Sign in with Google using <strong>${app.email}</strong> — the same email address your application is under.</p>
     `,
-    details: [['Email', app.email], ['Temporary Password', password]],
+    details: [['Email', app.email]],
     ctaText: 'Log In to Your Portal',
     ctaUrl: loginLink
   })
@@ -6121,10 +6118,7 @@ Dear ${app.name},
 Your admission details have been approved. You can now log in anytime to pay fees and upload documents, at your own pace.
 
 Login Link: ${loginLink}
-Email: ${app.email}
-Temporary Password: ${password}
-
-You can also sign in with Google using this same email address.
+Sign in with Google using: ${app.email}
 
 Best regards,
 Admissions Team
@@ -8783,35 +8777,13 @@ function issueStudentSession(app, tenantId) {
 // POST /api/student-login — email + password.
 // Tenant-scoped: email is unique per tenant, not globally, so the same
 // address could legitimately be a different applicant in a different tenant.
-app.post('/api/student-login', async (req, res) => {
-  try {
-    const { email, password, tenantSlug } = req.body
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required.' })
-
-    const tenantId = await resolveSlugTenant(tenantSlug)
-    const r = await pool.query(
-      // A student can legitimately have more than one application in the same
-      // tenant (e.g. applied for two courses) — without an explicit order,
-      // Postgres may return either one, so a login can non-deterministically
-      // land on a row that was never sent a password. Most recent wins.
-      'SELECT id, name, app_no, email, course, admission_number, student_password FROM applications WHERE LOWER(email) = LOWER($1) AND tenant_id = $2 ORDER BY id DESC LIMIT 1;',
-      [email, tenantId]
-    )
-    if (!r.rows.length || !r.rows[0].student_password) return res.status(401).json({ error: 'Invalid email or password.' })
-
-    const app = r.rows[0]
-    const ok = await bcrypt.compare(password, app.student_password)
-    if (!ok) return res.status(401).json({ error: 'Invalid email or password.' })
-
-    res.json({
-      success: true,
-      token: issueStudentSession(app, tenantId),
-      application: { id: app.id, name: app.name, email: app.email, appNo: app.app_no, course: app.course, admissionNumber: app.admission_number }
-    })
-  } catch (e) {
-    console.error('[POST /api/student-login]', e.message)
-    res.status(500).json({ error: 'Login failed.' })
-  }
+// Password-based student login is retired — Google sign-in only, so there's
+// no password to hash/reset/leak for a student identity in the first place.
+// Kept as an explicit, honest rejection rather than deleting the route
+// outright, in case anything (an old bookmark, a stale client build) still
+// posts here — a 410 with a clear message beats a bare 404.
+app.post('/api/student-login', (req, res) => {
+  res.status(410).json({ error: 'Password sign-in has been retired. Please use "Continue with Google" instead.' })
 })
 
 // POST /api/student-login/google — student already has an application; Google
