@@ -2077,7 +2077,25 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
   const [generatingLink, setGeneratingLink] = React.useState(false)
   const [showAdmissionDetailsView, setShowAdmissionDetailsView] = React.useState(false)
   const [showFullDetailsView, setShowFullDetailsView] = React.useState(false)
+  const [sendingPaymentLink, setSendingPaymentLink] = React.useState(null) // null | 'Booking Fee' | 'Tuition Fee'
   const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
+
+  const sendPaymentLink = (feeType) => {
+    setSendingPaymentLink(feeType)
+    const token = localStorage.getItem('ccrm_token')
+    fetch(`/api/applications/${record.id}/send-payment-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ feeType })
+    }).then(r => r.json()).then(d => {
+      if (d.success) {
+        const to = [d.sentTo?.mobile, d.sentTo?.email].filter(Boolean).join(' and ')
+        showToast?.(`✅ Payment link sent to ${to || 'the student'}.`, 'success')
+      } else {
+        alert('Error: ' + d.error)
+      }
+    }).catch(e => alert('Failed: ' + e.message)).finally(() => setSendingPaymentLink(null))
+  }
 
   const REQUIRED = [
     '10th Marksheet','12th Marksheet','Aadhar Card','Passport Photo',
@@ -2437,8 +2455,14 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
           )}
 
           <ul className="space-y-2 text-sm">
-            <li className={`flex items-center gap-2 ${record?.booking_fee_status === 'Paid' ? 'text-green-600' : 'text-gray-500'}`}>
-              <span>{record?.booking_fee_status === 'Paid' ? '✓' : '○'}</span> Application Fee (Step 1) Paid
+            <li className={`flex items-center justify-between gap-2 ${record?.booking_fee_status === 'Paid' ? 'text-green-600' : 'text-gray-500'}`}>
+              <span className="flex items-center gap-2"><span>{record?.booking_fee_status === 'Paid' ? '✓' : '○'}</span> Application Fee (Step 1) Paid</span>
+              {isAdmin && record?.booking_fee_status !== 'Paid' && (
+                <button onClick={() => sendPaymentLink('Booking Fee')} disabled={sendingPaymentLink === 'Booking Fee'}
+                  className="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded-lg disabled:opacity-50">
+                  {sendingPaymentLink === 'Booking Fee' ? 'Sending...' : '📲 Send Link'}
+                </button>
+              )}
             </li>
             <li className={`flex items-center gap-2 ${record?.admission_full_details && Object.keys(record.admission_full_details).length > 0 ? 'text-green-600' : 'text-gray-500'}`}>
               <span>{record?.admission_full_details && Object.keys(record.admission_full_details).length > 0 ? '✓' : '○'}</span> Step 2 — Full Admission Form Submitted
@@ -2449,8 +2473,14 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
             <li className={`flex items-center gap-2 ${record?.provisional_admission_status === 'Granted' ? 'text-green-600' : 'text-gray-500'}`}>
               <span>{record?.provisional_admission_status === 'Granted' ? '✓' : '○'}</span> Provisional Admission Granted
             </li>
-            <li className={`flex items-center gap-2 ${record?.tuition_fee_paid ? 'text-green-600' : 'text-gray-500'}`}>
-              <span>{record?.tuition_fee_paid ? '✓' : '○'}</span> Step 3 — Min. Due Tuition Fee Paid (per Program Master)
+            <li className={`flex items-center justify-between gap-2 ${record?.tuition_fee_paid ? 'text-green-600' : 'text-gray-500'}`}>
+              <span className="flex items-center gap-2"><span>{record?.tuition_fee_paid ? '✓' : '○'}</span> Step 3 — Min. Due Tuition Fee Paid (per Program Master)</span>
+              {isAdmin && !record?.tuition_fee_paid && (
+                <button onClick={() => sendPaymentLink('Tuition Fee')} disabled={sendingPaymentLink === 'Tuition Fee'}
+                  className="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded-lg disabled:opacity-50">
+                  {sendingPaymentLink === 'Tuition Fee' ? 'Sending...' : '📲 Send Link'}
+                </button>
+              )}
             </li>
             <li className={`flex items-center gap-2 ${record?.campusone_sync_status === 'Success' ? 'text-green-600' : 'text-gray-500'}`}>
               <span>{record?.campusone_sync_status === 'Success' ? '✓' : '○'}</span> Step 3 — Synced to CampusOne

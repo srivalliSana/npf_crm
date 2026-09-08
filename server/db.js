@@ -909,6 +909,28 @@ export async function initDb() {
     await client.query(`ALTER TABLE programs ADD COLUMN IF NOT EXISTS booking_fee NUMERIC(10,2) DEFAULT 1000;`).catch(() => {})
     await client.query(`ALTER TABLE programs ADD COLUMN IF NOT EXISTS min_due_provisional NUMERIC(10,2) DEFAULT 0;`).catch(() => {})
 
+    // Counselor-triggered Razorpay Payment Links ("Send Link") — a shareable
+    // URL texted/emailed to a student who isn't going through the portal.
+    // Tracked separately from `payments` so a webhook retry or duplicate
+    // event can be told apart from a genuinely new payment.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payment_links (
+        id SERIAL PRIMARY KEY,
+        app_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
+        razorpay_link_id VARCHAR(100) UNIQUE NOT NULL,
+        short_url TEXT NOT NULL,
+        fee_type VARCHAR(30) NOT NULL,
+        amount NUMERIC(10,2) NOT NULL,
+        status VARCHAR(30) DEFAULT 'created',
+        razorpay_payment_id VARCHAR(100) DEFAULT '',
+        created_by VARCHAR(255) DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW(),
+        paid_at TIMESTAMP,
+        tenant_id INTEGER DEFAULT 1
+      );
+    `).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_payment_links_app ON payment_links(app_id);`).catch(() => {})
+
     // Email templates for counselors to send various communications
     await client.query(`
       CREATE TABLE IF NOT EXISTS email_templates (

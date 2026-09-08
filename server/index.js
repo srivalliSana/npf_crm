@@ -48,7 +48,10 @@ app.use(cors({
   origin(origin, cb) { cb(null, !origin || CORS_ORIGINS.includes(origin)) },
   credentials: true,
 }))
-app.use(express.json({ limit: '50mb' }))
+// verify: stashes the exact raw bytes on req.rawBody — needed to check the
+// Razorpay webhook's HMAC signature, which is computed over the raw body,
+// not the parsed-then-re-stringified JSON (whitespace/key-order can differ).
+app.use(express.json({ limit: '50mb', verify: (req, res, buf) => { req.rawBody = buf } }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
 // ── Multi-tenant: resolve req.tenantId on every request (non-blocking) ──────────
@@ -2501,6 +2504,148 @@ async function checkAndAutoSyncCampusOne(appId, tenantId = 1) {
     console.error('[checkAndAutoSyncCampusOne]', e.message)
   }
 }
+
+// ── Counselor-triggered Razorpay Payment Links ("Send Link") ────────────────
+// A shareable URL texted/emailed to a student who isn't going through the
+// portal — Razorpay's own notify:{sms,email} delivers it, no SMS/email
+// sending of our own needed. Completion is confirmed only by webhook (below),
+// verified via signature — never trusted just because a link exists.
+app.post('/api/applications/:id/send-payment-link', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { feeType } = req.body
+    if (!['Booking Fee', 'Tuition Fee'].includes(feeType)) {
+      return res.status(400).json({ error: 'feeType must be "Booking Fee" or "Tuition Fee".' })
+    }
+    if (req.user?.role !== 'Admin' && !['Manager', 'Counselor'].includes(req.user?.role)) {
+      return res.status(403).json({ error: 'Admin/Manager/Counselor only.' })
+    }
+
+    const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
+    const app = appRes.rows[0]
+    if (!app) return res.status(404).json({ error: 'Application not found.' })
+    if (feeType === 'Booking Fee' && app.booking_fee_status === 'Paid') return res.status(400).json({ error: 'This fee is already paid.' })
+    if (feeType === 'Tuition Fee' && app.tuition_fee_paid) return res.status(400).json({ error: 'This fee is already paid.' })
+    if (!app.email && !app.mobile) return res.status(400).json({ error: 'This application has no email or mobile to send the link to.' })
+
+    const keyId = process.env.RAZORPAY_KEY_ID
+    const keySecret = process.env.RAZORPAY_KEY_SECRET
+    if (!keyId || !keySecret) return res.status(503).json({ error: 'Online payment is not configured yet.' })
+    // Without a webhook secret we'd never learn a link was paid — the fee
+    // would stay stuck as unpaid forever even after real money changed hands.
+    if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
+      return res.status(503).json({ error: 'Payment link confirmations are not configured yet — contact your administrator to finish the Razorpay webhook setup before sending links.' })
+    }
+
+    const progRes = await pool.query('SELECT booking_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
+    const program = progRes.rows[0] || {}
+    const amountRupees = feeType === 'Tuition Fee' ? (Number(program.min_amount_to_pay) || 0) : (Number(program.booking_fee) || 1000)
+    if (amountRupees <= 0) return res.status(400).json({ error: 'This fee has no amount configured yet — set it in Programs Manager.' })
+
+    // Razorpay wants contact numbers with a country code.
+    const digits = String(app.mobile || '').replace(/\D/g, '')
+    const contact = digits ? (digits.length === 10 ? `+91${digits}` : `+${digits}`) : undefined
+
+    const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+    const rpRes = await fetch('https://api.razorpay.com/v1/payment_links', {
+      method: 'POST',
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: Math.round(amountRupees * 100),
+        currency: 'INR',
+        accept_partial: false,
+        description: `${feeType} — ${app.app_no}`,
+        customer: { name: app.name, email: app.email || undefined, contact },
+        notify: { sms: !!contact, email: !!app.email },
+        reminder_enable: true,
+        reference_id: `${app.app_no}-${feeType.replace(/\s+/g, '')}-${Date.now()}`,
+        notes: { app_id: String(app.id), tenant_id: String(req.tenantId), fee_type: feeType }
+      })
+    })
+    const link = await rpRes.json()
+    if (!rpRes.ok) {
+      console.error('[send-payment-link] Razorpay rejected the link:', link)
+      return res.status(502).json({ error: link?.error?.description || 'Could not create the payment link.' })
+    }
+
+    await pool.query(
+      `INSERT INTO payment_links (app_id, razorpay_link_id, short_url, fee_type, amount, status, created_by, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, 'created', $6, $7);`,
+      [app.id, link.id, link.short_url, feeType, amountRupees, req.user.email || req.user.name || '', req.tenantId]
+    )
+
+    res.json({ success: true, shortUrl: link.short_url, sentTo: { email: app.email || null, mobile: contact || null } })
+  } catch (e) {
+    console.error('[POST /api/applications/:id/send-payment-link]', e.message)
+    res.status(500).json({ error: 'Could not send the payment link.' })
+  }
+})
+
+// POST /api/webhooks/razorpay — public (already covered by the
+// /^\/api\/webhooks\// allowlist entry). This is the *only* place a Payment
+// Link's completion is trusted from — the student may never come back to
+// our own page after paying via a texted/emailed link, so there's no
+// browser redirect to rely on the way the embedded Checkout flow has.
+app.post('/api/webhooks/razorpay', async (req, res) => {
+  try {
+    const signature = req.headers['x-razorpay-signature']
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET
+    if (!secret) { console.warn('[razorpay webhook] RAZORPAY_WEBHOOK_SECRET not configured — ignoring'); return res.status(200).json({ ok: true }) }
+    if (!signature || !req.rawBody) return res.status(400).json({ error: 'Missing signature.' })
+
+    const expected = crypto.createHmac('sha256', secret).update(req.rawBody).digest('hex')
+    const expectedBuf = Buffer.from(expected, 'utf8')
+    const actualBuf = Buffer.from(String(signature), 'utf8')
+    if (expectedBuf.length !== actualBuf.length || !crypto.timingSafeEqual(expectedBuf, actualBuf)) {
+      console.warn('[razorpay webhook] signature mismatch — rejecting')
+      return res.status(400).json({ error: 'Invalid signature.' })
+    }
+
+    if (req.body?.event !== 'payment_link.paid') return res.status(200).json({ ok: true }) // ack, nothing to do
+
+    const linkEntity = req.body?.payload?.payment_link?.entity
+    const paymentEntity = req.body?.payload?.payment?.entity
+    if (!linkEntity?.id) return res.status(200).json({ ok: true })
+
+    const linkRes = await pool.query('SELECT * FROM payment_links WHERE razorpay_link_id = $1;', [linkEntity.id])
+    const link = linkRes.rows[0]
+    if (!link) { console.warn('[razorpay webhook] unknown payment link id:', linkEntity.id); return res.status(200).json({ ok: true }) }
+    if (link.status === 'paid') return res.status(200).json({ ok: true }) // already processed — webhook retries are expected
+
+    await pool.query(
+      `UPDATE payment_links SET status = 'paid', razorpay_payment_id = $1, paid_at = NOW() WHERE id = $2;`,
+      [paymentEntity?.id || '', link.id]
+    )
+
+    const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [link.app_id, link.tenant_id])
+    const app = appRes.rows[0]
+    if (!app) return res.status(200).json({ ok: true })
+
+    await pool.query(
+      `INSERT INTO payments (name, app_no, amount, method, status, date, txn_id, fee_type, tenant_id)
+       VALUES ($1, $2, $3, 'razorpay_link', 'Paid', $4, $5, $6, $7);`,
+      [app.name, app.app_no, link.amount, new Date().toLocaleDateString('en-IN'), paymentEntity?.id || '', link.fee_type, link.tenant_id]
+    )
+
+    if (link.fee_type === 'Booking Fee') {
+      await pool.query(`UPDATE applications SET booking_fee_status = 'Paid', booking_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, link.tenant_id])
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+        [`Application fee paid via link — ${app.app_no} (${app.name})`, 'Just now', link.tenant_id])
+    } else if (link.fee_type === 'Tuition Fee') {
+      await pool.query(`UPDATE applications SET tuition_fee_paid = true, tuition_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, link.tenant_id])
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+        [`Tuition fee paid via link — ${app.app_no} (${app.name})`, 'Just now', link.tenant_id])
+      checkAndAutoSyncCampusOne(app.id, link.tenant_id).catch(() => {})
+    }
+
+    res.status(200).json({ ok: true })
+  } catch (e) {
+    console.error('[POST /api/webhooks/razorpay]', e.message)
+    // 500, not 200 — a genuine processing error should make Razorpay retry
+    // later rather than silently losing the one and only confirmation event.
+    res.status(500).json({ error: 'Webhook processing failed.' })
+  }
+})
 
 app.post('/api/payments/:id/submit-utr', async (req, res) => {
   const { id } = req.params
