@@ -434,7 +434,8 @@ export default function StudentDashboard() {
         {bookingPaid && !documentsVerified && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2.5"><Upload size={24} className="text-purple-600" /> Upload Documents</h2>
-            <p className="text-sm text-gray-500 mb-4">{mandatoryDocs.filter(d => d.status === 'Verified').length}/{mandatoryDocs.length} mandatory documents verified — your admission form unlocks once all of them are.</p>
+            <p className="text-sm text-gray-500 mb-1">{mandatoryDocs.filter(d => d.status === 'Verified').length}/{mandatoryDocs.length} mandatory documents verified — your admission form unlocks once all of them are.</p>
+            <p className="text-xs text-gray-400 mb-4">All documents combined must be under 3MB total.</p>
             <div>
               {documents.map((d) => (
                 <DocRow key={d.type} {...d} onUpload={uploadDoc} uploading={uploadingDoc} />

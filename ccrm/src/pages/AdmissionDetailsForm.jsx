@@ -535,7 +535,8 @@ export default function AdmissionDetailsForm() {
           <ApplicantBar application={j.application} />
           <Card>
             <h2 className="text-xl font-bold text-gray-900 mb-1">📄 Upload Documents</h2>
-            <p className="text-gray-500 text-sm mb-5">Upload every document below — your fuller admission form unlocks once all mandatory ones are verified.</p>
+            <p className="text-gray-500 text-sm mb-1">Upload every document below — your fuller admission form unlocks once all mandatory ones are verified.</p>
+            <p className="text-gray-400 text-xs mb-5">All documents combined must be under 3MB total.</p>
             <div className="space-y-2.5">
               {j.documents.map(doc => (
                 <div key={doc.type} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
