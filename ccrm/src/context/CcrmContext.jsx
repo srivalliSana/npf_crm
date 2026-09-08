@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { getUrlTenantSlug } from '../tenantSlug'
+import { getUrlTenantSlug, isHostBasedTenant } from '../tenantSlug'
 import {
   LEADS,
   APPLICATIONS,
@@ -39,7 +39,7 @@ if (typeof window !== 'undefined' && !window.__ccrmFetchPatched) {
           // Bounce back to this tenant's own login (basename-prefixed for
           // non-default tenants), not Centurion's plain /login.
           const slug = getUrlTenantSlug()
-          const loginPath = slug ? `/${slug}/login` : '/login'
+          const loginPath = (slug && !isHostBasedTenant()) ? `/${slug}/login` : '/login'
           if (!window.location.pathname.startsWith(loginPath)) {
             window.location.href = loginPath
           }

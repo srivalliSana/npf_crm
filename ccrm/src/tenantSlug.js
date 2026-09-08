@@ -17,7 +17,26 @@ export const RESERVED_SLUGS = [
   'integration-health', 'programs', 'lead-id-settings',
 ]
 
+// Tenants with their own dedicated domain — routes live at the root there
+// (no /<slug> path prefix), unlike every other tenant which shares
+// crm.cutmap.ac.in under a path prefix. Add an entry here when a tenant
+// gets its own domain; everything else (login bodies, basename) follows
+// automatically from isHostBasedTenant()/getUrlTenantSlug() below.
+const CUSTOM_DOMAINS = {
+  'crm.cutm.ac.in': 'cuedu',
+}
+
+// True when the current hostname is one of the dedicated domains above —
+// callers that build a "/<slug>/..." path (React Router's basename, a
+// post-logout redirect, etc.) must skip the prefix on these domains, since
+// the browser's actual path never has one.
+export function isHostBasedTenant() {
+  return !!CUSTOM_DOMAINS[window.location.hostname]
+}
+
 export function getUrlTenantSlug() {
+  const hostSlug = CUSTOM_DOMAINS[window.location.hostname]
+  if (hostSlug) return hostSlug
   const seg = window.location.pathname.split('/')[1] || ''
   return seg && !RESERVED_SLUGS.includes(seg) ? seg : null
 }
