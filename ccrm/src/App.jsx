@@ -2,7 +2,7 @@ import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { useCcrm } from './context/CcrmContext'
 import { usePermissions } from './hooks/usePermissions'
-import { getUrlTenantSlug } from './tenantSlug'
+import { getUrlTenantSlug, isHostBasedTenant } from './tenantSlug'
 import Login from './pages/Login'
 import Layout from './components/Layout'
 import LeadManager from './pages/LeadManager'
@@ -102,9 +102,11 @@ export default function App() {
   // Non-reserved first URL segment (e.g. /cuedu/...) becomes the router's
   // basename, so every route below stays prefixed for that tenant without
   // any per-route changes. Centurion's plain URLs (no matching segment) get
-  // basename=undefined — identical to today's behavior.
+  // basename=undefined — identical to today's behavior. A tenant on its own
+  // dedicated domain (see tenantSlug.js) also gets basename=undefined,
+  // since its routes live at the root with no path prefix at all.
   const tenantSlug = getUrlTenantSlug()
-  const basename = tenantSlug ? `/${tenantSlug}` : undefined
+  const basename = (tenantSlug && !isHostBasedTenant()) ? `/${tenantSlug}` : undefined
 
   return (
     <BrowserRouter basename={basename}>

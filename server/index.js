@@ -6147,14 +6147,26 @@ app.get('/api/reports/leaderboard', authenticateToken, async (req, res) => {
 // scope — some of those callers live inside server/index.js's oddly-nested
 // startServer() function further down the file; this needs to be reachable
 // from both sides of that boundary, not just from within it.
+// Every tenant but the default (Centurion, id 1) shares this deployment
+// under a /<slug> path prefix — a bare /student-login link silently
+// resolves against the default tenant instead, so Google sign-in fails to
+// find the application (it lives under a different tenant_id). Shared by
+// every email that links back to the student portal.
+async function studentLoginLinkFor(tenantId) {
+  const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
+  if (tenantId === 1) return `${baseUrl}/student-login`
+  const tenantRes = await pool.query('SELECT slug FROM tenants WHERE id = $1;', [tenantId])
+  const tenantSlug = tenantRes.rows[0]?.slug || ''
+  return tenantSlug ? `${baseUrl}/${tenantSlug}/student-login` : `${baseUrl}/student-login`
+}
+
 async function sendPortalLoginEmail(app, tenantId) {
   await pool.query(
     `UPDATE applications SET student_login_email_sent_at = NOW() WHERE id = $1 AND tenant_id = $2`,
     [app.id, tenantId]
   )
 
-  const baseUrl = process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'
-  const loginLink = `${baseUrl}/student-login`
+  const loginLink = await studentLoginLinkFor(tenantId)
 
   const emailHtml = brandedEmailHtml({
     badge: 'APPROVED',
@@ -8474,12 +8486,13 @@ app.post('/api/applications/:id/approve-full-details', authenticateToken, async 
 
     if (app.email) {
       const approved = status === 'Approved'
+      const loginLink = await studentLoginLinkFor(req.tenantId)
       sendSystemMailAlert(
         app.email,
         `Admission Form ${status} — ${app.app_no}`,
         approved
-          ? `Dear ${app.name},\n\nYour admission form has been reviewed and approved, and your provisional admission is confirmed — there is no registration fee to pay. Please log in to your student portal to upload documents and pay the tuition fee.\n\nBest regards,\nCUTM Admissions Team`
-          : `Dear ${app.name},\n\nYour admission form needs a correction. Please log in to your student portal, review your details, and resubmit.\n\nBest regards,\nCUTM Admissions Team`,
+          ? `Dear ${app.name},\n\nYour admission form has been reviewed and approved, and your provisional admission is confirmed — there is no registration fee to pay. Please log in to your student portal to upload documents and pay the tuition fee.\n\n${loginLink}\n\nBest regards,\nCUTM Admissions Team`
+          : `Dear ${app.name},\n\nYour admission form needs a correction. Please log in to your student portal, review your details, and resubmit.\n\n${loginLink}\n\nBest regards,\nCUTM Admissions Team`,
         req.tenantId,
         brandedEmailHtml({
           badge: approved ? 'APPROVED' : 'ACTION NEEDED',
@@ -8490,7 +8503,7 @@ app.post('/api/applications/:id/approve-full-details', authenticateToken, async 
             : `<p>Dear <strong>${app.name}</strong>,</p><p>Your admission form needs a correction${note ? `: ${note}` : '.'} Please log in and resubmit.</p>`,
           details: [['Application #', app.app_no]],
           ctaText: 'Go to Student Portal',
-          ctaUrl: `${process.env.FRONTEND_URL || 'https://crm.cutmap.ac.in'}/student-login`
+          ctaUrl: loginLink
         })
       ).catch(() => {})
     }
