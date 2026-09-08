@@ -198,6 +198,49 @@ const uploadBulk = multer({
 const uploadAvatar = multer({ storage: avatarStorage })
 const uploadDoc = multer({ storage: docStorage })
 
+// Admission-journey document uploads only — capped at 3MB per file, with a
+// further 3MB *combined* limit (see enforceCombinedDocSizeLimit below)
+// across every document a student has uploaded for that application. Kept
+// separate from the plain `uploadDoc` above so this cap doesn't affect the
+// unrelated admin/lead document-upload and bulk-import routes that also
+// reuse that instance.
+const uploadDocCapped = multer({ storage: docStorage, limits: { fileSize: 3 * 1024 * 1024 } })
+const MAX_TOTAL_DOC_BYTES = 3 * 1024 * 1024
+
+// Rejects the just-uploaded file (deleting it off disk) if it would push this
+// application's total document size over the combined 3MB cap. Re-uploading
+// a type replaces its old file rather than adding to it, so that type's
+// previous size is excluded from the running total.
+async function enforceCombinedDocSizeLimit(appId, tenantId, excludeType, newFile) {
+  const r = await pool.query(
+    'SELECT COALESCE(SUM(file_size), 0) AS total FROM documents WHERE app_id = $1 AND tenant_id = $2 AND type != $3;',
+    [appId, tenantId, excludeType]
+  )
+  const existingTotal = Number(r.rows[0].total) || 0
+  if (existingTotal + newFile.size > MAX_TOTAL_DOC_BYTES) {
+    await fs.promises.unlink(newFile.path).catch(() => {})
+    return false
+  }
+  return true
+}
+
+// multer's fileSize limit rejects by calling next(err) rather than throwing,
+// so a plain `uploadDocCapped.single('file')` route middleware would fall
+// through to Express's default (unstyled, effectively a 500) error handler.
+// Wrap it so an over-size single file gets the same clean JSON error as the
+// combined-total check above.
+function handleCappedDocUpload(req, res, next) {
+  uploadDocCapped.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'This file is larger than the 3MB limit. Please upload a smaller file.' })
+      }
+      return res.status(400).json({ error: err.message || 'Upload failed.' })
+    }
+    next()
+  })
+}
+
 // --- JWT AUTHENTICATION MIDDLEWARE ---
 // Admin-only middleware (verify JWT then check role from DB)
 async function adminOnly(req, res, next) {
@@ -2323,10 +2366,11 @@ async function grantProvisionalAdmission(appId, tenantId = 1) {
     const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [appId, tenantId])
     const app = appRes.rows[0]
     if (!app) return
+    const tenantRes = await pool.query('SELECT slug FROM tenants WHERE id = $1;', [tenantId])
+    const tenantSlug = tenantRes.rows[0]?.slug || ''
     let regNumber = app.registration_number
     if (!regNumber) {
-      const tenantRes = await pool.query('SELECT slug FROM tenants WHERE id = $1;', [tenantId])
-      const prefix = tenantRes.rows[0]?.slug?.toUpperCase().substring(0, 4) || 'CCRM'
+      const prefix = tenantSlug.toUpperCase().substring(0, 4) || 'CCRM'
       const year = new Date().getFullYear()
       const countRes = await pool.query(
         `SELECT COUNT(*) as count FROM applications WHERE registration_number LIKE $1 AND tenant_id = $2;`,
@@ -2344,18 +2388,23 @@ async function grantProvisionalAdmission(appId, tenantId = 1) {
        WHERE id = $1 AND tenant_id = $2;`,
       [appId, tenantId]
     )
+    // CU EDU's programs are all fully online — every course-facing email
+    // should read "Online MBA" (etc.), not just "MBA".
+    const displayCourse = tenantSlug === 'cuedu' && app.course && !/^online\s/i.test(app.course.trim())
+      ? `Online ${app.course}`
+      : app.course
     if (app.email) {
       await sendSystemMailAlert(
         app.email,
         `Provisional Admission Granted — ${app.app_no}`,
-        `Dear ${app.name},\n\nCongratulations! Your provisional admission is confirmed.\n\nTemporary Admission Number: ${regNumber}\nProgram: ${app.course}\n\nNext step: upload your documents and pay the tuition fee to complete your admission.\n\nBest regards,\nCUTM Admissions Team`,
+        `Dear ${app.name},\n\nCongratulations! Your provisional admission is confirmed.\n\nTemporary Admission Number: ${regNumber}\nProgram: ${displayCourse}\n\nNext step: upload your documents and pay the tuition fee to complete your admission.\n\nBest regards,\nCUTM Admissions Team`,
         tenantId,
         brandedEmailHtml({
           badge: 'GRANTED',
           tone: 'success',
           title: 'Provisional Admission Granted',
           bodyHtml: `<p>Dear <strong>${app.name}</strong>,</p><p>Congratulations! Your provisional admission is confirmed.</p><p style="color:#666;font-size:13px;">Next step: upload your documents and pay the tuition fee to complete your admission.</p>`,
-          details: [['Temporary Admission Number', regNumber], ['Program', app.course]]
+          details: [['Temporary Admission Number', regNumber], ['Program', displayCourse]]
         })
       )
     }
@@ -8781,7 +8830,7 @@ app.post('/api/admission-details/:token/submit-payment', async (req, res) => {
 // POST /api/admission-details/:token/documents
 // Public, multipart — Step-3 document upload, unlocked once provisional
 // admission is granted. Linked by app_id (not the old fragile name-match).
-app.post('/api/admission-details/:token/documents', uploadDoc.single('file'), async (req, res) => {
+app.post('/api/admission-details/:token/documents', handleCappedDocUpload, async (req, res) => {
   try {
     const { token } = req.params
     const { type } = req.body
@@ -8791,7 +8840,12 @@ app.post('/api/admission-details/:token/documents', uploadDoc.single('file'), as
     const app = await loadAdmissionJourneyByToken(token)
     if (!app) return res.status(404).json({ error: 'Invalid or expired admission link.' })
     if (app.booking_fee_status !== 'Paid') {
+      await fs.promises.unlink(req.file.path).catch(() => {})
       return res.status(400).json({ error: 'Documents can only be uploaded after the application fee is paid.' })
+    }
+
+    if (!(await enforceCombinedDocSizeLimit(app.id, app.token_tenant_id, type, req.file))) {
+      return res.status(400).json({ error: 'All your documents combined must be under 3MB — this file would push you over that limit. Try a smaller or more compressed file.' })
     }
 
     const checklist = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste)
@@ -8801,15 +8855,15 @@ app.post('/api/admission-details/:token/documents', uploadDoc.single('file'), as
     const existing = await pool.query('SELECT id FROM documents WHERE app_id = $1 AND type = $2 AND tenant_id = $3;', [app.id, type, app.token_tenant_id])
     if (existing.rows.length) {
       await pool.query(
-        `UPDATE documents SET file_url = $1, status = 'Pending', upload_date = $2, verified_by = '', verified_at = NULL, rejection_reason = ''
-         WHERE id = $3;`,
-        [fileUrl, new Date().toLocaleDateString('en-IN'), existing.rows[0].id]
+        `UPDATE documents SET file_url = $1, file_size = $2, status = 'Pending', upload_date = $3, verified_by = '', verified_at = NULL, rejection_reason = ''
+         WHERE id = $4;`,
+        [fileUrl, req.file.size, new Date().toLocaleDateString('en-IN'), existing.rows[0].id]
       )
     } else {
       await pool.query(
-        `INSERT INTO documents (student, app_id, type, status, upload_date, file_url, is_mandatory, tenant_id)
-         VALUES ($1, $2, $3, 'Pending', $4, $5, $6, $7);`,
-        [app.name, app.id, type, new Date().toLocaleDateString('en-IN'), fileUrl, item?.mandatory ?? false, app.token_tenant_id]
+        `INSERT INTO documents (student, app_id, type, status, upload_date, file_url, file_size, is_mandatory, tenant_id)
+         VALUES ($1, $2, $3, 'Pending', $4, $5, $6, $7, $8);`,
+        [app.name, app.id, type, new Date().toLocaleDateString('en-IN'), fileUrl, req.file.size, item?.mandatory ?? false, app.token_tenant_id]
       )
     }
 
@@ -9117,7 +9171,7 @@ app.post('/api/student-portal/verify-payment', authenticateToken, requireStudent
 
 // POST /api/student-portal/documents — multipart upload, same checklist and
 // gating rule as the token version, keyed by app_id instead of a token.
-app.post('/api/student-portal/documents', authenticateToken, requireStudent, uploadDoc.single('file'), async (req, res) => {
+app.post('/api/student-portal/documents', authenticateToken, requireStudent, handleCappedDocUpload, async (req, res) => {
   try {
     const { type } = req.body
     if (!type) return res.status(400).json({ error: 'Document type is required.' })
@@ -9126,7 +9180,12 @@ app.post('/api/student-portal/documents', authenticateToken, requireStudent, upl
     const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
     if (!app) return res.status(404).json({ error: 'Application not found.' })
     if (app.booking_fee_status !== 'Paid') {
+      await fs.promises.unlink(req.file.path).catch(() => {})
       return res.status(400).json({ error: 'Documents can only be uploaded after the application fee is paid.' })
+    }
+
+    if (!(await enforceCombinedDocSizeLimit(app.id, req.tenantId, type, req.file))) {
+      return res.status(400).json({ error: 'All your documents combined must be under 3MB — this file would push you over that limit. Try a smaller or more compressed file.' })
     }
 
     const checklist = ADMISSION_DOC_CHECKLIST(app.admission_details?.caste)
@@ -9136,13 +9195,13 @@ app.post('/api/student-portal/documents', authenticateToken, requireStudent, upl
     const existing = await pool.query('SELECT id FROM documents WHERE app_id = $1 AND type = $2 AND tenant_id = $3;', [app.id, type, req.tenantId])
     if (existing.rows.length) {
       await pool.query(
-        `UPDATE documents SET file_url = $1, status = 'Pending', upload_date = $2, verified_by = '', verified_at = NULL, rejection_reason = '' WHERE id = $3;`,
-        [fileUrl, new Date().toLocaleDateString('en-IN'), existing.rows[0].id]
+        `UPDATE documents SET file_url = $1, file_size = $2, status = 'Pending', upload_date = $3, verified_by = '', verified_at = NULL, rejection_reason = '' WHERE id = $4;`,
+        [fileUrl, req.file.size, new Date().toLocaleDateString('en-IN'), existing.rows[0].id]
       )
     } else {
       await pool.query(
-        `INSERT INTO documents (student, app_id, type, status, upload_date, file_url, is_mandatory, tenant_id) VALUES ($1, $2, $3, 'Pending', $4, $5, $6, $7);`,
-        [app.name, app.id, type, new Date().toLocaleDateString('en-IN'), fileUrl, item?.mandatory ?? false, req.tenantId]
+        `INSERT INTO documents (student, app_id, type, status, upload_date, file_url, file_size, is_mandatory, tenant_id) VALUES ($1, $2, $3, 'Pending', $4, $5, $6, $7, $8);`,
+        [app.name, app.id, type, new Date().toLocaleDateString('en-IN'), fileUrl, req.file.size, item?.mandatory ?? false, req.tenantId]
       )
     }
     res.json({ success: true, message: 'Document uploaded — pending verification.' })

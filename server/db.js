@@ -872,6 +872,10 @@ export async function initDb() {
     // uploads keep matching by student name; new journey uploads always set this).
     await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS app_id INTEGER REFERENCES applications(id) ON DELETE CASCADE;`).catch(() => {})
     await client.query(`CREATE INDEX IF NOT EXISTS idx_documents_app_id ON documents(app_id);`).catch(() => {})
+
+    // Bytes on disk for each uploaded document — used to enforce a combined
+    // 3MB cap across every document a student uploads in the admission journey.
+    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_size INTEGER DEFAULT 0;`).catch(() => {})
     // Best-effort backfill: link old name-matched rows to their application where the
     // name is unambiguous (exactly one application with that name in the tenant).
     await client.query(`
