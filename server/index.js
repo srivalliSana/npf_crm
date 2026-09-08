@@ -2624,7 +2624,11 @@ app.post('/api/webhooks/razorpay', async (req, res) => {
     await pool.query(
       `INSERT INTO payments (name, app_no, amount, method, status, date, txn_id, fee_type, tenant_id)
        VALUES ($1, $2, $3, 'razorpay_link', 'Paid', $4, $5, $6, $7);`,
-      [app.name, app.app_no, link.amount, new Date().toLocaleDateString('en-IN'), paymentEntity?.id || '', link.fee_type, link.tenant_id]
+      // payments.amount is INTEGER, but link.amount comes back from Postgres
+      // as a string like "1.00" (payment_links.amount is NUMERIC) — passed
+      // straight through, that string fails the integer cast. Round it to a
+      // real number first.
+      [app.name, app.app_no, Math.round(Number(link.amount)), new Date().toLocaleDateString('en-IN'), paymentEntity?.id || '', link.fee_type, link.tenant_id]
     )
 
     if (link.fee_type === 'Booking Fee') {
