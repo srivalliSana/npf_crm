@@ -2081,7 +2081,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
   const [discountInput, setDiscountInput] = React.useState('')
   const [savingDiscount, setSavingDiscount] = React.useState(false)
   const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
-  const isStrictAdmin = currentUser?.role === 'Admin' // discount is Admin-only, stricter than isAdmin above
+  const isCounselor = currentUser?.role === 'Counselor' // tuition discount is Counsellor-only, not Admin/Manager
 
   const sendPaymentLink = (feeType) => {
     setSendingPaymentLink(feeType)
@@ -2505,7 +2505,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                   ? <span className="font-semibold text-emerald-600">{record.tuition_fee_discount_percent}% off{record?.tuition_fee_discount_set_by ? ` (by ${record.tuition_fee_discount_set_by})` : ''}</span>
                   : <span className="text-gray-400">None</span>}
               </span>
-              {isStrictAdmin && !record?.tuition_fee_paid && (
+              {isCounselor && !record?.tuition_fee_paid && (
                 <div className="flex items-center gap-1.5">
                   <input
                     type="number" min="0" max="100" step="0.01" placeholder="%"
