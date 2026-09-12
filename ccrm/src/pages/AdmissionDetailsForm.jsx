@@ -4,6 +4,11 @@ import { CheckCircle2, AlertCircle, Loader, Clock, Upload, ChevronLeft, ChevronR
 import { INDIA_STATES, getDistrictsForState, CASTE_CATEGORIES } from '../data/indiaLocations'
 import FullAdmissionForm from '../components/FullAdmissionForm'
 
+// Document label overrides + a small secondary caption, where one applies —
+// the underlying `type` string stays the stable DB/checklist identifier.
+const DOC_LABELS = { 'Graduation Marksheet': 'Graduation Marksheet ( Incl Vocational)' }
+const DOC_HINTS = { 'Graduation Marksheet': 'subject to eligibility' }
+
 const LOGO_URL = 'https://crm.cutmap.ac.in/landing/images/logo.jpg'
 const SUPPORT_EMAIL = 'admissions@cutmap.ac.in'
 const HERO_GRADIENT = 'linear-gradient(135deg, #064e3b 0%, #065f46 20%, #0d9488 50%, #0369a1 75%, #1e40af 100%)'
@@ -541,7 +546,8 @@ export default function AdmissionDetailsForm() {
               {j.documents.map(doc => (
                 <div key={doc.type} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
                   <div>
-                    <p className="font-semibold text-gray-800 text-sm">{doc.type} {doc.mandatory && <span className="text-red-500">*</span>}</p>
+                    <p className="font-semibold text-gray-800 text-sm">{DOC_LABELS[doc.type] || doc.type} {doc.mandatory && <span className="text-red-500">*</span>}</p>
+                    {DOC_HINTS[doc.type] && <p className="text-xs text-gray-400 lowercase">{DOC_HINTS[doc.type]}</p>}
                     <p className="text-xs text-gray-500">
                       {doc.status === 'Verified' ? '✅ Verified' : doc.status === 'Rejected' ? '❌ Rejected — please re-upload' : doc.uploaded ? '⏳ Uploaded, pending verification' : 'Not uploaded yet'}
                     </p>

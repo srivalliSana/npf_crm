@@ -931,6 +931,63 @@ export async function initDb() {
     `).catch(() => {})
     await client.query(`CREATE INDEX IF NOT EXISTS idx_payment_links_app ON payment_links(app_id);`).catch(() => {})
 
+    // District-wise lead routing (CU EDU's NICE centre network) — maps a
+    // lead's district straight to the centre/counsellor that covers it,
+    // instead of the generic round-robin pool. The special district value
+    // '__FALLBACK__' names the centre used when a district's own mapped
+    // counsellor exists but isn't Active (see getNextAssignee).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS district_counselor_map (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+        district VARCHAR(100) NOT NULL,
+        counselor_name VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(tenant_id, district)
+      );
+    `).catch(() => {})
+
+    // Seed CU EDU's map — every Odisha district gets a row (most point at
+    // Bhubaneswar, since only 10 districts have a centre whose name is an
+    // exact district match; the sheet's other named centres — Athmallik,
+    // Belpahar, Brajrajnagar, Hemgir, Laikera, Majhipali, Nalconagar,
+    // Rajgangpur, Nikirai, Jharbandh — sit inside one of these same
+    // districts or couldn't be confidently placed in one, so they receive
+    // no automatic district-based leads; staff can still assign to them
+    // manually). ON CONFLICT DO NOTHING keeps this idempotent across
+    // restarts without clobbering a later manual edit to the map.
+    const cuEduTenant = await client.query("SELECT id FROM tenants WHERE slug = 'cuedu';").catch(() => ({ rows: [] }))
+    if (cuEduTenant.rows[0]) {
+      const cuEduTenantId = cuEduTenant.rows[0].id
+      const districtMap = [
+        ['__FALLBACK__', 'Lipsa Sahoo'],
+        ['Khordha', 'Lipsa Sahoo'],
+        ['Angul', 'Sanjay Kumar Samal'],
+        ['Boudh', 'Satyajit Pradhan'],
+        ['Deogarh', 'Ranjan Kumar Behera'],
+        ['Jharsuguda', 'Basanti Padhee'],
+        ['Sambalpur', 'Goutam Kumar Das'],
+        ['Sundargarh', 'Mukesh Majhi'],
+        ['Kalahandi', 'Tejaraj Meher'],
+        ['Cuttack', 'Biswajit Sahoo'],
+        ['Bargarh', 'Himanshu Sekhar Joshi'],
+        // Every remaining Odisha district — no dedicated centre, straight to Bhubaneswar.
+        ['Balangir', 'Lipsa Sahoo'], ['Balasore', 'Lipsa Sahoo'], ['Bhadrak', 'Lipsa Sahoo'],
+        ['Dhenkanal', 'Lipsa Sahoo'], ['Gajapati', 'Lipsa Sahoo'], ['Ganjam', 'Lipsa Sahoo'],
+        ['Jagatsinghpur', 'Lipsa Sahoo'], ['Jajpur', 'Lipsa Sahoo'], ['Kandhamal', 'Lipsa Sahoo'],
+        ['Kendrapara', 'Lipsa Sahoo'], ['Kendujhar', 'Lipsa Sahoo'], ['Koraput', 'Lipsa Sahoo'],
+        ['Malkangiri', 'Lipsa Sahoo'], ['Mayurbhanj', 'Lipsa Sahoo'], ['Nabarangpur', 'Lipsa Sahoo'],
+        ['Nayagarh', 'Lipsa Sahoo'], ['Nuapada', 'Lipsa Sahoo'], ['Puri', 'Lipsa Sahoo'],
+        ['Rayagada', 'Lipsa Sahoo'], ['Subarnapur', 'Lipsa Sahoo'],
+      ]
+      for (const [district, counselorName] of districtMap) {
+        await client.query(
+          'INSERT INTO district_counselor_map (tenant_id, district, counselor_name) VALUES ($1, $2, $3) ON CONFLICT (tenant_id, district) DO NOTHING;',
+          [cuEduTenantId, district, counselorName]
+        ).catch(() => {})
+      }
+    }
+
     // Email templates for counselors to send various communications
     await client.query(`
       CREATE TABLE IF NOT EXISTS email_templates (
