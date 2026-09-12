@@ -352,7 +352,7 @@ export default function StudentDashboard() {
   const { application: app, documents, documentsVerified, admissionDetailsStatus, bookingFeeStatus, bookingFeeAmount,
     admissionFullDetails, admissionFullDetailsStatus, admissionFullDetailsReviewNote,
     provisionalAdmissionStatus, registrationNumber,
-    tuitionFeeAmount, tuitionFeePaid, campusoneSyncStatus, programTotalFee } = data
+    tuitionFeeAmount, tuitionFeeFullAmount, tuitionFeeDiscountPercent, tuitionFeePaid, campusoneSyncStatus, programTotalFee } = data
 
   const bookingUnlocked = admissionDetailsStatus === 'Approved'
   const bookingPaid = bookingFeeStatus === 'Paid'
@@ -488,7 +488,12 @@ export default function StudentDashboard() {
             <div className="bg-white rounded-xl shadow-lg p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2.5"><IndianRupee size={24} className="text-purple-600" /> Tuition Fee</h2>
               {!tuitionFeePaid && (
-                <p className="text-sm text-gray-500 mb-4">Total Program Fee: <span className="font-semibold text-gray-700">₹{Number(programTotalFee || 0).toLocaleString('en-IN')}</span></p>
+                <p className={`text-sm text-gray-500 ${tuitionFeeDiscountPercent > 0 ? 'mb-1' : 'mb-4'}`}>Total Program Fee: <span className="font-semibold text-gray-700">₹{Number(programTotalFee || 0).toLocaleString('en-IN')}</span></p>
+              )}
+              {tuitionFeeDiscountPercent > 0 && (
+                <p className="text-sm text-emerald-600 font-medium mb-4">
+                  🎉 {tuitionFeeDiscountPercent}% discount applied — ₹{Number(tuitionFeeFullAmount || 0).toLocaleString('en-IN')} reduced to ₹{Number(tuitionFeeAmount || 0).toLocaleString('en-IN')}
+                </p>
               )}
               <FeeCard title="Tuition Fee" blurb="Completes your enrollment" amount={tuitionFeeAmount} status={tuitionFeePaid ? 'Paid' : null}
                 onSubmit={(utr) => submitPayment('Tuition Fee', tuitionFeeAmount, utr)} submitting={submittingFee === 'Tuition Fee'}
