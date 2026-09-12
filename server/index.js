@@ -8739,15 +8739,16 @@ app.post('/api/applications/:id/approve-full-details', authenticateToken, async 
 })
 
 // Per-student tuition fee discount — a scholarship or negotiated reduction
-// an Admin applies to one specific application, never a program-wide
-// setting. Every place that computes tuition owed (buildAdmissionJourneyResponse,
+// a Counsellor applies to one specific application (their own student),
+// never a program-wide setting and deliberately not an Admin/Manager
+// action. Every place that computes tuition owed (buildAdmissionJourneyResponse,
 // the minimum-required check on a manual UTR, the Razorpay order/link amount)
 // reads this same column via applyTuitionDiscount(), so they can't drift apart.
 app.post('/api/applications/:id/tuition-discount', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
     const { discountPercent } = req.body
-    if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+    if (req.user?.role !== 'Counselor') return res.status(403).json({ error: 'Counsellor only.' })
     const pct = Number(discountPercent)
     if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
       return res.status(400).json({ error: 'Discount must be a number between 0 and 100.' })
