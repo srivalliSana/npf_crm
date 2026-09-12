@@ -1798,6 +1798,7 @@ app.get('/api/applications', authenticateToken, async (req, res) => {
       provisional_admission_status, provisional_admission_at,
       registration_number, reg_number_generated_at,
       tuition_fee_paid, tuition_fee_paid_at, tuition_fee_amount,
+      tuition_fee_discount_percent, tuition_fee_discount_set_by, tuition_fee_discount_set_at,
       finance_status, campusone_sync_status, campusone_student_id, campusone_sync_error, campusone_synced_at
       FROM applications WHERE tenant_id = $1 ORDER BY id DESC;`, [req.tenantId])
     res.json(appsRes.rows)
@@ -2539,7 +2540,7 @@ app.post('/api/applications/:id/send-payment-link', authenticateToken, async (re
 
     const progRes = await pool.query('SELECT booking_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
     const program = progRes.rows[0] || {}
-    const amountRupees = feeType === 'Tuition Fee' ? (Number(program.min_amount_to_pay) || 0) : (Number(program.booking_fee) || 1000)
+    const amountRupees = feeType === 'Tuition Fee' ? applyTuitionDiscount(program.min_amount_to_pay, app) : (Number(program.booking_fee) || 1000)
     if (amountRupees <= 0) return res.status(400).json({ error: 'This fee has no amount configured yet — set it in Programs Manager.' })
 
     // Razorpay wants contact numbers with a country code.
@@ -6372,6 +6373,16 @@ async function studentLoginLinkFor(tenantId) {
   return tenantSlug ? `${baseUrl}/${tenantSlug}/student-login` : `${baseUrl}/student-login`
 }
 
+// Applies a per-student tuition fee discount (applications.tuition_fee_discount_percent,
+// a scholarship/negotiated reduction an Admin sets on one specific application — never
+// a program-wide setting) to a full tuition amount. Shared by every place that computes
+// what a student actually owes, so the minimum-required check, the payment order/link
+// amount, and the amount shown to the student can never drift apart from each other.
+function applyTuitionDiscount(fullAmount, app) {
+  const pct = Math.min(100, Math.max(0, Number(app?.tuition_fee_discount_percent) || 0))
+  return Math.round(Number(fullAmount || 0) * (1 - pct / 100))
+}
+
 async function sendPortalLoginEmail(app, tenantId) {
   await pool.query(
     `UPDATE applications SET student_login_email_sent_at = NOW() WHERE id = $1 AND tenant_id = $2`,
@@ -8727,6 +8738,35 @@ app.post('/api/applications/:id/approve-full-details', authenticateToken, async 
   }
 })
 
+// Per-student tuition fee discount — a scholarship or negotiated reduction
+// an Admin applies to one specific application, never a program-wide
+// setting. Every place that computes tuition owed (buildAdmissionJourneyResponse,
+// the minimum-required check on a manual UTR, the Razorpay order/link amount)
+// reads this same column via applyTuitionDiscount(), so they can't drift apart.
+app.post('/api/applications/:id/tuition-discount', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { discountPercent } = req.body
+    if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+    const pct = Number(discountPercent)
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      return res.status(400).json({ error: 'Discount must be a number between 0 and 100.' })
+    }
+
+    const r = await pool.query(
+      `UPDATE applications SET tuition_fee_discount_percent = $1, tuition_fee_discount_set_by = $2, tuition_fee_discount_set_at = NOW()
+       WHERE id = $3 AND tenant_id = $4 RETURNING id, name, app_no;`,
+      [pct, req.user.email, id, req.tenantId]
+    )
+    if (!r.rows.length) return res.status(404).json({ error: 'Application not found.' })
+
+    res.json({ success: true, message: pct > 0 ? `Tuition fee discount set to ${pct}%.` : 'Tuition fee discount removed.' })
+  } catch (e) {
+    console.error('[POST /api/applications/:id/tuition-discount]', e.message)
+    res.status(500).json({ error: 'Failed to update tuition fee discount.' })
+  }
+})
+
 app.post('/api/applications/:id/send-admission-details', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
@@ -8912,13 +8952,16 @@ async function buildAdmissionJourneyResponse(app) {
     registrationNumber: app.registration_number,
     documents,
     documentsVerified,
-    tuitionFeeAmount: program.min_amount_to_pay || 0,
+    tuitionFeeAmount: applyTuitionDiscount(program.min_amount_to_pay, app),
+    tuitionFeeFullAmount: Number(program.min_amount_to_pay) || 0,
+    tuitionFeeDiscountPercent: Number(app.tuition_fee_discount_percent) || 0,
     tuitionFeePaid: !!app.tuition_fee_paid,
     campusoneSyncStatus: app.campusone_sync_status,
-    // Informational total — the registration fee + full tuition fee, shown
-    // alongside "amount you are paying now" so the student sees the whole
-    // picture even though each stage only ever collects its own fixed amount.
-    programTotalFee: (Number(program.min_due_provisional || program.registration_fee) || 0) + (Number(program.tuition_fee) || 0)
+    // Informational total — the registration fee + full tuition fee (after
+    // this student's own discount, if any), shown alongside "amount you are
+    // paying now" so the student sees the whole picture even though each
+    // stage only ever collects its own fixed amount.
+    programTotalFee: (Number(program.min_due_provisional || program.registration_fee) || 0) + applyTuitionDiscount(program.tuition_fee, app)
   }
 }
 
@@ -9033,7 +9076,7 @@ app.post('/api/admission-details/:token/submit-payment', async (req, res) => {
     const minRequired = {
       'Booking Fee': program.booking_fee || 1000,
       'Registration Fee': program.min_due_provisional || program.registration_fee || 0,
-      'Tuition Fee': program.min_amount_to_pay || 0
+      'Tuition Fee': applyTuitionDiscount(program.min_amount_to_pay, app)
     }[feeType]
     if (Number(amount || 0) < Number(minRequired)) {
       return res.status(400).json({ error: `Minimum amount required for ${feeType} is ₹${minRequired}.` })
@@ -9267,7 +9310,7 @@ app.post('/api/student-portal/submit-payment', authenticateToken, requireStudent
     const minRequired = {
       'Booking Fee': program.booking_fee || 1000,
       'Registration Fee': program.min_due_provisional || program.registration_fee || 0,
-      'Tuition Fee': program.min_amount_to_pay || 0
+      'Tuition Fee': applyTuitionDiscount(program.min_amount_to_pay, app)
     }[feeType]
     if (Number(amount || 0) < Number(minRequired)) {
       return res.status(400).json({ error: `Minimum amount required for ${feeType} is ₹${minRequired}.` })
@@ -9318,7 +9361,7 @@ app.post('/api/student-portal/create-payment-order', authenticateToken, requireS
 
     const progRes = await pool.query('SELECT booking_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
     const program = progRes.rows[0] || {}
-    const amountRupees = feeType === 'Tuition Fee' ? (Number(program.min_amount_to_pay) || 0) : (Number(program.booking_fee) || 1000)
+    const amountRupees = feeType === 'Tuition Fee' ? applyTuitionDiscount(program.min_amount_to_pay, app) : (Number(program.booking_fee) || 1000)
     if (amountRupees <= 0) return res.status(400).json({ error: 'This fee has no amount configured yet — contact admissions.' })
 
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')

@@ -391,6 +391,13 @@ export async function initDb() {
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_fee_paid BOOLEAN DEFAULT FALSE;`).catch(() => {})
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_fee_paid_at TIMESTAMP;`).catch(() => {})
 
+    // Per-student tuition fee discount (scholarship / negotiated reduction) —
+    // a percentage an Admin applies to one specific application, not a
+    // program-wide setting. 0 by default, meaning no discount.
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_fee_discount_percent NUMERIC(5,2) DEFAULT 0;`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_fee_discount_set_by VARCHAR(255) DEFAULT '';`).catch(() => {})
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_fee_discount_set_at TIMESTAMP;`).catch(() => {})
+
     // Leads: same details so counsellor can fill them at lead stage (before app exists)
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
 

@@ -2078,7 +2078,10 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
   const [showAdmissionDetailsView, setShowAdmissionDetailsView] = React.useState(false)
   const [showFullDetailsView, setShowFullDetailsView] = React.useState(false)
   const [sendingPaymentLink, setSendingPaymentLink] = React.useState(null) // null | 'Booking Fee' | 'Tuition Fee'
+  const [discountInput, setDiscountInput] = React.useState('')
+  const [savingDiscount, setSavingDiscount] = React.useState(false)
   const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
+  const isStrictAdmin = currentUser?.role === 'Admin' // discount is Admin-only, stricter than isAdmin above
 
   const sendPaymentLink = (feeType) => {
     setSendingPaymentLink(feeType)
@@ -2095,6 +2098,19 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
         alert('Error: ' + d.error)
       }
     }).catch(e => alert('Failed: ' + e.message)).finally(() => setSendingPaymentLink(null))
+  }
+
+  const saveTuitionDiscount = (pct) => {
+    setSavingDiscount(true)
+    const token = localStorage.getItem('ccrm_token')
+    fetch(`/api/applications/${record.id}/tuition-discount`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ discountPercent: pct })
+    }).then(r => r.json()).then(d => {
+      if (d.success) { showToast?.(`✅ ${d.message}`, 'success'); setDiscountInput(''); fetchAllData() }
+      else alert('Error: ' + d.error)
+    }).catch(e => alert('Failed: ' + e.message)).finally(() => setSavingDiscount(false))
   }
 
   const REQUIRED = [
@@ -2480,6 +2496,39 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                   className="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded-lg disabled:opacity-50">
                   {sendingPaymentLink === 'Tuition Fee' ? 'Sending...' : '📲 Send Link'}
                 </button>
+              )}
+            </li>
+            <li className="flex items-center justify-between gap-2 text-gray-500 pl-6">
+              <span className="text-xs">
+                Tuition Fee Discount:{' '}
+                {Number(record?.tuition_fee_discount_percent) > 0
+                  ? <span className="font-semibold text-emerald-600">{record.tuition_fee_discount_percent}% off{record?.tuition_fee_discount_set_by ? ` (by ${record.tuition_fee_discount_set_by})` : ''}</span>
+                  : <span className="text-gray-400">None</span>}
+              </span>
+              {isStrictAdmin && !record?.tuition_fee_paid && (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number" min="0" max="100" step="0.01" placeholder="%"
+                    value={discountInput} onChange={(e) => setDiscountInput(e.target.value)}
+                    className="w-16 px-2 py-1 text-xs border border-gray-300 rounded-lg"
+                  />
+                  <button
+                    onClick={() => discountInput !== '' && saveTuitionDiscount(Number(discountInput))}
+                    disabled={savingDiscount || discountInput === ''}
+                    className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs font-semibold rounded-lg disabled:opacity-50"
+                  >
+                    {savingDiscount ? 'Saving...' : 'Apply'}
+                  </button>
+                  {Number(record?.tuition_fee_discount_percent) > 0 && (
+                    <button
+                      onClick={() => saveTuitionDiscount(0)}
+                      disabled={savingDiscount}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               )}
             </li>
             <li className={`flex items-center gap-2 ${record?.campusone_sync_status === 'Success' ? 'text-green-600' : 'text-gray-500'}`}>

@@ -255,7 +255,7 @@ function StepWizard({ steps, onFinish, finishLabel = 'Submit', submitting }) {
 }
 
 // ── Payment screen, reused for Booking / Registration / Tuition fee ──
-function PaymentScreen({ token, feeType, amount, totalAmount, title, description, onSubmitted }) {
+function PaymentScreen({ token, feeType, amount, totalAmount, fullAmount, discountPercent, title, description, onSubmitted }) {
   const [utrNumber, setUtrNumber] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -306,6 +306,11 @@ function PaymentScreen({ token, feeType, amount, totalAmount, title, description
       <p className="text-gray-500 text-sm mb-4">{description}</p>
       {!!totalAmount && (
         <p className="text-sm text-gray-500 mb-2">Total Program Fee: <span className="font-semibold text-gray-700">₹{Number(totalAmount).toLocaleString('en-IN')}</span></p>
+      )}
+      {discountPercent > 0 && (
+        <p className="text-sm text-emerald-600 font-medium mb-2">
+          🎉 {discountPercent}% discount applied — ₹{Number(fullAmount || 0).toLocaleString('en-IN')} reduced to ₹{Number(amount || 0).toLocaleString('en-IN')}
+        </p>
       )}
       <div className="bg-teal-50 border border-teal-100 rounded-lg p-4 mb-5">
         <p className="text-sm text-gray-600">Amount you are paying now</p>
@@ -475,6 +480,7 @@ export default function AdmissionDetailsForm() {
           {!j.tuitionFeePaid ? (
             <PaymentScreen
               token={token} feeType="Tuition Fee" amount={j.tuitionFeeAmount} totalAmount={j.programTotalFee}
+              fullAmount={j.tuitionFeeFullAmount} discountPercent={j.tuitionFeeDiscountPercent}
               title="Pay Minimum Tuition Fee" description="Pay the minimum tuition fee assigned to your program to finish your admission."
               onSubmitted={fetchJourney}
             />
