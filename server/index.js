@@ -4696,15 +4696,17 @@ app.post('/api/leads/check-duplicate', async (req, res) => {
 })
 
 // --- FEATURE 2: LEAD AUTO-ASSIGNMENT (round-robin / load-based) ---
-// Shared picker: returns the active counsellor/manager with the fewest leads and
+// Shared picker: returns the active counsellor with the fewest leads and
 // bumps their counter. Returns 'Unassigned' if there are no eligible users.
 // (function declaration → hoisted, so inbound routes above can call it.)
 async function getNextAssignee(tenantId = 1) {
   try {
-    // Eligible = any active user who isn't an Admin/Finance role. This is tolerant of
-    // custom role names (Counsellor / Faculty / Telecaller / etc.), not just the exact
-    // 'Counselor'/'Manager' strings — otherwise auto-assign silently finds nobody.
-    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role NOT IN ('Admin', 'Finance') AND COALESCE(exclude_from_assignment, FALSE) = FALSE AND tenant_id = $1 ORDER BY name;", [tenantId])
+    // Eligible = any active user who isn't Admin/Manager/Finance — auto-assign
+    // is for frontline counsellors only, never for anyone with a supervisory
+    // role. Still tolerant of custom role names (Counsellor / Faculty /
+    // Telecaller / etc.) beyond the exact 'Counselor' string, so it doesn't
+    // silently find nobody for a tenant using different role names.
+    const usersRes = await pool.query("SELECT name, email FROM users WHERE status = 'Active' AND role NOT IN ('Admin', 'Finance', 'Manager') AND COALESCE(exclude_from_assignment, FALSE) = FALSE AND tenant_id = $1 ORDER BY name;", [tenantId])
     if (usersRes.rows.length === 0) return 'Unassigned'
 
     // Get tenant's assignment method (default: random)
@@ -4729,7 +4731,7 @@ async function getNextAssignee(tenantId = 1) {
         SELECT lac.counselor_name
         FROM lead_assignment_counter lac
         JOIN users u ON u.name = lac.counselor_name AND u.tenant_id = $1
-        WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE AND lac.tenant_id = $1
+        WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance', 'Manager') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE AND lac.tenant_id = $1
         ORDER BY lac.last_assigned ASC, lac.assignment_count ASC
         LIMIT 1;
       `, [tenantId])
@@ -4740,7 +4742,7 @@ async function getNextAssignee(tenantId = 1) {
         SELECT lac.counselor_name
         FROM lead_assignment_counter lac
         JOIN users u ON u.name = lac.counselor_name AND u.tenant_id = $1
-        WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE AND lac.tenant_id = $1
+        WHERE u.status = 'Active' AND u.role NOT IN ('Admin', 'Finance', 'Manager') AND COALESCE(u.exclude_from_assignment, FALSE) = FALSE AND lac.tenant_id = $1
         ORDER BY lac.assignment_count ASC, lac.last_assigned ASC
         LIMIT 1;
       `, [tenantId])
