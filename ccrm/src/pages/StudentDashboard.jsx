@@ -26,12 +26,17 @@ function loadRazorpayScript() {
 const DOC_LABELS = {
   '10th Marksheet': '10th Marksheet',
   '12th Marksheet': '12th Marksheet',
-  'Graduation Marksheet': 'Graduation Marksheet',
+  'Graduation Marksheet': 'Graduation Marksheet ( Incl Vocational)',
   'ID Proof': 'Government ID Proof',
   'Passport Photo': 'Passport Photo',
   'Transfer Certificate': 'Transfer Certificate',
   'Migration Certificate': 'Migration Certificate',
   'Caste Certificate': 'Caste Certificate',
+}
+
+// Small secondary caption shown under a document's label, where one applies.
+const DOC_HINTS = {
+  'Graduation Marksheet': 'subject to eligibility',
 }
 
 function authHeaders(json = true) {
@@ -129,6 +134,7 @@ function DocRow({ type, mandatory, uploaded, status, onUpload, uploading }) {
     <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-b-0">
       <div>
         <p className="text-sm font-medium text-gray-900">{DOC_LABELS[type] || type}{mandatory && <span className="text-red-500 ml-1">*</span>}</p>
+        {DOC_HINTS[type] && <p className="text-xs text-gray-400 lowercase">{DOC_HINTS[type]}</p>}
       </div>
       <div className="flex items-center gap-3">
         {badge}

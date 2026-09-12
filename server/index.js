@@ -1540,7 +1540,7 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
     } else if (requestOwner && requestOwner !== 'Unassigned') {
       owner = requestOwner
     } else {
-      owner = await getNextAssignee(req.tenantId)
+      owner = await getNextAssignee(req.tenantId, city)
       console.log(`[Lead Create] Admin/Manager add → auto-assigned to ${owner}`)
     }
 
@@ -4695,12 +4695,73 @@ app.post('/api/leads/check-duplicate', async (req, res) => {
   }
 })
 
+// Bumps a counsellor's round-robin counter and returns their name — shared by
+// the district-map path and the generic pool below so both count toward the
+// same load-balancing stats.
+async function bumpAssignmentCounter(counselorName, tenantId) {
+  await pool.query(
+    `INSERT INTO lead_assignment_counter (counselor_name, counselor_email, tenant_id)
+     SELECT name, email, tenant_id FROM users WHERE name = $1 AND tenant_id = $2
+     ON CONFLICT (counselor_name) DO NOTHING;`,
+    [counselorName, tenantId]
+  )
+  await pool.query(
+    'UPDATE lead_assignment_counter SET assignment_count = assignment_count + 1, last_assigned = NOW() WHERE counselor_name = $1 AND tenant_id = $2;',
+    [counselorName, tenantId]
+  )
+  return counselorName
+}
+
+// True if this named counsellor is a real, active, assignment-eligible user
+// in this tenant right now — checked fresh each time rather than trusted
+// from the map, since the map only ever says who's *supposed* to cover a
+// district, not whether they're still an active account today.
+async function isActiveAssignee(name, tenantId) {
+  if (!name) return false
+  const r = await pool.query(
+    "SELECT 1 FROM users WHERE name = $1 AND tenant_id = $2 AND status = 'Active' AND COALESCE(exclude_from_assignment, FALSE) = FALSE LIMIT 1;",
+    [name, tenantId]
+  )
+  return r.rows.length > 0
+}
+
 // --- FEATURE 2: LEAD AUTO-ASSIGNMENT (round-robin / load-based) ---
 // Shared picker: returns the active counsellor with the fewest leads and
 // bumps their counter. Returns 'Unassigned' if there are no eligible users.
+// `district`, when given, is checked against district_counselor_map first
+// (CU EDU's NICE centre network) — a tenant with no rows in that table for
+// it just falls through to the generic pool below, unchanged.
 // (function declaration → hoisted, so inbound routes above can call it.)
-async function getNextAssignee(tenantId = 1) {
+async function getNextAssignee(tenantId = 1, district = '') {
   try {
+    if (district && district.trim()) {
+      const mapRes = await pool.query(
+        'SELECT counselor_name FROM district_counselor_map WHERE tenant_id = $1 AND LOWER(district) = LOWER($2) LIMIT 1;',
+        [tenantId, district.trim()]
+      )
+      const mappedName = mapRes.rows[0]?.counselor_name
+      if (mappedName) {
+        if (await isActiveAssignee(mappedName, tenantId)) {
+          return await bumpAssignmentCounter(mappedName, tenantId)
+        }
+        // District's own centre isn't available — fall back to the sheet's
+        // own designated fallback centre (Bhubaneswar), not the generic pool.
+        const fbRes = await pool.query(
+          "SELECT counselor_name FROM district_counselor_map WHERE tenant_id = $1 AND district = '__FALLBACK__' LIMIT 1;",
+          [tenantId]
+        )
+        const fbName = fbRes.rows[0]?.counselor_name
+        if (await isActiveAssignee(fbName, tenantId)) {
+          return await bumpAssignmentCounter(fbName, tenantId)
+        }
+        // Both the district's centre and Bhubaneswar are unavailable —
+        // fall through to the generic pool below as a last resort, so the
+        // lead never sits unassigned just because two specific accounts
+        // happen to be disabled today.
+      }
+      // No mapping at all for this tenant/district — fall through too.
+    }
+
     // Eligible = any active user who isn't Admin/Manager/Finance — auto-assign
     // is for frontline counsellors only, never for anyone with a supervisory
     // role. Still tolerant of custom role names (Counsellor / Faculty /
@@ -6413,7 +6474,7 @@ app.post('/api/public/inquiry/:tenantSlug?', async (req, res) => {
       season = seasonRow.rows[0]?.value || '26'
     }
     const refPrefix = cleanPrefix || `${tenantBase || defaultBase}${season}`
-    const owner = await getNextAssignee(tenantId)
+    const owner = await getNextAssignee(tenantId, city)
     const insertRes = await pool.query(`
       INSERT INTO leads (name, email, mobile, state, city, course, source, owner, reg_date, score, stage, stage_color, lead_source, source_type, lead_ref_prefix, tenant_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $12, $8, $9, 'Untouched', 'red', $10, $11, $13, $14)
@@ -9542,11 +9603,11 @@ app.post('/api/send-template-email', authenticateToken, async (req, res) => {
       for (const { id: tenantId } of tenants.rows) {
         // Auto-assign regular leads
         const unassigned = await pool.query(
-          'SELECT id FROM leads WHERE (owner IS NULL OR owner = \'\' OR owner = \'Unassigned\') AND tenant_id = $1',
+          'SELECT id, city FROM leads WHERE (owner IS NULL OR owner = \'\' OR owner = \'Unassigned\') AND tenant_id = $1',
           [tenantId]
         )
-        for (const { id } of unassigned.rows) {
-          const counselor = await getNextAssignee(tenantId)
+        for (const { id, city } of unassigned.rows) {
+          const counselor = await getNextAssignee(tenantId, city)
           if (counselor && counselor !== 'Unassigned') {
             await pool.query('UPDATE leads SET owner = $1 WHERE id = $2 AND tenant_id = $3', [counselor, id, tenantId])
           }
