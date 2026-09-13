@@ -14,6 +14,8 @@ import EmailTemplateModal from '../components/EmailTemplateModal'
 import { stageLabel } from '../stageLabel'
 import PageContainer from '../components/PageContainer'
 import { Card, Table, Modal, Button } from '../components/ui'
+import { getDistrictsForState } from '../data/indiaLocations'
+import { getUrlTenantSlug } from '../tenantSlug'
 
 const STAGE_COLORS = {
   red:     { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-400' },
@@ -70,6 +72,7 @@ const TENANT_FORM_CONFIGS = {
     programs: ['BBA', 'BCA', 'BCOM', 'MBA', 'MCA', 'MSc (Maths)'],
     hideReferenceCollege: true,
     showProgram: true,
+    showDistrictDropdown: true, // City becomes a State-dependent District select, matching cuedu.in's own Apply Now form
   },
   'cue edu': {
     states: ALL_STATES,
@@ -77,6 +80,7 @@ const TENANT_FORM_CONFIGS = {
     programs: ['BBA', 'BCA', 'BCOM', 'MBA', 'MCA', 'MSc (Maths)'],
     hideReferenceCollege: true,
     showProgram: true,
+    showDistrictDropdown: true,
   },
   'cueedu': {
     states: ALL_STATES,
@@ -84,6 +88,7 @@ const TENANT_FORM_CONFIGS = {
     programs: ['BBA', 'BCA', 'BCOM', 'MBA', 'MCA', 'MSc (Maths)'],
     hideReferenceCollege: true,
     showProgram: true,
+    showDistrictDropdown: true,
   }
 }
 const CRM_FIELDS = ['name', 'email', 'mobile', 'state', 'city', 'course', 'source', 'owner']
@@ -655,8 +660,9 @@ export default function LeadManager() {
   }
 
   const handleDownloadTemplate = () => {
-    // Get tenant slug from URL for tenant-specific template
-    const tenantSlug = window.location.pathname.split('/')[1]
+    // Tenant slug via the shared helper (checks hostname first, e.g.
+    // crm.cutm.ac.in) so this still resolves correctly off the path prefix.
+    const tenantSlug = getUrlTenantSlug()
     const isCuedu = tenantSlug === 'cuedu'
 
     const headers = isCuedu
@@ -1172,7 +1178,7 @@ export default function LeadManager() {
                   {key:'name',   label:'Student Name *',  type:'text',  placeholder:'Full name', required:true},
                   {key:'mobile', label:'Mobile Number *',  type:'tel',   placeholder:'10-digit mobile', required:true},
                   {key:'email',  label:'Email (Optional)', type:'email', placeholder:'student@example.com'},
-                  {key:'city',   label:'City (Optional)',  type:'text',  placeholder:'e.g. Bhubaneswar'},
+                  ...(formConfig.showDistrictDropdown ? [] : [{key:'city', label:'City (Optional)', type:'text', placeholder:'e.g. Bhubaneswar'}]),
                 ].map(f => (
                   <div key={f.key}>
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{f.label}</label>
@@ -1187,11 +1193,32 @@ export default function LeadManager() {
                 {/* State */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">State (Optional)</label>
-                  <select value={newLead.state} onChange={e => setNewLead(p => ({ ...p, state: e.target.value }))} className="input-field text-sm">
+                  <select
+                    value={newLead.state}
+                    onChange={e => setNewLead(p => ({ ...p, state: e.target.value, ...(formConfig.showDistrictDropdown ? { city: '' } : {}) }))}
+                    className="input-field text-sm"
+                  >
                     <option value="">— Select state —</option>
                     {formStates.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+
+                {/* District — a State-dependent select for tenants that route leads by
+                    district (CU EDU); every other tenant keeps the free-text City field above. */}
+                {formConfig.showDistrictDropdown && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">District (Optional)</label>
+                    <select
+                      value={newLead.city}
+                      onChange={e => setNewLead(p => ({ ...p, city: e.target.value }))}
+                      disabled={!newLead.state}
+                      className="input-field text-sm"
+                    >
+                      <option value="">{newLead.state ? '— Select district —' : 'Select a state first'}</option>
+                      {getDistrictsForState(newLead.state).map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                )}
 
                 {/* Campus */}
                 <div>
