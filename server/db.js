@@ -995,6 +995,25 @@ export async function initDb() {
       }
     }
 
+    // Student "Grievance & Support" tickets — raised from the student portal,
+    // answered by staff from a tenant-scoped inbox (see /api/grievances).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS grievances (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+        app_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+        category VARCHAR(50) DEFAULT 'Other',
+        message TEXT NOT NULL,
+        status VARCHAR(20) DEFAULT 'Open',
+        response TEXT DEFAULT '',
+        responded_by VARCHAR(255) DEFAULT '',
+        responded_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_grievances_tenant ON grievances(tenant_id);`).catch(() => {})
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_grievances_app ON grievances(app_id);`).catch(() => {})
+
     // Email templates for counselors to send various communications
     await client.query(`
       CREATE TABLE IF NOT EXISTS email_templates (

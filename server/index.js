@@ -8326,9 +8326,9 @@ app.post('/api/applications/:id/booking-fee-payment', authenticateToken, async (
 app.get('/api/documents/verify', authenticateToken, async (req, res) => {
   const { app_id } = req.query
   try {
-    // Admins can verify any application's documents
-    if (req.user.role !== 'Admin') {
-      return res.status(403).json({ error: 'Admin only.' })
+    // Admins and Counselors can verify any application's documents
+    if (!['Admin', 'Counselor'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Admin or Counselor only.' })
     }
 
     // Prefer the reliable app_id link; fall back to the legacy name-match for
@@ -8351,20 +8351,51 @@ app.put('/api/documents/:id/verify', authenticateToken, async (req, res) => {
   const { id } = req.params
   const { status, rejectionReason } = req.body
   try {
-    if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+    if (!['Admin', 'Counselor'].includes(req.user.role)) return res.status(403).json({ error: 'Admin or Counselor only.' })
     if (!['Pending', 'Verified', 'Rejected'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status.' })
     }
 
     const updated = await pool.query(
       `UPDATE documents SET status = $1, verified_by = $2, verified_at = NOW(), rejection_reason = $3
-       WHERE id = $4 AND tenant_id = $5 RETURNING app_id;`,
+       WHERE id = $4 AND tenant_id = $5 RETURNING app_id, type;`,
       [status, req.user.email, rejectionReason || '', id, req.tenantId]
     )
+    const appId = updated.rows[0]?.app_id
 
     // Step-3 auto-trigger: this doc might have been the last mandatory one pending.
-    if (status === 'Verified' && updated.rows[0]?.app_id) {
-      checkAndAutoSyncCampusOne(updated.rows[0].app_id, req.tenantId).catch(() => {})
+    if (status === 'Verified' && appId) {
+      checkAndAutoSyncCampusOne(appId, req.tenantId).catch(() => {})
+    }
+
+    // Notify the student by email whenever a document is actually decided —
+    // "verified, locked" or "rejected, please re-upload" are exactly the two
+    // moments the student portal can't self-detect without a page reload.
+    if (appId && (status === 'Verified' || status === 'Rejected')) {
+      pool.query('SELECT name, email, app_no FROM applications WHERE id = $1 AND tenant_id = $2;', [appId, req.tenantId])
+        .then(r => {
+          const stuApp = r.rows[0]
+          if (!stuApp?.email) return
+          const docType = updated.rows[0].type
+          const isVerified = status === 'Verified'
+          return sendSystemMailAlert(
+            stuApp.email,
+            isVerified ? `Document Verified — ${docType}` : `Document Rejected — ${docType}, please re-upload`,
+            isVerified
+              ? `Hi ${stuApp.name},\n\nYour ${docType} has been verified and is now locked.\n\nApplication: ${stuApp.app_no}`
+              : `Hi ${stuApp.name},\n\nYour ${docType} was rejected${rejectionReason ? ` (${rejectionReason})` : ''}. Please log in to your student portal to re-upload it.\n\nApplication: ${stuApp.app_no}`,
+            req.tenantId,
+            brandedEmailHtml({
+              badge: isVerified ? 'VERIFIED' : 'ACTION NEEDED',
+              tone: isVerified ? 'success' : 'warn',
+              title: isVerified ? 'Document Verified' : 'Document Rejected — Re-upload Needed',
+              bodyHtml: isVerified
+                ? `Hi ${stuApp.name},<br><br>Your <strong>${docType}</strong> has been verified and is now locked — no further changes needed.`
+                : `Hi ${stuApp.name},<br><br>Your <strong>${docType}</strong> was rejected${rejectionReason ? `: <em>${rejectionReason}</em>` : '.'}<br><br>Please log in to your student portal to re-upload it.`,
+              details: [['Application No.', stuApp.app_no], ['Document', docType]]
+            })
+          )
+        }).catch(e => console.error('[documents/:id/verify email]', e.message))
     }
 
     res.json({ success: true, message: 'Document verification updated.' })
@@ -8924,6 +8955,15 @@ async function buildAdmissionJourneyResponse(app) {
   )
   const program = progRes.rows[0] || { booking_fee: 1000, registration_fee: 0, min_due_provisional: 0, tuition_fee: 0, min_amount_to_pay: 0 }
 
+  // Best-effort link back to the lead this application originated from —
+  // there's no formal foreign key (applications predate that idea), so this
+  // matches on contact info the way a human would. Shown for context on the
+  // student dashboard only; nothing downstream depends on it.
+  const leadRes = await pool.query(
+    'SELECT id FROM leads WHERE tenant_id = $1 AND (email = $2 OR mobile = $3) ORDER BY created_at DESC LIMIT 1;',
+    [tenantId, app.email, app.mobile]
+  ).catch(() => ({ rows: [] }))
+
   // Document checklist + current status — its own standalone step right after
   // the application fee is paid, gating the fuller admission form (Step 2) rather
   // than waiting until after provisional admission is granted.
@@ -8943,6 +8983,8 @@ async function buildAdmissionJourneyResponse(app) {
   return {
     success: true,
     application: { id: app.id, name: app.name, email: app.email, mobile: app.mobile, course: app.course, appNo: app.app_no },
+    leadId: leadRes.rows[0]?.id || null,
+    counsellorName: app.owner || '',
     admissionDetails: app.admission_details || {},
     alreadyFilled: !!app.filled_at,
     admissionDetailsStatus: app.admission_details_status,
@@ -8960,6 +9002,10 @@ async function buildAdmissionJourneyResponse(app) {
     documentsVerified,
     tuitionFeeAmount: applyTuitionDiscount(program.min_amount_to_pay, app),
     tuitionFeeFullAmount: Number(program.min_amount_to_pay) || 0,
+    // The whole tuition fee (after this student's discount, if any) — the
+    // ceiling a flexible tuition payment can offer as "pay in full", as
+    // distinct from tuitionFeeAmount above, which is only the minimum due.
+    tuitionFeeTotalAmount: applyTuitionDiscount(program.tuition_fee, app),
     tuitionFeeDiscountPercent: Number(app.tuition_fee_discount_percent) || 0,
     tuitionFeePaid: !!app.tuition_fee_paid,
     campusoneSyncStatus: app.campusone_sync_status,
@@ -9365,10 +9411,23 @@ app.post('/api/student-portal/create-payment-order', authenticateToken, requireS
       return res.status(503).json({ error: 'Online payment is not configured yet. Please contact admissions.' })
     }
 
-    const progRes = await pool.query('SELECT booking_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
+    const progRes = await pool.query('SELECT booking_fee, min_amount_to_pay, tuition_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
     const program = progRes.rows[0] || {}
-    const amountRupees = feeType === 'Tuition Fee' ? applyTuitionDiscount(program.min_amount_to_pay, app) : (Number(program.booking_fee) || 1000)
+    const minDue = applyTuitionDiscount(program.min_amount_to_pay, app)
+    const fullTuition = applyTuitionDiscount(program.tuition_fee, app)
+    let amountRupees = feeType === 'Tuition Fee' ? minDue : (Number(program.booking_fee) || 1000)
     if (amountRupees <= 0) return res.status(400).json({ error: 'This fee has no amount configured yet — contact admissions.' })
+
+    // Tuition Fee is the one flexible amount — the student can choose to pay
+    // anything from the minimum due up to the full remaining tuition (never
+    // less, and never trusted blindly: clamped server-side either way).
+    if (feeType === 'Tuition Fee' && req.body?.amount != null) {
+      const requested = Math.round(Number(req.body.amount))
+      if (!Number.isFinite(requested) || requested < minDue) {
+        return res.status(400).json({ error: `Minimum payable amount is ₹${minDue.toLocaleString('en-IN')}.` })
+      }
+      amountRupees = fullTuition > 0 ? Math.min(requested, fullTuition) : requested
+    }
 
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
     const rpRes = await fetch('https://api.razorpay.com/v1/orders', {
@@ -9482,6 +9541,102 @@ app.post('/api/student-portal/documents', authenticateToken, requireStudent, han
   } catch (e) {
     console.error('[POST /api/student-portal/documents]', e.message)
     res.status(500).json({ error: 'Failed to upload document.' })
+  }
+})
+
+// ════════════════════════════════════════════════════════════════════════════════
+// GRIEVANCE & SUPPORT: student raises a ticket, staff answer it from a
+// tenant-scoped inbox. Always available on the student portal — unlike every
+// fee/document step above, this is never locked behind another step.
+// ════════════════════════════════════════════════════════════════════════════════
+
+// POST /api/student-portal/grievances — student raises a ticket.
+app.post('/api/student-portal/grievances', authenticateToken, requireStudent, async (req, res) => {
+  try {
+    const { category, message } = req.body
+    if (!message || !message.trim()) return res.status(400).json({ error: 'Please describe your issue.' })
+    const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
+    if (!app) return res.status(404).json({ error: 'Application not found.' })
+    const r = await pool.query(
+      `INSERT INTO grievances (tenant_id, app_id, category, message) VALUES ($1, $2, $3, $4) RETURNING id, created_at;`,
+      [req.tenantId, app.id, category || 'Other', message.trim()]
+    )
+    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+      [`New grievance ticket #${r.rows[0].id} from ${app.name} (${app.app_no})`, 'Just now', req.tenantId])
+    res.json({ success: true, id: r.rows[0].id })
+  } catch (e) {
+    console.error('[POST /api/student-portal/grievances]', e.message)
+    res.status(500).json({ error: 'Failed to submit your ticket. Please try again.' })
+  }
+})
+
+// GET /api/student-portal/grievances — student's own tickets, newest first.
+app.get('/api/student-portal/grievances', authenticateToken, requireStudent, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, category, message, status, response, responded_at, created_at
+       FROM grievances WHERE app_id = $1 AND tenant_id = $2 ORDER BY created_at DESC;`,
+      [req.user.appId, req.tenantId]
+    )
+    res.json(r.rows)
+  } catch (e) {
+    console.error('[GET /api/student-portal/grievances]', e.message)
+    res.status(500).json({ error: 'Failed to fetch your tickets.' })
+  }
+})
+
+// GET /api/grievances — staff inbox, every ticket for this tenant with the
+// applicant's contact details for context. Open tickets first, newest first.
+app.get('/api/grievances', authenticateToken, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT g.id, g.category, g.message, g.status, g.response, g.responded_by, g.responded_at, g.created_at,
+              a.name AS student_name, a.app_no, a.email, a.mobile, a.owner AS counsellor_name
+       FROM grievances g JOIN applications a ON a.id = g.app_id
+       WHERE g.tenant_id = $1
+       ORDER BY (g.status = 'Open') DESC, g.created_at DESC;`,
+      [req.tenantId]
+    )
+    res.json(r.rows)
+  } catch (e) {
+    console.error('[GET /api/grievances]', e.message)
+    res.status(500).json({ error: 'Failed to fetch grievances.' })
+  }
+})
+
+// POST /api/grievances/:id/respond — staff answers a ticket, which resolves it
+// and emails the student their answer.
+app.post('/api/grievances/:id/respond', authenticateToken, async (req, res) => {
+  try {
+    const { response } = req.body
+    if (!response || !response.trim()) return res.status(400).json({ error: 'Please write a response.' })
+    const r = await pool.query(
+      `UPDATE grievances SET response = $1, responded_by = $2, responded_at = NOW(), status = 'Resolved'
+       WHERE id = $3 AND tenant_id = $4
+       RETURNING app_id, category;`,
+      [response.trim(), req.user.email, req.params.id, req.tenantId]
+    )
+    if (!r.rows.length) return res.status(404).json({ error: 'Ticket not found.' })
+
+    const appRes = await pool.query('SELECT name, email, app_no FROM applications WHERE id = $1 AND tenant_id = $2;', [r.rows[0].app_id, req.tenantId])
+    const stuApp = appRes.rows[0]
+    if (stuApp?.email) {
+      sendSystemMailAlert(
+        stuApp.email,
+        `Response to your support ticket — ${r.rows[0].category}`,
+        `Hi ${stuApp.name},\n\nYou raised: "${r.rows[0].category}"\n\nOur response:\n${response.trim()}\n\nApplication: ${stuApp.app_no}`,
+        req.tenantId,
+        brandedEmailHtml({
+          badge: 'RESOLVED', tone: 'success', title: 'Your Support Ticket Has Been Answered',
+          bodyHtml: `Hi ${stuApp.name},<br><br><strong>Category:</strong> ${r.rows[0].category}<br><br><strong>Our response:</strong><br>${response.trim().replace(/\n/g, '<br>')}`,
+          details: [['Application No.', stuApp.app_no]]
+        })
+      ).catch(e => console.error('[grievances/:id/respond email]', e.message))
+    }
+    res.json({ success: true })
+  } catch (e) {
+    console.error('[POST /api/grievances/:id/respond]', e.message)
+    res.status(500).json({ error: 'Failed to send response.' })
   }
 })
 

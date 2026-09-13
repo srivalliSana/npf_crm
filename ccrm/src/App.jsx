@@ -49,6 +49,7 @@ import CallActivityReport from './pages/CallActivityReport'
 import WorkbookImport from './pages/WorkbookImport'
 import ProgramsManager from './pages/ProgramsManager'
 import DocumentVerification from './pages/DocumentVerification'
+import Grievances from './pages/Grievances'
 import FinanceVerification from './pages/FinanceVerification'
 import AdmissionDetailsForm from './pages/AdmissionDetailsForm'
 import StudentLogin from './pages/StudentLogin'
@@ -161,8 +162,13 @@ export default function App() {
             <Route path="lead-id-settings" element={<LeadIdSettings />} />
             <Route element={<RoleGuard roles={['Admin']} />}>
               <Route path="programs"              element={<ProgramsManager />} />
-              <Route path="document-verification" element={<DocumentVerification />} />
               <Route path="finance-verification"  element={<FinanceVerification />} />
+            </Route>
+            <Route element={<RoleGuard roles={['Admin', 'Counselor']} />}>
+              <Route path="document-verification" element={<DocumentVerification />} />
+            </Route>
+            <Route element={<RoleGuard roles={['Admin', 'Counselor', 'Manager']} />}>
+              <Route path="grievances" element={<Grievances />} />
             </Route>
             <Route path="reports"          element={<Reports />} />
             <Route path="productivity"     element={<ProductivityReport />} />
