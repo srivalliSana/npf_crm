@@ -4730,37 +4730,42 @@ async function isActiveAssignee(name, tenantId) {
 // Shared picker: returns the active counsellor with the fewest leads and
 // bumps their counter. Returns 'Unassigned' if there are no eligible users.
 // `district`, when given, is checked against district_counselor_map first
-// (CU EDU's NICE centre network) — a tenant with no rows in that table for
-// it just falls through to the generic pool below, unchanged.
+// (CU EDU's NICE centre network) — a tenant with no rows in that table at
+// all just falls through to the generic pool below, unchanged.
 // (function declaration → hoisted, so inbound routes above can call it.)
 async function getNextAssignee(tenantId = 1, district = '') {
   try {
-    if (district && district.trim()) {
-      const mapRes = await pool.query(
-        'SELECT counselor_name FROM district_counselor_map WHERE tenant_id = $1 AND LOWER(district) = LOWER($2) LIMIT 1;',
-        [tenantId, district.trim()]
-      )
-      const mappedName = mapRes.rows[0]?.counselor_name
-      if (mappedName) {
-        if (await isActiveAssignee(mappedName, tenantId)) {
-          return await bumpAssignmentCounter(mappedName, tenantId)
-        }
-        // District's own centre isn't available — fall back to the sheet's
-        // own designated fallback centre (Bhubaneswar), not the generic pool.
-        const fbRes = await pool.query(
-          "SELECT counselor_name FROM district_counselor_map WHERE tenant_id = $1 AND district = '__FALLBACK__' LIMIT 1;",
-          [tenantId]
+    // The '__FALLBACK__' row's presence is what marks a tenant as using
+    // district-based routing at all (only CU EDU right now). If it's
+    // configured, EVERY lead for this tenant resolves through this map —
+    // an exact district match when there is one and it's active, else
+    // Bhubaneswar (the fallback) for every other state/district, a typo,
+    // no district at all, or an inactive district centre. Only if
+    // Bhubaneswar's own centre is unavailable too does it fall through to
+    // the generic pool below, as an absolute last resort.
+    const fbRes = await pool.query(
+      "SELECT counselor_name FROM district_counselor_map WHERE tenant_id = $1 AND district = '__FALLBACK__' LIMIT 1;",
+      [tenantId]
+    )
+    const fallbackName = fbRes.rows[0]?.counselor_name
+    if (fallbackName) {
+      let mappedName = null
+      if (district && district.trim()) {
+        const mapRes = await pool.query(
+          'SELECT counselor_name FROM district_counselor_map WHERE tenant_id = $1 AND LOWER(district) = LOWER($2) LIMIT 1;',
+          [tenantId, district.trim()]
         )
-        const fbName = fbRes.rows[0]?.counselor_name
-        if (await isActiveAssignee(fbName, tenantId)) {
-          return await bumpAssignmentCounter(fbName, tenantId)
-        }
-        // Both the district's centre and Bhubaneswar are unavailable —
-        // fall through to the generic pool below as a last resort, so the
-        // lead never sits unassigned just because two specific accounts
-        // happen to be disabled today.
+        mappedName = mapRes.rows[0]?.counselor_name || null
       }
-      // No mapping at all for this tenant/district — fall through too.
+      for (const candidate of [mappedName, fallbackName]) {
+        if (candidate && (await isActiveAssignee(candidate, tenantId))) {
+          return await bumpAssignmentCounter(candidate, tenantId)
+        }
+      }
+      // Both the district's own centre (if any) and Bhubaneswar are
+      // unavailable — fall through to the generic pool below as a last
+      // resort, so the lead never sits unassigned just because two
+      // specific accounts happen to be disabled today.
     }
 
     // Eligible = any active user who isn't Admin/Manager/Finance — auto-assign
