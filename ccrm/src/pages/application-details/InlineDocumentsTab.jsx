@@ -257,7 +257,12 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
 
       {/* ─── 3-STEP ADMISSION JOURNEY: counselor review → booking fee →      ─── */}
       {/* ─── full form/registration fee → docs/tuition fee → CampusOne       ─── */}
-      {isApp && isAdmin && (
+      {/* Visible to Admin/Manager (full pipeline, including Admin-only Send
+          Link actions further down) and to Counselor — the discount edit
+          control a few lines down is Counselor-only, so Counselors need to
+          be able to reach this card at all to use it; this was previously
+          gated isAdmin-only, making that control unreachable by anyone. */}
+      {isApp && (isAdmin || isCounselor) && (
         <div className="mt-6 card">
           <h3 className="text-lg font-bold text-gray-900 mb-4 pb-4 border-b">Admission Journey Pipeline</h3>
 
