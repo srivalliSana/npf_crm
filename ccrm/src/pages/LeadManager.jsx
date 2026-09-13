@@ -13,7 +13,7 @@ import RcsComposeModal from '../components/RcsComposeModal'
 import EmailTemplateModal from '../components/EmailTemplateModal'
 import { stageLabel } from '../stageLabel'
 import PageContainer from '../components/PageContainer'
-import { Card, Table, Modal, Button } from '../components/ui'
+import { Card, Table, Modal, Button, Badge } from '../components/ui'
 import { getDistrictsForState } from '../data/indiaLocations'
 import { getUrlTenantSlug } from '../tenantSlug'
 
@@ -38,6 +38,16 @@ const getStageColorName = (stage) => ({
   // legacy
   'Qualified Leads': 'orange', 'Converted': 'emerald',
 }[stage] || 'blue')
+
+// Campus One Neo's Badge variant for each stage-color-name above — used for
+// the stage pill only; the row's left-border strip still reads STAGE_COLORS
+// directly since Badge has no "border" concept.
+const STAGE_COLOR_TO_VARIANT = {
+  red: 'danger', blue: 'info', green: 'success', orange: 'warning',
+  yellow: 'warning', emerald: 'success', gray: 'neutral', cyan: 'info', purple: 'ai',
+}
+
+const QUAL_VARIANT = { Hot: 'danger', Warm: 'warning', Nurture: 'accent', Cold: 'neutral' }
 
 
 // Reference Colleges (formerly 'Course Preference') — dropdown only
@@ -1028,7 +1038,7 @@ export default function LeadManager() {
                     <td className="table-td text-gray-500 text-xs">{lead.source || '—'}</td>
                     <td className="table-td">
                       <div className="flex flex-col gap-0.5">
-                        <span className={`badge ${colors.bg} ${colors.text}`}>{stageLabel(lead.stage)}</span>
+                        <Badge variant={STAGE_COLOR_TO_VARIANT[getStageColorName(lead.stage)] || 'info'} dot>{stageLabel(lead.stage)}</Badge>
                         {lead.notInterestedReason && (
                           <span className="text-[9px] text-red-500 italic truncate max-w-24" title={lead.notInterestedReason}>
                             {lead.notInterestedReason}
@@ -1039,9 +1049,9 @@ export default function LeadManager() {
                     <td className="table-td">
                       <div className="flex flex-col gap-0.5">
                         <span className={`text-xs font-bold ${scoreColor}`}>{score}</span>
-                        <span className={`badge text-[9px] font-bold px-1.5 ${getQualCategory(score).bg} ${getQualCategory(score).text}`}>
+                        <Badge variant={QUAL_VARIANT[getQualCategory(score).label] || 'neutral'} className="!text-[9px] !px-1.5">
                           {getQualCategory(score).label}
-                        </span>
+                        </Badge>
                       </div>
                     </td>
                     <td className="table-td text-gray-500 text-xs">{lead.owner || 'Unassigned'}</td>

@@ -8,6 +8,7 @@ const TONE = {
   danger:  'bg-danger-100 text-danger-700',
   info:    'bg-info-100 text-info-700',
   neutral: 'bg-gray-100 text-gray-600',
+  ai:      'bg-ai-100 text-ai-700',
 }
 
 // Standardizes the KPI-tile pattern used across Dashboard/Reports/etc so

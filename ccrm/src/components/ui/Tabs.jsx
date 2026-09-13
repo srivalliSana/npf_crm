@@ -2,9 +2,12 @@ import React from 'react'
 
 // Controlled horizontal tab bar. `tabs`: [{ id, label, icon? }]. Content
 // rendering stays with the caller — this only owns the tab strip UI.
-export default function Tabs({ tabs, active, onChange, className = '' }) {
+// `sticky` keeps the strip pinned to the top of its scroll container — used
+// by the Lead Detail Workspace's center column, where tab content can run
+// long and the tab strip should stay reachable while scrolling.
+export default function Tabs({ tabs, active, onChange, className = '', sticky = false }) {
   return (
-    <div className={`flex items-center gap-1 border-b border-gray-200 ${className}`}>
+    <div className={`flex items-center gap-1 border-b border-gray-200 overflow-x-auto ${sticky ? 'sticky top-0 z-10 bg-white' : ''} ${className}`}>
       {tabs.map(t => {
         const Icon = t.icon
         const isActive = t.id === active
