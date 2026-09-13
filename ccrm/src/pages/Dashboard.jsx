@@ -4,6 +4,8 @@ import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, Do
 import { stageLabel } from '../stageLabel'
 import PageContainer from '../components/PageContainer'
 import { Card, StatCard, Table, Modal, Button, Select } from '../components/ui'
+import LeadFunnel from '../components/dashboard/LeadFunnel'
+import CounsellorPerformanceCards from '../components/dashboard/CounsellorPerformanceCards'
 
 // Default lead stages shown in the summary table (funnel order) — used as a
 // fallback until the tenant's own stage config loads, or for tenants that
@@ -146,6 +148,22 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* Admissions funnel — from the same kpi payload the summary cards use */}
+      {!isCounselor && (
+        <LeadFunnel stages={[
+          { label: 'Untouched',           value: kpi?.untouched || 0,        tone: 'primary' },
+          { label: 'Contacted',           value: kpi?.contacted || 0,        tone: 'info' },
+          { label: 'Interested',          value: kpi?.interested || 0,       tone: 'accent' },
+          { label: 'Process for Payment', value: kpi?.processForPayment || 0, tone: 'warning' },
+          { label: 'Payment Success',     value: kpi?.paymentSuccess || 0,   tone: 'success' },
+        ]} />
+      )}
+
+      {/* Counsellor performance — joins byCounsellor with the Stage Summary matrix */}
+      {!isCounselor && (
+        <CounsellorPerformanceCards byCounsellor={stats?.byCounsellor} byCounsellorStages={stats?.byCounsellorStages} />
+      )}
+
       {/* Your GT entities (counsellor's own leads per granted GT entity) */}
       {stats?.gtEntities?.length > 0 && (
         <div className="mb-6">
@@ -167,7 +185,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {[
             { key: 'cutm',   label: 'CUTM',   data: cutm,   accent: 'from-primary-500 to-primary-600' },
-            { key: 'cutmap', label: 'CUTMAP', data: cutmap, accent: 'from-purple-500 to-purple-600' },
+            { key: 'cutmap', label: 'CUTMAP', data: cutmap, accent: 'from-ai-500 to-ai-600' },
           ].map(d => {
             const cells = [
               { l: 'Total',          v: d.data.total },
@@ -206,7 +224,7 @@ export default function Dashboard() {
           <span className="font-semibold text-primary-600">{(cutm.total || 0).toLocaleString()}</span>
           <span className="text-gray-400 text-xs">CUTM</span>
           <span className="text-gray-300">+</span>
-          <span className="font-semibold text-purple-600">{(cutmap.total || 0).toLocaleString()}</span>
+          <span className="font-semibold text-ai-600">{(cutmap.total || 0).toLocaleString()}</span>
           <span className="text-gray-400 text-xs">CUTMAP</span>
           <span className="text-gray-300">+</span>
           <span className="font-semibold text-gray-600">{((stats?.byDomain?.other?.total) || 0).toLocaleString()}</span>
