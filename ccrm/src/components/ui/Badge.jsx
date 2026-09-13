@@ -8,6 +8,7 @@ const VARIANT_CLASS = {
   neutral: 'badge-neutral',
   primary: 'badge bg-primary-100 text-primary-700',
   ai:      'badge-ai',
+  accent:  'badge-accent',
 }
 
 // Generic status pill built on the semantic color tokens — meant to replace
