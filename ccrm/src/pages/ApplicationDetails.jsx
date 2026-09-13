@@ -9,7 +9,7 @@ import {
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
 import LeadJourney from '../components/LeadJourney'
-import { Modal, Button } from '../components/ui'
+import { Modal, Button, StatCard, Tabs, Workspace3Col, AiPanel } from '../components/ui'
 import PostAdmissionPanel from './application-details/PostAdmissionPanel'
 import InlineDocumentsTab from './application-details/InlineDocumentsTab'
 
@@ -656,6 +656,14 @@ export default function ApplicationDetails() {
     showToast(`Event successfully scheduled for student.`, 'success')
   }
 
+  // Presentational-only KPI tiles above the workspace — reads of state already
+  // in scope, zero new fetches (the AI-derived tiles are wired separately).
+  const studentDocsForKpi = (documents || []).filter(d => d.student?.toLowerCase() === studentName.toLowerCase())
+  const docsVerifiedCount = studentDocsForKpi.filter(d => d.status === 'Verified').length
+  const paymentStatusLabel = associatedApp?.payStatus === 'Paid' ? 'Paid'
+    : associatedApp?.payStatus === 'Payment Done' ? 'Pending Approval'
+    : associatedApp ? 'Not Paid' : '—'
+
   return (
     <>
     <div className="p-6">
@@ -668,9 +676,72 @@ export default function ApplicationDetails() {
         Back to {isApp ? 'Application Manager' : 'Lead Manager'}
       </button>
 
-      <div className="flex flex-col lg:flex-row gap-5">
-        {/* Left panel */}
-        <div className="w-full lg:w-72 flex-shrink-0 space-y-4">
+      {/* KPI row — presentational reads of state already in scope; the two
+          AI-derived tiles are wired once AiInsightsPanel's endpoint lands. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <StatCard icon={Sparkles} label="Admission Health" value="—" tone="ai" />
+        <StatCard icon={Clock} label="Days Since Last Activity" value="—" tone="ai" />
+        <StatCard icon={CheckCircle2} label="Documents Verified" value={`${docsVerifiedCount}/${studentDocsForKpi.length}`} tone="info" />
+        <StatCard icon={Star} label="Payment Status" value={paymentStatusLabel} tone={associatedApp?.payStatus === 'Paid' ? 'success' : 'warning'} />
+      </div>
+
+      {/* Journey / stage progress — full width, above the 3-column workspace */}
+      {!isApp ? (
+        <div className="card p-4 mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700">Lead Journey</h3>
+            <span className="text-xs text-gray-400 font-semibold">Current: <span className="text-primary-600">{activeCurrentStage}</span></span>
+          </div>
+          <LeadJourney stage={activeCurrentStage} onSelect={(s) => handleStageClick(s)} />
+        </div>
+      ) : (
+      <div className="card p-5 mb-5">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold text-gray-700">Application Progress</h3>
+          <span className="text-xs text-gray-400 font-semibold">Application Stage {stageIdx + 1} of {activeStages.length}</span>
+        </div>
+
+        {/* Interactive stage bubbles */}
+        <div className="flex items-center mt-3 overflow-x-auto pb-2">
+          {activeStages.map((stage, idx) => {
+            const isCompleted = idx < stageIdx
+            const isCurrent = idx === stageIdx
+            const isLast = idx === activeStages.length - 1
+            return (
+              <React.Fragment key={stage}>
+                <button
+                  onClick={() => handleStageClick(stage, idx)}
+                  className="flex flex-col items-center flex-shrink-0 focus:outline-none group"
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
+                    isCompleted
+                      ? 'bg-primary-500 border-primary-500 text-white'
+                      : isCurrent
+                      ? 'bg-white border-primary-500 text-primary-600 scale-110 shadow-sm'
+                      : 'bg-white border-gray-300 text-gray-400 group-hover:border-primary-300 group-hover:text-primary-400'
+                  }`}>
+                    {isCompleted ? <CheckCircle2 size={16} /> : idx + 1}
+                  </div>
+                  <span className={`text-[9px] mt-1.5 text-center max-w-16 leading-tight font-medium ${
+                    isCurrent ? 'text-primary-600 font-bold' : isCompleted ? 'text-gray-600' : 'text-gray-400'
+                  }`}>
+                    {stage}
+                  </span>
+                </button>
+                {!isLast && (
+                  <div className={`flex-1 h-0.5 mx-1 mb-5 min-w-4 ${
+                    idx < stageIdx ? 'bg-primary-500' : 'bg-gray-200'
+                  }`}></div>
+                )}
+              </React.Fragment>
+            )
+          })}
+        </div>
+      </div>
+      )}
+
+      <Workspace3Col
+        left={<>
           {/* Profile card */}
           <div className="card p-5">
             {/* Avatar */}
@@ -904,11 +975,6 @@ export default function ApplicationDetails() {
               )}
             </div>
 
-            {/* Post-admission: email verify → doc upload → semester fee → ERP */}
-            {associatedApp?.appNo && associatedApp.payStatus === 'Paid' && (
-              <PostAdmissionPanel application={associatedApp} currentUser={currentUser} showToast={showToast} fetchAllData={fetchAllData} generatePaymentLink={generatePaymentLink} />
-            )}
-
             {/* Score */}
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="flex items-center justify-between mb-1.5">
@@ -1061,82 +1127,18 @@ export default function ApplicationDetails() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Right panel */}
-        <div className="flex-1 min-w-0 space-y-4">
-          {/* Progress — leads use the admission journey flowchart; applications keep the linear stepper */}
-          {!isApp ? (
-            <div className="card p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Lead Journey</h3>
-                <span className="text-xs text-gray-400 font-semibold">Current: <span className="text-primary-600">{activeCurrentStage}</span></span>
-              </div>
-              <LeadJourney stage={activeCurrentStage} onSelect={(s) => handleStageClick(s)} />
-            </div>
-          ) : (
-          <div className="card p-5">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-sm font-semibold text-gray-700">Application Progress</h3>
-              <span className="text-xs text-gray-400 font-semibold">Application Stage {stageIdx + 1} of {activeStages.length}</span>
-            </div>
-
-            {/* Interactive stage bubbles */}
-            <div className="flex items-center mt-3 overflow-x-auto pb-2">
-              {activeStages.map((stage, idx) => {
-                const isCompleted = idx < stageIdx
-                const isCurrent = idx === stageIdx
-                const isLast = idx === activeStages.length - 1
-                return (
-                  <React.Fragment key={stage}>
-                    <button
-                      onClick={() => handleStageClick(stage, idx)}
-                      className="flex flex-col items-center flex-shrink-0 focus:outline-none group"
-                    >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                        isCompleted
-                          ? 'bg-primary-500 border-primary-500 text-white'
-                          : isCurrent
-                          ? 'bg-white border-primary-500 text-primary-600 scale-110 shadow-sm'
-                          : 'bg-white border-gray-300 text-gray-400 group-hover:border-primary-300 group-hover:text-primary-400'
-                      }`}>
-                        {isCompleted ? <CheckCircle2 size={16} /> : idx + 1}
-                      </div>
-                      <span className={`text-[9px] mt-1.5 text-center max-w-16 leading-tight font-medium ${
-                        isCurrent ? 'text-primary-600 font-bold' : isCompleted ? 'text-gray-600' : 'text-gray-400'
-                      }`}>
-                        {stage}
-                      </span>
-                    </button>
-                    {!isLast && (
-                      <div className={`flex-1 h-0.5 mx-1 mb-5 min-w-4 ${
-                        idx < stageIdx ? 'bg-primary-500' : 'bg-gray-200'
-                      }`}></div>
-                    )}
-                  </React.Fragment>
-                )
-              })}
-            </div>
-          </div>
+        </>}
+        center={<>
+          {/* Post-admission: email verify → doc upload → semester fee → ERP —
+              lives in the center column now; it's too narrow to be legible in
+              a 230px sidebar. */}
+          {associatedApp?.appNo && associatedApp.payStatus === 'Paid' && (
+            <PostAdmissionPanel application={associatedApp} currentUser={currentUser} showToast={showToast} fetchAllData={fetchAllData} generatePaymentLink={generatePaymentLink} />
           )}
 
           {/* Tabs */}
           <div className="card p-0 overflow-hidden">
-            <div className="flex border-b border-gray-200 overflow-x-auto bg-gray-50/50">
-              {TABS.map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 focus:outline-none ${
-                    activeTab === tab
-                      ? 'border-primary-500 text-primary-600 bg-white'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
+            <Tabs sticky tabs={TABS.map(t => ({ id: t, label: t }))} active={activeTab} onChange={setActiveTab} className="px-2 bg-gray-50/50" />
 
             <div className="p-5">
               {activeTab === 'Lead Details' && (() => {
@@ -1694,8 +1696,15 @@ export default function ApplicationDetails() {
               )}
             </div>
           </div>
-        </div>
-      </div>
+        </>}
+        right={
+          <AiPanel title="AI Assistant" subtitle="Live signal from this record">
+            <AiPanel.Section label="Coming soon">
+              <p className="text-xs text-gray-500">Admission Health, Risk Prediction, Scholarship Suggestion and Next Best Action land here next.</p>
+            </AiPanel.Section>
+          </AiPanel>
+        }
+      />
     </div>
 
     {/* ── Admission Details Modal ─────────────────────────────── */}
