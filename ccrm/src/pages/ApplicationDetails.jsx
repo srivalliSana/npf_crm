@@ -797,13 +797,13 @@ export default function ApplicationDetails() {
       </div>
       )}
 
-      {/* Post-admission banner + Tabs — full width, directly below the
-          journey band, not squeezed into the 3-column split alongside the
-          AI panel. */}
+      {/* Post-admission banner + the Tab BAR — both full width, directly below
+          the journey band. Tab content itself renders in the 3-column split's
+          center column below; only the bar/labels stretch full width. */}
       <div className="mb-5 space-y-4">
           {/* Post-admission: email verify → doc upload → semester fee → ERP —
-              lives in the center column now; it's too narrow to be legible in
-              a 230px sidebar. */}
+              full width here since it's too narrow to be legible in a 230px
+              sidebar. */}
           {associatedApp?.appNo && associatedApp.payStatus === 'Paid' && (
             <PostAdmissionPanel application={associatedApp} currentUser={currentUser} showToast={showToast} fetchAllData={fetchAllData} generatePaymentLink={generatePaymentLink} />
           )}
@@ -811,7 +811,402 @@ export default function ApplicationDetails() {
           {/* Tabs */}
           <div className="card p-0 overflow-hidden">
             <Tabs sticky tabs={TABS.map(t => ({ id: t, label: t }))} active={activeTab} onChange={setActiveTab} className="px-2 bg-gray-50/50" />
+          </div>
+        </div>
 
+
+      <Workspace3Col
+        left={<>
+          {/* Profile card */}
+          <div className="card p-5">
+            {/* Avatar */}
+            <div className="flex flex-col items-center text-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xl font-bold shadow-md mb-3 select-none">
+                {getInitials(studentName)}
+              </div>
+              {editingHeaderName ? (
+                <div className="flex items-center gap-1">
+                  <input autoFocus value={headerNameVal}
+                    onChange={e => setHeaderNameVal(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveHeaderName(); if (e.key === 'Escape') setEditingHeaderName(false) }}
+                    className="input-field text-sm py-1 text-center w-48" />
+                  <button onClick={saveHeaderName} className="text-green-600 hover:text-green-700" title="Save"><Save size={15} /></button>
+                  <button onClick={() => setEditingHeaderName(false)} className="text-gray-400 hover:text-gray-600" title="Cancel"><X size={15} /></button>
+                </div>
+              ) : (
+                <h2 className="font-bold text-gray-900 text-base flex items-center gap-1.5 group">
+                  {studentName}
+                  <button onClick={() => { setHeaderNameVal(studentName); setEditingHeaderName(true) }}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-600 transition-opacity" title="Edit name">
+                    <Edit3 size={13} />
+                  </button>
+                </h2>
+              )}
+              <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+                <span className={`badge text-[10px] uppercase font-bold tracking-wider ${stageBadgeColor(leadStage)}`}>
+                  {leadStage}
+                </span>
+                <span className={`badge text-[10px] uppercase font-bold tracking-wider ${appStageBadgeColor(appStage)}`}>
+                  {appStage}
+                </span>
+              </div>
+            </div>
+
+            {/* Contact info */}
+            <div className="space-y-2.5 text-sm pt-3 border-t border-gray-100">
+              <div className="flex items-center gap-2 text-gray-600">
+                <Mail size={14} className="text-gray-400 flex-shrink-0" />
+                <span className="truncate" title={studentEmail}>{studentEmail}</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-600">
+                <Phone size={14} className="text-gray-400 flex-shrink-0" />
+                <span>{studentMobile}</span>
+                <div className="flex items-center gap-1.5 ml-auto">
+                  {/* WhatsApp */}
+                  <a href={`https://wa.me/91${studentMobile}`} target="_blank" rel="noopener noreferrer"
+                    className="text-green-500 hover:text-green-600" title="WhatsApp">
+                    <MessageCircle size={14} />
+                  </a>
+                  {/* RCS message */}
+                  <button onClick={() => setShowRcsModal(true)}
+                    className="text-fuchsia-500 hover:text-fuchsia-700" title="Send RCS message">
+                    <Sparkles size={14} />
+                  </button>
+                  {/* Click-to-Call (EasyGoIVR) */}
+                  {easyGoReady === true ? (
+                    <button
+                      disabled={callInitiating}
+                      onClick={async () => {
+                        setCallInitiating(true)
+                        try {
+                          let counselorMobile = currentUser?.mobile_number
+                          if (!counselorMobile) {
+                            const token = localStorage.getItem('ccrm_token')
+                            const res = await fetch(`/api/users/${currentUser?.id}/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
+                            if (res.ok) {
+                              const userData = await res.json()
+                              counselorMobile = userData.mobile_number
+                            }
+                          }
+                          if (!counselorMobile) return showToast('Please set your mobile number in Profile Settings.', 'error')
+                          const data = await initiateCall(associatedLead?.id || associatedApp?.id, studentMobile, counselorMobile)
+                          if (data?.success) showToast('Call initiated ✓', 'success')
+                        } catch (e) {
+                          showToast(e.message || 'Call failed.', 'error')
+                        }
+                        setCallInitiating(false)
+                      }}
+                      className="text-violet-500 hover:text-violet-700 disabled:opacity-50"
+                      title="Click-to-Call (EasyGoIVR)"
+                    >
+                      {callInitiating ? <span className="animate-spin inline-block w-3.5 h-3.5 border border-violet-400 border-t-violet-700 rounded-full" /> : <PhoneCall size={14} />}
+                    </button>
+                  ) : (
+                    <button disabled className="text-gray-400 cursor-not-allowed disabled:opacity-50" title="EasyGoIVR not configured">
+                      <PhoneCall size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-gray-600">
+                <MapPin size={14} className="text-gray-400 flex-shrink-0" />
+                <span>{studentCity}, {studentState}</span>
+              </div>
+            </div>
+
+            {/* Lead ID + Application ID */}
+            <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
+              {/* Lead Reference ID — prefix based on source type */}
+              {(() => {
+                const src = (associatedLead?.source || record.source || '').toLowerCase()
+                const isSM = ['facebook','google ads','linkedin','instagram','social media','sm'].some(s => src.includes(s))
+                const lid  = associatedLead?.id || record.id || 0
+                const prefix = isSM ? 'CULDSM26' : 'CULDAI26'
+                return (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400 font-medium">Lead ID</span>
+                    <span className="font-mono text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded select-all">
+                      {prefix}{String(lid).padStart(4,'0')}
+                    </span>
+                  </div>
+                )
+              })()}
+              {/* Application ID — show if application exists */}
+              {associatedApp?.appNo && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400 font-medium">App ID</span>
+                  <span className="font-mono text-xs bg-green-50 text-green-700 border border-green-100 px-2 py-0.5 rounded select-all font-bold">
+                    {associatedApp.appNo}
+                  </span>
+                </div>
+              )}
+              {/* Admission Details — appears once app exists */}
+              {associatedApp?.appNo && (
+                <>
+                  {showAdmissionMethodModal ? (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => { setShowAdmissionMethodModal(false); setShowAdmissionForm(true) }}
+                        className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <span>📝</span> Manual Entry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          console.log('Online Form button clicked, app id:', associatedApp?.id)
+                          try {
+                            const token = localStorage.getItem('ccrm_token')
+                            console.log('Sending email, token:', token ? 'exists' : 'missing')
+                            const response = await fetch('/api/send-template-email', {
+                              method: 'POST',
+                              headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                              },
+                              body: JSON.stringify({
+                                app_id: associatedApp.id,
+                                template_type: 'admission_details',
+                                amount: 0,
+                                customMessage: 'Please fill your admission details to complete your application.'
+                              })
+                            })
+                            const data = await response.json()
+                            if (response.ok) {
+                              showToast('✅ Email sent! Student can now fill details via the secure link.', 'success')
+                              setShowAdmissionMethodModal(false)
+                            } else {
+                              showToast(data.error || 'Failed to send email', 'error')
+                            }
+                          } catch (e) {
+                            showToast('Error: ' + e.message, 'error')
+                          }
+                        }}
+                        className="w-full text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <span>✉️</span> Online Form (Email)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAdmissionMethodModal(false)}
+                        className="w-full text-xs bg-gray-300 hover:bg-gray-400 text-gray-900 font-semibold py-1.5 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowAdmissionMethodModal(true)}
+                      className={`w-full text-xs font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
+                        associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
+                          ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
+                          : 'bg-orange-500 hover:bg-orange-600 text-white'
+                      }`}
+                    >
+                      {associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
+                        ? '✓ Admission Details Filled — Edit'
+                        : '📝 Fill Admission Details'}
+                    </button>
+                  )}
+                </>
+              )}
+              {/* Payment — show when app exists and payment not yet done */}
+              {associatedApp && !['Paid','Payment Done'].includes(associatedApp.payStatus) && (
+                <button
+                  onClick={() => { setShowPayModal(true); setPayMode('online'); setUtrNumber('') }}
+                  className="w-full text-xs bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  💳 Generate / Record Payment
+                </button>
+              )}
+              {associatedApp?.payStatus === 'Payment Done' && (
+                <div className="text-center text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg py-1.5 font-semibold">
+                  ✓ Payment Done — Pending Approval
+                </div>
+              )}
+              {associatedApp?.payStatus === 'Paid' && (
+                <div className="text-center text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 font-semibold">
+                  ✅ Payment Approved
+                </div>
+              )}
+              {/* Provisional Letter status + manual resend */}
+              {associatedApp?.appNo && ['Paid','Payment Done'].includes(associatedApp.payStatus) && (
+                <>
+                  {associatedApp.admissionLetterSentAt ? (
+                    <div className="text-center text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-1.5 font-semibold">
+                      📧 Letter sent {new Date(associatedApp.admissionLetterSentAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                    </div>
+                  ) : null}
+                  <button
+                    onClick={() => handleSendLetter()}
+                    disabled={letterSending}
+                    className="w-full text-xs bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    {letterSending ? <><span className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full" /> Sending...</> : associatedApp.admissionLetterSentAt ? '↻ Resend Letter' : '📨 Send Provisional Letter'}
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Score */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-1.5">
+                <span
+                  className="text-xs text-gray-500 font-medium flex items-center gap-1 cursor-help"
+                  title={
+                    'AI Lead Score (0-100) — predicts conversion likelihood.\n\n' +
+                    '• Source quality (0-30): Referral / Walk-in / Education Fair score highest\n' +
+                    '• Course tier (0-25): MBA / B.Tech CSE / M.Tech score highest\n' +
+                    '• Profile completeness (0-25): Email +10, State +8, City +7\n' +
+                    '• Stage engagement (0-20): Interested / Process for Payment\n\n' +
+                    'Buckets:\n' +
+                    '🔥 75+ Hot · 🌟 50-74 Warm · 🌱 25-49 Nurture · ❄️ <25 Cold'
+                  }
+                >
+                  Lead Score
+                  <HelpCircle size={11} className="text-gray-400" />
+                </span>
+                <span className="text-sm font-bold text-primary-600">{score}/100</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-primary-400 to-primary-600 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${score}%` }}
+                ></div>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1.5 leading-tight">
+                {score >= 75 ? '🔥 Hot lead — high conversion likelihood'
+                  : score >= 50 ? '🌟 Warm lead — strong engagement signals'
+                  : score >= 25 ? '🌱 Nurture — needs more follow-up'
+                  : '❄️ Cold lead — low engagement, may need re-qualification'}
+              </p>
+            </div>
+
+            {/* Quick stage actions — only for leads */}
+            {!isApp && leadStage !== 'Payment Success' && (
+              <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
+                {/* Unable to Connect → Follow Up — hides once connected */}
+                {!['Contacted','Follow Up','Interested','Not Interested','Process for Payment'].includes(leadStage) && (
+                  <button
+                    onClick={async () => {
+                      await updateLead(associatedLead.id, {
+                        stage: 'Follow Up',
+                        stageColor: 'purple',
+                        not_interested_reason: 'Unable to Connect — needs follow-up'
+                      })
+                      showToast('Marked as Unable to Connect → Follow Up', 'info')
+                    }}
+                    className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    📞 Unable to Connect → Follow Up
+                  </button>
+                )}
+                {/* Mark Not Interested — hides once Interested */}
+                {!['Interested','Not Interested','Process for Payment'].includes(leadStage) && (
+                  <button
+                    onClick={() => setShowNiModal(true)}
+                    className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <X size={13} /> Mark as Not Interested
+                  </button>
+                )}
+              </div>
+            )}
+            {!isApp && leadStage === 'Not Interested' && record.notInterestedReason && (
+              <div className="mt-4 pt-3 border-t border-gray-100 bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs">
+                <p className="font-bold text-red-700 mb-0.5">Marked Not Interested</p>
+                <p className="text-red-600">Reason: <strong>{record.notInterestedReason}</strong></p>
+              </div>
+            )}
+
+            {/* Action icons */}
+            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-around">
+              {[
+                { icon: ArrowRightLeft, label: 'Transfer', color: 'text-blue-500', onClick: () => showToast('Lead transfer requested.', 'info') },
+                { icon: Calendar,       label: 'Schedule', color: 'text-purple-500', onClick: () => setShowAddEvent(true) },
+                { icon: Edit3,          label: 'Edit',     color: 'text-orange-500', onClick: () => { setEditMode(true); setActiveTab('Lead Details') } },
+                { icon: Mail,           label: 'Email',    color: 'text-green-500', onClick: () => showToast('Opening system email composer...', 'info') },
+              ].map(({ icon: Icon, label, color, onClick }) => (
+                <button
+                  key={label}
+                  onClick={onClick}
+                  title={label}
+                  className={`flex flex-col items-center gap-1 ${color} hover:opacity-75 transition-opacity focus:outline-none`}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+                    <Icon size={15} />
+                  </div>
+                  <span className="text-[9px] text-gray-500">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Assignment Details */}
+          <div className="card p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Assignment Details</h3>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Assigned Counselor</p>
+                {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && !isApp ? (
+                  <select
+                    value={owner}
+                    onChange={async (e) => {
+                      const newOwner = e.target.value
+                      await updateLead(associatedLead.id, { owner: newOwner })
+                      showToast(`Counselor changed to ${newOwner}`, 'success')
+                    }}
+                    className="w-full text-sm font-medium text-gray-700 border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  >
+                    <option value="Unassigned">Unassigned</option>
+                    {(counselors && counselors.length > 0
+                      ? counselors.map(c => c.name)
+                      : (users || []).filter(u => ['Counselor','Manager','Admin'].includes(u.role) && u.status === 'Active').map(u => u.name)
+                    ).map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold select-none">
+                      {owner.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">{owner}</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Lead Source</p>
+                <span className="text-sm text-gray-700 font-medium">{source}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Important Dates */}
+          <div className="card p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Important Dates</h3>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Upcoming Followup</p>
+                <div className="flex items-center gap-1.5">
+                  <Calendar size={13} className="text-orange-500" />
+                  <span className="text-sm text-gray-700 font-medium">{followup}</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Last Active</p>
+                <div className="flex items-center gap-1.5">
+                  <Clock size={13} className="text-gray-400" />
+                  <span className="text-sm text-gray-700">{lastActive}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>}
+        center={<>
+          {/* Tab content — sits in the center column; the tab BAR itself
+              is full-width, directly above this 3-column split. */}
+          <div className="card p-0 overflow-hidden">
             <div className="p-5">
               {activeTab === 'Lead Details' && (() => {
                 // Section-organised fields. Top-level (formData[key]) values for basic fields.
@@ -1368,395 +1763,6 @@ export default function ApplicationDetails() {
                   setDiscountInput={setDiscountInput}
                 />
               )}
-            </div>
-          </div>
-      </div>
-
-      <Workspace3Col
-        left={<>
-          {/* Profile card */}
-          <div className="card p-5">
-            {/* Avatar */}
-            <div className="flex flex-col items-center text-center mb-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xl font-bold shadow-md mb-3 select-none">
-                {getInitials(studentName)}
-              </div>
-              {editingHeaderName ? (
-                <div className="flex items-center gap-1">
-                  <input autoFocus value={headerNameVal}
-                    onChange={e => setHeaderNameVal(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveHeaderName(); if (e.key === 'Escape') setEditingHeaderName(false) }}
-                    className="input-field text-sm py-1 text-center w-48" />
-                  <button onClick={saveHeaderName} className="text-green-600 hover:text-green-700" title="Save"><Save size={15} /></button>
-                  <button onClick={() => setEditingHeaderName(false)} className="text-gray-400 hover:text-gray-600" title="Cancel"><X size={15} /></button>
-                </div>
-              ) : (
-                <h2 className="font-bold text-gray-900 text-base flex items-center gap-1.5 group">
-                  {studentName}
-                  <button onClick={() => { setHeaderNameVal(studentName); setEditingHeaderName(true) }}
-                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-600 transition-opacity" title="Edit name">
-                    <Edit3 size={13} />
-                  </button>
-                </h2>
-              )}
-              <div className="flex flex-wrap justify-center gap-1.5 mt-2">
-                <span className={`badge text-[10px] uppercase font-bold tracking-wider ${stageBadgeColor(leadStage)}`}>
-                  {leadStage}
-                </span>
-                <span className={`badge text-[10px] uppercase font-bold tracking-wider ${appStageBadgeColor(appStage)}`}>
-                  {appStage}
-                </span>
-              </div>
-            </div>
-
-            {/* Contact info */}
-            <div className="space-y-2.5 text-sm pt-3 border-t border-gray-100">
-              <div className="flex items-center gap-2 text-gray-600">
-                <Mail size={14} className="text-gray-400 flex-shrink-0" />
-                <span className="truncate" title={studentEmail}>{studentEmail}</span>
-              </div>
-              <div className="flex items-center gap-2 text-gray-600">
-                <Phone size={14} className="text-gray-400 flex-shrink-0" />
-                <span>{studentMobile}</span>
-                <div className="flex items-center gap-1.5 ml-auto">
-                  {/* WhatsApp */}
-                  <a href={`https://wa.me/91${studentMobile}`} target="_blank" rel="noopener noreferrer"
-                    className="text-green-500 hover:text-green-600" title="WhatsApp">
-                    <MessageCircle size={14} />
-                  </a>
-                  {/* RCS message */}
-                  <button onClick={() => setShowRcsModal(true)}
-                    className="text-fuchsia-500 hover:text-fuchsia-700" title="Send RCS message">
-                    <Sparkles size={14} />
-                  </button>
-                  {/* Click-to-Call (EasyGoIVR) */}
-                  {easyGoReady === true ? (
-                    <button
-                      disabled={callInitiating}
-                      onClick={async () => {
-                        setCallInitiating(true)
-                        try {
-                          let counselorMobile = currentUser?.mobile_number
-                          if (!counselorMobile) {
-                            const token = localStorage.getItem('ccrm_token')
-                            const res = await fetch(`/api/users/${currentUser?.id}/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
-                            if (res.ok) {
-                              const userData = await res.json()
-                              counselorMobile = userData.mobile_number
-                            }
-                          }
-                          if (!counselorMobile) return showToast('Please set your mobile number in Profile Settings.', 'error')
-                          const data = await initiateCall(associatedLead?.id || associatedApp?.id, studentMobile, counselorMobile)
-                          if (data?.success) showToast('Call initiated ✓', 'success')
-                        } catch (e) {
-                          showToast(e.message || 'Call failed.', 'error')
-                        }
-                        setCallInitiating(false)
-                      }}
-                      className="text-violet-500 hover:text-violet-700 disabled:opacity-50"
-                      title="Click-to-Call (EasyGoIVR)"
-                    >
-                      {callInitiating ? <span className="animate-spin inline-block w-3.5 h-3.5 border border-violet-400 border-t-violet-700 rounded-full" /> : <PhoneCall size={14} />}
-                    </button>
-                  ) : (
-                    <button disabled className="text-gray-400 cursor-not-allowed disabled:opacity-50" title="EasyGoIVR not configured">
-                      <PhoneCall size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-gray-600">
-                <MapPin size={14} className="text-gray-400 flex-shrink-0" />
-                <span>{studentCity}, {studentState}</span>
-              </div>
-            </div>
-
-            {/* Lead ID + Application ID */}
-            <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
-              {/* Lead Reference ID — prefix based on source type */}
-              {(() => {
-                const src = (associatedLead?.source || record.source || '').toLowerCase()
-                const isSM = ['facebook','google ads','linkedin','instagram','social media','sm'].some(s => src.includes(s))
-                const lid  = associatedLead?.id || record.id || 0
-                const prefix = isSM ? 'CULDSM26' : 'CULDAI26'
-                return (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400 font-medium">Lead ID</span>
-                    <span className="font-mono text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded select-all">
-                      {prefix}{String(lid).padStart(4,'0')}
-                    </span>
-                  </div>
-                )
-              })()}
-              {/* Application ID — show if application exists */}
-              {associatedApp?.appNo && (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400 font-medium">App ID</span>
-                  <span className="font-mono text-xs bg-green-50 text-green-700 border border-green-100 px-2 py-0.5 rounded select-all font-bold">
-                    {associatedApp.appNo}
-                  </span>
-                </div>
-              )}
-              {/* Admission Details — appears once app exists */}
-              {associatedApp?.appNo && (
-                <>
-                  {showAdmissionMethodModal ? (
-                    <div className="space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => { setShowAdmissionMethodModal(false); setShowAdmissionForm(true) }}
-                        className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
-                      >
-                        <span>📝</span> Manual Entry
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          console.log('Online Form button clicked, app id:', associatedApp?.id)
-                          try {
-                            const token = localStorage.getItem('ccrm_token')
-                            console.log('Sending email, token:', token ? 'exists' : 'missing')
-                            const response = await fetch('/api/send-template-email', {
-                              method: 'POST',
-                              headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json'
-                              },
-                              body: JSON.stringify({
-                                app_id: associatedApp.id,
-                                template_type: 'admission_details',
-                                amount: 0,
-                                customMessage: 'Please fill your admission details to complete your application.'
-                              })
-                            })
-                            const data = await response.json()
-                            if (response.ok) {
-                              showToast('✅ Email sent! Student can now fill details via the secure link.', 'success')
-                              setShowAdmissionMethodModal(false)
-                            } else {
-                              showToast(data.error || 'Failed to send email', 'error')
-                            }
-                          } catch (e) {
-                            showToast('Error: ' + e.message, 'error')
-                          }
-                        }}
-                        className="w-full text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
-                      >
-                        <span>✉️</span> Online Form (Email)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowAdmissionMethodModal(false)}
-                        className="w-full text-xs bg-gray-300 hover:bg-gray-400 text-gray-900 font-semibold py-1.5 rounded-lg transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowAdmissionMethodModal(true)}
-                      className={`w-full text-xs font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
-                        associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
-                          ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
-                          : 'bg-orange-500 hover:bg-orange-600 text-white'
-                      }`}
-                    >
-                      {associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
-                        ? '✓ Admission Details Filled — Edit'
-                        : '📝 Fill Admission Details'}
-                    </button>
-                  )}
-                </>
-              )}
-              {/* Payment — show when app exists and payment not yet done */}
-              {associatedApp && !['Paid','Payment Done'].includes(associatedApp.payStatus) && (
-                <button
-                  onClick={() => { setShowPayModal(true); setPayMode('online'); setUtrNumber('') }}
-                  className="w-full text-xs bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  💳 Generate / Record Payment
-                </button>
-              )}
-              {associatedApp?.payStatus === 'Payment Done' && (
-                <div className="text-center text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg py-1.5 font-semibold">
-                  ✓ Payment Done — Pending Approval
-                </div>
-              )}
-              {associatedApp?.payStatus === 'Paid' && (
-                <div className="text-center text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 font-semibold">
-                  ✅ Payment Approved
-                </div>
-              )}
-              {/* Provisional Letter status + manual resend */}
-              {associatedApp?.appNo && ['Paid','Payment Done'].includes(associatedApp.payStatus) && (
-                <>
-                  {associatedApp.admissionLetterSentAt ? (
-                    <div className="text-center text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-1.5 font-semibold">
-                      📧 Letter sent {new Date(associatedApp.admissionLetterSentAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
-                    </div>
-                  ) : null}
-                  <button
-                    onClick={() => handleSendLetter()}
-                    disabled={letterSending}
-                    className="w-full text-xs bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    {letterSending ? <><span className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full" /> Sending...</> : associatedApp.admissionLetterSentAt ? '↻ Resend Letter' : '📨 Send Provisional Letter'}
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Score */}
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-1.5">
-                <span
-                  className="text-xs text-gray-500 font-medium flex items-center gap-1 cursor-help"
-                  title={
-                    'AI Lead Score (0-100) — predicts conversion likelihood.\n\n' +
-                    '• Source quality (0-30): Referral / Walk-in / Education Fair score highest\n' +
-                    '• Course tier (0-25): MBA / B.Tech CSE / M.Tech score highest\n' +
-                    '• Profile completeness (0-25): Email +10, State +8, City +7\n' +
-                    '• Stage engagement (0-20): Interested / Process for Payment\n\n' +
-                    'Buckets:\n' +
-                    '🔥 75+ Hot · 🌟 50-74 Warm · 🌱 25-49 Nurture · ❄️ <25 Cold'
-                  }
-                >
-                  Lead Score
-                  <HelpCircle size={11} className="text-gray-400" />
-                </span>
-                <span className="text-sm font-bold text-primary-600">{score}/100</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-gradient-to-r from-primary-400 to-primary-600 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${score}%` }}
-                ></div>
-              </div>
-              <p className="text-[10px] text-gray-400 mt-1.5 leading-tight">
-                {score >= 75 ? '🔥 Hot lead — high conversion likelihood'
-                  : score >= 50 ? '🌟 Warm lead — strong engagement signals'
-                  : score >= 25 ? '🌱 Nurture — needs more follow-up'
-                  : '❄️ Cold lead — low engagement, may need re-qualification'}
-              </p>
-            </div>
-
-            {/* Quick stage actions — only for leads */}
-            {!isApp && leadStage !== 'Payment Success' && (
-              <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
-                {/* Unable to Connect → Follow Up — hides once connected */}
-                {!['Contacted','Follow Up','Interested','Not Interested','Process for Payment'].includes(leadStage) && (
-                  <button
-                    onClick={async () => {
-                      await updateLead(associatedLead.id, {
-                        stage: 'Follow Up',
-                        stageColor: 'purple',
-                        not_interested_reason: 'Unable to Connect — needs follow-up'
-                      })
-                      showToast('Marked as Unable to Connect → Follow Up', 'info')
-                    }}
-                    className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    📞 Unable to Connect → Follow Up
-                  </button>
-                )}
-                {/* Mark Not Interested — hides once Interested */}
-                {!['Interested','Not Interested','Process for Payment'].includes(leadStage) && (
-                  <button
-                    onClick={() => setShowNiModal(true)}
-                    className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <X size={13} /> Mark as Not Interested
-                  </button>
-                )}
-              </div>
-            )}
-            {!isApp && leadStage === 'Not Interested' && record.notInterestedReason && (
-              <div className="mt-4 pt-3 border-t border-gray-100 bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs">
-                <p className="font-bold text-red-700 mb-0.5">Marked Not Interested</p>
-                <p className="text-red-600">Reason: <strong>{record.notInterestedReason}</strong></p>
-              </div>
-            )}
-
-            {/* Action icons */}
-            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-around">
-              {[
-                { icon: ArrowRightLeft, label: 'Transfer', color: 'text-blue-500', onClick: () => showToast('Lead transfer requested.', 'info') },
-                { icon: Calendar,       label: 'Schedule', color: 'text-purple-500', onClick: () => setShowAddEvent(true) },
-                { icon: Edit3,          label: 'Edit',     color: 'text-orange-500', onClick: () => { setEditMode(true); setActiveTab('Lead Details') } },
-                { icon: Mail,           label: 'Email',    color: 'text-green-500', onClick: () => showToast('Opening system email composer...', 'info') },
-              ].map(({ icon: Icon, label, color, onClick }) => (
-                <button
-                  key={label}
-                  onClick={onClick}
-                  title={label}
-                  className={`flex flex-col items-center gap-1 ${color} hover:opacity-75 transition-opacity focus:outline-none`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-                    <Icon size={15} />
-                  </div>
-                  <span className="text-[9px] text-gray-500">{label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Assignment Details */}
-          <div className="card p-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Assignment Details</h3>
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Assigned Counselor</p>
-                {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && !isApp ? (
-                  <select
-                    value={owner}
-                    onChange={async (e) => {
-                      const newOwner = e.target.value
-                      await updateLead(associatedLead.id, { owner: newOwner })
-                      showToast(`Counselor changed to ${newOwner}`, 'success')
-                    }}
-                    className="w-full text-sm font-medium text-gray-700 border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                  >
-                    <option value="Unassigned">Unassigned</option>
-                    {(counselors && counselors.length > 0
-                      ? counselors.map(c => c.name)
-                      : (users || []).filter(u => ['Counselor','Manager','Admin'].includes(u.role) && u.status === 'Active').map(u => u.name)
-                    ).map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold select-none">
-                      {owner.split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <span className="text-sm font-medium text-gray-700">{owner}</span>
-                  </div>
-                )}
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Lead Source</p>
-                <span className="text-sm text-gray-700 font-medium">{source}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Important Dates */}
-          <div className="card p-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Important Dates</h3>
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Upcoming Followup</p>
-                <div className="flex items-center gap-1.5">
-                  <Calendar size={13} className="text-orange-500" />
-                  <span className="text-sm text-gray-700 font-medium">{followup}</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Last Active</p>
-                <div className="flex items-center gap-1.5">
-                  <Clock size={13} className="text-gray-400" />
-                  <span className="text-sm text-gray-700">{lastActive}</span>
-                </div>
-              </div>
             </div>
           </div>
         </>}

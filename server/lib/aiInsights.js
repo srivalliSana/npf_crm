@@ -27,11 +27,15 @@ export async function computeAdmissionHealth(app, tenantId, applyTuitionDiscount
   const docsScore = Math.round(docRatio * 40)
   if (docRatio < 1) drivers.push(`${Math.round(docRatio * 100)}% of mandatory documents verified`)
 
-  // Regular Admissions' older flow only ever sets pay_status (never the
-  // newer application_fee_paid boolean, which is written by the explicit
-  // CU EDU-style admission journey) — treat either as "paid" so this
-  // doesn't contradict what the sidebar's own Payment Status already shows.
-  const applicationFeePaid = app.application_fee_paid || ['Paid', 'Payment Done'].includes(app.pay_status)
+  // Three different columns can mean "application fee paid" depending on
+  // which admission flow this record went through: Regular Admissions'
+  // older flow only ever sets pay_status; CU EDU's real entry fee lives in
+  // booking_fee_status; application_fee_paid is a third, newer boolean.
+  // Recognize whichever one applies so this can't contradict what the
+  // sidebar's own Payment Status / journey stepper already show.
+  const applicationFeePaid = app.application_fee_paid
+    || ['Paid', 'Payment Done'].includes(app.pay_status)
+    || app.booking_fee_status === 'Paid'
   let feeScore = 0
   if (applicationFeePaid) feeScore += 10
   else drivers.push('Application fee not yet paid')
