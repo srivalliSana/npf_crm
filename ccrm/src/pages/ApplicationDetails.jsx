@@ -9,9 +9,10 @@ import {
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
 import LeadJourney from '../components/LeadJourney'
-import { Modal, Button, StatCard, Tabs, Workspace3Col, AiPanel } from '../components/ui'
+import { Modal, Button, StatCard, Tabs, Workspace3Col } from '../components/ui'
 import PostAdmissionPanel from './application-details/PostAdmissionPanel'
 import InlineDocumentsTab from './application-details/InlineDocumentsTab'
+import AiInsightsPanel from '../components/application-details/AiInsightsPanel'
 
 // Ameyo calls removed — use EasyGoIVR via initiateCall() from context
 
@@ -115,6 +116,27 @@ export default function ApplicationDetails() {
     record = { name: 'Student Not Found', email: '', mobile: '' }
   }
 
+  // AI Assistant insights (Admission Health / Risk Prediction / Scholarship
+  // Suggestion / Next Best Action) — one fetch, keyed by application id, feeds
+  // both the KPI row above and AiInsightsPanel in the right column so they
+  // never disagree. Fails soft: a failed/slow fetch never blocks the rest of
+  // the page, it only affects these two spots.
+  const [aiInsights, setAiInsights] = useState(null)
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false)
+  const [aiInsightsError, setAiInsightsError] = useState('')
+  useEffect(() => {
+    const appId = associatedApp?.id
+    if (!appId) { setAiInsights(null); setAiInsightsError(''); return }
+    setAiInsightsLoading(true)
+    setAiInsightsError('')
+    const token = localStorage.getItem('ccrm_token')
+    fetch(`/api/applications/${appId}/ai-insights`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load insights.')))
+      .then(setAiInsights)
+      .catch(() => setAiInsightsError('Could not load AI insights right now.'))
+      .finally(() => setAiInsightsLoading(false))
+  }, [associatedApp?.id])
+
   // Derive unified student attributes
   const studentName = record.name || ''
   const studentEmail = record.email || ''
@@ -166,6 +188,11 @@ export default function ApplicationDetails() {
   const lastActive = record.lastActive || associatedLead?.lastActive || 'Today'
 
   const [activeTab, setActiveTab] = useState('Lead Details')
+  // Shared with AiInsightsPanel's "Apply suggested %" button, which only ever
+  // pre-fills this value — the actual save/apply control lives in
+  // InlineDocumentsTab and still requires a human click, same Counselor-only
+  // gate as before.
+  const [discountInput, setDiscountInput] = useState('')
   const [callInitiating, setCallInitiating] = useState(false)
   const [easyGoReady, setEasyGoReady]       = useState(null)
   const [showRcsModal, setShowRcsModal]   = useState(false)
@@ -679,8 +706,8 @@ export default function ApplicationDetails() {
       {/* KPI row — presentational reads of state already in scope; the two
           AI-derived tiles are wired once AiInsightsPanel's endpoint lands. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <StatCard icon={Sparkles} label="Admission Health" value="—" tone="ai" />
-        <StatCard icon={Clock} label="Days Since Last Activity" value="—" tone="ai" />
+        <StatCard icon={Sparkles} label="Admission Health" value={aiInsights ? `${aiInsights.admissionHealth.score}/100` : '—'} tone="ai" />
+        <StatCard icon={Clock} label="Days Since Last Activity" value={aiInsights?.riskPrediction.daysSince != null ? aiInsights.riskPrediction.daysSince : '—'} tone="ai" />
         <StatCard icon={CheckCircle2} label="Documents Verified" value={`${docsVerifiedCount}/${studentDocsForKpi.length}`} tone="info" />
         <StatCard icon={Star} label="Payment Status" value={paymentStatusLabel} tone={associatedApp?.payStatus === 'Paid' ? 'success' : 'warning'} />
       </div>
@@ -1692,17 +1719,21 @@ export default function ApplicationDetails() {
                   record={record}
                   isApp={isApp}
                   fetchAllData={fetchAllData}
+                  discountInput={discountInput}
+                  setDiscountInput={setDiscountInput}
                 />
               )}
             </div>
           </div>
         </>}
         right={
-          <AiPanel title="AI Assistant" subtitle="Live signal from this record">
-            <AiPanel.Section label="Coming soon">
-              <p className="text-xs text-gray-500">Admission Health, Risk Prediction, Scholarship Suggestion and Next Best Action land here next.</p>
-            </AiPanel.Section>
-          </AiPanel>
+          <AiInsightsPanel
+            appId={associatedApp?.id}
+            data={aiInsights}
+            loading={aiInsightsLoading}
+            error={aiInsightsError}
+            onApplySuggestedDiscount={(pct) => { setDiscountInput(String(pct)); setActiveTab('Documents') }}
+          />
         }
       />
     </div>

@@ -406,6 +406,10 @@ export async function initDb() {
     // Leads: same details so counsellor can fill them at lead stage (before app exists)
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
 
+    // Stage-change history — already written to on every stage change (see the
+    // lead-update handler), but had no tracked migration until now.
+    await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS status_history JSONB DEFAULT '[]'::jsonb;`).catch(() => {})
+
     // WhatsApp logs: track who sent + honest delivery status
     await client.query(`ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS sent_by VARCHAR(255) DEFAULT '';`).catch(() => {})
     await client.query(`ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS channel VARCHAR(20) DEFAULT 'whatsapp';`).catch(() => {})

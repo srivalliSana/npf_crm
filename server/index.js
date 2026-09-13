@@ -23,6 +23,7 @@ import { auditMiddleware, recordAudit, recordLogin, clientIp } from './lib/audit
 import { issueSession, newJti, primeSessionCache, isRevoked } from './lib/sessions.js'
 import { encryptSecret, decryptSecret, isSecretKey, SETTINGS_MASK } from './lib/secrets.js'
 import analyticsRouter from './routes/analytics.js'
+import { computeAdmissionHealth, computeRiskPrediction, computeScholarshipSuggestion, computeNextBestAction } from './lib/aiInsights.js'
 import complianceRouter from './routes/compliance.js'
 import securityRouter from './routes/security.js'
 import integrationHubRouter, { runScheduledSyncJobs } from './routes/integration-hub.js'
@@ -8840,6 +8841,39 @@ app.post('/api/applications/:id/tuition-discount', authenticateToken, async (req
   } catch (e) {
     console.error('[POST /api/applications/:id/tuition-discount]', e.message)
     res.status(500).json({ error: 'Failed to update tuition fee discount.' })
+  }
+})
+
+// Real, rule-based logic behind the Lead Detail Workspace's AI Assistant
+// panel (server/lib/aiInsights.js) — computed on demand when a single
+// record's detail page opens, not baked into the applications list.
+app.get('/api/applications/:id/ai-insights', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [id, req.tenantId])
+    const app = appRes.rows[0]
+    if (!app) return res.status(404).json({ error: 'Application not found.' })
+
+    const progRes = await pool.query('SELECT tuition_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
+    const programTuitionFee = progRes.rows[0]?.tuition_fee || 0
+
+    // No lead_id FK on applications — best-effort match by contact info, same
+    // pattern already used for the student dashboard's Lead ID display.
+    const leadRes = await pool.query(
+      'SELECT id FROM leads WHERE tenant_id = $1 AND (email = $2 OR mobile = $3) ORDER BY created_at DESC LIMIT 1;',
+      [req.tenantId, app.email, app.mobile]
+    )
+    const leadId = leadRes.rows[0]?.id || null
+
+    const admissionHealth = await computeAdmissionHealth(app, req.tenantId, applyTuitionDiscount, programTuitionFee)
+    const riskPrediction = await computeRiskPrediction(leadId, req.tenantId, app.date)
+    const scholarshipSuggestion = computeScholarshipSuggestion(app.admission_full_details)
+    const nextBestAction = await computeNextBestAction(app, req.tenantId, riskPrediction.daysSince)
+
+    res.json({ admissionHealth, riskPrediction, scholarshipSuggestion, nextBestAction })
+  } catch (e) {
+    console.error('[GET /api/applications/:id/ai-insights]', e.message)
+    res.status(500).json({ error: 'Failed to compute insights.' })
   }
 })
 

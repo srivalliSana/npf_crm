@@ -5,7 +5,7 @@ import { Plus, CheckCircle2, Circle } from 'lucide-react'
 // Extracted verbatim from ApplicationDetails.jsx (no behavior change) as
 // part of the Campus One Neo restructure, so the layout change and this
 // extraction are independently verifiable.
-function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocStatus, deleteDocument, showToast, currentUser, leadId, record, isApp, fetchAllData }) {
+function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocStatus, deleteDocument, showToast, currentUser, leadId, record, isApp, fetchAllData, discountInput: discountInputProp, setDiscountInput: setDiscountInputProp }) {
   const fileRef = React.useRef(null)
   const [docType, setDocType]   = React.useState('10th Marksheet')
   const [uploading, setUploading] = React.useState(false)
@@ -14,7 +14,12 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
   const [showAdmissionDetailsView, setShowAdmissionDetailsView] = React.useState(false)
   const [showFullDetailsView, setShowFullDetailsView] = React.useState(false)
   const [sendingPaymentLink, setSendingPaymentLink] = React.useState(null) // null | 'Booking Fee' | 'Tuition Fee'
-  const [discountInput, setDiscountInput] = React.useState('')
+  // The discount input is shared with AiInsightsPanel (its "Apply suggested %"
+  // button pre-fills this same value) — lifted to ApplicationDetails.jsx when
+  // that prop pair is passed; falls back to purely-local state otherwise.
+  const [discountInputLocal, setDiscountInputLocal] = React.useState('')
+  const discountInput = discountInputProp !== undefined ? discountInputProp : discountInputLocal
+  const setDiscountInput = setDiscountInputProp || setDiscountInputLocal
   const [savingDiscount, setSavingDiscount] = React.useState(false)
   const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
   const isCounselor = currentUser?.role === 'Counselor' // tuition discount is Counsellor-only, not Admin/Manager
