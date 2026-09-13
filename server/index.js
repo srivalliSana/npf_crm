@@ -2506,6 +2506,39 @@ async function checkAndAutoSyncCampusOne(appId, tenantId = 1) {
   }
 }
 
+// Tuition is the one fee paid incrementally — a semester's worth now, more
+// later, or everything in one go — so every place that accepts a tuition
+// payment amount shares this: floor is ₹1,000 (or whatever's left, if less),
+// ceiling is the actual remaining balance after whatever's already been paid.
+async function tuitionAmountBounds(app, tenantId) {
+  const progRes = await pool.query('SELECT tuition_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [tenantId, app.course])
+  const fullDue = applyTuitionDiscount(progRes.rows[0]?.tuition_fee, app)
+  const alreadyPaid = Number(app.tuition_amount_paid) || 0
+  const remaining = Math.max(0, fullDue - alreadyPaid)
+  const floor = remaining > 0 ? Math.min(1000, remaining) : 0
+  return { fullDue, alreadyPaid, remaining, floor }
+}
+
+// Called whenever a tuition payment is actually approved (staff approval, or
+// an auto-verified Payment Link webhook) — adds to the running balance and
+// only flips tuition_fee_paid once the cumulative total reaches the full
+// (discounted) amount owed, rather than on the first payment of any size.
+async function recordTuitionPayment(appId, tenantId, amountPaid) {
+  const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [appId, tenantId])
+  const app = appRes.rows[0]
+  if (!app) return null
+  const { fullDue, alreadyPaid } = await tuitionAmountBounds(app, tenantId)
+  const newTotal = alreadyPaid + (Number(amountPaid) || 0)
+  const fullyPaid = fullDue > 0 && newTotal >= fullDue
+  await pool.query(
+    `UPDATE applications SET tuition_amount_paid = $1, tuition_fee_paid = $2,
+     tuition_fee_paid_at = CASE WHEN $2 THEN NOW() ELSE tuition_fee_paid_at END
+     WHERE id = $3 AND tenant_id = $4;`,
+    [newTotal, fullyPaid, appId, tenantId]
+  )
+  return { newTotal, fullDue, fullyPaid, remaining: Math.max(0, fullDue - newTotal) }
+}
+
 // ── Counselor-triggered Razorpay Payment Links ("Send Link") ────────────────
 // A shareable URL texted/emailed to a student who isn't going through the
 // portal — Razorpay's own notify:{sms,email} delivers it, no SMS/email
@@ -2538,10 +2571,13 @@ app.post('/api/applications/:id/send-payment-link', authenticateToken, async (re
       return res.status(503).json({ error: 'Payment link confirmations are not configured yet — contact your administrator to finish the Razorpay webhook setup before sending links.' })
     }
 
-    const progRes = await pool.query('SELECT booking_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
+    const progRes = await pool.query('SELECT booking_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
     const program = progRes.rows[0] || {}
-    const amountRupees = feeType === 'Tuition Fee' ? applyTuitionDiscount(program.min_amount_to_pay, app) : (Number(program.booking_fee) || 1000)
-    if (amountRupees <= 0) return res.status(400).json({ error: 'This fee has no amount configured yet — set it in Programs Manager.' })
+    // Tuition Fee sends a link for whatever's actually still owed — not the
+    // original flat minimum, which the student may have already covered
+    // (in part or in full) via their own portal payments since.
+    const amountRupees = feeType === 'Tuition Fee' ? (await tuitionAmountBounds(app, req.tenantId)).remaining : (Number(program.booking_fee) || 1000)
+    if (amountRupees <= 0) return res.status(400).json({ error: feeType === 'Tuition Fee' ? 'This fee is already fully paid.' : 'This fee has no amount configured yet — set it in Programs Manager.' })
 
     // Razorpay wants contact numbers with a country code.
     const digits = String(app.mobile || '').replace(/\D/g, '')
@@ -2637,10 +2673,10 @@ app.post('/api/webhooks/razorpay', async (req, res) => {
       await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
         [`Application fee paid via link — ${app.app_no} (${app.name})`, 'Just now', link.tenant_id])
     } else if (link.fee_type === 'Tuition Fee') {
-      await pool.query(`UPDATE applications SET tuition_fee_paid = true, tuition_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, link.tenant_id])
+      const result = await recordTuitionPayment(app.id, link.tenant_id, Math.round(Number(link.amount)))
       await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
-        [`Tuition fee paid via link — ${app.app_no} (${app.name})`, 'Just now', link.tenant_id])
-      checkAndAutoSyncCampusOne(app.id, link.tenant_id).catch(() => {})
+        [`₹${Math.round(Number(link.amount))} tuition payment via link — ${app.app_no} (${app.name})${result?.fullyPaid ? ' — fully paid' : result ? ` — ₹${result.remaining} remaining` : ''}`, 'Just now', link.tenant_id])
+      if (result?.fullyPaid) checkAndAutoSyncCampusOne(app.id, link.tenant_id).catch(() => {})
     }
 
     res.status(200).json({ ok: true })
@@ -2725,10 +2761,13 @@ app.post('/api/payments/:id/approve', async (req, res) => {
       }
 
       case 'Tuition Fee': {
-        const appRes = await pool.query(`UPDATE applications SET tuition_fee_paid = true, tuition_fee_paid_at = NOW() WHERE app_no = $1 AND tenant_id = $2 RETURNING id;`, [appNo, req.tenantId])
-        await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
-          [`Tuition fee paid: ${appNo} (${name})`, 'Just now', req.tenantId])
-        if (appRes.rows[0]) checkAndAutoSyncCampusOne(appRes.rows[0].id, req.tenantId).catch(() => {})
+        const appRow = await pool.query(`SELECT id FROM applications WHERE app_no = $1 AND tenant_id = $2;`, [appNo, req.tenantId])
+        if (appRow.rows[0]) {
+          const result = await recordTuitionPayment(appRow.rows[0].id, req.tenantId, r.rows[0].amount)
+          await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
+            [`Tuition payment of ₹${r.rows[0].amount} approved: ${appNo} (${name})${result?.fullyPaid ? ' — fully paid' : result ? ` — ₹${result.remaining} remaining` : ''}`, 'Just now', req.tenantId])
+          if (result?.fullyPaid) checkAndAutoSyncCampusOne(appRow.rows[0].id, req.tenantId).catch(() => {})
+        }
         break
       }
 
@@ -9007,6 +9046,12 @@ async function buildAdmissionJourneyResponse(app) {
     // distinct from tuitionFeeAmount above, which is only the minimum due.
     tuitionFeeTotalAmount: applyTuitionDiscount(program.tuition_fee, app),
     tuitionFeeDiscountPercent: Number(app.tuition_fee_discount_percent) || 0,
+    // Tuition is paid incrementally — a semester's worth now, more later, or
+    // everything at once — so the dashboard needs the running total and what
+    // still remains, not just a paid/unpaid flag.
+    tuitionAmountPaid: Number(app.tuition_amount_paid) || 0,
+    tuitionFeeRemaining: Math.max(0, applyTuitionDiscount(program.tuition_fee, app) - (Number(app.tuition_amount_paid) || 0)),
+    tuitionSemester1Confirmed: (Number(app.tuition_amount_paid) || 0) >= applyTuitionDiscount(program.min_amount_to_pay, app) && applyTuitionDiscount(program.min_amount_to_pay, app) > 0,
     tuitionFeePaid: !!app.tuition_fee_paid,
     campusoneSyncStatus: app.campusone_sync_status,
     // Informational total — the registration fee + full tuition fee (after
@@ -9119,19 +9164,27 @@ app.post('/api/admission-details/:token/submit-payment', async (req, res) => {
 
     // Each fee's minimum is admin-set per program (Programs Manager) — enforce it
     // server-side rather than trusting whatever amount the client sends.
+    // Tuition Fee is the exception: it's paid incrementally, so its floor/
+    // ceiling come from the running balance instead of a flat minimum.
     const tenantId = app.token_tenant_id || app.tenant_id || 1
-    const progRes = await pool.query(
-      'SELECT booking_fee, min_due_provisional, registration_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;',
-      [tenantId, app.course]
-    )
-    const program = progRes.rows[0] || {}
-    const minRequired = {
-      'Booking Fee': program.booking_fee || 1000,
-      'Registration Fee': program.min_due_provisional || program.registration_fee || 0,
-      'Tuition Fee': applyTuitionDiscount(program.min_amount_to_pay, app)
-    }[feeType]
-    if (Number(amount || 0) < Number(minRequired)) {
-      return res.status(400).json({ error: `Minimum amount required for ${feeType} is ₹${minRequired}.` })
+    if (feeType === 'Tuition Fee') {
+      const { remaining, floor } = await tuitionAmountBounds(app, tenantId)
+      if (remaining <= 0) return res.status(400).json({ error: 'This fee is already fully paid.' })
+      if (Number(amount || 0) < floor) return res.status(400).json({ error: `Minimum payable amount is ₹${floor}.` })
+      if (Number(amount) > remaining) return res.status(400).json({ error: `Only ₹${remaining} remains — please enter an amount up to that.` })
+    } else {
+      const progRes = await pool.query(
+        'SELECT booking_fee, min_due_provisional, registration_fee FROM programs WHERE tenant_id = $1 AND name = $2;',
+        [tenantId, app.course]
+      )
+      const program = progRes.rows[0] || {}
+      const minRequired = {
+        'Booking Fee': program.booking_fee || 1000,
+        'Registration Fee': program.min_due_provisional || program.registration_fee || 0,
+      }[feeType]
+      if (Number(amount || 0) < Number(minRequired)) {
+        return res.status(400).json({ error: `Minimum amount required for ${feeType} is ₹${minRequired}.` })
+      }
     }
 
     const r = await pool.query(
@@ -9354,18 +9407,24 @@ app.post('/api/student-portal/submit-payment', authenticateToken, requireStudent
       return res.status(400).json({ error: 'Provisional admission must be granted first.' })
     }
 
-    const progRes = await pool.query(
-      'SELECT booking_fee, min_due_provisional, registration_fee, min_amount_to_pay FROM programs WHERE tenant_id = $1 AND name = $2;',
-      [req.tenantId, app.course]
-    )
-    const program = progRes.rows[0] || {}
-    const minRequired = {
-      'Booking Fee': program.booking_fee || 1000,
-      'Registration Fee': program.min_due_provisional || program.registration_fee || 0,
-      'Tuition Fee': applyTuitionDiscount(program.min_amount_to_pay, app)
-    }[feeType]
-    if (Number(amount || 0) < Number(minRequired)) {
-      return res.status(400).json({ error: `Minimum amount required for ${feeType} is ₹${minRequired}.` })
+    if (feeType === 'Tuition Fee') {
+      const { remaining, floor } = await tuitionAmountBounds(app, req.tenantId)
+      if (remaining <= 0) return res.status(400).json({ error: 'This fee is already fully paid.' })
+      if (Number(amount || 0) < floor) return res.status(400).json({ error: `Minimum payable amount is ₹${floor}.` })
+      if (Number(amount) > remaining) return res.status(400).json({ error: `Only ₹${remaining} remains — please enter an amount up to that.` })
+    } else {
+      const progRes = await pool.query(
+        'SELECT booking_fee, min_due_provisional, registration_fee FROM programs WHERE tenant_id = $1 AND name = $2;',
+        [req.tenantId, app.course]
+      )
+      const program = progRes.rows[0] || {}
+      const minRequired = {
+        'Booking Fee': program.booking_fee || 1000,
+        'Registration Fee': program.min_due_provisional || program.registration_fee || 0,
+      }[feeType]
+      if (Number(amount || 0) < Number(minRequired)) {
+        return res.status(400).json({ error: `Minimum amount required for ${feeType} is ₹${minRequired}.` })
+      }
     }
 
     const r = await pool.query(
@@ -9411,23 +9470,24 @@ app.post('/api/student-portal/create-payment-order', authenticateToken, requireS
       return res.status(503).json({ error: 'Online payment is not configured yet. Please contact admissions.' })
     }
 
-    const progRes = await pool.query('SELECT booking_fee, min_amount_to_pay, tuition_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
-    const program = progRes.rows[0] || {}
-    const minDue = applyTuitionDiscount(program.min_amount_to_pay, app)
-    const fullTuition = applyTuitionDiscount(program.tuition_fee, app)
-    let amountRupees = feeType === 'Tuition Fee' ? minDue : (Number(program.booking_fee) || 1000)
-    if (amountRupees <= 0) return res.status(400).json({ error: 'This fee has no amount configured yet — contact admissions.' })
-
-    // Tuition Fee is the one flexible amount — the student can choose to pay
-    // anything from the minimum due up to the full remaining tuition (never
-    // less, and never trusted blindly: clamped server-side either way).
-    if (feeType === 'Tuition Fee' && req.body?.amount != null) {
-      const requested = Math.round(Number(req.body.amount))
-      if (!Number.isFinite(requested) || requested < minDue) {
-        return res.status(400).json({ error: `Minimum payable amount is ₹${minDue.toLocaleString('en-IN')}.` })
+    let amountRupees
+    if (feeType === 'Tuition Fee') {
+      // Tuition Fee is the one flexible, incremental amount — the student can
+      // pay a semester's worth, everything remaining, or anything in between
+      // (floor ₹1,000, or less if that's all that's left) — never trusted
+      // blindly: clamped server-side either way.
+      const { remaining, floor } = await tuitionAmountBounds(app, req.tenantId)
+      if (remaining <= 0) return res.status(400).json({ error: 'This fee is already fully paid.' })
+      const requested = req.body?.amount != null ? Math.round(Number(req.body.amount)) : remaining
+      if (!Number.isFinite(requested) || requested < floor) {
+        return res.status(400).json({ error: `Minimum payable amount is ₹${floor.toLocaleString('en-IN')}.` })
       }
-      amountRupees = fullTuition > 0 ? Math.min(requested, fullTuition) : requested
+      amountRupees = Math.min(requested, remaining)
+    } else {
+      const progRes = await pool.query('SELECT booking_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
+      amountRupees = Number(progRes.rows[0]?.booking_fee) || 1000
     }
+    if (amountRupees <= 0) return res.status(400).json({ error: 'This fee has no amount configured yet — contact admissions.' })
 
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
     const rpRes = await fetch('https://api.razorpay.com/v1/orders', {
