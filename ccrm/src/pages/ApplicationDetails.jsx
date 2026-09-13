@@ -2490,7 +2490,12 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
               <span>{record?.provisional_admission_status === 'Granted' ? '✓' : '○'}</span> Provisional Admission Granted
             </li>
             <li className={`flex items-center justify-between gap-2 ${record?.tuition_fee_paid ? 'text-green-600' : 'text-gray-500'}`}>
-              <span className="flex items-center gap-2"><span>{record?.tuition_fee_paid ? '✓' : '○'}</span> Step 3 — Min. Due Tuition Fee Paid (per Program Master)</span>
+              <span className="flex items-center gap-2">
+                <span>{record?.tuition_fee_paid ? '✓' : '○'}</span> Tuition Fee Paid
+                {Number(record?.tuition_amount_paid) > 0 && !record?.tuition_fee_paid && (
+                  <span className="text-xs font-semibold text-amber-600">(₹{Number(record.tuition_amount_paid).toLocaleString('en-IN')} paid so far)</span>
+                )}
+              </span>
               {isAdmin && !record?.tuition_fee_paid && (
                 <button onClick={() => sendPaymentLink('Tuition Fee')} disabled={sendingPaymentLink === 'Tuition Fee'}
                   className="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded-lg disabled:opacity-50">

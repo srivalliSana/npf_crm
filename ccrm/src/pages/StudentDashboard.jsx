@@ -206,16 +206,26 @@ function FeeCard({ title, blurb, amount, status, onSubmit, submitting, onPayGate
   )
 }
 
-// Tuition Fee's card — the one flexible amount on the whole journey: full,
-// minimum due, or anything in between the student plans to pay right now.
-function TuitionFeeCard({ minDue, fullAmount, onSubmit, submitting, onPayGateway }) {
-  const [plan, setPlan] = useState('min')
-  const [custom, setCustom] = useState(minDue)
+// Tuition Fee's card — paid incrementally rather than in one shot. Shows the
+// running balance, and offers 3 ways to pay toward it: the semester-1
+// minimum (to confirm enrollment for this term), everything remaining, or
+// any custom amount from ₹1,000 up to what's still owed.
+function TuitionFeeCard({ semester1Amount, remaining, semester1Confirmed, amountPaid, onSubmit, submitting, onPayGateway }) {
+  const floor = Math.min(1000, remaining)
+  const defaultPlan = semester1Confirmed ? 'full' : 'semester1'
+  const [plan, setPlan] = useState(defaultPlan)
+  const [custom, setCustom] = useState(floor)
   const [utr, setUtr] = useState('')
   const [payingGateway, setPayingGateway] = useState(false)
 
-  const amount = plan === 'min' ? minDue : plan === 'full' ? fullAmount : Math.max(0, Number(custom) || 0)
-  const isValid = amount >= minDue
+  const plans = [
+    ...(semester1Confirmed ? [] : [{ key: 'semester1', label: 'Semester 1 Minimum', value: Math.min(semester1Amount, remaining) }]),
+    { key: 'full', label: 'Pay Remaining in Full', value: remaining },
+    { key: 'custom', label: 'Custom Amount', value: null },
+  ]
+
+  const amount = plan === 'custom' ? Math.max(0, Number(custom) || 0) : (plans.find(p => p.key === plan)?.value ?? remaining)
+  const isValid = amount >= floor && amount <= remaining
 
   const handlePayNow = async () => {
     if (!isValid) return
@@ -230,16 +240,18 @@ function TuitionFeeCard({ minDue, fullAmount, onSubmit, submitting, onPayGateway
     }
   }
 
-  const plans = [
-    { key: 'min', label: 'Minimum Due', value: minDue },
-    ...(fullAmount > minDue ? [{ key: 'full', label: 'Full Amount', value: fullAmount }] : []),
-    { key: 'custom', label: 'Custom Amount', value: null },
-  ]
-
   return (
     <div className="border border-gray-100 rounded-2xl p-6">
-      <p className="text-sm text-gray-500 mb-4">Pay in full, the minimum due, or any amount you plan to pay right now.</p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4 bg-gray-50 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2">
+          {semester1Confirmed && <Pill tone="green">✓ Semester 1 Confirmed</Pill>}
+          {amountPaid > 0 && <span className="text-xs text-gray-500">Paid so far: <b className="font-mono text-gray-800">{money(amountPaid)}</b></span>}
+        </div>
+        <span className="text-xs text-gray-500">Remaining: <b className="font-mono text-gray-900">{money(remaining)}</b></span>
+      </div>
+
+      <p className="text-sm text-gray-500 mb-4">Pay the semester minimum, everything remaining, or any amount you plan to pay right now.</p>
+      <div className={`grid grid-cols-1 ${plans.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-2.5 mb-4`}>
         {plans.map((p) => (
           <button
             key={p.key}
@@ -256,11 +268,11 @@ function TuitionFeeCard({ minDue, fullAmount, onSubmit, submitting, onPayGateway
         <div className="flex-1 flex items-center gap-2 border border-gray-200 rounded-xl px-3.5 py-2.5 bg-gray-50">
           <span className="font-mono font-bold text-gray-400">₹</span>
           <input
-            type="number" min={minDue} step="500" value={custom}
+            type="number" min={floor} max={remaining} step="500" value={custom}
             onFocus={() => setPlan('custom')}
             onChange={(e) => { setPlan('custom'); setCustom(e.target.value) }}
             className="flex-1 bg-transparent outline-none font-mono font-bold text-gray-900"
-            placeholder={`Min. ${money(minDue)}`}
+            placeholder={`${money(floor)} – ${money(remaining)}`}
           />
         </div>
         <button
@@ -272,7 +284,7 @@ function TuitionFeeCard({ minDue, fullAmount, onSubmit, submitting, onPayGateway
           {payingGateway ? 'Opening secure payment...' : `Pay ${money(amount)}`}
         </button>
       </div>
-      {!isValid && <p className="text-xs text-danger-600 font-semibold mb-3">Minimum payable amount is {money(minDue)}.</p>}
+      {!isValid && <p className="text-xs text-danger-600 font-semibold mb-3">Enter an amount between {money(floor)} and {money(remaining)}.</p>}
 
       <div className="flex items-center gap-3 text-xs text-gray-400 mb-3">
         <div className="h-px bg-gray-200 flex-1" />or enter a reference manually<div className="h-px bg-gray-200 flex-1" />
@@ -632,7 +644,8 @@ export default function StudentDashboard() {
   const { application: app, leadId, counsellorName, documents, documentsVerified, admissionDetailsStatus, bookingFeeStatus, bookingFeeAmount,
     admissionFullDetails, admissionFullDetailsStatus, admissionFullDetailsReviewNote,
     provisionalAdmissionStatus, registrationNumber,
-    tuitionFeeAmount, tuitionFeeFullAmount, tuitionFeeTotalAmount, tuitionFeeDiscountPercent, tuitionFeePaid, campusoneSyncStatus, programTotalFee } = data
+    tuitionFeeAmount, tuitionFeeFullAmount, tuitionFeeTotalAmount, tuitionFeeDiscountPercent, tuitionFeePaid, campusoneSyncStatus, programTotalFee,
+    tuitionAmountPaid, tuitionFeeRemaining, tuitionSemester1Confirmed } = data
 
   const bookingUnlocked = admissionDetailsStatus === 'Approved'
   const bookingPaid = bookingFeeStatus === 'Paid'
@@ -784,7 +797,8 @@ export default function StudentDashboard() {
                 <p className="text-sm text-success-700 font-semibold">✓ Paid and approved</p>
               ) : (
                 <TuitionFeeCard
-                  minDue={tuitionFeeAmount} fullAmount={tuitionFeeTotalAmount || tuitionFeeAmount}
+                  semester1Amount={tuitionFeeAmount} remaining={tuitionFeeRemaining ?? (tuitionFeeTotalAmount || tuitionFeeAmount)}
+                  semester1Confirmed={!!tuitionSemester1Confirmed} amountPaid={tuitionAmountPaid || 0}
                   onSubmit={(amount, utr) => submitPayment('Tuition Fee', amount, utr)} submitting={submittingFee === 'Tuition Fee'}
                   onPayGateway={(amount) => payViaGatewayForUtr('Tuition Fee', amount)}
                 />

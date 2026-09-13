@@ -398,6 +398,11 @@ export async function initDb() {
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_fee_discount_set_by VARCHAR(255) DEFAULT '';`).catch(() => {})
     await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_fee_discount_set_at TIMESTAMP;`).catch(() => {})
 
+    // Tuition is paid incrementally (a semester's worth now, more later, or
+    // everything at once) rather than in one shot like every other fee, so it
+    // needs a running total instead of a plain paid/unpaid flag.
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS tuition_amount_paid NUMERIC(10,2) DEFAULT 0;`).catch(() => {})
+
     // Leads: same details so counsellor can fill them at lead stage (before app exists)
     await client.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_details JSONB DEFAULT '{}'::jsonb;`).catch(() => {})
 
