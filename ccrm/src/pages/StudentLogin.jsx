@@ -61,23 +61,23 @@ export default function StudentLogin() {
   })
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center py-12 px-4">
+    <div className="min-h-screen bg-canvas flex items-center justify-center py-12 px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg mb-4">
-            <span className="text-white text-2xl font-bold">📚</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-500 rounded-2xl mb-4 shadow-card">
+            <span className="text-white text-lg font-extrabold tracking-tight">CU</span>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Student Portal</h1>
-          <p className="text-gray-600 mt-2">Pay fees and upload documents, whenever you're ready</p>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Student Portal</h1>
+          <p className="text-gray-500 mt-2">Pay fees and upload documents, whenever you're ready</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-8">
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
-              <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
+            <div className="mb-6 p-4 bg-danger-50 border border-danger-100 rounded-xl flex gap-3">
+              <AlertCircle size={20} className="text-danger-500 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-red-900">Sign-in failed</p>
-                <p className="text-sm text-red-800">{error}</p>
+                <p className="font-semibold text-danger-700">Sign-in failed</p>
+                <p className="text-sm text-danger-700">{error}</p>
               </div>
             </div>
           )}
@@ -87,32 +87,32 @@ export default function StudentLogin() {
               type="button"
               onClick={() => { setError(''); googleLogin() }}
               disabled={googleLoading}
-              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 border border-gray-200 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition disabled:opacity-50 shadow-soft"
             >
               {googleLoading ? <Loader size={18} className="animate-spin text-gray-400" /> : <GoogleIcon />}
               {googleLoading ? 'Signing in...' : 'Continue with Google'}
             </button>
           ) : (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+            <p className="text-sm text-warning-700 bg-warning-50 border border-warning-100 rounded-xl p-4 text-center">
               Google sign-in isn't configured yet. Please contact admissions.
             </p>
           )}
 
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="bg-indigo-50 rounded-lg p-4 mb-4">
-              <p className="text-sm text-indigo-900">
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <div className="bg-primary-50 rounded-xl p-4 mb-4">
+              <p className="text-sm text-primary-700">
                 Sign in with the same Google account / email address your application is under — no password needed.
               </p>
             </div>
             <div className="text-center">
-              <p className="text-sm text-gray-600">
-                Need help? Contact <a href="mailto:admissions@centurionuniversity.edu" className="text-indigo-600 font-semibold hover:underline">admissions@centurionuniversity.edu</a>
+              <p className="text-sm text-gray-500">
+                Need help? Contact <a href="mailto:admissions@centurionuniversity.edu" className="text-primary-600 font-semibold hover:underline">admissions@centurionuniversity.edu</a>
               </p>
             </div>
           </div>
         </div>
 
-        <div className="mt-6 text-center text-sm text-gray-600">
+        <div className="mt-6 text-center text-sm text-gray-400">
           <p>© 2026 Centurion University. All rights reserved.</p>
         </div>
       </div>
