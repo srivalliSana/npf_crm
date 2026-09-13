@@ -7,6 +7,7 @@ const VARIANT_CLASS = {
   info:    'badge-info',
   neutral: 'badge-neutral',
   primary: 'badge bg-primary-100 text-primary-700',
+  ai:      'badge-ai',
 }
 
 // Generic status pill built on the semantic color tokens — meant to replace
@@ -14,6 +15,10 @@ const VARIANT_CLASS = {
 // objects. Pages that need a specific stage/status string mapped to a
 // variant keep a small local map of *variant names only* (e.g.
 // { Active: 'success', Suspended: 'danger' }), not full className strings.
-export default function Badge({ variant = 'neutral', children, className = '' }) {
-  return <span className={`${VARIANT_CLASS[variant] || VARIANT_CLASS.neutral} ${className}`}>{children}</span>
+// `dot` prepends a small filled circle in the badge's own color — used for
+// stage/status pills where a glanceable indicator matters more than for a
+// plain count or label badge.
+export default function Badge({ variant = 'neutral', dot = false, children, className = '' }) {
+  const base = VARIANT_CLASS[variant] || VARIANT_CLASS.neutral
+  return <span className={`${base}${dot ? ' badge-dot' : ''} ${className}`}>{children}</span>
 }

@@ -36,6 +36,8 @@
   .badge-danger  { @apply badge bg-danger-100 text-danger-700; }
   .badge-info    { @apply badge bg-info-100 text-info-700; }
   .badge-neutral { @apply badge bg-gray-100 text-gray-700; }
+  .badge-ai      { @apply badge bg-ai-100 text-ai-700; }
+  .badge-dot::before { content:''; @apply inline-block w-1.5 h-1.5 rounded-full mr-1.5 bg-current; }
   .card {
     @apply bg-white rounded-2xl border border-gray-100 shadow-card transition-shadow duration-200;
   }
