@@ -597,7 +597,7 @@ function brandedEmailHtml({ badge = 'INFO', tone = 'info', title, timestamp, bod
 // Returns { success, error } — callers that tell the user "email sent"
 // (e.g. POST /api/send-template-email) should check this rather than
 // assume it worked just because nothing threw past this function.
-async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1, htmlBody = null) {
+async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1, htmlBody = null, { cc, bcc } = {}) {
   console.log(`[Mail] To: ${recipient} | Sub: ${subject}`)
   try {
     const cfg = await createMailTransporter(tenantId)
@@ -609,6 +609,8 @@ async function sendSystemMailAlert(recipient, subject, messageBody, tenantId = 1
       text: messageBody
     }
     if (htmlBody) mailOptions.html = htmlBody
+    if (cc) mailOptions.cc = cc
+    if (bcc) mailOptions.bcc = bcc
     await cfg.transporter.sendMail(mailOptions)
     console.log(`[Mail] Sent to ${recipient}`)
     return { success: true, error: null }
