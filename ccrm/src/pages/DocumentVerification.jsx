@@ -26,7 +26,15 @@ export default function DocumentVerification() {
       })
       if (res.ok) {
         const apps = await res.json()
-        setApplications(apps.filter(a => a.form_status === 'Complete' && a.stage !== 'Verified'))
+        // Was filtering on a.form_status (snake_case) against a payload that
+        // only ever returns formStatus (camelCase) — always undefined, so
+        // this list was silently empty for every tenant. form_status is also
+        // never set to 'Complete' anywhere in the real admission-journey flow
+        // (booking fee -> documents -> full form) that CU EDU and Regular
+        // Admissions both use now. bookingFeeStatus === 'Paid' is the actual,
+        // universal signal that an application's documents are unlocked and
+        // may be waiting on verification.
+        setApplications(apps.filter(a => a.bookingFeeStatus === 'Paid' && a.stage !== 'Verified'))
       }
     } catch (e) {
       console.error('Failed to fetch applications:', e)
