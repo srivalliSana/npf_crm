@@ -132,7 +132,20 @@ export default function ApplicationDetails() {
     record = leads.find(l => l.id === parseInt(id)) || fetchedLead || null
     if (record) {
       associatedLead = record
-      associatedApp = applications.find(a => a.email?.toLowerCase() === record.email?.toLowerCase() || a.name?.toLowerCase() === record.name?.toLowerCase())
+      // Matching only on email-OR-name let a counsellor editing the lead's
+      // email (e.g. correcting a typo, or reusing the lead for a sibling)
+      // silently fail to find the application it already created — the old
+      // email no longer matches and a name mismatch (typos, casing, extra
+      // spaces) let it slip through too, so the next "Process for Payment"
+      // push created a second application for the same person instead of
+      // reusing the first. Mobile number is what stayed constant across the
+      // real duplicate (two "LIPSA SAHOO" applications, same mobile,
+      // different email) — matching on it too closes that gap.
+      associatedApp = applications.find(a =>
+        (a.email?.toLowerCase() === record.email?.toLowerCase() && record.email) ||
+        (a.mobile === record.mobile && record.mobile) ||
+        a.name?.toLowerCase() === record.name?.toLowerCase()
+      )
     }
   }
 
@@ -208,7 +221,11 @@ export default function ApplicationDetails() {
   const formInterest = record.formInterest || associatedLead?.formInterest || 'CUEE 2026'
   const campus = record.campus || associatedApp?.campus || 'Bhubaneswar'
   const school = record.school || associatedLead?.school || 'School of Engineering'
-  const course = record.course || associatedApp?.course || 'B.Tech CSE'
+  // Was defaulting to 'B.Tech CSE' — a Regular Admissions-only program that
+  // isn't even offered by CU EDU — whenever a lead/app had no course set yet,
+  // which silently stamped that value onto CU EDU applications. No tenant
+  // offers a sane universal default course, so fall back to empty instead.
+  const course = record.course || associatedApp?.course || ''
   const followup = record.followup || associatedLead?.followup || 'Next week'
   const lastActive = record.lastActive || associatedLead?.lastActive || 'Today'
 
@@ -1893,8 +1910,21 @@ export default function ApplicationDetails() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Joining Course / Program</label>
-                  <input type="text" value={adForm.joiningCourse || ''} onChange={e => setAdForm(p => ({ ...p, joiningCourse: e.target.value }))}
-                    placeholder="e.g. B.Tech CSE / MBA / BSc Forensic Science" className="input-field text-sm" />
+                  <select value={adForm.joiningCourse || ''} onChange={e => setAdForm(p => ({ ...p, joiningCourse: e.target.value }))}
+                    className="input-field text-sm">
+                    <option value="">Select a program</option>
+                    {(isCuEdu
+                      ? ['BBA', 'BCA', 'BCOM', 'MBA', 'MCA', 'MSc (Maths)']
+                      : ['B.Tech CSE', 'B.Tech ECE', 'B.Tech Civil', 'B.Tech Mech', 'MBA', 'MBA (Finance)', 'MBA (Marketing)', 'MBA (HR)', 'BCA', 'BBA', 'B.Com', 'M.Sc Agriculture (Genetics)', 'M.Tech', 'PhD']
+                    )
+                      // Keep whatever value is already on file selectable even if it's
+                      // no longer (or never was) in the current program list, so opening
+                      // an older record never silently blanks its saved course.
+                      .concat(adForm.joiningCourse && ![
+                        ...(isCuEdu ? ['BBA', 'BCA', 'BCOM', 'MBA', 'MCA', 'MSc (Maths)'] : ['B.Tech CSE', 'B.Tech ECE', 'B.Tech Civil', 'B.Tech Mech', 'MBA', 'MBA (Finance)', 'MBA (Marketing)', 'MBA (HR)', 'BCA', 'BBA', 'B.Com', 'M.Sc Agriculture (Genetics)', 'M.Tech', 'PhD'])
+                      ].includes(adForm.joiningCourse) ? [adForm.joiningCourse] : [])
+                      .map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">School / Department</label>
