@@ -31,10 +31,14 @@ export default function DocumentVerification() {
         // this list was silently empty for every tenant. form_status is also
         // never set to 'Complete' anywhere in the real admission-journey flow
         // (booking fee -> documents -> full form) that CU EDU and Regular
-        // Admissions both use now. bookingFeeStatus === 'Paid' is the actual,
-        // universal signal that an application's documents are unlocked and
-        // may be waiting on verification.
-        setApplications(apps.filter(a => a.bookingFeeStatus === 'Paid' && a.stage !== 'Verified'))
+        // Admissions both use now. booking_fee_status === 'Paid' is the
+        // actual, universal signal that an application's documents are
+        // unlocked and may be waiting on verification. Note: this one column
+        // comes back snake_case, unlike most of this same payload (formStatus,
+        // payStatus, etc.) — GET /api/applications aliases some columns to
+        // camelCase and leaves others as-is; verified against a live response
+        // rather than assumed.
+        setApplications(apps.filter(a => a.booking_fee_status === 'Paid' && a.stage !== 'Verified'))
       }
     } catch (e) {
       console.error('Failed to fetch applications:', e)
@@ -170,7 +174,7 @@ export default function DocumentVerification() {
                 <div className="flex items-start justify-between mb-4 pb-4 border-b">
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">{selectedApp.name}</h2>
-                    <p className="text-sm text-gray-600">{selectedApp.app_no}</p>
+                    <p className="text-sm text-gray-600">{selectedApp.appNo}</p>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-gray-900">Course</div>
