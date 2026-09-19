@@ -36,6 +36,35 @@ import esseWebhook from './webhooks/esse.js'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// Activity logging helper — logs all events to activity_logs table
+const logActivity = async (
+  tenantId, actionType, resourceType, resourceId, resourceName, appNo,
+  details = {}, userInfo = {}, ipAddr = '', userAgent = '', status = 'success'
+) => {
+  try {
+    await pool.query(`
+      INSERT INTO activity_logs (tenant_id, user_name, user_role, user_email, action_type, resource_type, resource_id, resource_name, app_no, details, ip_address, user_agent, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    `, [
+      tenantId,
+      userInfo.name || 'System',
+      userInfo.role || 'System',
+      userInfo.email || null,
+      actionType,
+      resourceType,
+      resourceId,
+      resourceName,
+      appNo,
+      JSON.stringify(details),
+      ipAddr,
+      userAgent,
+      status
+    ])
+  } catch (e) {
+    console.error('[logActivity] failed to log:', actionType, e.message)
+  }
+}
+
 const app = express()
 const PORT = process.env.PORT || 5000
 
@@ -2627,6 +2656,11 @@ app.post('/api/applications/:id/send-payment-link', authenticateToken, async (re
       [app.id, link.id, link.short_url, feeType, amountRupees, req.user.email || req.user.name || '', req.tenantId]
     )
 
+    // Log the payment link creation
+    await logActivity(req.tenantId, 'PAYMENT_LINK_SENT', 'Payment', app.id, app.name, app.app_no,
+      { feeType, amount: amountRupees, linkId: link.id, sentTo: { email: app.email, mobile: contact } },
+      req.user, req.ip, req.get('user-agent'))
+
     res.json({ success: true, shortUrl: link.short_url, sentTo: { email: app.email || null, mobile: contact || null } })
   } catch (e) {
     console.error('[POST /api/applications/:id/send-payment-link]', e.message)
@@ -2674,6 +2708,7 @@ app.post('/api/webhooks/razorpay', async (req, res) => {
     const app = appRes.rows[0]
     if (!app) return res.status(200).json({ ok: true })
 
+    const paymentAmount = Math.round(Number(link.amount))
     await pool.query(
       `INSERT INTO payments (name, app_no, amount, method, status, date, txn_id, fee_type, tenant_id)
        VALUES ($1, $2, $3, 'razorpay_link', 'Paid', $4, $5, $6, $7);`,
@@ -2681,8 +2716,13 @@ app.post('/api/webhooks/razorpay', async (req, res) => {
       // as a string like "1.00" (payment_links.amount is NUMERIC) — passed
       // straight through, that string fails the integer cast. Round it to a
       // real number first.
-      [app.name, app.app_no, Math.round(Number(link.amount)), new Date().toLocaleDateString('en-IN'), paymentEntity?.id || '', link.fee_type, link.tenant_id]
+      [app.name, app.app_no, paymentAmount, new Date().toLocaleDateString('en-IN'), paymentEntity?.id || '', link.fee_type, link.tenant_id]
     )
+
+    // Log the student payment
+    await logActivity(link.tenant_id, 'PAYMENT_RECEIVED', 'Payment', app.id, app.name, app.app_no,
+      { feeType: link.fee_type, amount: paymentAmount, method: 'razorpay_link', txnId: paymentEntity?.id || '' },
+      { name: app.name, role: 'Student' }, '', '')
 
     if (link.fee_type === 'Booking Fee') {
       await pool.query(`UPDATE applications SET booking_fee_status = 'Paid', booking_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, link.tenant_id])
