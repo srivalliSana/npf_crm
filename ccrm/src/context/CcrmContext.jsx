@@ -608,8 +608,14 @@ export function CcrmProvider({ children }) {
       })
       if (res.ok) {
         const added = await res.json()
-        setApplications(prev => [added, ...prev])
-        showToast(`Application ${added.appNo} submitted.`, 'success')
+        if (!added.existing) {
+          // New application created — add to local list
+          setApplications(prev => [added, ...prev])
+          showToast(`Application ${added.appNo} submitted.`, 'success')
+        } else {
+          // Duplicate prevention: application already existed
+          showToast(`Using existing application ${added.appNo}.`, 'info')
+        }
 
         const pays = await fetch('/api/payments', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
         if (pays.ok) setPayments(await pays.json())

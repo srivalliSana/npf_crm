@@ -1812,18 +1812,31 @@ app.get('/api/applications', authenticateToken, async (req, res) => {
 
 app.post('/api/applications', async (req, res) => {
   const { name, appNo, email, mobile, formStatus, payStatus, payMethod, campus, course, stage, owner, date } = req.body
-  // Use provided appNo, or generate CUEEAP26XXXX format
-  let finalAppNo = appNo
-  if (!finalAppNo) {
-    try {
-      const r = await pool.query(`SELECT lpad(nextval('cueeap_seq')::text, 4, '0') AS num;`)
-      finalAppNo = `CUEEAP26${r.rows[0].num}`
-    } catch {
-      finalAppNo = `CUEEAP26${String(Math.floor(1 + Math.random() * 9999)).padStart(4, '0')}`
-    }
-  }
-  const finalDate = date || new Date().toLocaleDateString('en-IN')
+
   try {
+    // Check if an application already exists with this email/mobile combination
+    // (frontend matching + server-side duplicate prevention — same logic as lead→app transition)
+    const existingRes = await pool.query(
+      `SELECT id, app_no AS "appNo" FROM applications WHERE (LOWER(email) = LOWER($1) AND email != '' AND email IS NOT NULL OR mobile = $2) AND tenant_id = $3 LIMIT 1;`,
+      [email || '', mobile || '', req.tenantId]
+    )
+    if (existingRes.rows.length > 0) {
+      // Application already exists for this person; return the existing one
+      return res.status(200).json({ appNo: existingRes.rows[0].appNo, id: existingRes.rows[0].id, existing: true })
+    }
+
+    // Use provided appNo, or generate CUEEAP26XXXX format
+    let finalAppNo = appNo
+    if (!finalAppNo) {
+      try {
+        const r = await pool.query(`SELECT lpad(nextval('cueeap_seq')::text, 4, '0') AS num;`)
+        finalAppNo = `CUEEAP26${r.rows[0].num}`
+      } catch {
+        finalAppNo = `CUEEAP26${String(Math.floor(1 + Math.random() * 9999)).padStart(4, '0')}`
+      }
+    }
+    const finalDate = date || new Date().toLocaleDateString('en-IN')
+
     // Pull existing lead_details to seed application's admission_details (counsellor already filled them)
     const leadRes = await pool.query(
       `SELECT lead_details FROM leads WHERE ((LOWER(email) = LOWER($1) AND email != '' AND email IS NOT NULL) OR mobile = $2) AND tenant_id = $3 ORDER BY id DESC LIMIT 1;`,
