@@ -300,7 +300,7 @@ export default function Payments() {
           <table className="w-full">
             <thead>
               <tr>
-                {['Student Name','Application No','Amount','Method','Status','UTR / Ref No','Date','Actions'].map(h => (
+                {['Student Name','Application No','Amount','Method','Status','UTR / Ref No','Date','Created By','Updated By','Actions'].map(h => (
                   <th key={h} className="table-th">{h}</th>
                 ))}
               </tr>
@@ -329,6 +329,8 @@ export default function Payments() {
                       )}
                     </td>
                     <td className="table-td text-gray-600 text-xs">{p.date || '—'}</td>
+                    <td className="table-td text-xs text-gray-600">{p.createdBy || 'System'}</td>
+                    <td className="table-td text-xs text-gray-600">{p.updatedBy || '—'}</td>
                     <td className="table-td">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {p.status === 'Pending' && (

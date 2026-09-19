@@ -1810,7 +1810,7 @@ app.get('/api/applications', authenticateToken, async (req, res) => {
   }
 })
 
-app.post('/api/applications', async (req, res) => {
+app.post('/api/applications', authenticateToken, async (req, res) => {
   const { name, appNo, email, mobile, formStatus, payStatus, payMethod, campus, course, stage, owner, date } = req.body
 
   try {
@@ -1857,9 +1857,9 @@ app.post('/api/applications', async (req, res) => {
     const payIdRes = await pool.query('SELECT COUNT(*) FROM payments WHERE app_no = $1 AND tenant_id = $2;', [finalAppNo, req.tenantId])
     if (parseInt(payIdRes.rows[0].count) === 0) {
       await pool.query(`
-        INSERT INTO payments (name, app_no, amount, method, status, date, tenant_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7);
-      `, [name, finalAppNo, 25000, payMethod || '', payStatus === 'Approved' ? 'Approved' : 'Pending', payStatus === 'Approved' ? finalDate : '', req.tenantId])
+        INSERT INTO payments (name, app_no, amount, method, status, date, created_by, updated_by, tenant_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+      `, [name, finalAppNo, 25000, payMethod || '', payStatus === 'Approved' ? 'Approved' : 'Pending', payStatus === 'Approved' ? finalDate : '', req.user?.name || 'System', req.user?.name || 'System', req.tenantId])
     }
 
     res.status(201).json(insertRes.rows[0])
@@ -2217,7 +2217,7 @@ app.get('/api/payments', authenticateToken, async (req, res) => {
     const { requesterRole, requesterName } = req.query
     // Admin/Manager/Finance see all; counsellors only their assigned leads' payments (matched by name)
     const isCounsellor = requesterRole && !['Admin', 'Manager', 'Finance'].includes(requesterRole) && requesterName
-    let sql = 'SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode", fee_type AS "feeType" FROM payments WHERE tenant_id = $1'
+    let sql = 'SELECT id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", utr_number AS "utrNumber", pay_mode AS "payMode", fee_type AS "feeType", created_by AS "createdBy", updated_by AS "updatedBy", created_at AS "createdAt", updated_at AS "updatedAt" FROM payments WHERE tenant_id = $1'
     const params = [req.tenantId]
     if (isCounsellor) {
       params.push(requesterName)
@@ -2231,7 +2231,7 @@ app.get('/api/payments', authenticateToken, async (req, res) => {
   }
 })
 
-app.post('/api/payments', async (req, res) => {
+app.post('/api/payments', authenticateToken, async (req, res) => {
   const { name, appNo, amount, method, status, date, feeType } = req.body
   const finalDate = date || new Date().toLocaleDateString('en-IN')
   try {
@@ -2243,27 +2243,27 @@ app.post('/api/payments', async (req, res) => {
     // (wrong side effects: an admission letter + OTP email fire instead of
     // just flipping that fee's own status).
     const insertRes = await pool.query(`
-      INSERT INTO payments (name, app_no, amount, method, status, date, fee_type, tenant_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", fee_type AS "feeType";
-    `, [name, appNo, amount || 25000, method || '', status || 'Pending', finalDate, feeType || 'Application', req.tenantId])
+      INSERT INTO payments (name, app_no, amount, method, status, date, fee_type, created_by, updated_by, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", fee_type AS "feeType", created_by AS "createdBy", updated_by AS "updatedBy";
+    `, [name, appNo, amount || 25000, method || '', status || 'Pending', finalDate, feeType || 'Application', req.user?.name || 'System', req.user?.name || 'System', req.tenantId])
     res.status(201).json(insertRes.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to create payment transaction.' })
   }
 })
 
-app.put('/api/payments/:id', async (req, res) => {
+app.put('/api/payments/:id', authenticateToken, async (req, res) => {
   const { id } = req.params
   const { status } = req.body
   try {
     const isApproved = status === 'Approved'
     const updateRes = await pool.query(`
       UPDATE payments
-      SET status = $1, date = CASE WHEN status <> 'Approved' AND $2 = TRUE THEN $3 ELSE date END, txn_id = CASE WHEN txn_id = '' AND $4 = TRUE THEN $5 ELSE txn_id END
+      SET status = $1, date = CASE WHEN status <> 'Approved' AND $2 = TRUE THEN $3 ELSE date END, txn_id = CASE WHEN txn_id = '' AND $4 = TRUE THEN $5 ELSE txn_id END, updated_by = $8, updated_at = NOW()
       WHERE id = $6 AND tenant_id = $7
-      RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId";
-    `, [status, isApproved, new Date().toLocaleDateString('en-IN'), isApproved, `TXN${Math.floor(100000 + Math.random() * 900000)}`, id, req.tenantId])
+      RETURNING id, name, app_no AS "appNo", amount, method, status, date, txn_id AS "txnId", updated_by AS "updatedBy", updated_at AS "updatedAt";
+    `, [status, isApproved, new Date().toLocaleDateString('en-IN'), isApproved, `TXN${Math.floor(100000 + Math.random() * 900000)}`, id, req.tenantId, req.user?.name || 'System'])
 
     if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Payment record not found.' })
     res.json(updateRes.rows[0])
