@@ -60,7 +60,7 @@ const emptyData = {
   sameAsPresent: false,
   permanentAddress1: '', permanentAddress2: '', permanentCountry: 'India', permanentState: '', permanentDistrict: '', permanentCity: '', permanentPincode: '',
   // Program
-  specialization: '', campus: '', admissionCategory: '', academicSession: '',
+  course: '', specialization: '', campus: '', admissionCategory: '', academicSession: '',
   hostelRequired: false, transportRequired: false,
   bankName: '', bankAccountNumber: '', bankIFSC: '',
   // Academic
@@ -75,7 +75,7 @@ const REQUIRED_FIELDS = {
     ['motherFirstName', "Mother's First Name"], ['motherMobile', "Mother's Mobile Number"]],
   address: [['presentAddress1', 'Present Address Line 1'], ['presentState', 'Present State'], ['presentDistrict', 'Present District'],
     ['presentCity', 'Present Town/City'], ['presentPincode', 'Present Pin Code']],
-  program: [],
+  program: [['course', 'Programme']],
   academic: [['previousInstitution', 'Previous Institution Name']],
 }
 
@@ -392,7 +392,17 @@ export default function FullAdmissionForm({ app, initialData, onSubmit, submitti
           <div>
             <SectionTitle>Programme</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Programme"><input className={inputCls} value={app?.course || ''} disabled /></Field>
+              <Field label="Programme">
+                <select className={inputCls} name="course" value={data.course || app?.course || ''} onChange={onChange} required>
+                  <option value="">Select Programme</option>
+                  <option>BBA</option>
+                  <option>BCA</option>
+                  <option>BCOM</option>
+                  <option>MBA</option>
+                  <option>MCA</option>
+                  <option>MSc (Maths)</option>
+                </select>
+              </Field>
               <Field label="Specialization"><input className={inputCls} name="specialization" value={data.specialization} onChange={onChange} /></Field>
               <Field label="Campus">
                 <select className={inputCls} name="campus" value={data.campus} onChange={onChange}>

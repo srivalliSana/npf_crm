@@ -9082,6 +9082,7 @@ async function buildAdmissionJourneyResponse(app) {
     [tenantId, app.course]
   )
   const program = progRes.rows[0] || { booking_fee: 1000, registration_fee: 0, min_due_provisional: 0, tuition_fee: 0, min_amount_to_pay: 0 }
+  console.log(`[DEBUG] Program lookup: tenant=${tenantId}, course="${app.course}", found=${!!progRes.rows[0]}, program=`, program)
 
   // Best-effort link back to the lead this application originated from —
   // there's no formal foreign key (applications predate that idea), so this
@@ -9147,7 +9148,8 @@ async function buildAdmissionJourneyResponse(app) {
     // this student's own discount, if any), shown alongside "amount you are
     // paying now" so the student sees the whole picture even though each
     // stage only ever collects its own fixed amount.
-    programTotalFee: (Number(program.min_due_provisional || program.registration_fee) || 0) + applyTuitionDiscount(program.tuition_fee, app)
+    programTotalFee: (Number(program.min_due_provisional || program.registration_fee) || 0) + applyTuitionDiscount(program.tuition_fee, app),
+    _debug: { courseName: app.course, tenantId, programFound: !!progRes.rows[0], program }
   }
 }
 
@@ -9454,10 +9456,10 @@ app.post('/api/student-portal/full-form', authenticateToken, requireStudent, asy
       return res.status(400).json({ error: 'All mandatory documents must be verified before the full admission form is available.' })
     }
     await pool.query(
-      `UPDATE applications SET admission_full_details = $1::jsonb,
+      `UPDATE applications SET admission_full_details = $1::jsonb, course = $4,
        admission_full_details_status = 'Pending', admission_full_details_reviewed_by = '', admission_full_details_reviewed_at = NULL
        WHERE id = $2 AND tenant_id = $3`,
-      [JSON.stringify(req.body || {}), app.id, req.tenantId]
+      [JSON.stringify(req.body || {}), app.id, req.tenantId, req.body?.course || null]
     )
     res.json({ success: true, message: 'Full admission form saved successfully.' })
   } catch (e) {

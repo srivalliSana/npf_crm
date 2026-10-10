@@ -645,7 +645,12 @@ export default function StudentDashboard() {
     admissionFullDetails, admissionFullDetailsStatus, admissionFullDetailsReviewNote,
     provisionalAdmissionStatus, registrationNumber,
     tuitionFeeAmount, tuitionFeeFullAmount, tuitionFeeTotalAmount, tuitionFeeDiscountPercent, tuitionFeePaid, campusoneSyncStatus, programTotalFee,
-    tuitionAmountPaid, tuitionFeeRemaining, tuitionSemester1Confirmed } = data
+    tuitionAmountPaid, tuitionFeeRemaining, tuitionSemester1Confirmed, _debug } = data
+
+  // Debug log for fee issues
+  if (_debug && tuitionFeeTotalAmount === 0) {
+    console.error('⚠️ ZERO TUITION FEE DEBUG:', _debug)
+  }
 
   const bookingUnlocked = admissionDetailsStatus === 'Approved'
   const bookingPaid = bookingFeeStatus === 'Paid'
