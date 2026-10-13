@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { User, Users, MapPin, GraduationCap, BookOpen, Check, Loader, AlertCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { INDIA_STATES, CASTE_CATEGORIES } from '../data/indiaLocations'
 
@@ -95,6 +95,13 @@ export default function FullAdmissionForm({ app, initialData, onSubmit, submitti
     }
   })
   const [errors, setErrors] = useState([])
+
+  // Sync course whenever app.course changes (handles async data loading)
+  useEffect(() => {
+    if (app?.course && !data.course) {
+      setData(prev => ({ ...prev, course: app.course }))
+    }
+  }, [app?.course, data.course])
 
   const set = (name, value) => setData(prev => ({ ...prev, [name]: value }))
   const onChange = (e) => {
