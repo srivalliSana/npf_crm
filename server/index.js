@@ -9568,6 +9568,7 @@ app.post('/api/student-portal/create-payment-order', authenticateToken, requireS
       // (floor ₹1,000, or less if that's all that's left) — never trusted
       // blindly: clamped server-side either way.
       const { remaining, floor } = await tuitionAmountBounds(app, req.tenantId)
+      console.log(`[Tuition Payment] app=${app.app_no} course=${app.course} remaining=${remaining} floor=${floor} requested=${req.body?.amount}`)
       if (remaining <= 0) return res.status(400).json({ error: 'This fee is already fully paid.' })
       const requested = req.body?.amount != null ? Math.round(Number(req.body.amount)) : remaining
       if (!Number.isFinite(requested) || requested < floor) {
@@ -9578,9 +9579,11 @@ app.post('/api/student-portal/create-payment-order', authenticateToken, requireS
       const progRes = await pool.query('SELECT booking_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
       amountRupees = Number(progRes.rows[0]?.booking_fee) || 1000
     }
+    console.log(`[create-payment-order] ${feeType} amountRupees=${amountRupees}`)
     if (amountRupees <= 0) return res.status(400).json({ error: 'This fee has no amount configured yet — contact admissions.' })
 
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+    console.log(`[Razorpay Order] Creating order for ${feeType} ₹${amountRupees}`)
     const rpRes = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
@@ -9592,11 +9595,13 @@ app.post('/api/student-portal/create-payment-order', authenticateToken, requireS
       })
     })
     const order = await rpRes.json()
+    console.log(`[Razorpay Response] status=${rpRes.status} order=${JSON.stringify(order)}`)
     if (!rpRes.ok) {
       console.error('[create-payment-order] Razorpay rejected the order:', order)
       return res.status(502).json({ error: order?.error?.description || 'Could not start the payment. Please try again.' })
     }
 
+    console.log(`[create-payment-order] SUCCESS orderId=${order.id} keyId=${keyId} name=${app.name}`)
     res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId, name: app.name, email: app.email })
   } catch (e) {
     console.error('[POST /api/student-portal/create-payment-order]', e.message)
