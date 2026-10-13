@@ -9614,7 +9614,7 @@ app.post('/api/student-portal/verify-payment', authenticateToken, requireStudent
     if ((await tenantSlugFor(req.tenantId)) !== 'cuedu') {
       return res.status(403).json({ error: 'This payment method is not available for your program.' })
     }
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, feeType } = req.body
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).json({ error: 'Incomplete payment confirmation.' })
     }
@@ -9631,25 +9631,40 @@ app.post('/api/student-portal/verify-payment', authenticateToken, requireStudent
 
     const app = await loadAdmissionJourneyByAppId(req.user.appId, req.tenantId)
     if (!app) return res.status(404).json({ error: 'Application not found.' })
-    if (app.booking_fee_status === 'Paid') return res.json({ success: true, alreadyPaid: true })
 
-    const progRes = await pool.query('SELECT booking_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
-    const amountRupees = Number(progRes.rows[0]?.booking_fee) || 1000
+    const actualFeeType = feeType || 'Booking Fee'
+    if (actualFeeType === 'Booking Fee' && app.booking_fee_status === 'Paid') {
+      return res.json({ success: true, alreadyPaid: true })
+    }
+    if (actualFeeType === 'Tuition Fee' && app.tuition_fee_paid) {
+      return res.json({ success: true, alreadyPaid: true })
+    }
+
+    let amountRupees
+    if (actualFeeType === 'Tuition Fee') {
+      const { remaining } = await tuitionAmountBounds(app, req.tenantId)
+      amountRupees = remaining
+      console.log(`[verify-payment] Tuition Fee: app=${app.app_no} amount=${amountRupees}`)
+    } else {
+      const progRes = await pool.query('SELECT booking_fee FROM programs WHERE tenant_id = $1 AND name = $2;', [req.tenantId, app.course])
+      amountRupees = Number(progRes.rows[0]?.booking_fee) || 1000
+    }
 
     await pool.query(
       `INSERT INTO payments (name, app_no, amount, method, status, date, txn_id, fee_type, tenant_id)
-       VALUES ($1, $2, $3, 'razorpay', 'Paid', $4, $5, 'Booking Fee', $6);`,
-      [app.name, app.app_no, amountRupees, new Date().toLocaleDateString('en-IN'), razorpay_payment_id, req.tenantId]
+       VALUES ($1, $2, $3, 'razorpay', 'Paid', $4, $5, $6, $7);`,
+      [app.name, app.app_no, amountRupees, new Date().toLocaleDateString('en-IN'), razorpay_payment_id, actualFeeType, req.tenantId]
     )
-    await pool.query(`UPDATE applications SET booking_fee_status = 'Paid', booking_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, req.tenantId])
-    await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
-      [`₹${amountRupees} entry fee paid online — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
 
-    // Paying the entry fee unlocks the fuller admission form (personal/parent/
-    // address/program/academic details + documents) next — same pipeline every
-    // other tenant follows (full form → counselor approval → registration fee
-    // → provisional admission), rather than a CU EDU-only shortcut straight to
-    // provisional admission.
+    if (actualFeeType === 'Tuition Fee') {
+      await recordTuitionPayment(app.id, req.tenantId, amountRupees)
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+        [`₹${amountRupees} tuition fee paid online — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
+    } else {
+      await pool.query(`UPDATE applications SET booking_fee_status = 'Paid', booking_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, req.tenantId])
+      await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
+        [`₹${amountRupees} entry fee paid online — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
+    }
 
     res.json({ success: true })
   } catch (e) {
