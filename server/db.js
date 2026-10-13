@@ -1,7 +1,10 @@
 import pg from 'pg'
 import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
-dotenv.config()
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+dotenv.config({ path: path.join(__dirname, '..', '.env') })
 const { Pool } = pg
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://ccrm_user:Ccrm%40123@localhost:5432/ccrm_db'
