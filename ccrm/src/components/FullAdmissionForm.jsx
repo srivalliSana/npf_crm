@@ -85,8 +85,8 @@ export default function FullAdmissionForm({ app, initialData, onSubmit, submitti
     ...emptyData,
     firstName: (app?.name || '').split(' ')[0] || '',
     lastName: (app?.name || '').split(' ').slice(1).join(' ') || '',
-    course: app?.course || '',
     ...(initialData || {}),
+    course: (initialData?.course) || app?.course || '',
   }))
   const [errors, setErrors] = useState([])
 
