@@ -81,13 +81,19 @@ const REQUIRED_FIELDS = {
 
 export default function FullAdmissionForm({ app, initialData, onSubmit, submitting, rejected, reviewNote }) {
   const [tab, setTab] = useState('personal')
-  const [data, setData] = useState(() => ({
-    ...emptyData,
-    firstName: (app?.name || '').split(' ')[0] || '',
-    lastName: (app?.name || '').split(' ').slice(1).join(' ') || '',
-    ...(initialData || {}),
-    course: (initialData?.course) || app?.course || '',
-  }))
+  const [data, setData] = useState(() => {
+    const base = {
+      ...emptyData,
+      firstName: (app?.name || '').split(' ')[0] || '',
+      lastName: (app?.name || '').split(' ').slice(1).join(' ') || '',
+      ...(initialData || {}),
+    }
+    // Ensure course defaults to app.course if not explicitly set
+    return {
+      ...base,
+      course: String(base.course || '').trim() ? base.course : (app?.course || ''),
+    }
+  })
   const [errors, setErrors] = useState([])
 
   const set = (name, value) => setData(prev => ({ ...prev, [name]: value }))
