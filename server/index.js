@@ -2817,11 +2817,34 @@ app.post('/api/payments/:id/approve', async (req, res) => {
       }
 
       case 'Tuition Fee': {
-        const appRow = await pool.query(`SELECT id FROM applications WHERE app_no = $1 AND tenant_id = $2;`, [appNo, req.tenantId])
+        const appRow = await pool.query(`SELECT id, email FROM applications WHERE app_no = $1 AND tenant_id = $2;`, [appNo, req.tenantId])
         if (appRow.rows[0]) {
           const result = await recordTuitionPayment(appRow.rows[0].id, req.tenantId, r.rows[0].amount)
           await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1,$2,$3);',
             [`Tuition payment of ₹${r.rows[0].amount} approved: ${appNo} (${name})${result?.fullyPaid ? ' — fully paid' : result ? ` — ₹${result.remaining} remaining` : ''}`, 'Just now', req.tenantId])
+
+          // Send payment confirmation email to student
+          const emailBody = `
+Dear ${name},
+
+Your tuition fee payment has been successfully recorded.
+
+**Payment Details:**
+- Application No: ${appNo}
+- Amount Paid: ₹${r.rows[0].amount}
+- Payment Date: ${new Date().toLocaleDateString('en-IN')}
+- Payment Status: Confirmed
+${result?.fullyPaid ? '- Course Status: Fully Paid ✓' : result ? `- Remaining Balance: ₹${result.remaining}` : ''}
+
+You can login to your student portal to view your payment status and proceed with next steps.
+
+If you have any questions, please contact our admissions team.
+
+Best regards,
+CU EDU Admissions
+`
+          sendEmail(appRow.rows[0].email, `Payment Confirmation - ${appNo}`, emailBody).catch(() => {})
+
           if (result?.fullyPaid) checkAndAutoSyncCampusOne(appRow.rows[0].id, req.tenantId).catch(() => {})
         }
         break
@@ -9659,13 +9682,51 @@ app.post('/api/student-portal/verify-payment', authenticateToken, requireStudent
 
     // Auto-update application (Razorpay payments are instant, no staff approval needed)
     if (actualFeeType === 'Tuition Fee') {
-      await recordTuitionPayment(app.id, req.tenantId, amountRupees)
+      const result = await recordTuitionPayment(app.id, req.tenantId, amountRupees)
       await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
         [`₹${amountRupees} tuition fee paid online (Razorpay) — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
+
+      // Send payment confirmation email
+      const emailBody = `
+Dear ${app.name},
+
+Your tuition fee payment has been successfully processed.
+
+**Payment Details:**
+- Application No: ${app.app_no}
+- Amount Paid: ₹${amountRupees}
+- Payment Date: ${new Date().toLocaleDateString('en-IN')}
+- Payment Method: Online (Razorpay)
+- Payment Status: Confirmed ✓
+${result?.fullyPaid ? '- Course Status: Fully Paid ✓' : result ? `- Remaining Balance: ₹${result.remaining}` : ''}
+
+You can login to your student portal to view your payment status and download receipts.
+
+If you have any questions, please contact our admissions team.
+
+Best regards,
+CU EDU Admissions
+`
+      sendEmail(app.email, `Payment Receipt - ${app.app_no}`, emailBody).catch(() => {})
     } else {
       await pool.query(`UPDATE applications SET booking_fee_status = 'Paid', booking_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, req.tenantId])
       await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
         [`₹${amountRupees} entry fee paid online (Razorpay) — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
+
+      // Send booking fee confirmation email
+      sendEmail(app.email, `Booking Fee Receipt - ${app.app_no}`, `
+Dear ${app.name},
+
+Your booking fee payment of ₹${amountRupees} has been successfully processed.
+
+Payment Date: ${new Date().toLocaleDateString('en-IN')}
+Application No: ${app.app_no}
+
+You can now proceed with your admission form.
+
+Best regards,
+CU EDU Admissions
+`).catch(() => {})
     }
 
     res.json({ success: true })
