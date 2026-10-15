@@ -1873,11 +1873,20 @@ app.post('/api/applications', authenticateToken, async (req, res) => {
     ).catch(() => ({ rows: [] }))
     const seededDetails = (leadRes.rows[0]?.lead_details) || {}
 
+    // Generate unique 12-digit numeric IDs for DEB and ABC
+    const generate12DigitID = () => {
+      const min = 100000000000
+      const max = 999999999999
+      return String(Math.floor(Math.random() * (max - min + 1)) + min)
+    }
+    const debId = generate12DigitID()
+    const abcId = generate12DigitID()
+
     const insertRes = await pool.query(`
-      INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, pay_method, campus, course, stage, owner, date, admission_details, tenant_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14)
-      RETURNING id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails";
-    `, [name, finalAppNo, email, mobile, formStatus || 'Incomplete', payStatus || 'Payment Pending', payMethod || '', campus || 'Bhubaneswar', course, stage || 'Application Started', owner || 'Unassigned', finalDate, JSON.stringify(seededDetails), req.tenantId])
+      INSERT INTO applications (name, app_no, email, mobile, form_status, pay_status, pay_method, campus, course, stage, owner, date, admission_details, deb_id, abc_id, ids_generated_at, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, NOW(), $16)
+      RETURNING id, name, app_no AS "appNo", email, mobile, form_status AS "formStatus", pay_status AS "payStatus", pay_method AS "payMethod", campus, course, stage, owner, date, admission_details AS "admissionDetails", deb_id AS "debId", abc_id AS "abcId";
+    `, [name, finalAppNo, email, mobile, formStatus || 'Incomplete', payStatus || 'Payment Pending', payMethod || '', campus || 'Bhubaneswar', course, stage || 'Application Started', owner || 'Unassigned', finalDate, JSON.stringify(seededDetails), debId, abcId, req.tenantId])
 
     // Auto-create notification
     await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Application submitted: ${name} (${finalAppNo})`, 'Just now', req.tenantId])
@@ -9134,7 +9143,7 @@ async function buildAdmissionJourneyResponse(app) {
 
   return {
     success: true,
-    application: { id: app.id, name: app.name, email: app.email, mobile: app.mobile, course: app.course, appNo: app.app_no },
+    application: { id: app.id, name: app.name, email: app.email, mobile: app.mobile, course: app.course, appNo: app.app_no, debId: app.deb_id, abcId: app.abc_id },
     leadId: leadRes.rows[0]?.id || null,
     counsellorName: app.owner || '',
     admissionDetails: app.admission_details || {},
