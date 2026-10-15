@@ -452,6 +452,7 @@ export default function StudentDashboard() {
   const [error, setError] = useState('')
   const [data, setData] = useState(null)
   const [submittingFee, setSubmittingFee] = useState(null)
+  const [paymentCooldown, setPaymentCooldown] = useState({})
   const [uploadingDoc, setUploadingDoc] = useState(null)
   const [payingGateway, setPayingGateway] = useState(false)
   const [submittingFullForm, setSubmittingFullForm] = useState(false)
@@ -549,6 +550,13 @@ export default function StudentDashboard() {
   // a fee paid.
   const payViaGatewayForUtr = (feeType, amount) => new Promise(async (resolve) => {
     try {
+      // Prevent duplicate submissions within 5 seconds
+      if (paymentCooldown[feeType] && Date.now() - paymentCooldown[feeType] < 5000) {
+        flash('❌ Please wait a moment before submitting another payment.')
+        resolve(null)
+        return
+      }
+
       const ok = await loadRazorpayScript()
       if (!ok) { flash('❌ Could not load the payment window. Check your connection and try again.'); resolve(null); return }
 
@@ -566,7 +574,10 @@ export default function StudentDashboard() {
         name: 'CU EDU Admissions',
         description: feeType,
         prefill: { name: order.name, email: order.email },
-        handler: (response) => resolve(response.razorpay_payment_id),
+        handler: (response) => {
+          setPaymentCooldown(prev => ({ ...prev, [feeType]: Date.now() }))
+          resolve(response.razorpay_payment_id)
+        },
         modal: { ondismiss: () => resolve(null) }
       })
       rzp.open()

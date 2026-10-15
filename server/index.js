@@ -9602,7 +9602,7 @@ app.post('/api/student-portal/create-payment-order', authenticateToken, requireS
     }
 
     console.log(`[create-payment-order] SUCCESS orderId=${order.id} keyId=${keyId} name=${app.name}`)
-    res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId, name: app.name, email: app.email })
+    res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId, name: app.name, email: app.email, feeType })
   } catch (e) {
     console.error('[POST /api/student-portal/create-payment-order]', e.message)
     res.status(500).json({ error: 'Could not start the payment. Please try again.' })
@@ -9650,20 +9650,22 @@ app.post('/api/student-portal/verify-payment', authenticateToken, requireStudent
       amountRupees = Number(progRes.rows[0]?.booking_fee) || 1000
     }
 
+    // Record payment as 'Paid' (auto-approved for Razorpay, unlike UTR which needs staff approval)
     await pool.query(
       `INSERT INTO payments (name, app_no, amount, method, status, date, txn_id, fee_type, tenant_id)
        VALUES ($1, $2, $3, 'razorpay', 'Paid', $4, $5, $6, $7);`,
       [app.name, app.app_no, amountRupees, new Date().toLocaleDateString('en-IN'), razorpay_payment_id, actualFeeType, req.tenantId]
     )
 
+    // Auto-update application (Razorpay payments are instant, no staff approval needed)
     if (actualFeeType === 'Tuition Fee') {
       await recordTuitionPayment(app.id, req.tenantId, amountRupees)
       await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
-        [`₹${amountRupees} tuition fee paid online — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
+        [`₹${amountRupees} tuition fee paid online (Razorpay) — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
     } else {
       await pool.query(`UPDATE applications SET booking_fee_status = 'Paid', booking_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, req.tenantId])
       await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
-        [`₹${amountRupees} entry fee paid online — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
+        [`₹${amountRupees} entry fee paid online (Razorpay) — ${app.app_no} (${app.name})`, 'Just now', req.tenantId])
     }
 
     res.json({ success: true })
