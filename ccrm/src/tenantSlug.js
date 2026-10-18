@@ -15,6 +15,7 @@ export const RESERVED_SLUGS = [
   'verify-email', 'document-upload', 'admission-details', 'student-login',
   'student-dashboard', 'command-centre', 'compliance', 'integration-hub',
   'integration-health', 'programs', 'lead-id-settings',
+  'document-verification', 'finance-verification', 'grievances', 'automation', 'ao-review',
 ]
 
 // Tenants with their own dedicated domain — routes live at the root there
