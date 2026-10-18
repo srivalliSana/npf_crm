@@ -27,6 +27,8 @@ import { computeAdmissionHealth, computeRiskPrediction, computeScholarshipSugges
 import complianceRouter from './routes/compliance.js'
 import securityRouter from './routes/security.js'
 import integrationHubRouter, { runScheduledSyncJobs } from './routes/integration-hub.js'
+import automationRouter from './routes/automation.js'
+import { initAutomation, initAutomationSchema, emitEvent, runScheduledJobs, runEscalationSweep } from './lib/automation.js'
 
 import gtechWebhook from './webhooks/gttech.js'
 import ftlWebhook from './webhooks/ftl.js'
@@ -186,6 +188,7 @@ app.use('/api/analytics',       analyticsRouter)
 app.use('/api/compliance',      complianceRouter)
 app.use('/api/security',        securityRouter)
 app.use('/api/integration-hub', integrationHubRouter)
+app.use('/api/automation',      automationRouter)
 
 // Setup Static and Upload Folders
 const uploadDirs = [
@@ -1588,6 +1591,7 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
     if (owner !== 'Unassigned') {
       await alertCounselor(owner, name, course, source || 'Manual', newLead.id, req.tenantId)
     }
+    emitEvent(req.tenantId, 'lead.created', 'lead', newLead.id, { stage: newLead.stage, source: source || 'Manual' })
 
     res.status(201).json(newLead)
   } catch (err) {
@@ -1704,11 +1708,15 @@ app.put('/api/leads/:id', authenticateToken, async (req, res) => {
           appNo = `CUEEAP26${String(Math.floor(1 + Math.random() * 9999)).padStart(4, '0')}`
         }
 
-        await pool.query(`
+        const newApp = await pool.query(`
           INSERT INTO applications (name, app_no, email, mobile, course, campus, stage, owner, tenant_id, date)
-          VALUES ($1, $2, $3, $4, $5, $6, 'Interested', $7, $8, NOW());
+          VALUES ($1, $2, $3, $4, $5, $6, 'Interested', $7, $8, NOW()) RETURNING id;
         `, [appName, appNo, appEmail, appMobile, appCourse, appCampus, owner || currentLead.owner, req.tenantId])
+        emitEvent(req.tenantId, 'application.created', 'application', newApp.rows[0].id, { appNo, fromLeadId: Number(id) })
       }
+    }
+    if (newStage !== currentLead.stage) {
+      emitEvent(req.tenantId, 'lead.stage_changed', 'lead', Number(id), { oldStage: currentLead.stage, newStage, changedBy: req.user?.email || 'system' })
     }
 
     // Refetch the lead to include status_history in response
@@ -1890,6 +1898,7 @@ app.post('/api/applications', authenticateToken, async (req, res) => {
 
     // Auto-create notification
     await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Application submitted: ${name} (${finalAppNo})`, 'Just now', req.tenantId])
+    emitEvent(req.tenantId, 'application.created', 'application', insertRes.rows[0].id, { appNo: finalAppNo })
 
     // Auto-create payment entry
     const payIdRes = await pool.query('SELECT COUNT(*) FROM payments WHERE app_no = $1 AND tenant_id = $2;', [finalAppNo, req.tenantId])
@@ -1950,6 +1959,7 @@ app.put('/api/applications/:id', async (req, res) => {
 
       if (isApproved) {
         await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);', [`Payment approved: ₹25,000 received for ${appNo}`, 'Just now', req.tenantId])
+        emitEvent(req.tenantId, 'application.fee_paid', 'application', Number(id), { appNo, feeType: 'Application Fee' })
         // Dispatches secure SMTP receipt mail alert
         sendSystemMailAlert(email, 'CUEE Admission Payment Approved', `Hello ${name},\n\nWe have successfully received and approved your payment of ₹25,000 for CUEE Registration application: ${appNo}.\n\nBest regards,\nAdmissions Office`)
       }
@@ -2522,6 +2532,9 @@ async function syncApplicationToCampusOne(app, tenantId = 1) {
     [syncStatus, campusoneStudentId || null, syncError, app.id, tenantId]
   )
 
+  if (syncStatus === 'Success' && app.campusone_sync_status !== 'Success') {
+    emitEvent(tenantId, 'application.erp_synced', 'application', app.id, { appNo: app.app_no, campusoneStudentId })
+  }
   return { success: syncStatus === 'Success', syncStatus, campusoneStudentId, error: syncError || null }
 }
 
@@ -2543,7 +2556,13 @@ async function allMandatoryDocsVerified(appId, tenantId = 1) {
 // document (linked by app_id, not the old fragile name-match) is Verified, push
 // the application to CampusOne automatically. Safe to call repeatedly — no-ops
 // once already Success, and no-ops silently if CampusOne isn't configured yet.
+// Several paths (payment webhook, document verify, automation rule) can fire
+// this for the same application within milliseconds — one in-flight sync per
+// application prevents a duplicate ERP record.
+const campusOneSyncInFlight = new Set()
 async function checkAndAutoSyncCampusOne(appId, tenantId = 1) {
+  if (campusOneSyncInFlight.has(appId)) return
+  campusOneSyncInFlight.add(appId)
   try {
     const appRes = await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [appId, tenantId])
     const app = appRes.rows[0]
@@ -2557,6 +2576,8 @@ async function checkAndAutoSyncCampusOne(appId, tenantId = 1) {
     console.log(`[Auto CampusOne Sync] ${refreshed.app_no}: ${result.syncStatus || result.error}`)
   } catch (e) {
     console.error('[checkAndAutoSyncCampusOne]', e.message)
+  } finally {
+    campusOneSyncInFlight.delete(appId)
   }
 }
 
@@ -2737,11 +2758,15 @@ app.post('/api/webhooks/razorpay', async (req, res) => {
       await pool.query(`UPDATE applications SET booking_fee_status = 'Paid', booking_fee_paid_at = NOW() WHERE id = $1 AND tenant_id = $2;`, [app.id, link.tenant_id])
       await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
         [`Application fee paid via link — ${app.app_no} (${app.name})`, 'Just now', link.tenant_id])
+      emitEvent(link.tenant_id, 'application.fee_paid', 'application', app.id, { appNo: app.app_no, feeType: 'Application Fee' })
     } else if (link.fee_type === 'Tuition Fee') {
       const result = await recordTuitionPayment(app.id, link.tenant_id, Math.round(Number(link.amount)))
       await pool.query('INSERT INTO notifications (text, time, tenant_id) VALUES ($1, $2, $3);',
         [`₹${Math.round(Number(link.amount))} tuition payment via link — ${app.app_no} (${app.name})${result?.fullyPaid ? ' — fully paid' : result ? ` — ₹${result.remaining} remaining` : ''}`, 'Just now', link.tenant_id])
-      if (result?.fullyPaid) checkAndAutoSyncCampusOne(app.id, link.tenant_id).catch(() => {})
+      if (result?.fullyPaid) {
+        checkAndAutoSyncCampusOne(app.id, link.tenant_id).catch(() => {})
+        emitEvent(link.tenant_id, 'application.tuition_paid', 'application', app.id, { appNo: app.app_no })
+      }
     }
 
     res.status(200).json({ ok: true })
@@ -2854,7 +2879,10 @@ CU EDU Admissions
 `
           sendEmail(appRow.rows[0].email, `Payment Confirmation - ${appNo}`, emailBody).catch(() => {})
 
-          if (result?.fullyPaid) checkAndAutoSyncCampusOne(appRow.rows[0].id, req.tenantId).catch(() => {})
+          if (result?.fullyPaid) {
+            checkAndAutoSyncCampusOne(appRow.rows[0].id, req.tenantId).catch(() => {})
+            emitEvent(req.tenantId, 'application.tuition_paid', 'application', appRow.rows[0].id, { appNo })
+          }
         }
         break
       }
@@ -8334,6 +8362,25 @@ async function startServer() {
   await initModuleSchema()   // analytics / compliance / integration / security tables
   await primeSessionCache()  // honour revocations made while this process was down
 
+  // ── Automation engine: triggers → rules → actions, reminder queue, SLA escalations ──
+  await initAutomationSchema()
+  initAutomation({
+    sendMail: (to, subject, body, tenantId) => sendSystemMailAlert(to, subject, body, tenantId),
+    sendSms: async (mobile, message, tenantId) => {
+      const [provider, apiKey, apiSid, senderId, fromNumber, templateId] = await Promise.all(
+        ['sms_provider', 'sms_api_key', 'sms_api_sid', 'sms_sender_id', 'sms_from_number', 'sms_template_id'].map((k) => getIntegrationSetting(k, tenantId)))
+      if (!apiKey) return false
+      return sendSmsViaProvider({ provider, apiKey, apiSid, senderId, fromNumber, templateId, mobile: `91${String(mobile).replace(/\D/g, '').slice(-10)}`, message })
+    },
+    createNotification,
+    checkAndAutoSyncCampusOne,
+    getNextAssignee,
+    alertCounselor,
+  })
+  cron.schedule('* * * * *', () => runScheduledJobs())
+  cron.schedule('*/30 * * * *', () => runEscalationSweep())
+  setTimeout(() => runEscalationSweep(), 60_000) // first sweep a minute after boot
+
   // Schedule daily cron jobs at 3:00 AM IST
   cron.schedule('0 3 * * *', async () => {
     // Prevent duplicate execution if cron triggers twice
@@ -8441,6 +8488,7 @@ app.post('/api/applications/:id/booking-fee-payment', authenticateToken, async (
        VALUES ($1, $2, $3, $4, 'Paid', NOW()::VARCHAR, $5, 'Booking Fee', $6);`,
       [app.name, app.app_no, bookingAmount, method || 'online', transactionId || '', req.tenantId]
     )
+    emitEvent(req.tenantId, 'application.fee_paid', 'application', app.id, { appNo: app.app_no, feeType: 'Application Fee' })
 
     res.json({ success: true, message: 'Application fee paid successfully.' })
   } catch (e) {
@@ -8493,6 +8541,13 @@ app.put('/api/documents/:id/verify', authenticateToken, async (req, res) => {
     // Step-3 auto-trigger: this doc might have been the last mandatory one pending.
     if (status === 'Verified' && appId) {
       checkAndAutoSyncCampusOne(appId, req.tenantId).catch(() => {})
+      emitEvent(req.tenantId, 'document.verified', 'application', appId, { docId: Number(id), docType: updated.rows[0].type })
+      allMandatoryDocsVerified(appId, req.tenantId)
+        .then((done) => { if (done) emitEvent(req.tenantId, 'application.docs_complete', 'application', appId, {}) })
+        .catch(() => {})
+    }
+    if (status === 'Rejected' && appId) {
+      emitEvent(req.tenantId, 'document.rejected', 'application', appId, { docId: Number(id), docType: updated.rows[0].type, rejectionReason: rejectionReason || '' })
     }
 
     // Notify the student by email whenever a document is actually decided —

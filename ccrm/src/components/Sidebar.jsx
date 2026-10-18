@@ -6,7 +6,7 @@ import {
   HelpCircle, Calendar, Shield, FileCheck, Puzzle,
   Trophy, Mail, Globe, ExternalLink, Zap, Radio,
   PieChart, Activity, Plug, Server, ShieldCheck, ChevronDown, ScrollText, PhoneCall, Layers, MessageCircle, Building2, GraduationCap,
-  CheckCircle, DollarSign, Gauge, Network, X, Tag, LifeBuoy
+  CheckCircle, DollarSign, Gauge, Network, X, Tag, LifeBuoy, Workflow
 } from 'lucide-react'
 import { APP_VERSION } from '../version'
 import { useCcrm } from '../context/CcrmContext'
@@ -54,6 +54,7 @@ const NAV_ITEMS = [
   { icon: ExternalLink,    label: 'Transfers',     to: '/transfer-approvals', roles: ['Admin', 'Manager'] },
   { icon: Puzzle,          label: 'Integrations',  to: '/integrations',     roles: ['Admin'] },
   { icon: Network,         label: 'Integration Hub', to: '/integration-hub', roles: ['Admin'], permission: 'integrations.view' },
+  { icon: Workflow,        label: 'Automation',    to: '/automation',       roles: ['Admin', 'Manager'], permission: 'automation.view' },
   { icon: Plug,            label: 'Integration Health', to: '/integration-health', roles: ['Admin'] },
   { icon: Server,          label: 'Server Health', to: '/server-health',    roles: ['Admin'] },
   { icon: ShieldCheck,     label: 'Security & Access', to: '/security',      roles: ['Admin'], permission: 'security.view' },

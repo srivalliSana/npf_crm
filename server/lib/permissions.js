@@ -48,6 +48,8 @@ export const PERMISSIONS = [
 
   { key: 'integrations.view',     group: 'Integration',  label: 'View integrations' },
   { key: 'integrations.manage',   group: 'Integration',  label: 'Configure & run integrations' },
+  { key: 'automation.view',       group: 'Integration',  label: 'View automation, reminders & escalations' },
+  { key: 'automation.manage',     group: 'Integration',  label: 'Toggle rules, change automation mode' },
 
   { key: 'security.view',         group: 'Security',     label: 'View security dashboard' },
   { key: 'security.manage',       group: 'Security',     label: 'Revoke sessions, run backups' },
@@ -67,7 +69,7 @@ export const ROLE_DEFAULTS = {
     'applications.view', 'applications.edit', 'documents.view',
     'payments.view', 'messaging.send', 'campaigns.manage',
     'analytics.view', 'reports.view', 'reports.export', 'commandcentre.view',
-    'users.view',
+    'users.view', 'automation.view',
   ],
   Counselor: [
     'leads.view_own', 'leads.edit', 'applications.view', 'documents.view',
