@@ -8379,7 +8379,6 @@ async function startServer() {
   })
   cron.schedule('* * * * *', () => runScheduledJobs())
   cron.schedule('*/30 * * * *', () => runEscalationSweep())
-  setTimeout(() => runEscalationSweep(), 60_000) // first sweep a minute after boot
 
   // Schedule daily cron jobs at 3:00 AM IST
   cron.schedule('0 3 * * *', async () => {

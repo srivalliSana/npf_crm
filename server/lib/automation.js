@@ -77,8 +77,21 @@ export async function initAutomationSchema() {
   await run(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;`)
 
   const tenants = await pool.query('SELECT id FROM tenants').catch(() => ({ rows: [{ id: 1 }] }))
-  for (const { id } of tenants.rows) await seedDefaults(id)
+  for (const { id } of tenants.rows) {
+    await seedDefaults(id)
+    // SLA sweeps only ever look at records created after this moment. Without
+    // it the first sweep on an existing install escalates years of backlog.
+    await pool.query(
+      `INSERT INTO integration_settings (key, value, updated_at, tenant_id) VALUES ('automation_since', NOW()::text, NOW(), $1)
+       ON CONFLICT (tenant_id, key) DO NOTHING;`, [id]).catch((e) => warn('automation_since', e.message))
+  }
   log('schema ready')
+}
+
+export async function getSince(tenantId) {
+  const r = await pool.query(`SELECT value FROM integration_settings WHERE key = 'automation_since' AND tenant_id = $1;`, [tenantId]).catch(() => ({ rows: [] }))
+  const d = r.rows[0]?.value ? new Date(r.rows[0].value) : null
+  return d && !Number.isNaN(d.getTime()) ? d : new Date()
 }
 
 // ── Default rules (idempotent — a tenant's edits are never overwritten) ──────
@@ -140,8 +153,8 @@ const DEFAULT_ESCALATIONS = [
   { code: 'lead_untouched_24h', entity_type: 'lead', hours: 24, name: 'Lead untouched for 24h',
     description: 'Counsellor and their manager are told; a call task is created.',
     actions: [{ type: 'notify', to: 'owner' }, { type: 'notify', to: 'manager' }, { type: 'create_task' }] },
-  { code: 'lead_untouched_72h', entity_type: 'lead', hours: 72, name: 'Lead untouched for 72h → reassign',
-    description: 'Lead is moved to the next counsellor in the round-robin.',
+  { code: 'lead_untouched_72h', entity_type: 'lead', hours: 72, name: 'Lead untouched for 72h → reassign', enabled: false,
+    description: 'Lead is moved to the next counsellor in the round-robin. Off by default — enable once the 24h rule has been observed for a few days.',
     actions: [{ type: 'reassign' }, { type: 'notify', to: 'manager' }] },
   { code: 'docs_pending_7d', entity_type: 'application', hours: 168, name: 'Documents pending 7 days',
     actions: [{ type: 'notify', to: 'owner' }, { type: 'notify', to: 'manager' }, { type: 'create_task' }] },
@@ -165,9 +178,9 @@ async function seedDefaults(tenantId) {
   }
   for (const r of DEFAULT_ESCALATIONS) {
     await pool.query(
-      `INSERT INTO escalation_rules (tenant_id, code, name, description, entity_type, hours, actions)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (tenant_id, code) DO NOTHING;`,
-      [tenantId, r.code, r.name, r.description || '', r.entity_type, r.hours, JSON.stringify(r.actions)]
+      `INSERT INTO escalation_rules (tenant_id, code, name, description, entity_type, hours, actions, enabled)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (tenant_id, code) DO NOTHING;`,
+      [tenantId, r.code, r.name, r.description || '', r.entity_type, r.hours, JSON.stringify(r.actions), r.enabled !== false]
     ).catch((e) => warn('seed escalation', r.code, e.message))
   }
 }
@@ -304,7 +317,7 @@ async function resolveRecipient(to, ctx, tenantId) {
 // dry_run flag on top, so one risky rule can be rehearsed while the rest run.
 export async function getMode(tenantId) {
   const r = await pool.query(`SELECT value FROM integration_settings WHERE key = 'automation_mode' AND tenant_id = $1;`, [tenantId]).catch(() => ({ rows: [] }))
-  return r.rows[0]?.value || 'live'
+  return r.rows[0]?.value || 'dry_run'
 }
 export async function setMode(tenantId, mode) {
   await pool.query(
@@ -513,17 +526,24 @@ async function executeJob(job) {
 // ── Escalations (SLA sweep, every 30 min) ────────────────────────────────────
 // One row per (rule, entity): opened when the SLA is breached, auto-resolved
 // when the condition clears. Managers get a single digest per sweep.
+// $1 tenant, $2 SLA hours, $3 automation_since cutoff. Every query is bounded
+// by the cutoff and a hard LIMIT so a sweep can never touch the whole table.
+const SWEEP_CAP = 200
 const ESCALATION_QUERIES = {
-  lead_untouched_24h: (h) => ({ sql: `SELECT id, name, course, owner, mobile FROM leads WHERE tenant_id = $1 AND stage = 'Untouched' AND created_at < NOW() - make_interval(hours => $2) AND owner IS NOT NULL AND owner <> '' AND owner <> 'Unassigned';`, args: [h] }),
-  lead_untouched_72h: (h) => ({ sql: `SELECT id, name, course, owner, mobile, city FROM leads WHERE tenant_id = $1 AND stage = 'Untouched' AND created_at < NOW() - make_interval(hours => $2);`, args: [h] }),
-  docs_pending_7d: (h) => ({ sql: `SELECT a.id, a.name, a.app_no, a.owner FROM applications a WHERE a.tenant_id = $1 AND a.created_at < NOW() - make_interval(hours => $2)
-      AND a.campusone_sync_status <> 'Success' AND EXISTS (SELECT 1 FROM documents d WHERE d.app_id = a.id AND d.is_mandatory AND d.status <> 'Verified');`, args: [h] }),
-  fee_pending_10d: (h) => ({ sql: `SELECT id, name, app_no, owner FROM applications WHERE tenant_id = $1 AND created_at < NOW() - make_interval(hours => $2)
-      AND booking_fee_status <> 'Paid' AND application_fee_paid = FALSE AND pay_status <> 'Approved';`, args: [h] }),
-  tuition_pending_14d: (h) => ({ sql: `SELECT id, name, app_no, owner FROM applications WHERE tenant_id = $1 AND tuition_fee_paid = FALSE
-      AND COALESCE(booking_fee_paid_at, application_fee_paid_at) < NOW() - make_interval(hours => $2);`, args: [h] }),
-  erp_sync_failed: () => ({ sql: `SELECT id, name, app_no, owner, campusone_sync_error AS error FROM applications WHERE tenant_id = $1 AND campusone_sync_status = 'Failed';`, args: [] }),
-  lms_sync_failed: () => ({ sql: `SELECT id, name, app_no, owner, lms_sync_error AS error FROM applications WHERE tenant_id = $1 AND lms_sync_status = 'Failed';`, args: [] }),
+  lead_untouched_24h: `SELECT id, name, course, owner, mobile FROM leads WHERE tenant_id = $1 AND created_at >= $3 AND stage = 'Untouched'
+      AND created_at < NOW() - make_interval(hours => $2) AND owner IS NOT NULL AND owner <> '' AND owner <> 'Unassigned' ORDER BY created_at LIMIT ${SWEEP_CAP};`,
+  lead_untouched_72h: `SELECT id, name, course, owner, mobile, city FROM leads WHERE tenant_id = $1 AND created_at >= $3 AND stage = 'Untouched'
+      AND created_at < NOW() - make_interval(hours => $2) ORDER BY created_at LIMIT ${SWEEP_CAP};`,
+  docs_pending_7d: `SELECT a.id, a.name, a.app_no, a.owner FROM applications a WHERE a.tenant_id = $1 AND a.created_at >= $3 AND a.created_at < NOW() - make_interval(hours => $2)
+      AND a.campusone_sync_status <> 'Success' AND EXISTS (SELECT 1 FROM documents d WHERE d.app_id = a.id AND d.is_mandatory AND d.status <> 'Verified') ORDER BY a.created_at LIMIT ${SWEEP_CAP};`,
+  fee_pending_10d: `SELECT id, name, app_no, owner FROM applications WHERE tenant_id = $1 AND created_at >= $3 AND created_at < NOW() - make_interval(hours => $2)
+      AND booking_fee_status <> 'Paid' AND application_fee_paid = FALSE AND pay_status <> 'Approved' ORDER BY created_at LIMIT ${SWEEP_CAP};`,
+  tuition_pending_14d: `SELECT id, name, app_no, owner FROM applications WHERE tenant_id = $1 AND created_at >= $3 AND tuition_fee_paid = FALSE
+      AND COALESCE(booking_fee_paid_at, application_fee_paid_at) < NOW() - make_interval(hours => $2) ORDER BY created_at LIMIT ${SWEEP_CAP};`,
+  erp_sync_failed: `SELECT id, name, app_no, owner, campusone_sync_error AS error FROM applications WHERE tenant_id = $1 AND campusone_sync_status = 'Failed'
+      AND COALESCE(campusone_synced_at, created_at) >= $3 AND $2 = $2 ORDER BY campusone_synced_at LIMIT ${SWEEP_CAP};`,
+  lms_sync_failed: `SELECT id, name, app_no, owner, lms_sync_error AS error FROM applications WHERE tenant_id = $1 AND lms_sync_status = 'Failed'
+      AND COALESCE(lms_synced_at, created_at) >= $3 AND $2 = $2 ORDER BY lms_synced_at LIMIT ${SWEEP_CAP};`,
 }
 
 let sweepRunning = false
@@ -536,14 +556,14 @@ export async function runEscalationSweep() {
       const mode = await getMode(tenantId)
       if (mode === 'off') continue
       const dry = mode === 'dry_run'
+      const since = await getSince(tenantId)
       const rules = (await pool.query('SELECT * FROM escalation_rules WHERE tenant_id = $1 AND enabled = TRUE;', [tenantId])).rows
       const digest = new Map() // manager email → lines
 
       for (const rule of rules) {
-        const q = ESCALATION_QUERIES[rule.code]
-        if (!q) continue
-        const { sql, args } = q(rule.hours)
-        const breached = (await pool.query(sql, [tenantId, ...args])).rows
+        const sql = ESCALATION_QUERIES[rule.code]
+        if (!sql) continue
+        const breached = (await pool.query(sql, [tenantId, rule.hours, since])).rows
         const breachedIds = new Set(breached.map((r) => r.id))
 
         // Auto-resolve anything that no longer breaches.
