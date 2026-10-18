@@ -13,7 +13,7 @@ import { pool } from '../db.js'
 import { authenticateToken } from '../lib/auth.js'
 import { requirePermission } from '../lib/permissions.js'
 import { recordAudit, clientIp } from '../lib/audit.js'
-import { emitEvent } from '../lib/automation.js'
+import { emitEvent, getMode } from '../lib/automation.js'
 
 let deps = {}
 export function initAo(d) { deps = { ...deps, ...d } }
@@ -134,7 +134,8 @@ router.post('/applications/:id/decision', review, async (req, res) => {
       emitEvent(req.tenantId, 'application.ao_approved', 'application', app.id, { appNo: app.app_no, by })
       // The gate may have been the only thing holding the ERP push.
       deps.checkAndAutoSyncCampusOne?.(app.id, req.tenantId).catch(() => {})
-      if (!app.admission_letter_sent_at) deps.autoSendAdmissionLetter?.(app.app_no, '', req.tenantId).catch((e) => console.error('[AO letter]', e.message))
+      // Outbound mail follows the tenant's automation mode: dry_run/off → nothing leaves the system.
+      if (!app.admission_letter_sent_at && (await getMode(req.tenantId)) === 'live') deps.autoSendAdmissionLetter?.(app.app_no, '', req.tenantId).catch((e) => console.error('[AO letter]', e.message))
       recordAudit({ tenantId: req.tenantId, actorId: req.user.id, actorEmail: by, actorRole: req.user.role, action: 'ao.approve', entityType: 'application', entityId: app.id, summary: `AO approved ${app.app_no}`, ip: clientIp(req) }).catch(() => {})
       return res.json({ ok: true, aoStatus: 'Approved' })
     }
@@ -154,7 +155,7 @@ router.post('/applications/:id/decision', review, async (req, res) => {
     await pool.query(
       `UPDATE applications SET ao_status = 'Changes Requested', ao_reviewed_by = $1, ao_reviewed_at = NOW(), ao_remarks = $2 WHERE id = $3;`, [by, remarks, app.id])
     emitEvent(req.tenantId, 'application.ao_changes_requested', 'application', app.id, { appNo: app.app_no, by, docs: rejected.map((d) => d.type) })
-    if (app.email && deps.sendMail) {
+    if (app.email && deps.sendMail && (await getMode(req.tenantId)) === 'live') {
       const list = rejected.length ? rejected.map((d) => `• ${d.type}${d.reason ? ` — ${d.reason}` : ''}`).join('\n') : ''
       await deps.sendMail(app.email, `Action needed on your application ${app.app_no}`,
         `Dear ${app.name},\n\nThe Admission Office has reviewed your application and needs the following before it can be finalised:\n\n${list || remarks}\n${list && remarks ? `\nRemarks: ${remarks}\n` : ''}\nPlease log in to your student portal and re-upload the documents listed above.\n\nAdmissions Office`, req.tenantId).catch(() => {})
@@ -168,6 +169,7 @@ router.post('/applications/:id/decision', review, async (req, res) => {
 router.post('/applications/:id/send-letter', review, async (req, res) => {
   const app = (await pool.query('SELECT app_no FROM applications WHERE id = $1 AND tenant_id = $2;', [req.params.id, req.tenantId])).rows[0]
   if (!app) return res.status(404).json({ error: 'Application not found.' })
+  if ((await getMode(req.tenantId)) !== 'live') return res.status(409).json({ error: 'Automation is not live for this tenant — switch to Live on the Automation page to send emails.' })
   try { await deps.autoSendAdmissionLetter(app.app_no, '', req.tenantId); res.json({ ok: true }) }
   catch (e) { res.status(502).json({ error: e.message }) }
 })
