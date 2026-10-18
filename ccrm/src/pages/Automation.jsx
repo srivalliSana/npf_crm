@@ -25,6 +25,7 @@ const ACTION_LABEL = {
   send_email: 'Email', send_sms: 'SMS', notify: 'In-app alert', create_task: 'Task',
   schedule_sequence: 'Schedule reminders', cancel_sequence: 'Cancel reminders',
   sync_campusone: 'Sync to ERP', provision_lms: 'Provision LMS', reassign: 'Reassign', retry_erp: 'Retry ERP', retry_lms: 'Retry LMS',
+  mark_lapsed: 'Mark seat lapsed',
 }
 const describeAction = (a) => {
   const base = ACTION_LABEL[a.type] || a.type

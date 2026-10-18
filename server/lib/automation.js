@@ -111,6 +111,13 @@ const DEFAULT_RULES = [
         body: 'Hi {{name}},\n\nGreat speaking with you. The next step is to start your application for {{course}} — it only takes a few minutes.\n\nYour counsellor {{owner}} is available for any questions.\n\nAdmissions Team' },
       { type: 'schedule_sequence', sequence: 'application_nudge' },
     ] },
+  { code: 'scholarship_emi_info', event_type: 'lead.stage_changed', name: 'Interested → scholarship & EMI options',
+    conditions: { newStage: 'Interested' },
+    description: 'Sends the scholarship / EMI information every interested candidate used to get only if the counsellor remembered. Edit the body in this rule to match the current fee policy.',
+    actions: [
+      { type: 'send_email', to: 'student', subject: 'Scholarships & easy EMI options for {{course}}',
+        body: 'Hi {{name}},\n\nHere is how we make {{course}} affordable:\n\n• Merit scholarships — based on your qualifying exam marks, applied automatically at admission.\n• Need-based fee concessions — ask your counsellor {{owner}} for the eligibility form.\n• 0% EMI — pay the tuition fee in monthly instalments through our finance partners.\n\nReply to this email or call {{owner}} and we will work out the best option for you.\n\nAdmissions Team' },
+    ] },
   { code: 'lead_not_interested', event_type: 'lead.stage_changed', name: 'Not Interested → stop nudges',
     conditions: { newStage: 'Not Interested' },
     description: 'Cancel every pending reminder for a lead who opted out.',
@@ -137,8 +144,14 @@ const DEFAULT_RULES = [
       { type: 'notify', to: 'owner', title: 'Documents complete: {{appNo}}', text: 'All mandatory documents for {{name}} are verified.' },
       { type: 'sync_campusone' },
     ] },
-  { code: 'tuition_paid', event_type: 'application.tuition_paid', name: 'Tuition paid → push to ERP',
-    actions: [{ type: 'cancel_sequence', sequence: 'tuition_pending' }, { type: 'sync_campusone' }] },
+  { code: 'tuition_paid', event_type: 'application.tuition_paid', name: 'Tuition paid → seat confirmed, push to ERP',
+    actions: [
+      { type: 'cancel_sequence', sequence: 'tuition_pending' },
+      { type: 'send_email', to: 'student', subject: 'Seat confirmed — {{appNo}}',
+        body: 'Dear {{name}},\n\nYour tuition fee has been received and your seat in {{course}} is confirmed.\n\nYour student record is now being created in the university ERP and learning portal; you will receive your login details shortly.\n\nWelcome aboard!\nAdmissions Team' },
+      { type: 'notify', to: 'owner', title: 'Seat confirmed: {{appNo}}', text: '{{name}} paid the tuition fee — admission confirmed.' },
+      { type: 'sync_campusone' },
+    ] },
   { code: 'erp_synced', event_type: 'application.erp_synced', name: 'ERP record created → provision LMS',
     actions: [{ type: 'provision_lms' }] },
   { code: 'lms_provisioned', event_type: 'application.lms_provisioned', name: 'LMS account ready → onboarding email',
@@ -162,6 +175,9 @@ const DEFAULT_ESCALATIONS = [
     actions: [{ type: 'notify', to: 'owner' }, { type: 'notify', to: 'manager' }] },
   { code: 'tuition_pending_14d', entity_type: 'application', hours: 336, name: 'Tuition unpaid 14 days after application fee',
     actions: [{ type: 'notify', to: 'owner' }, { type: 'notify', to: 'manager' }, { type: 'create_task' }] },
+  { code: 'seat_lapsed_21d', entity_type: 'application', hours: 504, name: 'Tuition unpaid 21 days → seat lapsed',
+    description: 'After every tuition reminder has gone out, the application is marked Lapsed; the student is told how to revive it and the counsellor is notified. Nothing is deleted.',
+    actions: [{ type: 'mark_lapsed' }, { type: 'notify', to: 'owner' }] },
   { code: 'erp_sync_failed', entity_type: 'application', hours: 0, name: 'ERP sync failed',
     actions: [{ type: 'retry_erp' }, { type: 'notify', to: 'admins' }] },
   { code: 'lms_sync_failed', entity_type: 'application', hours: 0, name: 'LMS provisioning failed',
@@ -540,6 +556,8 @@ const ESCALATION_QUERIES = {
       AND booking_fee_status <> 'Paid' AND application_fee_paid = FALSE AND pay_status <> 'Approved' ORDER BY created_at LIMIT ${SWEEP_CAP};`,
   tuition_pending_14d: `SELECT id, name, app_no, owner FROM applications WHERE tenant_id = $1 AND created_at >= $3 AND tuition_fee_paid = FALSE
       AND COALESCE(booking_fee_paid_at, application_fee_paid_at) < NOW() - make_interval(hours => $2) ORDER BY created_at LIMIT ${SWEEP_CAP};`,
+  seat_lapsed_21d: `SELECT id, name, app_no, owner FROM applications WHERE tenant_id = $1 AND created_at >= $3 AND tuition_fee_paid = FALSE AND stage <> 'Lapsed'
+      AND COALESCE(booking_fee_paid_at, application_fee_paid_at) < NOW() - make_interval(hours => $2) ORDER BY created_at LIMIT ${SWEEP_CAP};`,
   erp_sync_failed: `SELECT id, name, app_no, owner, campusone_sync_error AS error FROM applications WHERE tenant_id = $1 AND campusone_sync_status = 'Failed'
       AND COALESCE(campusone_synced_at, created_at) >= $3 AND $2 = $2 ORDER BY campusone_synced_at LIMIT ${SWEEP_CAP};`,
   lms_sync_failed: `SELECT id, name, app_no, owner, lms_sync_error AS error FROM applications WHERE tenant_id = $1 AND lms_sync_status = 'Failed'
@@ -633,6 +651,17 @@ async function runEscalationAction(action, rule, row, ctx, tenantId, dry, digest
         await deps.alertCounselor?.(next, row.name, row.course, 'SLA reassignment', row.id, tenantId)
       }
       return { detail: `${dry ? 'would reassign' : 'reassigned'} ${row.owner || 'Unassigned'} → ${next}` }
+    }
+    case 'mark_lapsed': {
+      if (!ctx.app) return { detail: 'no application' }
+      if (dry) return { detail: `would mark ${row.app_no} Lapsed and email student` }
+      await pool.query(`UPDATE applications SET stage = 'Lapsed' WHERE id = $1 AND tenant_id = $2;`, [row.id, tenantId])
+      await pool.query(
+        `UPDATE scheduled_jobs SET status = 'cancelled', executed_at = NOW(), result = 'application lapsed'
+         WHERE tenant_id = $1 AND entity_type = 'application' AND entity_id = $2 AND status = 'pending';`, [tenantId, row.id])
+      if (ctx.app.email) await deps.sendMail(ctx.app.email, `Your application ${row.app_no} has lapsed`,
+        `Dear ${row.name},\n\nWe have not received the tuition fee for your application ${row.app_no} (${ctx.app.course}), so the seat offer has lapsed.\n\nIf you still wish to join, reply to this email or contact your counsellor ${row.owner || 'in admissions'} — the seat can be revived subject to availability.\n\nAdmissions Team`, tenantId)
+      return { detail: `marked Lapsed, pending reminders cancelled, student emailed` }
     }
     case 'retry_erp': {
       if (dry) return { detail: 'would retry CampusOne sync' }
