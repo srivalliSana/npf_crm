@@ -28,6 +28,7 @@ import complianceRouter from './routes/compliance.js'
 import securityRouter from './routes/security.js'
 import integrationHubRouter, { runScheduledSyncJobs } from './routes/integration-hub.js'
 import automationRouter from './routes/automation.js'
+import aoRouter, { initAo, initAoSchema, queueForAoReview, aoGateActive } from './routes/ao.js'
 import { initAutomation, initAutomationSchema, emitEvent, runScheduledJobs, runEscalationSweep } from './lib/automation.js'
 
 import gtechWebhook from './webhooks/gttech.js'
@@ -189,6 +190,7 @@ app.use('/api/compliance',      complianceRouter)
 app.use('/api/security',        securityRouter)
 app.use('/api/integration-hub', integrationHubRouter)
 app.use('/api/automation',      automationRouter)
+app.use('/api/ao',              aoRouter)
 
 // Setup Static and Upload Folders
 const uploadDirs = [
@@ -2347,13 +2349,13 @@ async function autoSendAdmissionLetter(appNo, utrNumber, tenantId = 1) {
       to: toEmail,
       cc: details.parentEmail ? [details.parentEmail] : [],
       subject: `Provisional Admission (${appNo}) — ${app.course || 'CUTM Program'}`,
-      text: `Dear ${details.studentName || app.name},\n\nCongratulations! Your payment has been received and your Provisional Admission Letter is attached.\n\nReference ID: ${appNo}\nUTR: ${utrNumber}\nProgram: ${app.course}\nCampus: ${app.campus}\n\nBest regards,\nCUTM Admissions Team`,
+      text: `Dear ${details.studentName || app.name},\n\nCongratulations! Your payment has been received and your Provisional Admission Letter is attached.\n\nReference ID: ${appNo}\n${utrNumber ? `UTR: ${utrNumber}\n` : ''}Program: ${app.course}\nCampus: ${app.campus}\n\nBest regards,\nCUTM Admissions Team`,
       html: brandedEmailHtml({
         badge: 'CONFIRMED',
         tone: 'success',
         title: 'Provisional Admission Confirmed',
         bodyHtml: `<p>Dear <strong>${details.studentName || app.name}</strong>,</p><p>Congratulations! Your payment has been received. Your Provisional Admission Letter is attached to this email as a PDF.</p>`,
-        details: [['Reference ID', appNo], ['UTR', utrNumber], ['Program', app.course], ['Campus', app.campus]]
+        details: [['Reference ID', appNo], ...(utrNumber ? [['UTR', utrNumber]] : []), ['Program', app.course], ['Campus', app.campus]]
       }),
       attachments: [{ filename: `Provisional_Letter_${appNo}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
     })
@@ -2569,6 +2571,7 @@ async function checkAndAutoSyncCampusOne(appId, tenantId = 1) {
     if (!app || !app.tuition_fee_paid || app.campusone_sync_status === 'Success') return
 
     if (!(await allMandatoryDocsVerified(appId, tenantId))) return // still waiting on docs
+    if (app.ao_status !== 'Approved' && await aoGateActive(tenantId)) return // waiting on Admission Officer
 
     if (!app.registration_number) await grantProvisionalAdmission(appId, tenantId) // safety net
     const refreshed = (await pool.query('SELECT * FROM applications WHERE id = $1 AND tenant_id = $2;', [appId, tenantId])).rows[0]
@@ -8376,7 +8379,10 @@ async function startServer() {
     checkAndAutoSyncCampusOne,
     getNextAssignee,
     alertCounselor,
+    autoSendAdmissionLetter,
   })
+  await initAoSchema()
+  initAo({ checkAndAutoSyncCampusOne, autoSendAdmissionLetter, sendMail: (to, subject, body, tenantId) => sendSystemMailAlert(to, subject, body, tenantId) })
   cron.schedule('* * * * *', () => runScheduledJobs())
   cron.schedule('*/30 * * * *', () => runEscalationSweep())
 
@@ -8542,7 +8548,11 @@ app.put('/api/documents/:id/verify', authenticateToken, async (req, res) => {
       checkAndAutoSyncCampusOne(appId, req.tenantId).catch(() => {})
       emitEvent(req.tenantId, 'document.verified', 'application', appId, { docId: Number(id), docType: updated.rows[0].type })
       allMandatoryDocsVerified(appId, req.tenantId)
-        .then((done) => { if (done) emitEvent(req.tenantId, 'application.docs_complete', 'application', appId, {}) })
+        .then(async (done) => {
+          if (!done) return
+          emitEvent(req.tenantId, 'application.docs_complete', 'application', appId, {})
+          await queueForAoReview(appId, req.tenantId)
+        })
         .catch(() => {})
     }
     if (status === 'Rejected' && appId) {

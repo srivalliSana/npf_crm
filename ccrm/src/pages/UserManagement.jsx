@@ -24,7 +24,7 @@ const PERMISSIONS = {
 }
 
 // Fallback values if API hasn't loaded yet
-const FALLBACK_ROLES = ['Admin','Manager','Counselor','Finance']
+const FALLBACK_ROLES = ['Admin','Manager','Counselor','Finance','Admission Officer']
 const ENTITIES = ['CUTM', 'CUTMAP', 'FTL', 'GTIB', 'GTTECH', 'ESSE']
 const parseEntities = (s) => String(s || 'CUTM').split(',').map(x => x.trim()).filter(Boolean)
 const FALLBACK_TEAMS = ['Management','Admissions','Sales','Marketing','Finance']

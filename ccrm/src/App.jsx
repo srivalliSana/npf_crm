@@ -59,6 +59,7 @@ import Compliance from './pages/Compliance'
 import IntegrationHub from './pages/IntegrationHub'
 import IntegrationHealth from './pages/IntegrationHealth'
 import Automation from './pages/Automation'
+import AoReview from './pages/AoReview'
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -213,6 +214,9 @@ export default function App() {
             </Route>
             <Route element={<PermissionGuard permission="automation.view" roles={['Admin', 'Manager']} />}>
               <Route path="automation"       element={<Automation />} />
+            </Route>
+            <Route element={<PermissionGuard permission="documents.ao_review" roles={['Admin', 'Admission Officer']} />}>
+              <Route path="ao-review"        element={<AoReview />} />
             </Route>
             <Route path="leaderboard"      element={<Leaderboard />} />
             <Route path="email-campaigns"  element={<EmailCampaigns />} />

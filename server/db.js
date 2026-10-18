@@ -469,6 +469,7 @@ export async function initDb() {
         ['Manager',   'View all leads, manage team, approve payments', ['view_all_leads','manage_team','approve_payments'], true],
         ['Counselor', 'Handle assigned leads, log calls, send messages', ['view_own_leads','edit_own_leads','send_messages'], true],
         ['Finance',   'View and approve payments', ['view_payments','approve_payments'], true],
+        ['Admission Officer', 'Final document validation and admission decision', ['applications.view','documents.view','documents.verify','documents.ao_review','automation.view','reports.view'], true],
       ]
       for (const [name, desc, perms, sys] of sysRoles) {
         await client.query(

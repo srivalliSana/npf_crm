@@ -28,6 +28,7 @@ export const PERMISSIONS = [
   { key: 'applications.verify',   group: 'Admissions',   label: 'Verify / approve admissions' },
   { key: 'documents.view',        group: 'Admissions',   label: 'View documents' },
   { key: 'documents.verify',      group: 'Admissions',   label: 'Verify documents' },
+  { key: 'documents.ao_review',   group: 'Admissions',   label: 'Admission Officer final review & decision' },
 
   { key: 'payments.view',         group: 'Finance',      label: 'View payments' },
   { key: 'payments.approve',      group: 'Finance',      label: 'Approve payments' },
@@ -78,6 +79,10 @@ export const ROLE_DEFAULTS = {
   Finance: [
     'payments.view', 'payments.approve', 'payments.export',
     'applications.view', 'documents.view', 'reports.view', 'reports.export',
+  ],
+  'Admission Officer': [
+    'applications.view', 'documents.view', 'documents.verify', 'documents.ao_review',
+    'automation.view', 'reports.view',
   ],
 }
 

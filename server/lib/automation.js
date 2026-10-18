@@ -133,8 +133,14 @@ const DEFAULT_RULES = [
     actions: [
       { type: 'cancel_sequence', sequence: 'fee_pending' },
       { type: 'schedule_sequence', sequence: 'tuition_pending' },
+      { type: 'send_provisional_letter' },
       { type: 'notify', to: 'owner', title: 'Fee paid: {{appNo}}', text: '{{name}} paid the {{feeType}}.' },
     ] },
+  { code: 'ao_queued', event_type: 'application.ao_queued', name: 'Documents complete → Admission Officer review',
+    description: 'Tells the Admission Officer(s) an application is ready for final validation (falls back to Admins if no AO user exists).',
+    actions: [{ type: 'notify', to: 'ao', title: 'Ready for AO review: {{appNo}}', text: '{{name}} — all mandatory documents verified by ops.' }] },
+  { code: 'ao_approved', event_type: 'application.ao_approved', name: 'AO approved → counsellor informed',
+    actions: [{ type: 'notify', to: 'owner', title: 'AO approved: {{appNo}}', text: 'Admission Officer approved {{name}}. ERP push follows automatically.' }] },
   { code: 'doc_rejected', event_type: 'document.rejected', name: 'Document rejected → re-upload chasers',
     actions: [{ type: 'schedule_sequence', sequence: 'doc_reupload' }] },
   { code: 'docs_complete', event_type: 'application.docs_complete', name: 'All documents verified → stop chasers, notify counsellor',
@@ -178,6 +184,9 @@ const DEFAULT_ESCALATIONS = [
   { code: 'seat_lapsed_21d', entity_type: 'application', hours: 504, name: 'Tuition unpaid 21 days → seat lapsed',
     description: 'After every tuition reminder has gone out, the application is marked Lapsed; the student is told how to revive it and the counsellor is notified. Nothing is deleted.',
     actions: [{ type: 'mark_lapsed' }, { type: 'notify', to: 'owner' }] },
+  { code: 'ao_pending_3d', entity_type: 'application', hours: 72, name: 'Waiting for AO review 3 days',
+    description: 'An application has sat in the Admission Officer queue for 3 days.',
+    actions: [{ type: 'notify', to: 'ao' }, { type: 'notify', to: 'admins' }] },
   { code: 'erp_sync_failed', entity_type: 'application', hours: 0, name: 'ERP sync failed',
     actions: [{ type: 'retry_erp' }, { type: 'notify', to: 'admins' }] },
   { code: 'lms_sync_failed', entity_type: 'application', hours: 0, name: 'LMS provisioning failed',
@@ -325,6 +334,10 @@ async function resolveRecipient(to, ctx, tenantId) {
     return (await pool.query(`SELECT name, email, mobile FROM users WHERE role = 'Manager' AND status = 'Active' AND tenant_id = $1;`, [tenantId])).rows
   }
   if (to === 'admins') return (await pool.query(`SELECT name, email, mobile FROM users WHERE role = 'Admin' AND status = 'Active' AND tenant_id = $1;`, [tenantId])).rows
+  if (to === 'ao') {
+    const r = await pool.query(`SELECT name, email, mobile FROM users WHERE role = 'Admission Officer' AND status = 'Active' AND tenant_id = $1;`, [tenantId])
+    return r.rows.length ? r.rows : resolveRecipient('admins', ctx, tenantId)
+  }
   return []
 }
 
@@ -444,6 +457,14 @@ async function runAction(action, ctx, { tenantId, dry }) {
       const after = (await pool.query('SELECT campusone_sync_status, campusone_sync_error FROM applications WHERE id = $1;', [ctx.app.id])).rows[0]
       return `CampusOne: ${after?.campusone_sync_status}${after?.campusone_sync_error ? ' — ' + after.campusone_sync_error : ''}`
     }
+    case 'send_provisional_letter': {
+      if (!ctx.app) return 'no application'
+      if (ctx.app.admission_letter_sent_at) return `letter already sent ${new Date(ctx.app.admission_letter_sent_at).toISOString().slice(0, 10)}`
+      if (dry) return `would send provisional admission letter PDF for ${ctx.app.app_no}`
+      await deps.autoSendAdmissionLetter(ctx.app.app_no, '', tenantId)
+      const after = (await pool.query('SELECT admission_letter_sent_at FROM applications WHERE id = $1;', [ctx.app.id])).rows[0]
+      return after?.admission_letter_sent_at ? `provisional letter emailed to ${ctx.app.email}` : 'letter not sent (no email / SMTP not ready)'
+    }
     case 'provision_lms': {
       if (!ctx.app) return 'no application'
       if (dry) return `would provision LMS account for ${ctx.app.app_no}`
@@ -556,6 +577,8 @@ const ESCALATION_QUERIES = {
       AND booking_fee_status <> 'Paid' AND application_fee_paid = FALSE AND pay_status <> 'Approved' ORDER BY created_at LIMIT ${SWEEP_CAP};`,
   tuition_pending_14d: `SELECT id, name, app_no, owner FROM applications WHERE tenant_id = $1 AND created_at >= $3 AND tuition_fee_paid = FALSE
       AND COALESCE(booking_fee_paid_at, application_fee_paid_at) < NOW() - make_interval(hours => $2) ORDER BY created_at LIMIT ${SWEEP_CAP};`,
+  ao_pending_3d: `SELECT id, name, app_no, owner FROM applications WHERE tenant_id = $1 AND ao_status = 'Pending Review'
+      AND ao_queued_at >= $3 AND ao_queued_at < NOW() - make_interval(hours => $2) ORDER BY ao_queued_at LIMIT ${SWEEP_CAP};`,
   seat_lapsed_21d: `SELECT id, name, app_no, owner FROM applications WHERE tenant_id = $1 AND created_at >= $3 AND tuition_fee_paid = FALSE AND stage <> 'Lapsed'
       AND COALESCE(booking_fee_paid_at, application_fee_paid_at) < NOW() - make_interval(hours => $2) ORDER BY created_at LIMIT ${SWEEP_CAP};`,
   erp_sync_failed: `SELECT id, name, app_no, owner, campusone_sync_error AS error FROM applications WHERE tenant_id = $1 AND campusone_sync_status = 'Failed'
@@ -755,6 +778,8 @@ export async function journeyFor(appRef, tenantId) {
     { key: 'fee', label: 'Application fee paid', done: feePaid, at: app.booking_fee_paid_at || app.application_fee_paid_at },
     { key: 'docs', label: `Documents verified (${docs.verified}/${docs.total})`, done: Number(docs.total) > 0 && docs.total === docs.verified },
     { key: 'tuition', label: 'Tuition fee paid', done: !!app.tuition_fee_paid, at: app.tuition_fee_paid_at },
+    { key: 'letter', label: 'Provisional admission letter sent', done: !!app.admission_letter_sent_at, at: app.admission_letter_sent_at },
+    { key: 'ao', label: `Admission Officer review (${app.ao_status || 'Not Ready'})`, done: app.ao_status === 'Approved', at: app.ao_reviewed_at, value: app.ao_reviewed_by || undefined },
     { key: 'registration', label: 'Registration number issued', done: !!app.registration_number, at: app.reg_number_generated_at, value: app.registration_number },
     { key: 'erp', label: 'Synced to CampusOne ERP', done: app.campusone_sync_status === 'Success', at: app.campusone_synced_at, value: app.campusone_student_id, error: app.campusone_sync_error },
     { key: 'lms', label: 'LMS account provisioned', done: app.lms_sync_status === 'Success', at: app.lms_synced_at, value: app.lms_user_id, error: app.lms_sync_error },
