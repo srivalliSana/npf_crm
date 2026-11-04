@@ -36,14 +36,14 @@ const NAV_LINKS = [
 ]
 
 const PROGRAMS = [
-  { name: 'B.Tech CSE (AI/ML)', icon: '🤖', duration: '4 Yrs', tag: 'Trending', tagColor: 'bg-red-100 text-red-600' },
-  { name: 'MBA', icon: '💼', duration: '2 Yrs', tag: 'Popular', tagColor: 'bg-blue-100 text-blue-600' },
-  { name: 'B.Sc Agriculture', icon: '🌾', duration: '4 Yrs', tag: 'High Demand', tagColor: 'bg-green-100 text-green-700' },
-  { name: 'B.Tech ECE', icon: '⚡', duration: '4 Yrs', tag: '', tagColor: '' },
-  { name: 'BCA', icon: '💻', duration: '3 Yrs', tag: '', tagColor: '' },
-  { name: 'MCA', icon: '🖥️', duration: '2 Yrs', tag: '', tagColor: '' },
-  { name: 'B.Com', icon: '📊', duration: '3 Yrs', tag: '', tagColor: '' },
-  { name: 'B.Tech Civil', icon: '🏗️', duration: '4 Yrs', tag: '', tagColor: '' },
+  { name: 'B.Tech CSE (AI/ML)', icon: '🤖', duration: '4 Yrs', tag: 'Trending', tagColor: 'bg-red-100 text-red-600', img: '/landing/images/Smart-City.jpg' },
+  { name: 'MBA', icon: '💼', duration: '2 Yrs', tag: 'Popular', tagColor: 'bg-blue-100 text-blue-600', img: '/landing/images/MBA.jpg' },
+  { name: 'B.Sc Agriculture', icon: '🌾', duration: '4 Yrs', tag: 'High Demand', tagColor: 'bg-green-100 text-green-700', img: '/landing/images/Agriculture-Science.jpg' },
+  { name: 'B.Tech ECE', icon: '⚡', duration: '4 Yrs', tag: '', tagColor: '', img: '/landing/images/AR-VR-Lab.jpg' },
+  { name: 'BCA', icon: '💻', duration: '3 Yrs', tag: '', tagColor: '', img: '/landing/images/Software-Technology.jpg' },
+  { name: 'MCA', icon: '🖥️', duration: '2 Yrs', tag: '', tagColor: '', img: '/landing/images/Cyber-Security.jpg' },
+  { name: 'B.Com', icon: '📊', duration: '3 Yrs', tag: '', tagColor: '', img: '/landing/images/BCOM.jpg' },
+  { name: 'B.Tech Civil', icon: '🏗️', duration: '4 Yrs', tag: '', tagColor: '', img: '/landing/images/Diiploma-in-Civil-Engineering.jpg' },
 ]
 
 const STATS = [
@@ -63,10 +63,10 @@ const FEATURES = [
 ]
 
 const CAMPUSES = [
-  { name: 'Bhubaneswar', state: 'Odisha', emoji: '🏛️', desc: 'Main campus. 100+ acres. Engineering, Management, Agriculture, Sciences.' },
-  { name: 'Vizianagaram', state: 'Andhra Pradesh', emoji: '🏫', desc: 'Vibrant campus. Strong industry linkages in Andhra Pradesh region.' },
-  { name: 'Paralakhemundi', state: 'Odisha', emoji: '🌿', desc: 'Serene eco-campus. Known for Agriculture and Life Sciences.' },
-  { name: 'Balasore', state: 'Odisha', emoji: '🚀', desc: 'Growing tech campus. Close to DRDO research corridor.' },
+  { name: 'Bhubaneswar', state: 'Odisha', emoji: '🏛️', desc: 'Main campus. 100+ acres. Engineering, Management, Agriculture, Sciences.', img: '/landing/images/camp1.jpg' },
+  { name: 'Vizianagaram', state: 'Andhra Pradesh', emoji: '🏫', desc: 'Vibrant campus. Strong industry linkages in Andhra Pradesh region.', img: '/landing/images/camp2.jpg' },
+  { name: 'Paralakhemundi', state: 'Odisha', emoji: '🌿', desc: 'Serene eco-campus. Known for Agriculture and Life Sciences.', img: '/landing/images/camp3.jpg' },
+  { name: 'Balasore', state: 'Odisha', emoji: '🚀', desc: 'Growing tech campus. Close to DRDO research corridor.', img: '/landing/images/camp4.jpg' },
 ]
 
 
@@ -358,20 +358,32 @@ export default function PublicInquiry() {
         secondaryHref="#programs" secondaryLabel="See programmes"
       />
 
+      {/* ══════════════════════ STATS STRIP ══════════════════════ */}
+      <div className="relative z-20 -mt-12 max-w-7xl mx-auto px-5 lg:px-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 bg-white border border-gray-200 divide-x divide-y md:divide-y-0 divide-gray-200">
+          {STATS.map(stat => (
+            <div key={stat.label} className="px-6 py-7 flex items-center gap-4">
+              <stat.icon size={30} className="text-accent-600 flex-shrink-0" strokeWidth={1.6}/>
+              <div>
+                <div className="text-[30px] font-semibold text-primary-900 tabular-nums leading-none whitespace-nowrap">{stat.value}</div>
+                <div className="text-gray-600 text-sm mt-1.5">{stat.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ══════════════════════ APPLY ══════════════════════ */}
-      <section id="apply" className="scroll-mt-20 bg-primary-500 py-20 lg:py-28">
+      <section id="apply" className="scroll-mt-20 bg-primary-500 pt-28 pb-20 lg:pt-36 lg:pb-28 -mt-12">
         <div className="max-w-7xl mx-auto px-5 lg:px-8 grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-20 items-start">
-          <div>
+          <div className="lg:sticky lg:top-32">
             <h2 className="text-4xl md:text-5xl font-semibold text-white tracking-tight leading-[1.05] max-w-[14ch]">Start your application today.</h2>
             <p className="text-white/85 text-lg leading-relaxed mt-5 max-w-[30em]">Tell us a little about yourself. A counsellor will call you, answer your questions and guide you through the next steps. It's free.</p>
-            <div className="grid grid-cols-2 gap-px bg-white/20 border border-white/20 mt-10 max-w-md">
-              {STATS.map(stat => (
-                <div key={stat.label} className="bg-primary-600 px-6 py-6">
-                  <div className="text-[30px] font-semibold text-white tabular-nums leading-none whitespace-nowrap">{stat.value}</div>
-                  <div className="text-white/80 text-sm mt-2">{stat.label}</div>
-                </div>
+            <ul className="mt-10 space-y-4 text-white text-lg">
+              {['Free counselling, no application fee', 'A counsellor calls you and answers your questions', 'Scholarships for merit and need'].map(t => (
+                <li key={t} className="flex items-start gap-3"><CheckCircle size={22} className="text-accent-400 flex-shrink-0 mt-0.5"/>{t}</li>
               ))}
-            </div>
+            </ul>
           </div>
           <div>
             <div data-speed="0.04">
@@ -397,12 +409,17 @@ export default function PublicInquiry() {
             {PROGRAMS.map((prog, i) => (
               <div key={i} className="relative">
                 <a href="#apply" data-speed={i % 2 === 0 ? '0.05' : '-0.05'}
-                  className="block bg-white border border-gray-200 hover:border-primary-500 p-6 min-h-[150px] transition-colors will-change-transform">
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <span>{prog.duration}</span>
-                    {prog.tag ? <span className="text-accent-700 font-semibold">{prog.tag}</span> : null}
+                  className="group block bg-white border border-gray-200 hover:border-primary-500 transition-colors will-change-transform overflow-hidden">
+                  <div className="aspect-[4/3] overflow-hidden bg-primary-100">
+                    <img src={prog.img} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   </div>
-                  <div className="font-semibold text-primary-900 text-xl leading-snug mt-6">{prog.name}</div>
+                  <div className="p-5">
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <span>{prog.duration}</span>
+                      {prog.tag ? <span className="text-accent-700 font-semibold">{prog.tag}</span> : null}
+                    </div>
+                    <div className="font-semibold text-primary-900 text-xl leading-snug mt-2">{prog.name}</div>
+                  </div>
                 </a>
               </div>
             ))}
@@ -421,6 +438,15 @@ export default function PublicInquiry() {
           </p>
         </div>
       </div>
+
+      {/* ══════════════════════ PHOTO BAND ══════════════════════ */}
+      <section className="relative h-[360px] md:h-[460px] overflow-hidden bg-primary-900">
+        <img data-speed="-0.12" src="/landing/images/cutm13.jpg" alt="Centurion University campus" loading="lazy" className="absolute inset-x-0 -top-[20%] w-full h-[140%] object-cover will-change-transform" />
+        <div className="absolute inset-0 bg-primary-900/55" />
+        <div className="relative h-full max-w-7xl mx-auto px-5 lg:px-8 flex items-end pb-12">
+          <p className="text-white text-[clamp(28px,4vw,56px)] font-semibold tracking-tight leading-[1.05] max-w-[18ch]">A campus built around what happens after the degree.</p>
+        </div>
+      </section>
 
       {/* ══════════════════════ WHY CUTM ══════════════════════ */}
       <section id="why" className="scroll-mt-20 py-28 lg:py-36 bg-white">
@@ -448,9 +474,6 @@ export default function PublicInquiry() {
 
       {/* ══════════════════════ CAMPUSES ══════════════════════ */}
       <section id="campuses" className="scroll-mt-20 relative py-28 lg:py-36 bg-primary-900 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-          <img data-speed="-0.2" src="/emblem-512.png" alt="" className="absolute -left-40 top-0 w-[700px] max-w-none opacity-[0.07] will-change-transform" />
-        </div>
         <div className="relative max-w-7xl mx-auto px-5 lg:px-8">
           <div className="max-w-2xl">
             <h2 className="text-4xl md:text-5xl font-semibold text-white tracking-tight leading-[1.05]">Four campuses across Odisha and Andhra Pradesh</h2>
@@ -459,10 +482,13 @@ export default function PublicInquiry() {
           <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:pb-14">
             {CAMPUSES.map((campus, i) => (
               <div key={i} className="relative">
-                <div data-speed={i % 2 === 0 ? '0.06' : '-0.06'} className="bg-white/10 border border-white/15 p-6 min-h-[220px] will-change-transform">
-                  <h3 className="font-semibold text-white text-2xl">{campus.name}</h3>
-                  <p className="text-accent-400 text-sm font-medium mt-1">{campus.state}</p>
-                  <p className="text-white/80 text-base leading-relaxed mt-5">{campus.desc}</p>
+                <div data-speed={i % 2 === 0 ? '0.06' : '-0.06'} className="bg-white/10 border border-white/15 will-change-transform overflow-hidden">
+                  <div className="aspect-[16/10] overflow-hidden"><img src={campus.img} alt={campus.name + ' campus'} loading="lazy" className="w-full h-full object-cover" /></div>
+                  <div className="p-6 min-h-[190px]">
+                    <h3 className="font-semibold text-white text-2xl">{campus.name}</h3>
+                    <p className="text-accent-400 text-sm font-medium mt-1">{campus.state}</p>
+                    <p className="text-white/80 text-base leading-relaxed mt-4">{campus.desc}</p>
+                  </div>
                 </div>
               </div>
             ))}
