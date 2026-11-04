@@ -79,7 +79,10 @@ const GROUPS = [
 // One icon per collapsible group (the group header in the accordion)
 const GROUP_ICON = { Admissions: Users, Work: CheckSquare, Insight: PieChart, Admin: Shield, Account: Settings }
 
-export default function Sidebar({ onLogout, user, expanded = true, isMobile = false, open = true, onClose }) {
+export default function Sidebar({ onLogout, user, isMobile = false, open = true, onClose }) {
+  // Desktop: a slim icon rail that opens on hover or keyboard focus and closes when you leave (no toggle button).
+  const [hovered, setHovered] = useState(false)
+  const expanded = isMobile ? true : hovered
   const navigate = useNavigate()
   const { tenantConfig } = useCcrm()
   const userRole = user?.role || 'Counselor'
@@ -162,12 +165,16 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
   // viewport. On desktop it stays exactly as before.
   const shell = isMobile
     ? `w-64 z-50 transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`
-    : `w-64 z-50 transition-transform duration-200 ease-out ${open ? 'translate-x-0' : '-translate-x-full'}`
+    : `z-50 overflow-hidden transition-[width,box-shadow] duration-200 ease-out ${hovered ? 'w-64 shadow-dropdown' : 'w-16'}`
 
   return (
     <aside
       className={`fixed left-0 top-0 h-screen bg-canvas border-r border-gray-200/70 flex flex-col ${shell}`}
-      aria-hidden={!open}
+      aria-hidden={isMobile ? !open : undefined}
+      onMouseEnter={isMobile ? undefined : () => setHovered(true)}
+      onMouseLeave={isMobile ? undefined : () => setHovered(false)}
+      onFocus={isMobile ? undefined : () => setHovered(true)}
+      onBlur={isMobile ? undefined : (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setHovered(false) }}
     >
       {/* Logo */}
       <div
@@ -208,6 +215,29 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
 
           const linkCls = (isActive) =>
             `block rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${isActive ? 'bg-gray-200/70 text-gray-900 font-medium' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'}`
+
+          // Closed rail: icons only. The group that holds the current page is marked.
+          if (!expanded) {
+            return (
+              <div className="flex flex-col items-center gap-1 px-2 mt-1">
+                {grouped.filter(g => !g.label).flatMap(g => g.items).map(({ icon: Icon, label, to }) => (
+                  <NavLink key={to} to={to} title={label} aria-label={label}
+                    className={({ isActive }) => `w-10 h-10 flex items-center justify-center rounded-md transition-colors ${isActive ? 'bg-gray-200/70 text-gray-900' : 'text-gray-500 hover:bg-gray-200/60'}`}>
+                    <Icon size={18} strokeWidth={1.8} />
+                  </NavLink>
+                ))}
+                {grouped.filter(g => g.label).map(g => {
+                  const GIcon = GROUP_ICON[g.label] || Layers
+                  return (
+                    <span key={g.label} title={g.label} aria-label={g.label}
+                      className={`w-10 h-10 flex items-center justify-center rounded-md ${g.items.some(holdsPath) ? 'bg-gray-200/70 text-gray-900' : 'text-gray-500'}`}>
+                      <GIcon size={18} strokeWidth={1.8} />
+                    </span>
+                  )
+                })}
+              </div>
+            )
+          }
 
           return (
             <>
