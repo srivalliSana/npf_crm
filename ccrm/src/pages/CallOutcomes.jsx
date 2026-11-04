@@ -146,7 +146,7 @@ export default function CallOutcomes() {
             <CheckCircle2 size={20} className="text-success-500" />
             <h3 className="font-semibold text-gray-800">Upload Complete</h3>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="bg-info-50 rounded-lg p-4 text-center">
               <p className="text-2xl font-bold text-info-700">{result.updated}</p>
               <p className="text-xs text-info-600 mt-1">Updated</p>
