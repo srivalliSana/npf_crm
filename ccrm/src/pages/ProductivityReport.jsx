@@ -283,7 +283,7 @@ export default function ProductivityReport() {
           { label: 'Pay Approved',     value: TOTALS.payApproved,     color: 'text-teal-600',   bg: 'bg-teal-50' },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center border border-white shadow-sm`}>
-            <div className={`text-xl font-extrabold ${s.color}`}>{s.value}</div>
+            <div className={`text-xl font-semibold ${s.color}`}>{s.value}</div>
             <div className="text-xs text-gray-500 mt-0.5 leading-tight font-semibold">{s.label}</div>
           </div>
         ))}
