@@ -31,7 +31,7 @@ const STATE_CLASS = {
 // "Schedule again" / "Reminder" sub-notes shared their parent's stage value,
 // which meant both nodes lit up together whenever that stage was current;
 // they're static hint text here instead, since they were never real stages.
-export default function LeadJourney({ stage, onSelect }) {
+export default function LeadJourney({ stage, onSelect, onSchedule, scheduled = {} }) {
   const Node = ({ s, label, icon: Icon }) => (
     <button
       type="button"
@@ -43,10 +43,15 @@ export default function LeadJourney({ stage, onSelect }) {
       {label}
     </button>
   )
-  const Hint = ({ label, icon: Icon }) => (
-    <span className="inline-flex items-center gap-1 pl-4 text-[11px] text-gray-400">
-      <Icon size={11} className="flex-shrink-0" /> {label}
-    </span>
+  const Hint = ({ label, icon: Icon, kind }) => (
+    <button
+      type="button"
+      onClick={() => onSchedule?.(kind)}
+      title={label}
+      className="inline-flex items-center gap-1 pl-1 text-[11px] text-primary-600 hover:underline"
+    >
+      <Icon size={11} className="flex-shrink-0" /> {scheduled[kind] ? `${kind === 'reminder' ? 'Reminder' : 'Next call'}: ${scheduled[kind]} (change)` : label}
+    </button>
   )
   const Arrow = () => <div className="w-4 h-px bg-gray-200 flex-shrink-0" />
 
@@ -66,15 +71,15 @@ export default function LeadJourney({ stage, onSelect }) {
       {/* Outcomes after Contacted */}
       <div>
         <div className="text-[10.5px] font-bold text-gray-400 uppercase tracking-wide mb-2.5">After Contacted, pick one outcome</div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-2.5 gap-y-3 items-start">
           <Node s="Invalid Number" label="Invalid Number" icon={Ban} />
-          <div className="space-y-1.5">
+          <div className="flex flex-col items-start gap-1.5">
             <Node s="No Response" label="No Response" icon={PhoneMissed} />
-            <Hint label="Schedule again" icon={CalendarClock} />
+            <Hint label="Schedule again" icon={CalendarClock} kind="schedule" />
           </div>
-          <div className="space-y-1.5">
+          <div className="flex flex-col items-start gap-1.5">
             <Node s="Follow Up" label="Further Talk / Follow Up" icon={MessageSquare} />
-            <Hint label="Reminder set" icon={Bell} />
+            <Hint label="Set reminder" icon={Bell} kind="reminder" />
           </div>
           <Node s="Interested" label="Interested" icon={Star} />
         </div>
