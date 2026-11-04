@@ -1,9 +1,8 @@
 import * as React from 'react'
-import { gsap } from 'gsap'
 
 /*
- * Pixel Headline (ported to plain JSX): a headline set in a pixel face drawn in code, where every
- * pixel is an SVG square. When it comes into view the pixels fly in from everywhere and assemble
+ * Pixel Headline (plain JSX): a headline set in a pixel face drawn in code, where every pixel is a
+ * small square painted on ONE canvas (hundreds of SVG nodes made the page janky, so none are used). When it comes into view the pixels fly in from everywhere and assemble
  * the words; they step aside from the pointer and spring back, and now and then a few catch the
  * accent colour. A real text copy sits underneath for screen readers. No font file is loaded.
  */
@@ -115,23 +114,8 @@ function useReducedMotion() {
   return reduced
 }
 
-function PixelLine({ text, maxWidth }) {
-  const lay = React.useMemo(() => layoutPixels(text), [text])
-  const vw = lay.width + 1
-  const vh = lay.height + 1
-  return (
-    <svg className="pxh-line" viewBox={'-0.5 -0.5 ' + vw + ' ' + vh} aria-hidden="true" focusable="false"
-      style={{ '--w': vw, '--wmax': maxWidth, aspectRatio: vw + ' / ' + vh }}>
-      {lay.glyphs.map((g, gi) => (
-        <g key={gi}>
-          {g.cells.map(([x, y], i) => (
-            <rect key={i} className="pxh-px" x={x + 0.06} y={y + 0.06} width={0.88} height={0.88} rx={0.16} data-x={x + 0.06} data-y={y + 0.06} />
-          ))}
-        </g>
-      ))}
-    </svg>
-  )
-}
+const rand = (a, b) => a + Math.random() * (b - a)
+const easeOut = (t) => 1 - Math.pow(1 - t, 3)
 
 export default function PixelHeadline({
   lines = ['Describe an app', "We'll build it"],
@@ -147,127 +131,145 @@ export default function PixelHeadline({
 }) {
   const reduced = useReducedMotion()
   const rootRef = React.useRef(null)
-  const widest = React.useMemo(() => Math.max(...lines.map((l) => layoutPixels(l).width + 1)), [lines])
+  const canvasRef = React.useRef(null)
+  const probeRef = React.useRef(null)
   const key = lines.join('|')
 
   useIsoLayoutEffect(() => {
-    const root = rootRef.current
-    if (!root || reduced) return
-    const px = Array.from(root.querySelectorAll('.pxh-px'))
-    const ctx = gsap.context((self) => {
-      // the pixels fly in from everywhere and assemble the words
-      if (assemble !== 'none') {
-        gsap.set(px, { opacity: 0 })
-        const play = () =>
-          gsap.fromTo(
-            px,
-            { x: () => gsap.utils.random(-40, 40), y: () => gsap.utils.random(-26, 26), scale: () => gsap.utils.random(0, 2.4), opacity: 0, transformOrigin: '50% 50%' },
-            { x: 0, y: 0, scale: 1, opacity: 1, duration: 1.5, ease: 'expo.out', stagger: { amount: 0.75, from: 'random' } },
-          )
-        if (assemble === 'load') play()
-        else {
-          const io = new IntersectionObserver(([e]) => {
-            if (!e.isIntersecting) return
-            io.disconnect()
-            self.add(play)
-          }, { threshold: 0.2 })
-          io.observe(root)
-          self.add(() => () => io.disconnect())
-        }
-      }
-      // a few pixels catch the accent now and then
-      if (shimmer) {
-        const lightUp = () => {
-          const lit = gsap.utils.shuffle(px.slice()).slice(0, 7)
-          lit.forEach((el, i) => {
-            gsap.delayedCall(i * 0.09, () => el.classList.add('is-lit'))
-            gsap.delayedCall(0.9 + i * 0.09, () => el.classList.remove('is-lit'))
-          })
-          gsap.delayedCall(gsap.utils.random(1.8, 3.2), lightUp)
-        }
-        gsap.delayedCall(2.4, lightUp)
-      }
-    }, root)
+    const root = rootRef.current, canvas = canvasRef.current, probe = probeRef.current
+    if (!root || !canvas || !probe) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
 
-    // the pixels step aside from the pointer, by attribute, so they never fight the transform tweens
-    const svgs = Array.from(root.querySelectorAll('.pxh-line'))
-    const pts = svgs.map((svg) =>
-      Array.from(svg.querySelectorAll('.pxh-px')).map((el) => ({ el, x: +(el.dataset.x || 0), y: +(el.dataset.y || 0), off: false })),
-    )
-    let pending = 0
-    let last = { x: -1e4, y: -1e4 }
-    const RADIUS = 3.4
-    const push = () => {
-      pending = 0
-      svgs.forEach((svg, si) => {
-        const r = svg.getBoundingClientRect()
-        const unit = r.width / (svg.viewBox.baseVal.width || 1)
-        const ux = (last.x - r.left) / unit - 0.5
-        const uy = (last.y - r.top) / unit - 0.5
-        pts[si].forEach((p) => {
-          const dx = p.x + 0.44 - ux
-          const dy = p.y + 0.44 - uy
-          const d = Math.hypot(dx, dy)
-          if (d < RADIUS) {
-            const k = (1 - d / RADIUS) * 1.5
-            const nx = d ? dx / d : 0
-            const ny = d ? dy / d : -1
-            p.off = true
-            gsap.to(p.el, { attr: { x: p.x + nx * k, y: p.y + ny * k }, duration: 0.35, ease: 'power3.out', overwrite: 'auto' })
-          } else if (p.off) {
-            p.off = false
-            gsap.to(p.el, { attr: { x: p.x, y: p.y }, duration: 0.9, ease: 'elastic.out(1,0.45)', overwrite: 'auto' })
-          }
-        })
+    const laid = lines.map((l) => layoutPixels(l))
+    const widest = Math.max(...laid.map((l) => l.width + 1))
+    const rowH = laid[0].height + 1            // one line's height in pixel units
+    const gapU = 2.1                            // gap between lines, in pixel units
+    const totalH = laid.length * rowH + (laid.length - 1) * gapU
+
+    // particles: home position in pixel units, current offset, delay, lit state
+    const P = []
+    laid.forEach((lay, li) => {
+      const oy = li * (rowH + gapU)
+      const ox = align === 'left' ? 0 : (widest - (lay.width + 1)) / 2
+      lay.glyphs.forEach((g) => g.cells.forEach(([cx, cy]) => {
+        P.push({ hx: ox + cx, hy: oy + cy, ox: rand(-30, 30), oy: rand(-18, 18), delay: Math.random() * 0.5, a: 0, dx: 0, dy: 0, vx: 0, vy: 0, lit: 0 })
+      }))
+    })
+
+    let unit = 6, W = 0, H = 0, dpr = 1
+    let t0 = 0, started = false, raf = 0, running = false, last = 0
+    const mouse = { x: -1e4, y: -1e4 }
+    let timers = []
+
+    const measure = () => {
+      const base = probe.getBoundingClientRect().width || 6        // --pxh-size resolved to px
+      const avail = root.getBoundingClientRect().width || widest * base
+      unit = Math.max(2, Math.min(base, avail / widest))
+      W = Math.ceil(widest * unit + unit); H = Math.ceil(totalH * unit + unit)
+      dpr = Math.min(window.devicePixelRatio || 1, 2)
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr)
+      canvas.style.width = W + 'px'; canvas.style.height = H + 'px'
+    }
+
+    const pathPx = (list) => {
+      const r = unit * 0.14
+      ctx.beginPath()
+      for (const p of list) {
+        const left = 1 - (p.e || 0)
+        const x = (p.hx + 0.56 + p.dx + p.ox * left) * unit
+        const y = (p.hy + 0.56 + p.dy + p.oy * left) * unit
+        const s = unit * 0.88
+        if (ctx.roundRect) ctx.roundRect(x, y, s, s, r); else ctx.rect(x, y, s, s)
+      }
+    }
+
+    const draw = () => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.clearRect(0, 0, W, H)
+      const normal = [], lit = []
+      for (const p of P) { if (p.a <= 0.01) continue; (p.lit ? lit : normal).push(p) }
+      // fade by drawing opacity buckets would cost more than it is worth: use the average and keep the rest solid
+      ctx.globalAlpha = 1
+      ctx.fillStyle = color; pathPx(normal); ctx.fill()
+      ctx.fillStyle = accent; pathPx(lit); ctx.fill()
+    }
+
+    const rad = 3.4
+    const tick = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now
+      const t = (now - t0) / 1000
+      let busy = false
+      const m = canvas.getBoundingClientRect()
+      const mx = (mouse.x - m.left) / unit - 0.5, my = (mouse.y - m.top) / unit - 0.5
+      for (const p of P) {
+        // assemble: ease from the scattered offset to home
+        const k = (t - p.delay) / 1.0
+        p.e = k <= 0 ? 0 : k >= 1 ? 1 : easeOut(k)
+        p.a = k <= 0 ? 0 : 1
+        if (p.e < 1) busy = true
+        // step aside from the pointer, spring back
+        let tx = 0, ty = 0
+        if (repel && p.e >= 1) {
+          const ddx = p.hx + 0.44 - mx, ddy = p.hy + 0.44 - my, d = Math.hypot(ddx, ddy)
+          if (d < rad) { const f = (1 - d / rad) * 1.5; tx = (ddx / d || 0) * f; ty = (ddy / d || -1) * f }
+        }
+        p.vx += ((tx - p.dx) * 220 - p.vx * 14) * dt; p.vy += ((ty - p.dy) * 220 - p.vy * 14) * dt
+        p.dx += p.vx * dt; p.dy += p.vy * dt
+        if (Math.abs(p.vx) > 0.01 || Math.abs(p.vy) > 0.01 || Math.abs(tx - p.dx) > 0.005 || Math.abs(ty - p.dy) > 0.005) busy = true
+      }
+      draw()
+      if (busy) raf = requestAnimationFrame(tick); else { running = false; raf = 0 }
+    }
+    const kick = () => { if (running || reduced) return; running = true; last = performance.now(); raf = requestAnimationFrame(tick) }
+
+    const begin = () => { if (started) return; started = true; t0 = performance.now(); kick() }
+
+    // reduced motion: draw the finished headline once, no motion
+    const drawStatic = () => { for (const p of P) { p.e = 1; p.a = 1 } draw() }
+
+    measure()
+    if (reduced || assemble === 'none') { drawStatic(); started = true } else { for (const p of P) p.a = 0 }
+
+    let io = null, f1 = 0, f2 = 0
+    if (!reduced && assemble === 'load') { f1 = requestAnimationFrame(() => { f2 = requestAnimationFrame(begin) }) }       // after first paint
+    else if (!reduced && assemble === 'view') { io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { io.disconnect(); begin() } }, { threshold: 0.2 }); io.observe(root) }
+
+    // a few pixels catch the accent now and then
+    const flash = () => {
+      const picks = []
+      for (let i = 0; i < 5; i++) picks.push(P[(Math.random() * P.length) | 0])
+      picks.forEach((p, i) => {
+        timers.push(setTimeout(() => { p.lit = 1; kick(); draw() }, i * 90))
+        timers.push(setTimeout(() => { p.lit = 0; draw() }, 900 + i * 90))
       })
+      timers.push(setTimeout(flash, rand(1800, 3200)))
     }
-    const onMove = (e) => {
-      if (e.pointerType !== 'mouse') return
-      last = { x: e.clientX, y: e.clientY }
-      if (!pending) pending = requestAnimationFrame(push)
-    }
-    const onLeave = () => {
-      last = { x: -1e4, y: -1e4 }
-      if (!pending) pending = requestAnimationFrame(push)
-    }
-    if (repel) {
-      root.addEventListener('pointermove', onMove)
-      root.addEventListener('pointerleave', onLeave)
-    }
+    if (shimmer && !reduced) timers.push(setTimeout(flash, 2600))
+
+    const onMove = (e) => { if (e.pointerType !== 'mouse') return; mouse.x = e.clientX; mouse.y = e.clientY; kick() }
+    const onLeave = () => { mouse.x = -1e4; mouse.y = -1e4; kick() }
+    if (repel && !reduced) { root.addEventListener('pointermove', onMove); root.addEventListener('pointerleave', onLeave) }
+    const ro = new ResizeObserver(() => { measure(); if (!running) { if (started) { for (const p of P) { if (p.a > 0) p.e = 1 } } draw() } })
+    ro.observe(root)
+
     return () => {
-      cancelAnimationFrame(pending)
-      root.removeEventListener('pointermove', onMove)
-      root.removeEventListener('pointerleave', onLeave)
-      ctx.revert()
+      cancelAnimationFrame(raf); cancelAnimationFrame(f1); cancelAnimationFrame(f2)
+      timers.forEach(clearTimeout); io && io.disconnect(); ro.disconnect()
+      root.removeEventListener('pointermove', onMove); root.removeEventListener('pointerleave', onLeave)
     }
-  }, [reduced, key, assemble, repel, shimmer])
+  }, [reduced, key, assemble, repel, shimmer, align, color, accent])
 
   return (
     <Tag
       ref={rootRef}
       className={'pxh-root' + (className ? ' ' + className : '')}
       data-align={align}
-      style={{ '--pxh-size': pixelSize, '--pxh-color': color, '--pxh-accent': accent }}
+      style={{ '--pxh-size': pixelSize, display: 'block', width: '100%', margin: 0, padding: 0, lineHeight: 0, textAlign: align === 'left' ? 'left' : 'center', position: 'relative' }}
     >
-      <style>{PXH_CSS}</style>
-      <span className="pxh-sr">{lines.join('. ')}</span>
-      {lines.map((line, i) => (
-        <PixelLine key={i + line} text={line} maxWidth={widest} />
-      ))}
+      <span className="pxh-sr" style={{ position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>{lines.join('. ')}</span>
+      <span ref={probeRef} aria-hidden="true" style={{ display: 'block', width: 'var(--pxh-size)', height: 0, visibility: 'hidden' }} />
+      <canvas ref={canvasRef} aria-hidden="true" style={{ display: 'inline-block', maxWidth: '100%' }} />
     </Tag>
   )
 }
-
-// No drop shadow here: the original's dark glow is for black backgrounds and would smudge a light page.
-const PXH_CSS = `
-.pxh-root{display:flex;flex-direction:column;align-items:center;gap:calc(var(--pxh-size) * 2.1);margin:0;padding:0;width:100%;container-type:inline-size;color:var(--pxh-color);fill:currentColor;cursor:default}
-.pxh-root[data-align="left"]{align-items:flex-start}
-.pxh-root :where(svg){display:block;max-width:none}
-.pxh-line{height:auto;overflow:visible;width:min(calc(var(--pxh-size) * var(--w)),calc(100cqi * var(--w) / var(--wmax)))}
-.pxh-px{transition:fill .7s ease}
-.pxh-px.is-lit{fill:var(--pxh-accent);transition:fill .25s ease}
-.pxh-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-@media (prefers-reduced-motion:reduce){
-.pxh-px{transition:none}
-}
-`
