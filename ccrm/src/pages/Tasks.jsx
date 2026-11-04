@@ -172,7 +172,7 @@ export default function Tasks() {
       {/* Create Task Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
               <h2 className="text-base font-bold text-gray-900">Create New Task</h2>
               <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -182,7 +182,7 @@ export default function Tasks() {
             
             <form onSubmit={handleCreate} className="p-6 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Task Title *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Task Title *</label>
                 <input
                   type="text"
                   required
@@ -195,7 +195,7 @@ export default function Tasks() {
               
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Task Type</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Task Type</label>
                   <select
                     value={newTask.type}
                     onChange={e => setNewTask(p => ({ ...p, type: e.target.value }))}
@@ -209,7 +209,7 @@ export default function Tasks() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Priority</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Priority</label>
                   <select
                     value={newTask.priority}
                     onChange={e => setNewTask(p => ({ ...p, priority: e.target.value }))}
@@ -223,7 +223,7 @@ export default function Tasks() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Due Date &amp; Time *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Due Date &amp; Time *</label>
                 <input
                   type="datetime-local"
                   required
@@ -235,7 +235,7 @@ export default function Tasks() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Related Lead</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Related Lead</label>
                   <select
                     value={newTask.lead}
                     onChange={e => setNewTask(p => ({ ...p, lead: e.target.value }))}
@@ -248,7 +248,7 @@ export default function Tasks() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Assignee Counselor</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Assignee Counselor</label>
                   <select
                     value={newTask.assignee}
                     onChange={e => setNewTask(p => ({ ...p, assignee: e.target.value }))}
