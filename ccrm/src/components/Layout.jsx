@@ -51,7 +51,7 @@ export default function Layout({ onLogout, user }) {
       <Sidebar
         onLogout={onLogout}
         user={user}
-        expanded={isMobile ? true : sidebarOpen}
+        expanded={true}
         isMobile={isMobile}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -76,7 +76,7 @@ export default function Layout({ onLogout, user }) {
 
       <main
         className={`pt-14 pb-24 min-h-screen transition-[margin] duration-200 ${
-          isMobile ? 'ml-0' : sidebarOpen ? 'ml-64' : 'ml-16'
+          isMobile ? 'ml-0' : sidebarOpen ? 'ml-64' : 'ml-0'
         }`}
       >
         <Outlet />
