@@ -13,5 +13,5 @@ Card.Header = function CardHeader({ children, className = '' }) {
 }
 
 Card.Title = function CardTitle({ children, className = '' }) {
-  return <h2 className={`font-semibold text-gray-800 text-sm ${className}`}>{children}</h2>
+  return <h2 className={`font-semibold text-gray-900 text-sm ${className}`}>{children}</h2>
 }
