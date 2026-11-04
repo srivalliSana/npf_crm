@@ -68,6 +68,39 @@ const CAMPUSES = [
   { name: 'Balasore', state: 'Odisha', emoji: '🚀', desc: 'Growing tech campus. Close to DRDO research corridor.' },
 ]
 
+
+// Parallax: any element with data-speed (vertical) and/or data-x (horizontal) drifts against the scroll.
+// Only transforms are changed, work is done once per frame, off-screen items are skipped, and it is
+// switched off entirely for people who prefer reduced motion.
+function useParallax(deps) {
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const els = Array.from(document.querySelectorAll('[data-speed], [data-x]'))
+    if (!els.length) return
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const vh = window.innerHeight
+      const small = window.innerWidth < 768 ? 0.5 : 1
+      for (const el of els) {
+        const host = el.parentElement
+        if (!host) continue
+        const r = host.getBoundingClientRect()
+        if (r.bottom < -200 || r.top > vh + 200) continue
+        const d = (r.top + r.height / 2) - vh / 2          // distance of the host from the screen centre
+        const y = -d * (parseFloat(el.dataset.speed || '0')) * small
+        const x = -d * (parseFloat(el.dataset.x || '0')) * small
+        el.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0)'
+      }
+    }
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update) }
+    update()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll) }
+  }, [deps])
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PublicInquiry() {
   const [navOpen, setNavOpen]     = useState(false)
@@ -83,6 +116,8 @@ export default function PublicInquiry() {
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  useParallax(submitted)
 
   const validate = () => {
     const e = {}
@@ -273,41 +308,34 @@ export default function PublicInquiry() {
   }
 
   return (
-    <div className="min-h-screen bg-white font-sans">
+    <div className="min-h-screen bg-white font-sans overflow-x-hidden">
 
       {/* ══════════════════════ NAVBAR ══════════════════════ */}
       <nav className="fixed top-0 inset-x-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
           <div className="flex items-center justify-between h-20">
-            <a href="#" className="flex items-center" aria-label="Centurion University home">
+            <a href="#top" className="flex items-center" aria-label="Centurion University home">
               <img src="/logo.png" alt="Centurion University of Technology and Management" className="h-[68px] w-auto" />
             </a>
-
             <div className="hidden md:flex items-center gap-8">
               {NAV_LINKS.map(link => (
-                <a key={link.label} href={link.href} className="text-[15px] font-medium text-gray-700 hover:text-primary-500 transition-colors">
-                  {link.label}
-                </a>
+                <a key={link.label} href={link.href} className="text-[15px] font-medium text-gray-700 hover:text-primary-500 transition-colors">{link.label}</a>
               ))}
             </div>
-
             <div className="hidden md:flex items-center gap-3">
               <a href="/login" className="text-[15px] font-medium px-4 py-2 text-gray-700 hover:text-primary-500 transition-colors">Login</a>
               <a href="#apply" className="text-[15px] font-semibold px-5 py-2.5 bg-primary-500 text-white hover:bg-primary-600 transition-colors">Apply now</a>
             </div>
-
             <button onClick={() => setNavOpen(!navOpen)} aria-label="Menu" className="md:hidden p-2 text-gray-700">
               {navOpen ? <X size={22}/> : <Menu size={22}/>}
             </button>
           </div>
         </div>
-
         {navOpen && (
           <div className="md:hidden bg-white border-t border-gray-200">
             <div className="px-5 py-4 space-y-1">
               {NAV_LINKS.map(link => (
-                <a key={link.label} href={link.href} onClick={() => setNavOpen(false)}
-                  className="flex items-center gap-2 py-2.5 text-[15px] font-medium text-gray-700 hover:text-primary-500">
+                <a key={link.label} href={link.href} onClick={() => setNavOpen(false)} className="flex items-center gap-2 py-2.5 text-[15px] font-medium text-gray-700 hover:text-primary-500">
                   <ChevronRight size={14}/> {link.label}
                 </a>
               ))}
@@ -321,42 +349,33 @@ export default function PublicInquiry() {
       </nav>
 
       {/* ══════════════════════ HERO ══════════════════════ */}
-      <section className="pt-20 bg-gray-50">
-        <div className="grid lg:grid-cols-2 lg:min-h-[min(820px,calc(100vh-5rem))]">
-          {/* Left: what and why */}
-          <div className="flex items-center py-14 lg:py-20" style={{ paddingLeft: 'max(20px, calc((100vw - 1280px) / 2 + 32px))', paddingRight: 'clamp(20px, 4vw, 64px)' }}>
-            <div className="w-full max-w-[640px]">
-              <span className="block w-20 h-2 bg-accent-500 mb-7" aria-hidden="true" />
-              <h1 className="text-[clamp(40px,5.4vw,76px)] font-semibold text-primary-900 leading-[1.02] tracking-[-0.03em]">
-                Study at <span className="text-primary-500">Centurion University.</span>
-              </h1>
-              <p className="text-gray-600 text-[clamp(17px,1.4vw,21px)] leading-relaxed mt-6 max-w-[34em]">
-                CUEE 2026 admissions are open. NAAC A+ accredited, with more than 100 programmes across four campuses.
-              </p>
+      <header id="top" className="relative bg-primary-500 pt-20 overflow-hidden">
+        {/* parallax layers: the emblem drifts slowly behind, a gold bar drifts the other way */}
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+          <img data-speed="0.18" src="/emblem-512.png" alt="" className="absolute -right-24 top-10 w-[640px] max-w-none opacity-[0.10] will-change-transform" />
+        </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-9">
-                {STATS.map(stat => (
-                  <div key={stat.label} className="bg-white border border-gray-200 px-3.5 py-4">
-                    <div className="text-[22px] font-semibold text-primary-500 tabular-nums leading-none whitespace-nowrap">{stat.value}</div>
-                    <div className="text-gray-600 text-sm mt-2">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap gap-3 mt-9">
-                <a href="#apply" className="inline-flex items-center gap-2 bg-primary-500 text-white font-semibold text-base px-7 py-3.5 hover:bg-primary-600 transition-colors">
-                  Apply now <ArrowRight size={16}/>
-                </a>
-                <a href="#programs" className="inline-flex items-center gap-2 border border-gray-300 bg-white text-gray-900 font-medium text-base px-7 py-3.5 hover:bg-gray-100 transition-colors">
-                  See programmes
-                </a>
-              </div>
+        <div className="relative max-w-7xl mx-auto px-5 lg:px-8 pt-16 pb-36 lg:pb-44 grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-16 items-start">
+          <div>
+            <p className="text-accent-400 font-semibold text-base mb-5">CUEE 2026 admissions are open</p>
+            <h1 className="text-[clamp(42px,5.6vw,80px)] font-semibold text-white leading-[1.02] tracking-[-0.03em]">
+              Study at Centurion University.
+            </h1>
+            <p className="text-white/85 text-[clamp(17px,1.4vw,21px)] leading-relaxed mt-6 max-w-[34em]">
+              NAAC A+ accredited, with more than 100 programmes across four campuses.
+            </p>
+            <div className="flex flex-wrap gap-3 mt-9">
+              <a href="#apply" className="inline-flex items-center gap-2 bg-accent-500 text-primary-900 font-semibold text-base px-7 py-3.5 hover:bg-accent-400 transition-colors">
+                Apply now <ArrowRight size={16}/>
+              </a>
+              <a href="#programs" className="inline-flex items-center gap-2 border border-white/50 text-white font-medium text-base px-7 py-3.5 hover:bg-white/10 transition-colors">
+                See programmes
+              </a>
             </div>
           </div>
 
-          {/* Right: the form, on the brand colour */}
-          <div id="apply" className="bg-primary-500 flex items-center py-12 lg:py-16" style={{ paddingLeft: 'clamp(20px, 4vw, 64px)', paddingRight: 'max(20px, calc((100vw - 1280px) / 2 + 32px))' }}>
-            <div className="w-full max-w-[560px]">
+          <div id="apply" className="scroll-mt-24" data-lift>
+            <div data-speed="0.05">
               {formCard}
               <div className="mt-4">
                 <a href="/student-portal" className="inline-flex items-center gap-1.5 text-white hover:underline text-sm">
@@ -366,45 +385,74 @@ export default function PublicInquiry() {
             </div>
           </div>
         </div>
-      </section>
+      </header>
+
+      {/* numbers overlap the hero's edge */}
+      <div className="relative z-10 max-w-7xl mx-auto px-5 lg:px-8 -mt-24 lg:-mt-28">
+        <div data-speed="0.08" className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-gray-200 border border-gray-200 lg:w-[calc(50%+2rem)] shadow-[0_8px_30px_rgba(1,46,57,0.18)]">
+          {STATS.map(stat => (
+            <div key={stat.label} className="bg-white px-6 py-6">
+              <div className="text-[30px] font-semibold text-primary-500 tabular-nums leading-none whitespace-nowrap">{stat.value}</div>
+              <div className="text-gray-600 text-sm mt-2">{stat.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* ══════════════════════ PROGRAMS ══════════════════════ */}
-      <section id="programs" className="py-28 bg-white">
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 grid lg:grid-cols-[1fr_1.6fr] gap-16">
-          <div>
-            <h2 className="text-4xl md:text-5xl font-medium text-gray-900 tracking-tight leading-[1.05] mb-5">Popular programmes</h2>
-            <p className="text-gray-600 text-lg leading-relaxed">Undergraduate, postgraduate and research programmes across engineering, management, agriculture and the sciences.</p>
-            <a href="#apply" className="inline-flex items-center gap-2 text-gray-900 font-semibold text-base mt-8 hover:underline">
-              Apply to any programme <ArrowRight size={16}/>
-            </a>
+      <section id="programs" className="scroll-mt-20 py-28 lg:py-36 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8">
+          <div className="max-w-2xl">
+            <h2 className="text-4xl md:text-5xl font-semibold text-primary-900 tracking-tight leading-[1.05]">Popular programmes</h2>
+            <p className="text-gray-600 text-lg leading-relaxed mt-5">Undergraduate, postgraduate and research programmes across engineering, management, agriculture and the sciences.</p>
           </div>
-
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="mt-14 grid grid-cols-2 lg:grid-cols-4 gap-4 lg:pb-16">
             {PROGRAMS.map((prog, i) => (
-              <a key={i} href="#apply"
-                className="bg-gray-100 hover:bg-gray-200 rounded-lg p-6 transition-colors flex flex-col justify-between min-h-[120px]">
-                <div className="font-medium text-gray-900 text-lg">{prog.name}</div>
-                <div className="flex items-center justify-between text-sm text-gray-600 mt-6">
-                  <span>{prog.duration}</span>
-                  {prog.tag && <span className="text-gray-900 font-medium">{prog.tag}</span>}
-                </div>
-              </a>
+              <div key={i} className="relative">
+                <a href="#apply" data-speed={i % 2 === 0 ? '0.05' : '-0.05'}
+                  className="block bg-white border border-gray-200 hover:border-primary-500 p-6 min-h-[150px] transition-colors will-change-transform">
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>{prog.duration}</span>
+                    {prog.tag ? <span className="text-accent-700 font-semibold">{prog.tag}</span> : null}
+                  </div>
+                  <div className="font-semibold text-primary-900 text-xl leading-snug mt-6">{prog.name}</div>
+                </a>
+              </div>
             ))}
           </div>
+          <a href="#apply" className="inline-flex items-center gap-2 text-primary-500 font-semibold text-base mt-10 hover:underline">
+            Apply to any programme <ArrowRight size={16}/>
+          </a>
         </div>
       </section>
 
-      {/* ══════════════════════ WHY CUTM ══════════════════════ */}
-      <section id="why" className="py-28 bg-gray-100">
-        <div className="max-w-7xl mx-auto px-5 lg:px-8">
-          <h2 className="text-4xl md:text-5xl font-medium text-gray-900 tracking-tight leading-[1.05] mb-14 max-w-2xl">Why students choose CUTM</h2>
+      {/* ══════════════════════ TAGLINE BAND ══════════════════════ */}
+      <div className="bg-accent-500 overflow-hidden py-8" aria-hidden="true">
+        <div className="relative">
+          <p data-x="-0.35" className="whitespace-nowrap text-[clamp(40px,7vw,104px)] font-semibold text-primary-900 tracking-tight leading-none will-change-transform pl-[10vw]">
+            Shaping Lives… Empowering Communities… Shaping Lives… Empowering Communities…
+          </p>
+        </div>
+      </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-12 gap-y-14">
-            {FEATURES.map((feature, i) => (
-              <div key={i}>
-                <feature.icon size={22} className="text-gray-900 mb-4" strokeWidth={1.6}/>
-                <h3 className="font-medium text-gray-900 text-xl mb-2">{feature.title}</h3>
-                <p className="text-gray-600 text-base leading-relaxed">{feature.desc}</p>
+      {/* ══════════════════════ WHY CUTM ══════════════════════ */}
+      <section id="why" className="scroll-mt-20 py-28 lg:py-36 bg-white">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 grid lg:grid-cols-[1fr_1.5fr] gap-14 lg:gap-24">
+          <div className="lg:sticky lg:top-32 self-start">
+            <h2 className="text-4xl md:text-5xl font-semibold text-primary-900 tracking-tight leading-[1.05]">Why students choose CUTM</h2>
+            <p className="text-gray-600 text-lg leading-relaxed mt-5">From research to placement, a university built around what happens after the degree.</p>
+            <a href="#apply" className="inline-flex items-center gap-2 bg-primary-500 text-white font-semibold text-base px-7 py-3.5 mt-8 hover:bg-primary-600 transition-colors">
+              Apply now <ArrowRight size={16}/>
+            </a>
+          </div>
+          <div className="divide-y divide-gray-200 border-y border-gray-200">
+            {FEATURES.map((f, i) => (
+              <div key={i} className="grid grid-cols-[auto_1fr] gap-5 py-8">
+                <f.icon size={26} className="text-primary-500 mt-1" strokeWidth={1.6}/>
+                <div>
+                  <h3 className="font-semibold text-primary-900 text-xl">{f.title}</h3>
+                  <p className="text-gray-600 text-base leading-relaxed mt-2 max-w-xl">{f.desc}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -412,17 +460,23 @@ export default function PublicInquiry() {
       </section>
 
       {/* ══════════════════════ CAMPUSES ══════════════════════ */}
-      <section id="campuses" className="py-28 bg-primary-500">
-        <div className="max-w-7xl mx-auto px-5 lg:px-8">
-          <h2 className="text-4xl md:text-5xl font-medium text-white tracking-tight leading-[1.05] mb-4 max-w-2xl">Four campuses across Odisha and Andhra Pradesh</h2>
-          <p className="text-white/70 text-lg mb-14 max-w-xl">Study at the campus closest to the programme you want.</p>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <section id="campuses" className="scroll-mt-20 relative py-28 lg:py-36 bg-primary-900 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+          <img data-speed="-0.2" src="/emblem-512.png" alt="" className="absolute -left-40 top-0 w-[700px] max-w-none opacity-[0.07] will-change-transform" />
+        </div>
+        <div className="relative max-w-7xl mx-auto px-5 lg:px-8">
+          <div className="max-w-2xl">
+            <h2 className="text-4xl md:text-5xl font-semibold text-white tracking-tight leading-[1.05]">Four campuses across Odisha and Andhra Pradesh</h2>
+            <p className="text-white/75 text-lg mt-5">Study at the campus closest to the programme you want.</p>
+          </div>
+          <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:pb-14">
             {CAMPUSES.map((campus, i) => (
-              <div key={i} className="bg-white/10 rounded-lg p-6">
-                <h3 className="font-medium text-white text-xl mb-1">{campus.name}</h3>
-                <p className="text-white/70 text-sm mb-4">{campus.state}</p>
-                <p className="text-white/80 text-base leading-relaxed">{campus.desc}</p>
+              <div key={i} className="relative">
+                <div data-speed={i % 2 === 0 ? '0.06' : '-0.06'} className="bg-white/10 border border-white/15 p-6 min-h-[220px] will-change-transform">
+                  <h3 className="font-semibold text-white text-2xl">{campus.name}</h3>
+                  <p className="text-accent-400 text-sm font-medium mt-1">{campus.state}</p>
+                  <p className="text-white/80 text-base leading-relaxed mt-5">{campus.desc}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -433,9 +487,9 @@ export default function PublicInquiry() {
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
           <p className="text-base text-gray-600 mb-6">Recognised and accredited by</p>
-          <div className="flex flex-wrap gap-x-12 gap-y-4">
+          <div className="flex flex-wrap gap-x-14 gap-y-4">
             {['NAAC A+', 'NBA', 'UGC', 'AICTE', 'ICAR', 'NIRF'].map(acc => (
-              <span key={acc} className="text-3xl font-medium text-gray-900 tracking-tight">{acc}</span>
+              <span key={acc} className="text-3xl font-semibold text-primary-900 tracking-tight">{acc}</span>
             ))}
           </div>
         </div>
@@ -444,16 +498,12 @@ export default function PublicInquiry() {
       {/* ══════════════════════ FINAL CTA ══════════════════════ */}
       <section className="py-24 bg-accent-500">
         <div className="max-w-7xl mx-auto px-5 lg:px-8 grid lg:grid-cols-[1.4fr_1fr] gap-12 items-end">
-          <h2 className="text-5xl md:text-6xl font-semibold text-primary-900 tracking-tight leading-[1.02]">
-            Ready to start? Applying is free.
-          </h2>
+          <h2 className="text-5xl md:text-6xl font-semibold text-primary-900 tracking-tight leading-[1.02]">Ready to start? Applying is free.</h2>
           <div className="flex flex-col sm:flex-row lg:flex-col gap-3">
-            <a href="#apply"
-              className="inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 text-white font-semibold px-8 py-4 rounded-md transition text-base">
+            <a href="#apply" className="inline-flex items-center justify-center gap-2 bg-primary-900 hover:bg-primary-800 text-white font-semibold px-8 py-4 transition-colors text-base">
               Apply now <ArrowRight size={18}/>
             </a>
-            <a href="tel:+917065569969"
-              className="inline-flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-900 font-semibold px-8 py-4 rounded-md transition text-base">
+            <a href="tel:+917065569969" className="inline-flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-primary-900 font-semibold px-8 py-4 transition-colors text-base">
               <Phone size={18}/> Call admissions
             </a>
           </div>
