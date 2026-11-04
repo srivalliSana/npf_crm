@@ -171,7 +171,7 @@ export default function DatePicker({
             <div className="grid grid-cols-4 gap-1.5 py-1 max-h-[17rem] overflow-y-auto pr-0.5">
               {years.map(y => (
                 <button key={y} type="button" ref={y === view.y ? yearRef : null} onClick={() => { setView(v => ({ ...v, y })); setMode('days') }}
-                  className={`h-10 rounded-md text-[14px] tabular-nums transition-colors ${view.y === y ? 'bg-primary-500 text-white font-medium' : y === today.getFullYear() ? 'border border-gray-900 text-gray-900 hover:bg-gray-100' : 'text-gray-900 hover:bg-gray-100'}`}>{y}</button>
+                  className={`h-10 rounded-md text-[14px] tabular-nums transition-colors ${view.y === y ? 'bg-primary-500 text-white font-medium' : y === today.getFullYear() ? 'border border-primary-600 text-gray-900 hover:bg-gray-100' : 'text-gray-900 hover:bg-gray-100'}`}>{y}</button>
               ))}
             </div>
           )}
@@ -190,7 +190,7 @@ export default function DatePicker({
                       onClick={() => pickDay(c.y, c.m, c.d)}
                       aria-label={`${c.d} ${MONTHS[c.m]} ${c.y}`} aria-pressed={!!s}
                       className={`h-9 w-full flex items-center justify-center rounded-md text-[13px] tabular-nums transition-colors disabled:opacity-30 disabled:cursor-not-allowed
-                        ${s ? 'bg-primary-500 text-white font-medium' : isToday(c) ? 'border border-gray-900 text-gray-900 font-medium hover:bg-gray-100' : c.other ? 'text-gray-400 hover:bg-gray-100' : 'text-gray-900 hover:bg-gray-100'}`}
+                        ${s ? 'bg-primary-500 text-white font-medium' : isToday(c) ? 'border border-primary-600 text-gray-900 font-medium hover:bg-gray-100' : c.other ? 'text-gray-400 hover:bg-gray-100' : 'text-gray-900 hover:bg-gray-100'}`}
                     >{c.d}</button>
                   )
                 })}
