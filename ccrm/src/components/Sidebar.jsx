@@ -181,10 +181,8 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
         className="w-full flex items-center gap-3 px-4 h-14 cursor-pointer overflow-hidden flex-shrink-0"
         onClick={() => navigate('/dashboard')}
       >
-        <div className="w-8 h-8 rounded-md bg-primary-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
-          {brand.logoUrl
-            ? <img src={brand.logoUrl} alt="logo" className="w-full h-full object-contain" />
-            : <span className="text-white font-bold text-lg leading-none">{brand.logoText || 'C'}</span>}
+        <div className="w-9 h-9 flex items-center justify-center flex-shrink-0 overflow-hidden">
+          <img src={brand.logoUrl || '/emblem-192.png'} alt="logo" className="w-full h-full object-contain" />
         </div>
         <div className={`overflow-hidden transition-opacity duration-200 flex-1 ${expanded ? 'opacity-100' : 'opacity-0'}`}>
           <div className="text-gray-900 font-bold text-sm leading-tight whitespace-nowrap">{brand.shortName || 'CCRM'}</div>
