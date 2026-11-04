@@ -104,11 +104,11 @@ export default function QueryManagement() {
           { label: 'Resolved',        value: resolved,   color: 'text-green-600',  bg: 'bg-green-50',  icon: CheckCircle  },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center`}>
+            <div className={`w-12 h-12 flex items-center justify-center`}>
               <s.icon size={22} className={s.color} />
             </div>
             <div>
-              <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
+              <div className={`text-2xl font-semibold ${s.color}`}>{s.value}</div>
               <div className="text-xs text-gray-500">{s.label}</div>
             </div>
           </div>
@@ -204,7 +204,7 @@ export default function QueryManagement() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Update status</p>
+                <p className="text-xs font-semibold text-gray-500 mb-2">Update status</p>
                 <div className="flex gap-1.5 flex-wrap">
                   {['Open','In Progress','Resolved','Closed'].map(s => (
                     <button key={s}
@@ -217,7 +217,7 @@ export default function QueryManagement() {
               </div>
 
               <div className="pt-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Reply to Student</p>
+                <p className="text-xs font-semibold text-gray-500 mb-2">Reply to Student</p>
                 <textarea value={reply} onChange={e => setReply(e.target.value)}
                   rows={3} placeholder="Type your counselor reply here..."
                   className="w-full text-xs border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none font-medium" />
@@ -237,7 +237,7 @@ export default function QueryManagement() {
       {/* Create Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
               <h2 className="text-base font-bold text-gray-900">Create New Query</h2>
               <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600">
@@ -247,7 +247,7 @@ export default function QueryManagement() {
             
             <form onSubmit={handleCreateQuery} className="p-6 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Select Student *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Select Student *</label>
                 <select
                   value={newQuery.student}
                   onChange={e => setNewQuery(p => ({ ...p, student: e.target.value }))}
@@ -262,7 +262,7 @@ export default function QueryManagement() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Subject / Question *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Subject / Question *</label>
                 <input
                   type="text"
                   required
@@ -275,7 +275,7 @@ export default function QueryManagement() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Category</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Category</label>
                   <select
                     value={newQuery.category}
                     onChange={e => setNewQuery(p => ({ ...p, category: e.target.value }))}
@@ -287,7 +287,7 @@ export default function QueryManagement() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Priority</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Priority</label>
                   <select
                     value={newQuery.priority}
                     onChange={e => setNewQuery(p => ({ ...p, priority: e.target.value }))}
@@ -301,7 +301,7 @@ export default function QueryManagement() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Assign To Counselor</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Assign To Counselor</label>
                 <select
                   value={newQuery.assignee}
                   onChange={e => setNewQuery(p => ({ ...p, assignee: e.target.value }))}
