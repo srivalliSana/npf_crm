@@ -40,13 +40,13 @@
   .badge-accent  { @apply badge bg-accent-100 text-accent-700; }
   .badge-dot::before { content:''; @apply inline-block w-1.5 h-1.5 rounded-full mr-1.5 bg-current; }
   .card {
-    @apply bg-white rounded-xl border border-gray-200;
+    @apply bg-white rounded-xl border border-primary-100/80 shadow-[0_1px_2px_rgba(20,37,96,0.06)];
   }
   .sidebar-icon {
-    @apply flex flex-row items-center gap-3 w-[calc(100%-1rem)] mx-2 mb-0.5 px-3 py-1.5 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-200/60 cursor-pointer transition-colors duration-150 relative;
+    @apply flex flex-row items-center gap-3 w-[calc(100%-1rem)] mx-2 mb-0.5 px-3 py-1.5 rounded-md text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer transition-colors duration-150 relative;
   }
   .sidebar-icon.active {
-    @apply text-gray-900 bg-gray-200/70 font-medium;
+    @apply text-white bg-primary-500 font-medium;
   }
 }
 
