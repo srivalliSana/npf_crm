@@ -10,31 +10,32 @@ export default {
         // Softer, eye-friendly blue palette
         // primary-500 is the main brand colour (links, primary buttons)
         // primary-50/100 used for tints; very pale to reduce eye strain
-        primary: {   // Centurion crimson, from the emblem's red ring
-          50:  '#fdf3f3',
-          100: '#fbe1e2',
-          200: '#f6bcbe',
-          300: '#ee8b8e',
-          400: '#e1565b',
-          500: '#b01820',   // brand: buttons, active states, key surfaces
-          600: '#951319',
-          700: '#7a0f14',
-          800: '#5e0c10',
-          900: '#430a0d',
+        primary: {   // cobalt blue
+          50:  '#eef4ff',
+          100: '#dbe7ff',
+          200: '#bcd1ff',
+          300: '#8fb0ff',
+          400: '#5b86fb',
+          500: '#2f5fe8',
+          600: '#2349c4',
+          700: '#1c3a9c',
+          800: '#182f7a',
+          900: '#142560',
         },
+        navy: { 700: '#1b2a4a', 800: '#12203d', 900: '#0b1530', 950: '#070e22' },
         // the one data hue: today's series, the main bar, the current period
         data: { 500: '#1d5fbf', 100: '#dce8f8' },
-        accent: {   // gold, from the emblem's sun
-          50:  '#fffbeb',
-          100: '#fef3c7',
-          200: '#fde68a',
-          300: '#fcd34d',
-          400: '#f5c518',
-          500: '#e0a800',
-          600: '#b88400',
-          700: '#8a6200',
-          800: '#6b4c00',
-          900: '#4d3600',
+        accent: {   // warm amber highlight
+          50:  '#fff8eb',
+          100: '#ffecc7',
+          200: '#ffd88a',
+          300: '#ffc04d',
+          400: '#ffa71f',
+          500: '#f58a07',
+          600: '#d96a02',
+          700: '#b34e06',
+          800: '#903d0c',
+          900: '#76340d',
         },
         // AI / assistant accent — Campus One Neo's purple, used only for the
         // AI Assistant panel and its badges, never as a general-purpose color.
@@ -53,8 +54,8 @@ export default {
         // Soft page background — never pure white (reduces strain), and
         // deliberately deep enough that white cards visibly "float" above it.
         canvas: {
-          DEFAULT: '#f6f3f2',
-          warm:    '#faf8f7',
+          DEFAULT: '#eaeffa',
+          warm:    '#f3f6fd',
         },
         // Violet/indigo/purple are remapped to one steel scale so legacy class names stay valid
         purple: {
