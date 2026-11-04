@@ -138,3 +138,14 @@
   table.rt td[colspan] { display: block !important; text-align: center; }
   table.rt td > * { max-width: 100%; }
 }
+
+/* ── Full-height pipeline board (desktop/tablet) ─────────────────────────
+   While a board is showing, the page area is exactly one screen tall; the header and
+   filters keep their size and the board takes the rest. Only the columns scroll. */
+@media (min-width: 768px) {
+  html:has(body.board-fixed), body.board-fixed { overflow: hidden; height: 100%; }
+  body.board-fixed main { position: relative; height: 100vh; padding-bottom: 0 !important; overflow: hidden; contain: paint; }
+  body.board-fixed main > div { height: 100%; display: flex; flex-direction: column; min-height: 0; padding-bottom: 0.75rem; }
+  body.board-fixed main > div > * { flex-shrink: 0; }
+  body.board-fixed main > div > .md\:flex-1 { flex: 1 1 0%; min-height: 0; }
+}
