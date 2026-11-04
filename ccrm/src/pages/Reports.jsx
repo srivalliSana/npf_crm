@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useCcrm } from '../context/CcrmContext'
+import { KpiStrip } from '../components/ui'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -569,7 +570,7 @@ export default function Reports() {
                 { label: 'Enrolled',             value: enrolledCount, color: 'text-emerald-600',bg: 'bg-emerald-50'},
               ].map(card => (
                 <div key={card.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-center">
-                  <div className={`text-2xl font-extrabold ${card.color}`}>{card.value}</div>
+                  <div className={`text-2xl font-semibold ${card.color}`}>{card.value}</div>
                   <div className="text-xs text-gray-500 mt-0.5">{card.label}</div>
                   <div className={`w-full mt-2 ${card.bg} h-1.5 rounded-full`}>
                     <div className={`h-1.5 rounded-full ${card.color.replace('text','bg')}`}
@@ -731,7 +732,7 @@ export default function Reports() {
                   { label: 'Pred. Conv. Rate', value: `${predConvRate}%`, color: 'text-primary-600', bg: 'bg-primary-50', desc: 'Qualified → Application' },
                 ].map(c => (
                   <div key={c.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                    <div className={`text-2xl font-extrabold ${c.color}`}>{c.value}</div>
+                    <div className={`text-2xl font-semibold ${c.color}`}>{c.value}</div>
                     <div className="text-sm font-semibold text-gray-700 mt-0.5">{c.label}</div>
                     <div className="text-xs text-gray-400">{c.desc}</div>
                   </div>
@@ -809,7 +810,7 @@ export default function Reports() {
                           <td className="table-td font-mono text-xs text-gray-600">{l.mobile}</td>
                           <td className="table-td text-xs text-gray-500">{l.course || '—'}</td>
                           <td className="table-td"><span className="badge bg-yellow-100 text-yellow-700 text-[10px] font-bold">{l.stage}</span></td>
-                          <td className="table-td"><span className="text-sm font-extrabold text-red-500">{l.score}</span></td>
+                          <td className="table-td"><span className="text-sm font-semibold text-red-500">{l.score}</span></td>
                           <td className="table-td text-xs text-gray-500">{l.owner || 'Unassigned'}</td>
                           <td className="table-td">
                             <a href={`https://wa.me/91${l.mobile}`} target="_blank" rel="noopener noreferrer"
@@ -936,8 +937,8 @@ export default function Reports() {
 
       default:
         return (
-          <div className="flex flex-col items-center justify-center p-16 bg-white rounded-2xl border border-gray-200 shadow-sm text-center">
-            <div className="w-16 h-16 bg-blue-50/50 text-blue-500 rounded-2xl flex items-center justify-center mb-4 border border-blue-100">
+          <div className="flex flex-col items-center justify-center p-16 bg-white rounded-xl border border-gray-200 shadow-sm text-center">
+            <div className="w-16 h-16 bg-blue-50/50 text-blue-500 rounded-xl flex items-center justify-center mb-4 border border-blue-100">
               <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m-9 1V4a2 2 0 012-2h6l2 2h6a2 2 0 012 2v7m-18 0h18" />
               </svg>
@@ -974,26 +975,13 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[
-          { label: 'Total Leads',       value: totalLeads.toLocaleString(), change: '+18%', icon: Users,      color: 'text-blue-600',   bg: 'bg-blue-50'   },
-          { label: 'Applications',      value: totalApps.toLocaleString(), change: '+12%', icon: FileText,   color: 'text-orange-600', bg: 'bg-orange-50' },
-          { label: 'Enrollments',       value: enrolledCount.toLocaleString(),   change: '+8%',  icon: TrendingUp, color: 'text-green-600',  bg: 'bg-green-50'  },
-          { label: 'Gross Revenue',     value: `₹${(totalRevenue/100000).toFixed(1)}L`,  change: '+22%', icon: DollarSign, color: 'text-purple-600', bg: 'bg-purple-50' },
-        ].map(card => (
-          <div key={card.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className={`w-10 h-10 rounded-xl ${card.bg} flex items-center justify-center`}>
-                <card.icon size={20} className={card.color} />
-              </div>
-              <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full select-none">{card.change}</span>
-            </div>
-            <div className="text-2xl font-extrabold text-gray-900">{card.value}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{card.label}</div>
-          </div>
-        ))}
-      </div>
+      {/* KPI block — real figures only (the previous hard-coded +18% / +12% deltas were not computed from data) */}
+      <KpiStrip className="mb-6" items={[
+        { label: 'Total leads', value: totalLeads.toLocaleString() },
+        { label: 'Applications', value: totalApps.toLocaleString() },
+        { label: 'Enrollments', value: enrolledCount.toLocaleString() },
+        { label: 'Gross revenue', value: `₹${(totalRevenue/100000).toFixed(1)}L` },
+      ]} />
 
       {/* Report type tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
