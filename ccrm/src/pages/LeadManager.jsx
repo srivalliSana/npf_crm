@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Search, Download, RefreshCw, ChevronDown,
+  Search, Filter, Download, RefreshCw, ChevronDown,
   ChevronLeft, ChevronRight, MessageCircle, Phone,
   Plus, X, Save, Upload, AlertCircle,
   CheckCircle2, FileSpreadsheet, HelpCircle, Trash2,
@@ -760,6 +760,9 @@ export default function LeadManager() {
     ? tenantConfig.stages
     : ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success']
 
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+
   // Owner assign dropdowns → active users granted the relevant entity (by domain tab),
   // falling back to all counsellors if none are granted that entity.
   const assignDomain = activeFilter === 'cutm' ? 'CUTM' : activeFilter === 'cutmap' ? 'CUTMAP' : null
@@ -777,6 +780,11 @@ export default function LeadManager() {
       title="Lead Manager"
       action={(
         <>
+          <button type="button" onClick={() => setMoreActionsOpen(v => !v)} aria-expanded={moreActionsOpen}
+            className="md:hidden inline-flex items-center gap-1.5 text-xs font-semibold border border-gray-300 bg-white rounded-md px-3 py-2">
+            More {moreActionsOpen ? '▴' : '▾'}
+          </button>
+          <div className={`${moreActionsOpen ? 'flex' : 'hidden'} md:contents order-last md:order-none w-full flex-col items-stretch gap-2`}>
           <Button variant="secondary" size="sm" icon={Download} onClick={handleExport}>Export</Button>
           <Button variant="secondary" size="sm" icon={Upload} onClick={() => setShowBulkModal(true)}>Bulk Upload</Button>
           <Button variant="secondary" size="sm" icon={Phone} onClick={() => navigate('/call-outcomes')}>Call Outcomes</Button>
@@ -795,6 +803,7 @@ export default function LeadManager() {
           {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
             <Button variant="secondary" size="sm" icon={FileSpreadsheet} onClick={() => navigate('/workbook-import')}>Workbook Import</Button>
           )}
+          </div>
           <Button size="sm" icon={Plus} onClick={() => setShowAddModal(true)}>Add Lead</Button>
         </>
       )}
@@ -822,6 +831,11 @@ export default function LeadManager() {
               value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1) }}
               className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" />
           </div>
+          <button type="button" onClick={() => setFiltersOpen(v => !v)} aria-expanded={filtersOpen}
+            className="md:hidden inline-flex items-center gap-1.5 text-sm font-medium border border-gray-300 bg-white rounded-md px-3 py-2">
+            <Filter size={14} /> Filters{[filters.stage, filters.owner, filters.campaign, filters.state, filters.dateFrom, filters.dateTo].filter(Boolean).length ? ` (${[filters.stage, filters.owner, filters.campaign, filters.state, filters.dateFrom, filters.dateTo].filter(Boolean).length})` : ''}
+          </button>
+          <div className={`${filtersOpen ? 'flex' : 'hidden'} md:contents flex-wrap items-center gap-2 w-full`}>
           {[{label:'Stage', key:'stage', opts:stageOptions},{label:'Owner', key:'owner', opts:ownerOptions},{label:'Source', key:'campaign', opts:sourceOptions},{label:'State', key:'state', opts:stateOptions}].map(f => (
             <div key={f.key} className="relative">
               <select value={filters[f.key]} onChange={e => { setFilters(p => ({ ...p, [f.key]: e.target.value })); setCurrentPage(1) }}
@@ -832,7 +846,7 @@ export default function LeadManager() {
               <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           ))}
-          <div className="flex items-center gap-1 text-xs text-gray-500">
+          <div className="flex flex-wrap items-center gap-1 text-xs text-gray-500">
             <span className="ml-1">From</span>
             <input type="date" value={filters.dateFrom} onChange={e => { setFilters(p => ({ ...p, dateFrom: e.target.value })); setCurrentPage(1) }}
               className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400" />
@@ -843,6 +857,7 @@ export default function LeadManager() {
           <button onClick={() => { setFilters({ stage:'', owner:'', campaign:'', state:'', dateFrom:'', dateTo:'' }); setSearch('') }} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 flex items-center gap-1">
             <RefreshCw size={12} /> Reset
           </button>
+          </div>
         </div>
       </Card>
 
@@ -937,7 +952,79 @@ export default function LeadManager() {
           )}
         </div>
 
-        <div className="overflow-x-auto">
+      {/* Phone layout: one card per lead (the wide table below is for tablets and up). Same handlers, same rules. */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {!leadsLoading && pageData.map(lead => {
+            const colors = STAGE_COLORS[getStageColorName(lead.stage)] || STAGE_COLORS.blue
+            const score = lead.score || 0
+            const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
+            const ownsIt = lead.owner === currentUser?.name || lead.owner?.split(' ')[0] === currentUser?.name?.split(' ')[0]
+            const canDelete = isAdmin || (ownsIt && lead.stage === 'Untouched')
+            const open = !['Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage)
+            return (
+              <div key={lead.id} className={`p-4 border-l-4 ${colors.border}`}>
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" checked={selectedRows.includes(lead.id)} onChange={() => toggleRow(lead.id)}
+                    className="mt-1 w-5 h-5 rounded border-gray-300" aria-label={`Select ${lead.name}`} />
+                  <div className="min-w-0 flex-1">
+                    <button onClick={() => navigate(`/leads/${lead.id}`)} className="text-left text-base font-medium text-gray-900 leading-snug break-words">
+                      {lead.name}
+                    </button>
+                    <div className="text-[13px] text-gray-500 mt-0.5 tabular-nums">
+                      {lead.sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}{String(lead.id).padStart(4,'0')}
+                    </div>
+                  </div>
+                  <Badge variant={STAGE_COLOR_TO_VARIANT[getStageColorName(lead.stage)] || 'info'} dot>{stageLabel(lead.stage)}</Badge>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <a href={`tel:${lead.mobile}`} className="text-base text-gray-900 tabular-nums">{lead.mobile}</a>
+                  <div className="flex items-center gap-1">
+                    <a href={`https://wa.me/91${lead.mobile}`} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp"
+                      className="w-10 h-10 flex items-center justify-center rounded-md bg-gray-100 text-green-600"><MessageCircle size={18} /></a>
+                    <button onClick={() => setRcsLead(lead)} aria-label="Send RCS message"
+                      className="w-10 h-10 flex items-center justify-center rounded-md bg-gray-100 text-fuchsia-600"><Sparkles size={18} /></button>
+                    <button onClick={() => { setCallLead(lead); setCallOutcome('Called'); setCallNotes('') }} aria-label="Log call"
+                      className="w-10 h-10 flex items-center justify-center rounded-md bg-gray-100 text-blue-600"><Phone size={18} /></button>
+                    <button onClick={() => openEmail('single', lead)} aria-label="Email"
+                      className="w-10 h-10 flex items-center justify-center rounded-md bg-gray-100 text-amber-600"><Mail size={18} /></button>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-gray-600">
+                  {lead.source && <span>{lead.source}</span>}
+                  <span>{lead.owner || 'Unassigned'}</span>
+                  <span className="tabular-nums">Score <span className="font-medium text-gray-900">{score}</span> · {getQualCategory(score).label}</span>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {open && (
+                    <button onClick={() => navigate(`/leads/${lead.id}`)}
+                      className="px-3 py-2 rounded-md bg-green-100 text-green-700 text-[13px] font-semibold">✓ Interested</button>
+                  )}
+                  {!['Contacted','Follow Up','Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
+                    <button onClick={() => handleUnableToConnect(lead)}
+                      className="px-3 py-2 rounded-md bg-yellow-100 text-yellow-700 text-[13px] font-semibold">Unable to connect</button>
+                  )}
+                  {open && (
+                    <button onClick={() => { setNiLead(lead); setNiReason(''); setNiOther('') }}
+                      className="px-3 py-2 rounded-md bg-red-100 text-red-600 text-[13px] font-semibold">✗ Not interested</button>
+                  )}
+                  <button onClick={() => handleSchedule(lead)} aria-label="Schedule follow-up"
+                    className="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-[13px] font-semibold inline-flex items-center gap-1.5"><Calendar size={14} /> Follow-up</button>
+                  {canDelete && (
+                    <button onClick={() => setDeleteConfirm(lead.id)} aria-label="Delete lead"
+                      className="px-3 py-2 rounded-md bg-gray-100 text-gray-500 inline-flex items-center"><Trash2 size={14} /></button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          {leadsLoading && <p className="p-6 text-center text-sm text-gray-500">Loading leads…</p>}
+          {!leadsLoading && pageData.length === 0 && <p className="p-8 text-center text-sm text-gray-500">No leads found matching your criteria.</p>}
+        </div>
+
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full">
             <thead>
               <tr>
@@ -1711,7 +1798,7 @@ export default function LeadManager() {
               {bulkStep === 2 && previewData && (
                 <div className="space-y-5">
                   {/* Stats row */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="bg-info-50 border border-info-100 rounded-xl p-3 text-center">
                       <div className="text-xl font-bold text-info-700">{previewData.totalRows.toLocaleString()}</div>
                       <div className="text-xs text-info-500">Total Rows</div>
@@ -1845,7 +1932,7 @@ export default function LeadManager() {
                     <CheckCircle2 size={36} />
                   </div>
                   <h3 className="font-bold text-lg text-gray-800">Import Complete! 🎉</h3>
-                  <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xs mx-auto">
                     <div className="bg-success-50 rounded-xl p-3"><div className="text-xl font-bold text-success-700">{uploadResult.imported}</div><div className="text-xs text-success-500">Imported</div></div>
                     <div className="bg-warning-50 rounded-xl p-3"><div className="text-xl font-bold text-warning-700">{uploadResult.skipped}</div><div className="text-xs text-warning-500">Skipped</div></div>
                     <div className="bg-info-50 rounded-xl p-3"><div className="text-xl font-bold text-info-700">{uploadResult.updated}</div><div className="text-xs text-info-500">Updated</div></div>
