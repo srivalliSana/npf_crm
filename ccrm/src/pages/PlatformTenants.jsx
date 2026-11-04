@@ -240,7 +240,7 @@ export default function PlatformTenants() {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+          <thead className="bg-gray-50 text-xs text-gray-500">
             <tr>
               <th className="px-4 py-3 text-left">Organization</th>
               <th className="px-4 py-3 text-left">Slug</th>
@@ -294,7 +294,7 @@ export default function PlatformTenants() {
       {/* Add Tenant modal */}
       {showAdd && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">Add Tenant</h2>
               <button onClick={() => setShowAdd(false)}><X size={18} className="text-gray-400" /></button>
@@ -320,7 +320,7 @@ export default function PlatformTenants() {
       {/* Created — show credentials once */}
       {created && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-1">✅ {created.tenant.name} created</h2>
             <p className="text-sm text-gray-500 mb-4">Share these one-time credentials with the org admin. They log in at the normal login page.</p>
             <div className="bg-gray-50 rounded-lg p-3 text-sm font-mono space-y-1">
@@ -357,7 +357,7 @@ export default function PlatformTenants() {
             <Field label="Organization name" value={editForm.name}
               onChange={v => setEditForm(f => ({ ...f, name: v }))} placeholder="Acme University" />
             <div>
-              <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1">Plan</label>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Plan</label>
               <select value={editForm.plan} onChange={e => setEditForm(f => ({ ...f, plan: e.target.value }))}
                 className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400 capitalize">
                 {PLAN_OPTIONS.map(p => <option key={p} value={p} className="capitalize">{p}</option>)}
@@ -379,7 +379,7 @@ export default function PlatformTenants() {
           {/* Admin accounts */}
           <div className="pt-4 border-t border-gray-100">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+              <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
                 <User size={13} /> Admin Accounts
               </p>
               <button onClick={() => setShowNewAdmin(v => !v)}
@@ -392,20 +392,20 @@ export default function PlatformTenants() {
               <div className="bg-primary-50 border border-primary-200 rounded-xl p-3 mb-4 space-y-2.5">
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Name</label>
+                    <label className="block text-[10px] font-semibold text-gray-500 mb-1">Name</label>
                     <input value={newAdmin.name} onChange={e => setNewAdmin(f => ({ ...f, name: e.target.value }))}
                       placeholder="Jane Doe"
                       className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Email *</label>
+                    <label className="block text-[10px] font-semibold text-gray-500 mb-1">Email *</label>
                     <input value={newAdmin.email} onChange={e => setNewAdmin(f => ({ ...f, email: e.target.value }))}
                       placeholder="jane@org.edu"
                       className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Temp password (optional)</label>
+                  <label className="block text-[10px] font-semibold text-gray-500 mb-1">Temp password (optional)</label>
                   <input value={newAdmin.password} onChange={e => setNewAdmin(f => ({ ...f, password: e.target.value }))}
                     placeholder="Defaults to ChangeMe@123"
                     className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white font-mono" />
@@ -430,18 +430,18 @@ export default function PlatformTenants() {
                   <div key={a.id} className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2.5">
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Name</label>
+                        <label className="block text-[10px] font-semibold text-gray-500 mb-1">Name</label>
                         <input value={a.name} onChange={e => updateAdminField(a.id, 'name', e.target.value)}
                           className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white" />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Email</label>
+                        <label className="block text-[10px] font-semibold text-gray-500 mb-1">Email</label>
                         <input value={a.email} onChange={e => updateAdminField(a.id, 'email', e.target.value)}
                           className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white" />
                       </div>
                     </div>
                     <div>
-                      <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 flex items-center gap-1">
+                      <label className="text-[10px] font-semibold text-gray-500 mb-1 flex items-center gap-1">
                         <KeyRound size={10} /> New password (leave blank to keep current)
                       </label>
                       <input type="text" value={a.newPassword} onChange={e => updateAdminField(a.id, 'newPassword', e.target.value)}
@@ -456,7 +456,7 @@ export default function PlatformTenants() {
             {/* Promote an existing tenant user to Admin */}
             {tenantUsers.filter(u => u.role !== 'Admin').length > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-100">
-                <label className="text-[11px] font-semibold text-gray-500 uppercase mb-1.5 flex items-center gap-1">
+                <label className="text-[11px] font-semibold text-gray-500 mb-1.5 flex items-center gap-1">
                   <ArrowUpCircle size={12} /> Promote existing user to Admin
                 </label>
                 <div className="flex gap-2">
@@ -484,7 +484,7 @@ export default function PlatformTenants() {
 function Field({ label, value, onChange, placeholder }) {
   return (
     <div>
-      <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1">{label}</label>
+      <label className="block text-[11px] font-semibold text-gray-500 mb-1">{label}</label>
       <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400" />
     </div>
