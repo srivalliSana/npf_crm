@@ -227,6 +227,11 @@ export default function ApplicationDetails() {
   // offers a sane universal default course, so fall back to empty instead.
   const course = record.course || associatedApp?.course || ''
   const followup = record.followup || associatedLead?.followup || 'Next week'
+  const _leadName = associatedLead?.name || record?.name
+  const _latestTask = (prefix) => (tasks || [])
+    .filter(t => t.lead === _leadName && t.status !== 'Completed' && (t.title || '').startsWith(prefix))
+    .sort((a, b) => b.id - a.id)[0]
+  const scheduledInfo = { schedule: _latestTask('Call again')?.due, reminder: _latestTask('Reminder')?.due }
   const lastActive = record.lastActive || associatedLead?.lastActive || 'Today'
 
   const [activeTab, setActiveTab] = useState('Lead Details')
@@ -435,6 +440,29 @@ export default function ApplicationDetails() {
   // Scheduling States
   const studentEvents = events.filter(e => e.title.toLowerCase().includes(studentName.toLowerCase()))
   const [showAddEvent, setShowAddEvent] = useState(false)
+  const [followUpModal, setFollowUpModal] = useState(null) // 'schedule' | 'reminder' | null
+  const [followUpForm, setFollowUpForm] = useState({ when: '', note: '' })
+
+  const handleSaveFollowUp = async (e) => {
+    e.preventDefault()
+    if (!followUpForm.when) return
+    const d = new Date(followUpForm.when)
+    const pad = n => String(n).padStart(2, '0')
+    const h12 = d.getHours() % 12 || 12
+    const due = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(h12)}:${pad(d.getMinutes())} ${d.getHours() >= 12 ? 'PM' : 'AM'}`
+    const isReminder = followUpModal === 'reminder'
+    const who = associatedLead?.name || record?.name || 'lead'
+    const title = `${isReminder ? 'Reminder' : 'Call again'}: ${who}${followUpForm.note ? ' – ' + followUpForm.note : ''}`
+    const added = await addTask({
+      title, type: 'Call', priority: 'Medium', due, status: 'Pending',
+      assignee: associatedLead?.owner || record?.owner || '', lead: who,
+    })
+    if (added) {
+      setLocalTimeline(prev => [{ date: new Date().toLocaleString('en-IN', { hour12: true }), type: 'note', text: `${isReminder ? 'Reminder set' : 'Call rescheduled'} for ${due}` }, ...prev])
+      setFollowUpModal(null)
+      setFollowUpForm({ when: '', note: '' })
+    }
+  }
   const [eventForm, setEventForm] = useState({
     title: 'PI Interview – ' + studentName,
     date: new Date().toISOString().split('T')[0],
@@ -765,7 +793,7 @@ export default function ApplicationDetails() {
             <h3 className="text-sm font-semibold text-gray-700">Lead Journey</h3>
             <span className="text-xs text-gray-400 font-semibold">Current: <span className="text-primary-600">{activeCurrentStage}</span></span>
           </div>
-          <LeadJourney stage={activeCurrentStage} onSelect={(s) => handleStageClick(s)} />
+          <LeadJourney stage={activeCurrentStage} onSelect={(s) => handleStageClick(s)} onSchedule={(k) => setFollowUpModal(k)} scheduled={scheduledInfo} />
         </div>
       ) : (
       <div className="card p-5 mb-5">
@@ -1207,7 +1235,7 @@ export default function ApplicationDetails() {
                 <p className="text-xs text-gray-400 mb-0.5">Upcoming Followup</p>
                 <div className="flex items-center gap-1.5">
                   <Calendar size={13} className="text-orange-500" />
-                  <span className="text-sm text-gray-700 font-medium">{followup}</span>
+                  <span className="text-sm text-gray-700 font-medium">{scheduledInfo.schedule || scheduledInfo.reminder || followup}</span>
                 </div>
               </div>
               <div>
@@ -1794,6 +1822,25 @@ export default function ApplicationDetails() {
         }
       />
     </div>
+
+    <Modal open={!!followUpModal} onClose={() => setFollowUpModal(null)} title={followUpModal === 'reminder' ? 'Set Reminder' : 'Schedule Again'} size="sm">
+      <form onSubmit={handleSaveFollowUp} className="space-y-3">
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 mb-0.5">Date &amp; time</label>
+          <input type="datetime-local" required value={followUpForm.when}
+            onChange={e => setFollowUpForm(p => ({ ...p, when: e.target.value }))} className="input-field text-xs" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 mb-0.5">Note (optional)</label>
+          <input type="text" value={followUpForm.note}
+            onChange={e => setFollowUpForm(p => ({ ...p, note: e.target.value }))} className="input-field text-xs" />
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" className="flex-1" onClick={() => setFollowUpModal(null)}>Cancel</Button>
+          <Button type="submit" className="flex-1">Save</Button>
+        </div>
+      </form>
+    </Modal>
 
     {/* ── Admission Details Modal ─────────────────────────────── */}
     <Modal
