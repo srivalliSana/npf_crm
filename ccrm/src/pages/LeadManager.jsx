@@ -979,13 +979,13 @@ export default function LeadManager() {
                 const score = lead.score || 0
                 const scoreColor = score >= 70 ? 'text-green-600' : score >= 40 ? 'text-yellow-600' : 'text-red-500'
                 return (
-                  <tr key={lead.id} className={`hover:bg-blue-50/30 transition-colors cursor-pointer border-l-4 ${colors.border}`}
+                  <tr key={lead.id} className={`hover:bg-gray-50 transition-colors cursor-pointer border-l-4 ${colors.border}`}
                     onClick={() => navigate(`/leads/${lead.id}`)}>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedRows.includes(lead.id)} onChange={() => toggleRow(lead.id)} className="w-4 h-4 rounded border-gray-300 text-primary-500" />
                     </td>
                     <td className="table-td">
-                      <span className="font-mono text-[11px] bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded">
+                      <span className="font-mono text-[11px] text-gray-500 whitespace-nowrap">
                         {lead.sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}{String(lead.id).padStart(4,'0')}
                       </span>
                     </td>
@@ -1002,7 +1002,7 @@ export default function LeadManager() {
                       ) : (
                         <span className="flex items-center gap-1 group">
                           <span onClick={() => navigate(`/leads/${lead.id}`)}
-                            className="text-primary-500 hover:text-primary-700 font-medium hover:underline cursor-pointer">{lead.name}</span>
+                            className="text-gray-900 font-medium hover:underline cursor-pointer whitespace-nowrap">{lead.name}</span>
                           <button onClick={() => startEditName(lead)}
                             className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-600 transition-opacity" title="Edit name">
                             <Edit3 size={12} />
@@ -1035,7 +1035,7 @@ export default function LeadManager() {
                         </button>
                       </div>
                     </td>
-                    <td className="table-td text-gray-500 text-xs">{lead.source || '—'}</td>
+                    <td className="table-td text-gray-500 text-xs whitespace-nowrap">{lead.source || '—'}</td>
                     <td className="table-td">
                       <div className="flex flex-col gap-0.5">
                         <Badge variant={STAGE_COLOR_TO_VARIANT[getStageColorName(lead.stage)] || 'info'} dot>{stageLabel(lead.stage)}</Badge>
@@ -1054,7 +1054,7 @@ export default function LeadManager() {
                         </Badge>
                       </div>
                     </td>
-                    <td className="table-td text-gray-500 text-xs">{lead.owner || 'Unassigned'}</td>
+                    <td className="table-td text-gray-600 text-xs whitespace-nowrap">{lead.owner || 'Unassigned'}</td>
                     <td className="table-td" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         {/* Interested — green pill */}
