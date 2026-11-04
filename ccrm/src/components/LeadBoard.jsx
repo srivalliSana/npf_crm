@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { MessageCircle, Phone, Mail, MapPin, Loader2 } from 'lucide-react'
 import { stageLabel } from '../stageLabel'
+import { avatarTone } from '../lib/avatar'
 
 const PAGE = 20
 
@@ -135,7 +136,7 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
                   >
                     <div className="p-3.5">
                       <div className="flex items-start gap-3">
-                        <span className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-[12px] font-medium flex-shrink-0" aria-hidden="true">{initials(lead.name) || '?'}</span>
+                        <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-medium flex-shrink-0 ${avatarTone(lead.name)}`} aria-hidden="true">{initials(lead.name) || '?'}</span>
                         <div className="min-w-0 flex-1">
                           <button onClick={() => onOpen(lead)} className="block max-w-full text-left text-[15px] font-medium text-gray-900 group-hover:underline leading-snug break-words">{lead.name}</button>
                           <div className="mt-1 flex items-center gap-2 min-w-0">
@@ -153,9 +154,9 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
                           <span className="flex items-center gap-2 tabular-nums"><Phone size={13} className="text-gray-400" />{lead.mobile}</span>
                           <span className="flex items-center gap-1">
                             <a href={`tel:${lead.mobile}`} aria-label={`Call ${lead.name}`} title="Call"
-                              className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-900 hover:text-white text-gray-600 transition-colors"><Phone size={13} /></a>
+                              className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-primary-600 hover:text-white text-gray-600 transition-colors"><Phone size={13} /></a>
                             <a href={`https://wa.me/91${lead.mobile}`} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${lead.name}`} title="WhatsApp"
-                              className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-900 hover:text-white text-gray-600 transition-colors"><MessageCircle size={13} /></a>
+                              className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-primary-600 hover:text-white text-gray-600 transition-colors"><MessageCircle size={13} /></a>
                           </span>
                         </div>
                         {lead.email && !String(lead.email).includes('noemail') && (
