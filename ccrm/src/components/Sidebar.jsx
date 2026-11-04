@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, FileText, CheckSquare, Megaphone,
   BarChart2, Settings, LogOut, CreditCard,
@@ -11,6 +11,7 @@ import {
 import { APP_VERSION } from '../version'
 import { useCcrm } from '../context/CcrmContext'
 import { usePermissions } from '../hooks/usePermissions'
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from './ui/Accordion'
 
 const NAV_ITEMS = [
   { icon: Building2,       label: 'Tenants',            to: '/platform-tenants',       platformOnly: true },
@@ -75,12 +76,21 @@ const GROUPS = [
   { label: 'Account',    items: ['Settings', 'Help'] },
 ]
 
+// One icon per collapsible group (the group header in the accordion)
+const GROUP_ICON = { Admissions: Users, Work: CheckSquare, Insight: PieChart, Admin: Shield, Account: Settings }
+
 export default function Sidebar({ onLogout, user, expanded = true, isMobile = false, open = true, onClose }) {
   const navigate = useNavigate()
   const { tenantConfig } = useCcrm()
   const userRole = user?.role || 'Counselor'
   const isSuper = !!user?.isSuperAdmin   // Super Admin bypasses entity gating, sees all
   const [openSubmenu, setOpenSubmenu] = useState(null)
+  const { pathname } = useLocation()
+  const [openGroups, setOpenGroups] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem('ccrm_nav_open') || 'null'); if (Array.isArray(v)) return v } catch {}
+    return ['Admissions']
+  })
+  useEffect(() => { try { localStorage.setItem('ccrm_nav_open', JSON.stringify(openGroups)) } catch {} }, [openGroups])
   // Items carrying a `permission` are shown only if the account actually holds
   // it, so the menu can't offer a page the API will refuse. Until the lookup
   // resolves (or if it failed) the older role check decides, so the menu never
@@ -137,6 +147,16 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
     return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)
   })
 
+  // Arriving on a page opens the group that holds it
+  useEffect(() => {
+    const holds = (it) => (it.to && (pathname === it.to || pathname.startsWith(it.to + '/'))) || (it.submenu || []).some(sm => pathname === sm.to || pathname.startsWith(sm.to + '/'))
+    const hit = ordered.find(holds)
+    if (!hit) return
+    const gi = groupOf(hit.label) < 0 ? 4 : groupOf(hit.label)
+    const label = GROUPS[gi]?.label
+    if (label) setOpenGroups(o => (o.includes(label) ? o : [...o, label]))
+  }, [pathname])
+
   // On mobile the sidebar is a full-width-ish overlay that slides in, rather
   // than a permanently reserved column — the page below it keeps the whole
   // viewport. On desktop it stays exactly as before.
@@ -176,73 +196,78 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
 
       {/* Nav items */}
       <nav className="flex-1 flex flex-col w-full mt-2 overflow-y-auto scrollbar-hide">
-        {ordered.map((item, idx) => {
-          const { icon: Icon, label, to, submenu } = item
-          const gi = groupOf(label) < 0 ? 4 : groupOf(label)
-          const prevGi = idx === 0 ? -1 : (groupOf(ordered[idx - 1].label) < 0 ? 4 : groupOf(ordered[idx - 1].label))
-          const groupHeader = gi !== prevGi && GROUPS[gi].label ? (
-            <div className={`px-5 pb-1.5 text-[12px] text-gray-400 font-medium ${expanded ? '' : 'hidden'} ${idx === 0 ? 'pt-1' : 'pt-6'}`}>{GROUPS[gi].label}</div>
-          ) : null
+        {(() => {
+          // group the visible items; the group that holds the current page is always open
+          const grouped = GROUPS.map((g, gi) => ({
+            ...g,
+            items: ordered.filter(it => (groupOf(it.label) < 0 ? 4 : groupOf(it.label)) === gi),
+          })).filter(g => g.items.length)
+          const holdsPath = (it) => (it.to && (pathname === it.to || pathname.startsWith(it.to + '/'))) || (it.submenu || []).some(sm => pathname === sm.to || pathname.startsWith(sm.to + '/'))
+          const activeGroup = grouped.find(g => g.label && g.items.some(holdsPath))?.label
+          const isOpenGroup = (label) => openGroups.includes(label)
 
-          // Regular nav item (no submenu)
-          if (!submenu) {
-            return (
-              <React.Fragment key={to}>
-              {groupHeader}
-              <NavLink
-                to={to}
-                className={({ isActive }) =>
-                  `sidebar-icon${isActive ? ' active' : ''}`
-                }
-                title={!expanded ? label : undefined}
-              >
-                <Icon size={18} strokeWidth={1.8} className="flex-shrink-0" />
-                <span className={`text-[13px] font-medium whitespace-nowrap overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0 w-0'}`}>
-                  {label}
-                </span>
-              </NavLink>
-              </React.Fragment>
-            )
-          }
+          const linkCls = (isActive) =>
+            `block rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${isActive ? 'bg-gray-200/70 text-gray-900 font-medium' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'}`
 
-          // Submenu item
-          const isOpen = openSubmenu === label
           return (
-            <div key={label} className="flex flex-col">
-              {groupHeader}
-              <button
-                onClick={() => setOpenSubmenu(isOpen ? null : label)}
-                className="flex items-center gap-3 px-4 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-200/60 transition-colors rounded-md mx-2 mb-0.5 w-[calc(100%-1rem)]"
-              >
-                <Icon size={18} strokeWidth={1.8} className="flex-shrink-0" />
-                <span className="text-[13px] font-medium whitespace-nowrap flex-1 text-left">
-                  {label}
-                </span>
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform text-gray-400 ${isOpen ? 'rotate-180' : ''}`}
-                />
-              </button>
-              {isOpen && (
-                <div className="rounded-lg mx-2 mb-2 overflow-hidden py-1">
-                  {submenu.map(({ label: subLabel, to: subTo }) => (
-                    <NavLink
-                      key={subTo}
-                      to={subTo}
-                      className={({ isActive }) =>
-                        `block px-4 py-2 ml-6 mr-2 rounded-lg text-[13px] text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors ${
-                          isActive ? 'bg-gray-200/70 text-gray-900 font-medium' : ''
-                        }`
-                      }
-                    >
-                      {subLabel}
-                    </NavLink>
-                  ))}
-                </div>
-              )}
-            </div>
+            <>
+              {/* Ungrouped items (Dashboard) stay as plain links */}
+              {grouped.filter(g => !g.label).flatMap(g => g.items).map(({ icon: Icon, label, to }) => (
+                <NavLink key={to} to={to} className={({ isActive }) => `sidebar-icon${isActive ? ' active' : ''}`}>
+                  <Icon size={18} strokeWidth={1.8} className="flex-shrink-0" />
+                  <span className="text-[13px] font-medium whitespace-nowrap">{label}</span>
+                </NavLink>
+              ))}
+
+              <Accordion multiple value={openGroups} onValueChange={setOpenGroups} className="px-2 mt-2 space-y-0.5">
+                {grouped.filter(g => g.label).map(g => {
+                  const GIcon = GROUP_ICON[g.label] || Layers
+                  const hasActive = g.items.some(holdsPath)
+                  return (
+                    <AccordionItem key={g.label} value={g.label}>
+                      <AccordionTrigger className={`rounded-md px-2.5 py-2 hover:bg-gray-200/60 ${hasActive && !isOpenGroup(g.label) ? 'bg-gray-200/50' : ''}`}>
+                        <span className="flex items-center gap-2.5">
+                          <GIcon size={16} strokeWidth={1.8} className="text-gray-500" />
+                          <span className="text-[13px] font-medium text-gray-900">{g.label}</span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-1.5 pt-0.5">
+                        <ul className="ml-[1.15rem] flex flex-col gap-0.5 border-l border-gray-300/70 pl-3">
+                          {g.items.map(({ label, to, submenu }) => (
+                            <li key={to || label}>
+                              {!submenu ? (
+                                <NavLink to={to} className={({ isActive }) => linkCls(isActive)}>{label}</NavLink>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setOpenSubmenu(openSubmenu === label ? null : label)}
+                                    aria-expanded={openSubmenu === label || submenu.some(sm => pathname === sm.to)}
+                                    className="w-full flex items-center justify-between rounded-md px-2.5 py-1.5 text-[13px] text-gray-600 hover:text-gray-900 hover:bg-gray-200/50 transition-colors"
+                                  >
+                                    <span>{label}</span>
+                                    <ChevronDown size={13} className={`text-gray-400 transition-transform ${(openSubmenu === label || submenu.some(sm => pathname === sm.to)) ? 'rotate-180' : ''}`} />
+                                  </button>
+                                  {(openSubmenu === label || submenu.some(sm => pathname === sm.to)) && (
+                                    <ul className="ml-2.5 mt-0.5 mb-1 flex flex-col gap-0.5 border-l border-gray-300/70 pl-2.5">
+                                      {submenu.map(({ label: subLabel, to: subTo }) => (
+                                        <li key={subTo}><NavLink to={subTo} className={({ isActive }) => linkCls(isActive)}>{subLabel}</NavLink></li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )
+                })}
+              </Accordion>
+            </>
           )
-        })}
+        })()}
 
         {/* Divider + Inquiry */}
         <div className="mx-4 h-px bg-gray-100 my-2" />
