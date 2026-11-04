@@ -177,7 +177,7 @@ export default function Dashboard() {
             {stats.gtEntities.map(e => (
               <Card key={e.entity} className="p-3">
                 <div className="text-[11px] font-bold text-primary-600">{e.entity}</div>
-                <div className="text-xl font-extrabold text-gray-900 leading-tight">{(e.total || 0).toLocaleString()}</div>
+                <div className="text-xl font-semibold text-gray-900 leading-tight">{(e.total || 0).toLocaleString()}</div>
                 <div className="text-[11px] text-gray-500">leads · {(e.untouched || 0).toLocaleString()} not contacted</div>
               </Card>
             ))}
@@ -209,7 +209,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-6 divide-x divide-gray-100">
                   {cells.map(c => (
                     <div key={c.l} className="px-1.5 py-3 text-center">
-                      <div className="text-base font-extrabold text-gray-900">{(c.v || 0).toLocaleString()}</div>
+                      <div className="text-base font-semibold text-gray-900">{(c.v || 0).toLocaleString()}</div>
                       <div className="text-[9px] text-gray-500 mt-0.5 leading-tight">{c.l}</div>
                     </div>
                   ))}
