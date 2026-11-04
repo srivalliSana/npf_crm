@@ -1761,7 +1761,12 @@ export default function ApplicationDetails() {
           </section>
           )}
 
-          <section className="card p-5 space-y-6">
+        </aside>
+      </div>
+
+      {/* Score, assignment and dates with the AI assistant: a full-width row so neither column leaves empty space */}
+      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-start">
+          <section className="card p-6 grid gap-8 md:grid-cols-3 content-start">
           <div>
             <h2 className="text-[15px] font-medium text-gray-900 mb-4">Lead score</h2>
             {/* Score */}
@@ -1869,7 +1874,6 @@ export default function ApplicationDetails() {
             error={aiInsightsError}
             onApplySuggestedDiscount={(pct) => { setDiscountInput(String(pct)); setActiveTab('Documents') }}
           />
-        </aside>
       </div>
     </div>
 
