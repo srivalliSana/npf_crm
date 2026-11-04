@@ -351,7 +351,7 @@ export default function PublicInquiry() {
                 CUEE 2026 admissions are open. NAAC A+ accredited, with more than 100 programmes across four campuses.
               </p>
 
-              <div className="grid grid-cols-4 gap-6 mb-10 max-w-lg">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10 max-w-lg">
                 {STATS.map(stat => (
                   <div key={stat.label}>
                     <div className="text-3xl font-medium text-white tabular-nums">{stat.value}</div>
