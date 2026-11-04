@@ -588,7 +588,7 @@ function brandedEmailHtml({ badge = 'INFO', tone = 'info', title, timestamp, bod
       <table role="presentation" width="100%" style="border-collapse:collapse;">
         <tr>
           <td style="padding:20px 24px;vertical-align:middle;">
-            <img src="https://crm.cutmap.ac.in/landing/images/logo.jpg" alt="Centurion University" width="120" style="display:block;">
+            <img src="https://crm.cutmap.ac.in/logo.png" alt="Centurion University" height="72" style="display:block;height:72px;width:auto;">
           </td>
           <td style="padding:20px 24px;text-align:right;vertical-align:middle;color:#8a8a8a;font-size:11px;letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;">
             ${consoleLabel}
