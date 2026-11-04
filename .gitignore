@@ -18,3 +18,4 @@ ccrm/.env.production
 .claude/skills/
 skills-lock.json
 .taste-skill/
+.mcp.json
