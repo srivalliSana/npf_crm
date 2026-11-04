@@ -89,7 +89,7 @@ export default function CallActivityReport() {
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b text-xs uppercase text-gray-500">
+            <thead className="bg-gray-50 border-b text-xs text-gray-500">
               <tr>
                 <th className="px-4 py-3 text-left sticky left-0 bg-gray-50">{groupBy === 'program' ? 'Program' : 'Counselor'}</th>
                 {STAGES.map(s => <th key={s} className="px-3 py-3 text-center whitespace-nowrap">{stageLabel(s)}</th>)}
@@ -141,7 +141,7 @@ export default function CallActivityReport() {
       {/* Drill-down modal */}
       {drill && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-gray-900">
                 {drill.key} · <span className={STAGE_TEXT[drill.stage]}>{stageLabel(drill.stage)}</span>
@@ -155,7 +155,7 @@ export default function CallActivityReport() {
               <p className="text-gray-400 text-sm py-6 text-center">No leads.</p>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                <thead className="bg-gray-50 text-xs text-gray-500">
                   <tr>
                     <th className="px-3 py-2 text-left">Name</th>
                     <th className="px-3 py-2 text-left">Mobile</th>
