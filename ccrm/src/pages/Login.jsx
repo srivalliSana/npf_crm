@@ -221,13 +221,13 @@ export default function Login() {
         <div className="flex flex-col h-full p-14">
           <div className="flex items-center gap-4">
             {logoUrl ? (
-              <img src={logoUrl} alt={orgName} className="h-10 w-auto brightness-0 invert" />
+              <span className="bg-white rounded-md px-4 py-3 flex items-center"><img src={logoUrl} alt={orgName} className="h-12 w-auto" /></span>
             ) : (
               <div className="h-10 w-10 rounded-md bg-white text-primary-500 flex items-center justify-center font-bold text-lg flex-shrink-0">
                 {logoInitial}
               </div>
             )}
-            <div className="text-lg font-semibold tracking-tight">CCRM</div>
+            <div className="text-2xl font-medium tracking-tight">CCRM</div>
           </div>
 
           <div className="flex-1 flex flex-col justify-center">
