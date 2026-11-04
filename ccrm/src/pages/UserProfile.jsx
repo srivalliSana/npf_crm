@@ -144,7 +144,7 @@ export default function UserProfile() {
               </p>
 
               {!mobileNumber && isCounselor && (
-                <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <div className="flex items-start gap-2 p-3 bg-white border border-gray-200 rounded-lg">
                   <AlertCircle size={16} className="text-orange-600 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-orange-700">
                     Update your mobile number to enable calling features for your assigned leads.
@@ -153,7 +153,7 @@ export default function UserProfile() {
               )}
 
               {mobileNumber && (
-                <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-start gap-2 p-3 bg-white border border-gray-200 rounded-lg">
                   <CheckCircle2 size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-green-700">
                     Your mobile number is ready for WhatsApp and calling.
