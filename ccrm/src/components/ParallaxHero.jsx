@@ -21,7 +21,7 @@ export default function ParallaxHero({ eyebrow, title, text, primaryHref = '#app
     let tl
     if (trigger) {
       tl = gsap.timeline({ scrollTrigger: { trigger, start: '0% 0%', end: '100% 0%', scrub: 0 } })
-      ;[['1', 20], ['h', 32]].forEach(([layer, yPercent], i) => {
+      ;[["1", 12], ['h', 32]].forEach(([layer, yPercent], i) => {
         tl.to(trigger.querySelectorAll('[data-parallax-layer="' + layer + '"]'), { yPercent, ease: 'none' }, i === 0 ? undefined : '<')
       })
     }
@@ -42,7 +42,7 @@ export default function ParallaxHero({ eyebrow, title, text, primaryHref = '#app
     <section ref={rootRef} id="top" className="relative overflow-hidden bg-primary-900 mt-20 min-h-[calc(100svh-5rem)]">
       <div data-parallax-layers className="absolute inset-0 pointer-events-none">
         {/* layer 1: the campus gate photo, slowest */}
-        <img data-parallax-layer="1" src="/parallax/campus-gate.webp" alt="" className="absolute inset-x-0 -top-[30%] w-full h-[130%] object-cover will-change-transform" />
+        <img data-parallax-layer="1" src="/parallax/campus-gate.webp" alt="" className="absolute inset-x-0 -top-[14%] w-full h-[114%] object-cover object-[50%_40%] will-change-transform" />
         <div className="absolute inset-0 bg-gradient-to-r from-primary-900/90 via-primary-900/65 to-primary-900/20" />
       </div>
 
