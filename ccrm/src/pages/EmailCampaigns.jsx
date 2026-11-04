@@ -230,7 +230,7 @@ export default function EmailCampaigns() {
           { label: 'Emails Sent', value: stats.totalSent.toLocaleString(), color: 'text-primary-600 bg-primary-50', icon: Users },
         ].map(s => (
           <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color}`}>
+            <div className={`w-10 h-10 flex items-center justify-center ${s.color}`}>
               <s.icon size={18} />
             </div>
             <div>
@@ -243,7 +243,7 @@ export default function EmailCampaigns() {
 
       {/* Create/Edit Form */}
       {showForm && (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-semibold text-slate-800">{editId ? 'Edit Campaign' : 'New Email Campaign'}</h2>
             <button onClick={() => { setShowForm(false); setEditId(null) }} className="text-slate-400 hover:text-slate-600">
@@ -335,7 +335,7 @@ export default function EmailCampaigns() {
       )}
 
       {/* Campaigns List */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         {emailCampaigns.length === 0 ? (
           <div className="py-16 text-center text-slate-400">
             <Mail size={40} className="mx-auto mb-3 opacity-30" />
@@ -344,7 +344,7 @@ export default function EmailCampaigns() {
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+            <thead className="bg-slate-50 text-slate-500 text-xs">
               <tr>
                 <th className="px-4 py-3 text-left">Campaign</th>
                 <th className="px-4 py-3 text-left">Segment</th>
@@ -429,7 +429,7 @@ export default function EmailCampaigns() {
         const camp = emailCampaigns.find(c => c.id === previewId)
         if (!camp) return null
         return (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-slate-800">📧 Preview: {camp.name}</h3>
               <button onClick={() => setPreviewId(null)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
