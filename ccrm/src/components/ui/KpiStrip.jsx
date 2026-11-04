@@ -6,13 +6,15 @@ import React from 'react'
 export default function KpiStrip({ items = [], className = '' }) {
   const [lead, ...rest] = items
   if (!lead) return null
+  const COLS = { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3' }
+  const cols = COLS[rest.length] || 'sm:grid-cols-3 xl:grid-cols-4'
   return (
     <div className={`card grid grid-cols-1 lg:grid-cols-[minmax(200px,260px)_1fr] ${className}`}>
       <div className="p-5">
         <div className="text-[13px] text-gray-500">{lead.label}</div>
         <div className="text-[34px] leading-none font-medium text-gray-900 mt-2 tabular-nums tracking-tight">{lead.value}</div>
       </div>
-      <div className="overflow-hidden"><div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 -mt-px -ml-px lg:-mt-px">
+      <div className="overflow-hidden"><div className={`grid grid-cols-2 ${cols} -mt-px -ml-px`}>
         {rest.map((it) => (
           <div key={it.label} className="px-5 py-4 border-t border-l border-gray-200">
             <div className="text-[13px] text-gray-500 truncate">{it.label}</div>
