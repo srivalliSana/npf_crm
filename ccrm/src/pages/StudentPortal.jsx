@@ -64,9 +64,7 @@ export default function StudentPortal() {
       <header className="bg-white px-6 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-md bg-primary-500 flex items-center justify-center">
-              <GraduationCap size={22} className="text-white" />
-            </div>
+            <img src="/logo.png" alt="Centurion University" className="h-12 w-auto flex-shrink-0" />
             <div>
               <div className="text-gray-900 font-semibold">CUTM Student Portal</div>
               <div className="text-gray-500 text-xs">Centurion University of Technology & Management</div>
