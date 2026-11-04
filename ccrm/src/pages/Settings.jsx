@@ -582,7 +582,7 @@ export default function Settings() {
                   {prodResult.wiped && (
                     <div className="bg-white border border-green-100 rounded-lg p-3 text-xs mb-3">
                       <p className="font-semibold text-gray-600 mb-1">Records deleted:</p>
-                      <div className="grid grid-cols-3 gap-x-3 gap-y-1 text-gray-600">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1 text-gray-600">
                         {Object.entries(prodResult.wiped).map(([t, n]) => (
                           <div key={t}>{t}: <strong>{n}</strong></div>
                         ))}
