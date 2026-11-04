@@ -149,3 +149,14 @@
   body.board-fixed main > div > * { flex-shrink: 0; }
   body.board-fixed main > div > .md\:flex-1 { flex: 1 1 0%; min-height: 0; }
 }
+
+/* ── Record pages (lead / application) on wide screens ───────────────────
+   The page is exactly one screen tall: header and pipeline keep their size, the main area takes the rest,
+   and the long tab content scrolls inside its own card. */
+@media (min-width: 1280px) {
+  html:has(body.record-fixed), body.record-fixed { overflow: hidden; height: 100%; }
+  body.record-fixed main { position: relative; height: 100vh; padding-bottom: 0 !important; overflow: hidden; contain: paint; }
+  body.record-fixed main > div { height: 100%; display: flex; flex-direction: column; min-height: 0; padding: 0.75rem 1.5rem; }
+  body.record-fixed main > div > * { flex-shrink: 0; }
+  body.record-fixed main > div > .xl\:flex-1 { flex: 1 1 0%; min-height: 0; }
+}
