@@ -62,7 +62,7 @@ export default function PaymentMethodModal({ isOpen, onClose, app, onConfirm }) 
         <p className="text-gray-600 mb-6">How would {app?.name} like to pay?</p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+          <div className="mb-4 p-3 bg-white border border-gray-200 rounded-lg text-red-800 text-sm">
             {error}
           </div>
         )}
@@ -112,7 +112,7 @@ export default function PaymentMethodModal({ isOpen, onClose, app, onConfirm }) 
         </div>
 
         {method === 'online' && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="mb-6 p-4 bg-white border border-gray-200 rounded-lg">
             <p className="text-sm text-blue-900 flex items-center gap-2">
               <Mail size={16} />
               Email with application form link will be sent
@@ -121,7 +121,7 @@ export default function PaymentMethodModal({ isOpen, onClose, app, onConfirm }) 
         )}
 
         {method === 'offline' && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="mb-6 p-4 bg-white border border-gray-200 rounded-lg">
             <p className="text-sm text-green-900">
               Student details will be saved for offline payment tracking
             </p>
@@ -133,7 +133,7 @@ export default function PaymentMethodModal({ isOpen, onClose, app, onConfirm }) 
           <button
             onClick={handleConfirm}
             disabled={!method || sendingEmail}
-            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
+            className="flex-1 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-500 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
           >
             {sendingEmail ? <Loader size={16} className="animate-spin" /> : '✓'}
             {sendingEmail ? 'Sending...' : 'Confirm'}
