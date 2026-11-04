@@ -188,7 +188,7 @@ export default function Help() {
       )}
 
       {/* Contact support */}
-      <div className="mt-8 bg-gradient-to-r from-primary-50 to-blue-50 border border-primary-100 rounded-xl p-5">
+      <div className="mt-8 bg-primary-50 border border-primary-100 rounded-xl p-5">
         <h3 className="font-bold text-primary-800 mb-2 flex items-center gap-2"><Phone size={16}/> Need more help?</h3>
         <p className="text-sm text-gray-600 mb-3">
           For issues not covered here — bugs, integration setup, deployment, or feature requests — please contact your CCRM administrator.
