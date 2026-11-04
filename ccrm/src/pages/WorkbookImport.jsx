@@ -50,7 +50,7 @@ export default function WorkbookImport() {
         </p>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-5">
         <div className="flex items-start gap-3">
           <AlertCircle size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-800">
@@ -102,7 +102,7 @@ export default function WorkbookImport() {
           </div>
           {result.perSheet?.length > 0 && (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+              <thead className="bg-gray-50 text-xs text-gray-500">
                 <tr>
                   <th className="px-3 py-2 text-left">Program (sheet)</th>
                   <th className="px-3 py-2 text-right">Updated</th>
