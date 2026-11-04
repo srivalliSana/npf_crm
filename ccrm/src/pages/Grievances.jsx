@@ -92,7 +92,7 @@ export default function Grievances() {
 
               {t.response && (
                 <div className="mt-3 bg-success-50 rounded-xl px-4 py-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-success-700 mb-1 flex items-center gap-1.5"><CheckCircle2 size={12} /> Responded by {t.responded_by}</p>
+                  <p className="text-[11px] font-bold text-success-700 mb-1 flex items-center gap-1.5"><CheckCircle2 size={12} /> Responded by {t.responded_by}</p>
                   <p className="text-sm text-success-800">{t.response}</p>
                 </div>
               )}
