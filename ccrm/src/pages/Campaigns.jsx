@@ -9,6 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, Legend
 } from 'recharts'
+import DatePicker from '../components/ui/DatePicker'
 
 const STATUS_COLORS = {
   Active:    { bg: 'bg-green-100',  text: 'text-green-700'  },
@@ -340,8 +341,7 @@ export default function Campaigns() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Start Date</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={newCampaign.startDate}
                     onChange={e => setNewCampaign(p => ({ ...p, startDate: e.target.value }))}
                     className="input-field text-sm"
@@ -349,8 +349,7 @@ export default function Campaigns() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">End Date</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={newCampaign.endDate}
                     onChange={e => setNewCampaign(p => ({ ...p, endDate: e.target.value }))}
                     className="input-field text-sm"
