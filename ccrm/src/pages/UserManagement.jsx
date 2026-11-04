@@ -402,10 +402,10 @@ export default function UserManagement({ currentUser }) {
                 </button>
                 <div className="relative">
                   <button onClick={() => setShowBulkEnt(v => !v)}
-                    className="text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg px-3 py-1">Set Entities</button>
+                    className="text-xs bg-primary-500 hover:bg-primary-500 text-white rounded-lg px-3 py-1">Set Entities</button>
                   {showBulkEnt && (
                     <div className="absolute right-0 top-8 z-30 bg-white border border-gray-200 rounded-lg shadow-xl p-3 w-60">
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-2">Grant entities to {selectedIds.length} user(s)</p>
+                      <p className="text-[10px] font-semibold text-gray-500 mb-2">Grant entities to {selectedIds.length} user(s)</p>
                       <div className="grid grid-cols-3 gap-1.5 mb-2">
                         {ENTITY_CODES.map(ent => {
                           const on = bulkEnt.includes(ent)
@@ -419,7 +419,7 @@ export default function UserManagement({ currentUser }) {
                         })}
                       </div>
                       <button onClick={applyBulkEntities}
-                        className="w-full text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-1.5 font-medium">Apply</button>
+                        className="w-full text-xs bg-primary-500 hover:bg-primary-500 text-white rounded-lg py-1.5 font-medium">Apply</button>
                     </div>
                   )}
                 </div>
@@ -770,7 +770,7 @@ export default function UserManagement({ currentUser }) {
                     className="flex-1 input-field text-sm"
                   />
                   <button onClick={addTeam}
-                    className="bg-purple-500 hover:bg-purple-600 text-white text-sm font-semibold px-4 rounded-lg flex items-center gap-1.5">
+                    className="bg-primary-500 hover:bg-primary-500 text-white text-sm font-semibold px-4 rounded-lg flex items-center gap-1.5">
                     <Plus size={14} /> Add Team
                   </button>
                 </div>
@@ -806,7 +806,7 @@ export default function UserManagement({ currentUser }) {
                     className="input-field text-sm" />
                 </div>
                 <button onClick={addRole}
-                  className="w-full bg-purple-500 hover:bg-purple-600 text-white text-sm font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 mb-3">
+                  className="w-full bg-primary-500 hover:bg-primary-500 text-white text-sm font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 mb-3">
                   <Plus size={14} /> Add Custom Role
                 </button>
 
@@ -873,7 +873,7 @@ export default function UserManagement({ currentUser }) {
       {/* ── Activity Log Modal ──────────────────────────────────────────────── */}
       {showActivity && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-dropdown w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-scale-up">
+          <div className="bg-white rounded-xl shadow-dropdown w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-scale-up">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-primary-50">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 <Activity size={18} className="text-primary-600" /> User Activity Log
@@ -883,7 +883,7 @@ export default function UserManagement({ currentUser }) {
             <div className="overflow-y-auto p-6 space-y-5">
               {/* Recent Logins */}
               <div>
-                <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <h3 className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
                   <Clock size={12} /> Recent Logins ({activity.recentLogins.length})
                 </h3>
                 <div className="space-y-1.5">
@@ -916,7 +916,7 @@ export default function UserManagement({ currentUser }) {
 
               {/* Recent System Activity */}
               <div>
-                <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <h3 className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
                   <Activity size={12} /> Recent Activity ({activity.activity.length})
                 </h3>
                 <div className="space-y-1">
@@ -1003,15 +1003,15 @@ export default function UserManagement({ currentUser }) {
                 <div className="space-y-3">
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-success-50 border border-success-100 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-extrabold text-success-700">{bulkResult.inserted}</div>
+                      <div className="text-2xl font-semibold text-success-700">{bulkResult.inserted}</div>
                       <div className="text-xs text-success-600">Created</div>
                     </div>
                     <div className="bg-warning-50 border border-warning-100 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-extrabold text-warning-700">{bulkResult.skipped}</div>
+                      <div className="text-2xl font-semibold text-warning-700">{bulkResult.skipped}</div>
                       <div className="text-xs text-warning-600">Skipped</div>
                     </div>
                     <div className="bg-info-50 border border-info-100 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-extrabold text-info-700">{bulkResult.total}</div>
+                      <div className="text-2xl font-semibold text-info-700">{bulkResult.total}</div>
                       <div className="text-xs text-info-600">Total Rows</div>
                     </div>
                   </div>
@@ -1046,7 +1046,7 @@ export default function UserManagement({ currentUser }) {
       >
         {deleteConfirm && (
           <div className="text-center">
-            <div className="w-12 h-12 bg-danger-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-12 h-12 flex items-center justify-center mx-auto mb-4">
               <Trash2 size={22} className="text-danger-500" />
             </div>
             <h3 className="text-base font-bold text-gray-900 mb-1">Delete User?</h3>
