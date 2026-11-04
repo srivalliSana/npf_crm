@@ -268,10 +268,10 @@ export default function Payments() {
           { label: 'Total Transactions',value: payments.length,                     icon: CreditCard,  color: 'text-blue-600',   bg: 'bg-blue-50'   },
         ].map(card => (
           <div key={card.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className={`w-10 h-10 rounded-xl ${card.bg} flex items-center justify-center mb-3`}>
+            <div className={`w-10 h-10 flex items-center justify-center mb-3`}>
               <card.icon size={20} className={card.color} />
             </div>
-            <div className="text-2xl font-extrabold text-gray-900">{card.value}</div>
+            <div className="text-2xl font-semibold text-gray-900">{card.value}</div>
             <div className="text-xs text-gray-500 mt-0.5">{card.label}</div>
           </div>
         ))}
@@ -394,7 +394,7 @@ export default function Payments() {
       {/* Generate Payment Link Modal */}
       {showLink && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
               <h2 className="text-base font-bold text-gray-900">Generate Payment Link</h2>
               <button onClick={() => setShowLink(false)} className="text-gray-400 hover:text-gray-600">
@@ -404,7 +404,7 @@ export default function Payments() {
             
             <form onSubmit={handleGenerateLink} className="p-6 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Select Student Application *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Select Student Application *</label>
                 <select
                   value={selectedAppId}
                   onChange={e => handleAppSelect(e.target.value)}
@@ -419,7 +419,7 @@ export default function Payments() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Amount (₹) *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Amount (₹) *</label>
                 <input
                   type="number"
                   value={payAmount}
@@ -430,7 +430,7 @@ export default function Payments() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Method</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Payment Method</label>
                 <select
                   value={payMethod}
                   onChange={e => setPayMethod(e.target.value)}
@@ -451,7 +451,7 @@ export default function Payments() {
 
               {/* Generated Link Result */}
               {generatedLink && (
-                <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
+                <div className="mt-4 bg-white border border-gray-200 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <CheckCircle size={16} className="text-green-600" />
                     <span className="text-sm font-semibold text-green-800">Payment Link Generated!</span>
@@ -484,20 +484,20 @@ export default function Payments() {
       {/* UTR Submit Modal */}
       {utrPayment && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 📋 Submit UTR / Reference
               </h2>
               <button onClick={() => setUtrPayment(null)}><X size={18} className="text-gray-400" /></button>
             </div>
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4">
+            <div className="bg-white border border-gray-200 rounded-xl p-3 mb-4">
               <p className="text-sm font-semibold text-blue-800">{utrPayment.name}</p>
               <p className="text-xs text-blue-600 mt-0.5">
                 App: <span className="font-mono font-bold">{utrPayment.appNo}</span> · Amount: ₹{Number(utrPayment.amount).toLocaleString()}
               </p>
             </div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">
               UTR / Bank Reference Number
             </label>
             <input
@@ -522,7 +522,7 @@ export default function Payments() {
       {/* Bulk Approve Modal */}
       {showBulk && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 <ThumbsUp size={18} className="text-green-500" /> Bulk Payment Approval
@@ -531,7 +531,7 @@ export default function Payments() {
             </div>
             <div className="p-5 space-y-4">
               {/* Template */}
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
+              <div className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-emerald-800 flex items-center gap-1.5">
                     <Download size={13} /> Download Approval Template
@@ -545,7 +545,7 @@ export default function Payments() {
               </div>
 
               {/* Info */}
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+              <div className="bg-white border border-gray-200 rounded-xl p-3 text-xs text-blue-700">
                 <p className="font-semibold mb-1">How it works:</p>
                 <ul className="space-y-0.5 list-disc list-inside text-blue-600">
                   <li>Upload Excel/CSV with reconciled UTRs from your bank</li>
@@ -577,21 +577,21 @@ export default function Payments() {
               ) : (
                 <>
                   <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-extrabold text-green-700">{bulkResult.approved}</div>
+                    <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-semibold text-green-700">{bulkResult.approved}</div>
                       <div className="text-xs text-green-600">Approved</div>
                     </div>
-                    <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-extrabold text-yellow-700">{bulkResult.skipped}</div>
+                    <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-semibold text-yellow-700">{bulkResult.skipped}</div>
                       <div className="text-xs text-yellow-600">Skipped</div>
                     </div>
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-extrabold text-blue-700">{bulkResult.total}</div>
+                    <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-semibold text-blue-700">{bulkResult.total}</div>
                       <div className="text-xs text-blue-600">Total Rows</div>
                     </div>
                   </div>
                   {bulkResult.errors?.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 max-h-32 overflow-y-auto">
+                    <div className="bg-white border border-gray-200 rounded-xl p-3 max-h-32 overflow-y-auto">
                       <p className="text-xs font-semibold text-red-700 mb-1">Issues (first 10):</p>
                       {bulkResult.errors.map((e, i) => <p key={i} className="text-xs text-red-600">{e}</p>)}
                     </div>
