@@ -202,15 +202,15 @@ export default function Dashboard() {
             ]
             return (
               <Card key={d.key} padding={false} className="overflow-hidden">
-                <div className={`${d.accent} px-4 py-2.5 flex items-center justify-between`}>
-                  <span className="text-white font-bold text-sm">{d.label}</span>
-                  <span className="text-white/90 text-xs">{(d.data.total || 0).toLocaleString()} leads</span>
+                <div className="px-4 pt-4 pb-3 flex items-baseline justify-between">
+                  <span className="text-gray-900 font-medium text-base">{d.label}</span>
+                  <span className="text-gray-500 text-[13px] tabular-nums">{(d.data.total || 0).toLocaleString()} leads</span>
                 </div>
-                <div className="grid grid-cols-6 divide-x divide-gray-100">
+                <div className="grid grid-cols-6 border-t border-gray-100">
                   {cells.map(c => (
-                    <div key={c.l} className="px-1.5 py-3 text-center">
-                      <div className="text-base font-semibold text-gray-900">{(c.v || 0).toLocaleString()}</div>
-                      <div className="text-[9px] text-gray-500 mt-0.5 leading-tight">{c.l}</div>
+                    <div key={c.l} className="px-2 py-3 text-center">
+                      <div className="text-lg font-medium text-gray-900 tabular-nums">{(c.v || 0).toLocaleString()}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5 leading-tight">{c.l}</div>
                     </div>
                   ))}
                 </div>
@@ -226,10 +226,10 @@ export default function Dashboard() {
           <span className="font-bold text-gray-900">{(kpi?.totalLeads || 0).toLocaleString()}</span>
           <span className="text-gray-400 text-xs">Total</span>
           <span className="text-gray-300">=</span>
-          <span className="font-semibold text-primary-600">{(cutm.total || 0).toLocaleString()}</span>
+          <span className="font-medium text-gray-900">{(cutm.total || 0).toLocaleString()}</span>
           <span className="text-gray-400 text-xs">CUTM</span>
           <span className="text-gray-300">+</span>
-          <span className="font-semibold text-ai-600">{(cutmap.total || 0).toLocaleString()}</span>
+          <span className="font-medium text-gray-900">{(cutmap.total || 0).toLocaleString()}</span>
           <span className="text-gray-400 text-xs">CUTMAP</span>
           <span className="text-gray-300">+</span>
           <span className="font-semibold text-gray-600">{((stats?.byDomain?.other?.total) || 0).toLocaleString()}</span>
