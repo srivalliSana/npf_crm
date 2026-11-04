@@ -349,7 +349,7 @@ export default function UserManagement({ currentUser }) {
       )}
     >
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard icon={Users} label="Total Users" value={users.length} tone="info" />
         <StatCard icon={CheckCircle} label="Active" value={active} tone="success" />
         <StatCard icon={XCircle} label="Inactive" value={inactive} tone="danger" />
@@ -367,7 +367,7 @@ export default function UserManagement({ currentUser }) {
 
       <div className="flex gap-4">
         {/* User table */}
-        <Card padding={false} className="flex-1">
+        <Card padding={false} className="flex-1 min-w-0">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-wrap">
               {tabs.map(t => (
@@ -406,7 +406,7 @@ export default function UserManagement({ currentUser }) {
                   {showBulkEnt && (
                     <div className="absolute right-0 top-8 z-30 bg-white border border-gray-200 rounded-lg shadow-xl p-3 w-60">
                       <p className="text-[10px] font-semibold text-gray-500 mb-2">Grant entities to {selectedIds.length} user(s)</p>
-                      <div className="grid grid-cols-3 gap-1.5 mb-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 mb-2">
                         {ENTITY_CODES.map(ent => {
                           const on = bulkEnt.includes(ent)
                           return (
@@ -668,7 +668,7 @@ export default function UserManagement({ currentUser }) {
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Entity Access <span className="text-[10px] text-gray-400">(which lead sets this user can view)</span>
                 </label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
                   {ENTITY_CODES.map(ent => {
                     const on = form.entities.includes(ent)
                     return (
@@ -1001,7 +1001,7 @@ export default function UserManagement({ currentUser }) {
               {/* Result */}
               {bulkResult && (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="bg-success-50 border border-success-100 rounded-xl p-3 text-center">
                       <div className="text-2xl font-semibold text-success-700">{bulkResult.inserted}</div>
                       <div className="text-xs text-success-600">Created</div>
