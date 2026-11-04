@@ -55,7 +55,7 @@ export default function UploadLogs() {
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b text-xs uppercase text-gray-500">
+            <thead className="bg-gray-50 border-b text-xs text-gray-500">
               <tr>
                 <th className="px-4 py-3 text-left">Date &amp; Time</th>
                 <th className="px-4 py-3 text-left">Uploaded By</th>
