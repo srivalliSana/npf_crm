@@ -866,7 +866,7 @@ export default function ApplicationDetails() {
           <div className="card p-5">
             {/* Avatar */}
             <div className="flex flex-col items-center text-center mb-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xl font-bold shadow-md mb-3 select-none">
+              <div className="w-16 h-16 rounded-full bg-primary-500 flex items-center justify-center text-white text-xl font-bold shadow-md mb-3 select-none">
                 {getInitials(studentName)}
               </div>
               {editingHeaderName ? (
@@ -1117,7 +1117,7 @@ export default function ApplicationDetails() {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-gradient-to-r from-primary-400 to-primary-600 h-2 rounded-full transition-all duration-500"
+                  className="bg-primary-500 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${score}%` }}
                 ></div>
               </div>
