@@ -184,8 +184,8 @@ export default function Dashboard() {
       {!isCounselor && hasCutmCutmap && stats?.byDomain && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {[
-            { key: 'cutm',   label: 'CUTM',   data: cutm,   accent: 'from-primary-500 to-primary-600' },
-            { key: 'cutmap', label: 'CUTMAP', data: cutmap, accent: 'from-ai-500 to-ai-600' },
+            { key: 'cutm',   label: 'CUTM',   data: cutm,   accent: 'bg-primary-600' },
+            { key: 'cutmap', label: 'CUTMAP', data: cutmap, accent: 'bg-ai-700' },
           ].map(d => {
             const cells = [
               { l: 'Total',          v: d.data.total },
@@ -197,7 +197,7 @@ export default function Dashboard() {
             ]
             return (
               <Card key={d.key} padding={false} className="overflow-hidden">
-                <div className={`bg-gradient-to-r ${d.accent} px-4 py-2.5 flex items-center justify-between`}>
+                <div className={`${d.accent} px-4 py-2.5 flex items-center justify-between`}>
                   <span className="text-white font-bold text-sm">{d.label}</span>
                   <span className="text-white/90 text-xs">{(d.data.total || 0).toLocaleString()} leads</span>
                 </div>
