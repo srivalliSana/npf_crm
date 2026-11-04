@@ -71,7 +71,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
 
   return (
     <>
-      <header className={`fixed top-0 ${isMobile ? 'left-0' : expanded ? 'left-56' : 'left-16'} right-0 h-14 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-soft flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
+      <header className={`fixed top-0 ${isMobile ? 'left-0' : expanded ? 'left-64' : 'left-16'} right-0 h-14 bg-canvas flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
         {/* Left — sidebar toggle + breadcrumb */}
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -93,7 +93,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
             ))}
             <span
               title={`Version ${APP_VERSION} · Released ${APP_RELEASED}`}
-              className="ml-2 text-[10px] font-mono font-bold bg-primary-50 text-primary-600 border border-primary-100 px-1.5 py-0.5 rounded cursor-help flex-shrink-0"
+              className="ml-2 text-[10px] font-mono text-gray-400 px-1 cursor-help flex-shrink-0"
             >
               v{APP_VERSION}
             </span>
@@ -107,7 +107,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
             <input
               type="text"
               placeholder={`Search ${orgName.split(' ')[0]}...`}
-              className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent focus:bg-white transition"
+              className="w-full bg-white border border-gray-200 rounded-md pl-9 pr-3 py-1.5 text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent focus:bg-white transition"
             />
           </div>
         </div>
@@ -118,7 +118,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           <button
             onClick={() => setShowMioAI(true)}
             title="Ask CU AI"
-            className="flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-medium px-2 py-1 rounded-full transition-colors shadow-soft"
+            className="flex items-center gap-1 bg-primary-500 hover:bg-primary-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors"
           >
             <Sparkles size={12} />
             Ask CU AI
