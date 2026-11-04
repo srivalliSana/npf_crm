@@ -70,7 +70,7 @@ export default function LeadJourney({ stage, onSelect, onSchedule, scheduled = {
 
       {/* Outcomes after Contacted */}
       <div>
-        <div className="text-[10.5px] font-bold text-gray-400 uppercase tracking-wide mb-2.5">After Contacted, pick one outcome</div>
+        <div className="text-[13px] font-medium text-gray-500 mb-2.5">After contacted, pick one outcome</div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-2.5 gap-y-3 items-start">
           <Node s="Invalid Number" label="Invalid Number" icon={Ban} />
           <div className="flex flex-col items-start gap-1.5">
@@ -87,10 +87,10 @@ export default function LeadJourney({ stage, onSelect, onSchedule, scheduled = {
 
       {/* If Interested → one path */}
       <div>
-        <div className="text-[10.5px] font-bold text-success-600 uppercase tracking-wide mb-2.5">If Interested → continue on one path</div>
+        <div className="text-[13px] font-medium text-gray-500 mb-2.5">If interested, continue on one path</div>
         <div className="space-y-2.5">
-          <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
-            <div className="text-[10.5px] font-bold text-gray-400 uppercase tracking-wide mb-2">Path 1 · Campus Visit</div>
+          <div>
+            <div className="text-[12px] text-gray-400 mb-1.5">Via a campus visit</div>
             <div className="flex items-center gap-2 flex-wrap">
               <Node s="Campus Visit Scheduled" label="Visit Scheduled" icon={CalendarDays} />
               <Arrow />
@@ -101,8 +101,8 @@ export default function LeadJourney({ stage, onSelect, onSchedule, scheduled = {
               <Node s="Payment Success" label="Payment Success" icon={BadgeCheck} />
             </div>
           </div>
-          <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
-            <div className="text-[10.5px] font-bold text-gray-400 uppercase tracking-wide mb-2">Path 2 · Direct Payment</div>
+          <div>
+            <div className="text-[12px] text-gray-400 mb-1.5">Direct to payment</div>
             <div className="flex items-center gap-2 flex-wrap">
               <Node s="Process for Payment" label="Process for Payment" icon={CreditCard} />
               <Arrow />
