@@ -15,7 +15,7 @@ const ALLOWED_DOMAINS  = (import.meta.env.VITE_ALLOWED_DOMAINS || 'cutm.ac.in,cu
 const MIN_PASSWORD_LEN = Number(import.meta.env.VITE_MIN_PASSWORD_LENGTH) || 6
 const SUPPORT_EMAIL    = import.meta.env.VITE_SUPPORT_EMAIL || 'it-support@cutm.ac.in'
 const ORG_NAME         = import.meta.env.VITE_ORG_NAME || 'Centurion University of Technology and Management'
-const DEFAULT_LOGO_URL = 'https://cutmap.ac.in/wp-content/themes/centurion/images/logo.svg'
+const DEFAULT_LOGO_URL = '/logo.png'
 
 const rawClientId      = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 const isGoogleConfigured = rawClientId && rawClientId !== 'YOUR_GOOGLE_CLIENT_ID_HERE'
@@ -219,16 +219,7 @@ export default function Login() {
       {/* ════════════ LEFT PANEL — one flat field, one statement ════════════ */}
       <div className="hidden lg:flex lg:w-[55%] flex-col bg-primary-500 text-white">
         <div className="flex flex-col h-full p-14">
-          <div className="flex items-center gap-4">
-            {logoUrl ? (
-              <span className="bg-white rounded-md px-4 py-3 flex items-center"><img src={logoUrl} alt={orgName} className="h-12 w-auto" /></span>
-            ) : (
-              <div className="h-10 w-10 rounded-md bg-white text-primary-500 flex items-center justify-center font-bold text-lg flex-shrink-0">
-                {logoInitial}
-              </div>
-            )}
-            <div className="text-2xl font-medium tracking-tight">CCRM</div>
-          </div>
+          <div className="text-2xl font-medium tracking-tight">CCRM</div>
 
           <div className="flex-1 flex flex-col justify-center">
             <h1 className="text-[56px] xl:text-[72px] font-medium leading-[0.98] tracking-[-0.03em] max-w-[11ch]">
@@ -251,26 +242,20 @@ export default function Login() {
       <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white relative">
 
         <div className="relative w-full max-w-[420px]">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-10">
+          {/* Logo */}
+          <div className="mb-8">
             {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt={orgName}
-                className="h-9 w-auto"
-              />
+              <img src={logoUrl} alt={orgName} className="h-28 w-28 object-contain" />
             ) : (
-              <div className="h-9 w-9 rounded-lg bg-primary-500 flex items-center justify-center text-white font-extrabold text-base flex-shrink-0">
+              <div className="h-16 w-16 rounded-md bg-primary-500 flex items-center justify-center text-white font-bold text-2xl">
                 {logoInitial}
               </div>
             )}
-            <div className="h-7 w-px bg-gray-200" />
-            <div className="text-gray-700 font-bold text-base">CCRM Portal</div>
           </div>
 
           {/* Heading */}
           <div className="mb-8">
-            <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Welcome back</h2>
+            <h2 className="text-[32px] font-medium text-gray-900 tracking-tight">Welcome back</h2>
             <p className="text-gray-500 text-sm mt-1.5">Sign in to your admissions dashboard</p>
           </div>
 
