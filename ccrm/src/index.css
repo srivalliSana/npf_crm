@@ -7,29 +7,29 @@
     box-sizing: border-box;
   }
   body {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Instrument Sans', system-ui, sans-serif;
     @apply bg-canvas text-gray-800;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2 px-4 rounded-md transition-colors duration-150;
   }
   .btn-secondary {
-    @apply bg-white hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg border border-gray-300 transition-colors duration-200;
+    @apply bg-white hover:bg-gray-50 text-gray-800 font-medium py-2 px-4 rounded-md border border-gray-300 transition-colors duration-150;
   }
   .input-field {
-    @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition;
+    @apply w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500 transition;
   }
   .table-th {
-    @apply px-4 py-3.5 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50/80 border-b border-gray-200;
+    @apply px-4 py-3 text-left text-xs font-medium text-gray-500 bg-white border-b border-gray-200;
   }
   .table-td {
-    @apply px-4 py-3.5 text-sm text-gray-700 border-b border-gray-100;
+    @apply px-4 py-3 text-sm text-gray-800 border-b border-gray-100 tabular-nums;
   }
   .badge {
-    @apply inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold;
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
   }
   .badge-success { @apply badge bg-success-100 text-success-700; }
   .badge-warning { @apply badge bg-warning-100 text-warning-700; }
@@ -40,13 +40,13 @@
   .badge-accent  { @apply badge bg-accent-100 text-accent-700; }
   .badge-dot::before { content:''; @apply inline-block w-1.5 h-1.5 rounded-full mr-1.5 bg-current; }
   .card {
-    @apply bg-white rounded-2xl border border-gray-100 shadow-card transition-shadow duration-200;
+    @apply bg-white rounded-xl border border-gray-200;
   }
   .sidebar-icon {
-    @apply flex flex-row items-center gap-3 w-[calc(100%-1rem)] mx-2 mb-0.5 px-3.5 py-2.5 rounded-xl text-gray-600 border-l-[3px] border-transparent hover:text-gray-900 hover:bg-gray-50 cursor-pointer transition-colors duration-150 relative;
+    @apply flex flex-row items-center gap-3 w-[calc(100%-1rem)] mx-2 mb-0.5 px-3.5 py-2.5 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 cursor-pointer transition-colors duration-150 relative;
   }
   .sidebar-icon.active {
-    @apply text-primary-700 bg-primary-50 border-primary-500 font-bold;
+    @apply text-gray-900 bg-gray-100 font-semibold;
   }
 }
 
@@ -56,14 +56,14 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #d4d8dd;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #aab1ba;
 }
 
 /* Tooltip (hidden — labels now always visible) */
