@@ -17,3 +17,4 @@ ccrm/.env.production
 .agents/
 .claude/skills/
 skills-lock.json
+.taste-skill/
