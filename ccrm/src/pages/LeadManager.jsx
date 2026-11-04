@@ -911,7 +911,7 @@ export default function LeadManager() {
                 <Mail size={13} /> Email ({selectedRows.length})
               </button>
               <button onClick={handleEnrollDrip} disabled={dripLoading}
-                className="flex items-center gap-1 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-2.5 py-1 disabled:opacity-50">
+                className="flex items-center gap-1 text-xs bg-primary-500 hover:bg-primary-500 text-white rounded-lg px-2.5 py-1 disabled:opacity-50">
                 <Zap size={13} /> {dripLoading ? 'Enrolling...' : 'Drip Enroll'}
               </button>
               {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
@@ -922,7 +922,7 @@ export default function LeadManager() {
                     {assignableCounsellors.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
                   </select>
                   <button onClick={handleBulkAssign} disabled={bulkAssigning || !bulkAssignTo}
-                    className="flex items-center gap-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-2.5 py-1 disabled:opacity-50 transition-colors">
+                    className="flex items-center gap-1 text-xs bg-primary-500 hover:bg-primary-500 text-white rounded-lg px-2.5 py-1 disabled:opacity-50 transition-colors">
                     <UserCheck size={13} /> {bulkAssigning ? 'Assigning...' : `Assign (${selectedRows.length})`}
                   </button>
                 </div>
@@ -1191,7 +1191,7 @@ export default function LeadManager() {
                   ...(formConfig.showDistrictDropdown ? [] : [{key:'city', label:'City (Optional)', type:'text', placeholder:'e.g. Bhubaneswar'}]),
                 ].map(f => (
                   <div key={f.key}>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{f.label}</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">{f.label}</label>
                     <input type={f.type} value={newLead[f.key]}
                       onChange={e => setNewLead(p => ({ ...p, [f.key]: e.target.value }))}
                       onBlur={f.key === 'mobile' ? handleMobileBlur : undefined}
@@ -1202,7 +1202,7 @@ export default function LeadManager() {
 
                 {/* State */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">State (Optional)</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">State (Optional)</label>
                   <select
                     value={newLead.state}
                     onChange={e => setNewLead(p => ({ ...p, state: e.target.value, ...(formConfig.showDistrictDropdown ? { city: '' } : {}) }))}
@@ -1217,7 +1217,7 @@ export default function LeadManager() {
                     district (CU EDU); every other tenant keeps the free-text City field above. */}
                 {formConfig.showDistrictDropdown && (
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">District (Optional)</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">District (Optional)</label>
                     <select
                       value={newLead.city}
                       onChange={e => setNewLead(p => ({ ...p, city: e.target.value }))}
@@ -1232,7 +1232,7 @@ export default function LeadManager() {
 
                 {/* Campus */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Campus (Optional)</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Campus (Optional)</label>
                   <select value={newLead.campus || ''} onChange={e => setNewLead(p => ({ ...p, campus: e.target.value }))} className="input-field text-sm">
                     <option value="">— Select campus —</option>
                     {formCampuses.map(c => <option key={c} value={c}>{c}</option>)}
@@ -1242,7 +1242,7 @@ export default function LeadManager() {
                 {/* Reference College — conditional based on tenant config */}
                 {!formConfig.hideReferenceCollege && (
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Reference College</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Reference College</label>
                     <select value={newLead.course} onChange={e => setNewLead(p => ({ ...p, course: e.target.value }))} className="input-field text-sm">
                       <option value="">— Select reference college —</option>
                       {REFERENCE_COLLEGES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -1253,7 +1253,7 @@ export default function LeadManager() {
                 {/* Program — conditional based on tenant config */}
                 {formConfig.showProgram && (
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Program</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Program</label>
                     <select value={newLead.program || ''} onChange={e => setNewLead(p => ({ ...p, program: e.target.value }))} className="input-field text-sm">
                       <option value="">— Select program —</option>
                       {formPrograms.map(p => <option key={p} value={p}>{p}</option>)}
@@ -1261,7 +1261,7 @@ export default function LeadManager() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Lead Source</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Lead Source</label>
                   <select value={newLead.source} onChange={e => setNewLead(p => ({ ...p, source: e.target.value }))} className="input-field text-sm">
                     {SOURCES.map(s => <option key={s}>{s}</option>)}
                   </select>
@@ -1283,7 +1283,7 @@ export default function LeadManager() {
 
               {!autoAssign && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Assign to Counselor</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Assign to Counselor</label>
                   <select value={newLead.owner} onChange={e => setNewLead(p => ({ ...p, owner: e.target.value }))} className="input-field text-sm">
                     <option value="">-- Select --</option>
                     {assignableCounsellors.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
@@ -1324,7 +1324,7 @@ export default function LeadManager() {
         >
             {/* Recipients selector */}
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Recipients</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Recipients</label>
               <div className="flex flex-col gap-1.5">
                 <label className={`flex items-center gap-2 text-sm rounded-lg border px-3 py-2 cursor-pointer ${rcsRecipientMode === 'selected' ? 'border-pink-300 bg-pink-50' : 'border-gray-200'} ${!selectedRows.length ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   <input type="radio" name="rcsmode" disabled={!selectedRows.length}
@@ -1342,7 +1342,7 @@ export default function LeadManager() {
 
             {/* Template picker */}
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Approved Template *</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Approved Template *</label>
               {rcsTemplates.length === 0 ? (
                 <div className="bg-warning-50 border border-warning-200 rounded-xl p-3 text-xs text-warning-700">
                   ⚠️ No templates available. Go to <button onClick={() => navigate('/integrations')} className="font-semibold underline">Integrations</button> to add or wait for webhook approval.
@@ -1372,7 +1372,7 @@ export default function LeadManager() {
 
             {/* Message body */}
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Message Variable Content *</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Message Variable Content *</label>
               <textarea
                 value={rcsCustomMsg}
                 onChange={e => setRcsCustomMsg(e.target.value)}
@@ -1428,7 +1428,7 @@ export default function LeadManager() {
             </div>
 
             <div className="space-y-3 mb-4">
-              <label className="block text-xs font-semibold text-gray-500 uppercase">Quick Template</label>
+              <label className="block text-xs font-semibold text-gray-500">Quick Template</label>
               <div className="grid grid-cols-2 gap-2">
                 {WA_TEMPLATES.map((t, i) => (
                   <button key={i} type="button" onClick={() => { setWaTemplate(i); setWaCustomMsg('') }}
@@ -1440,7 +1440,7 @@ export default function LeadManager() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Message Preview / Custom</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Message Preview / Custom</label>
               <textarea
                 value={waCustomMsg || WA_TEMPLATES[waTemplate].msg}
                 onChange={e => setWaCustomMsg(e.target.value)}
@@ -1480,17 +1480,17 @@ export default function LeadManager() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Outcome</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Outcome</label>
                 <select value={callOutcome} onChange={e => setCallOutcome(e.target.value)} className="input-field text-sm">
                   {['Called', 'Connected', 'No Answer', 'Busy', 'Callback Requested', 'Not Interested'].map(o => <option key={o}>{o}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Duration</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Duration</label>
                 <input type="text" value={callDuration} onChange={e => setCallDuration(e.target.value)} placeholder="e.g. 3:45" className="input-field text-sm" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Notes</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Notes</label>
                 <textarea value={callNotes} onChange={e => setCallNotes(e.target.value)} rows={2} className="input-field text-sm resize-none" placeholder="Call notes..." />
               </div>
             </div>
@@ -1518,7 +1518,7 @@ export default function LeadManager() {
             </p>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Reason *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Reason *</label>
                 <select value={niReason} onChange={e => setNiReason(e.target.value)} className="input-field text-sm">
                   <option value="">-- Select reason --</option>
                   {NI_REASONS.map(r => <option key={r}>{r}</option>)}
@@ -1526,7 +1526,7 @@ export default function LeadManager() {
               </div>
               {niReason === 'Other' && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Specify</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Specify</label>
                   <input value={niOther} onChange={e => setNiOther(e.target.value)}
                     className="input-field text-sm" placeholder="Enter reason..." />
                 </div>
@@ -1564,7 +1564,7 @@ export default function LeadManager() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Transfer to *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Transfer to *</label>
                 <select value={transferTo} onChange={e => setTransferTo(e.target.value)} className="input-field text-sm">
                   <option value="">— Pick counsellor —</option>
                   {(counselors || []).filter(c => c.name !== transferLead.owner).map(c => (
@@ -1573,7 +1573,7 @@ export default function LeadManager() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Remark (optional)</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Remark (optional)</label>
                 <textarea value={transferRemark} onChange={e => setTransferRemark(e.target.value)}
                   rows={3} placeholder="Why transfer? Hand-off context for the new counsellor..."
                   className="input-field text-sm resize-none" />
@@ -1601,7 +1601,7 @@ export default function LeadManager() {
         )}
       >
         <div className="flex flex-col items-center text-center gap-3 mb-2">
-          <div className="w-12 h-12 rounded-full bg-danger-100 flex items-center justify-center"><Trash2 size={22} className="text-danger-500" /></div>
+          <div className="w-12 h-12 flex items-center justify-center"><Trash2 size={22} className="text-danger-500" /></div>
           <h3 className="font-bold text-gray-900 text-base">Delete Lead{deleteConfirm === 'bulk' ? 's' : ''}</h3>
           <p className="text-sm text-gray-500">
             {deleteConfirm === 'bulk'
@@ -1632,8 +1632,8 @@ export default function LeadManager() {
 
       {/* ============ BULK UPLOAD MODAL (with smart column mapper) ============ */}
       {showBulkModal && (
-        <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-slide-in">
-          <div className="bg-white rounded-2xl shadow-dropdown w-full max-w-4xl overflow-hidden flex flex-col animate-scale-up">
+        <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-50 p-4 animate-slide-in">
+          <div className="bg-white rounded-xl shadow-dropdown w-full max-w-4xl overflow-hidden flex flex-col animate-scale-up">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-primary-50 rounded-lg text-primary-600"><FileSpreadsheet size={20} /></div>
@@ -1666,7 +1666,7 @@ export default function LeadManager() {
                 <div className="space-y-4">
                   <div onDragOver={e => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)}
                     onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if(f) handleFileSelect(f) }}
-                    className={`border-2 border-dashed rounded-2xl p-12 text-center transition ${dragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-primary-400'}`}>
+                    className={`border-2 border-dashed rounded-xl p-12 text-center transition ${dragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-primary-400'}`}>
                     <FileSpreadsheet size={48} className="mx-auto mb-4 text-primary-300" />
                     <h3 className="font-bold text-gray-700 mb-2">Drag & Drop your Excel / CSV file here</h3>
                     <p className="text-sm text-gray-400 mb-4">Supports .xlsx, .xls, .csv · up to 100,000+ rows</p>
@@ -1688,7 +1688,7 @@ export default function LeadManager() {
                     </div>
                     <button
                       onClick={handleDownloadTemplate}
-                      className="flex items-center gap-2 text-base bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-3 transition-colors font-bold shadow-md"
+                      className="flex items-center gap-2 text-base bg-primary-500 hover:bg-primary-500 text-white rounded-lg px-6 py-3 transition-colors font-bold shadow-md"
                     >
                       <Download size={18} /> Download Template
                     </button>
@@ -1807,7 +1807,7 @@ export default function LeadManager() {
 
                   {/* Preview table */}
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">First 5 rows preview</p>
+                    <p className="text-xs font-semibold text-gray-500 mb-2">First 5 rows preview</p>
                     <div className="overflow-x-auto rounded-xl border border-slate-200">
                       <table className="w-full text-xs">
                         <thead className="bg-slate-50">
@@ -1841,7 +1841,7 @@ export default function LeadManager() {
               {/* STEP 4: Done */}
               {bulkStep === 4 && uploadResult && (
                 <div className="py-6 text-center space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-success-50 text-success-500 flex items-center justify-center mx-auto mb-2">
+                  <div className="w-16 h-16 text-success-500 flex items-center justify-center mx-auto mb-2">
                     <CheckCircle2 size={36} />
                   </div>
                   <h3 className="font-bold text-lg text-gray-800">Import Complete! 🎉</h3>
@@ -1861,7 +1861,7 @@ export default function LeadManager() {
                   {/* Sample skip reasons */}
                   {uploadResult.skipReasons?.length > 0 && (
                     <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-left max-w-2xl mx-auto">
-                      <p className="text-xs font-bold text-gray-600 uppercase mb-2">Why rows were skipped (first {uploadResult.skipReasons.length})</p>
+                      <p className="text-xs font-bold text-gray-600 mb-2">Why rows were skipped (first {uploadResult.skipReasons.length})</p>
                       <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
                         {uploadResult.skipReasons.map((r, i) => <li key={i}>{r}</li>)}
                       </ul>
