@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Search, Download, RefreshCw, ChevronDown,
   ChevronLeft, ChevronRight, MessageCircle, Plus,
-  X, Save, Trash2, Edit2, Mail, Eye, Link as LinkIcon, Copy
+  X, Save, Trash2, Edit2, Mail, Eye, Link as LinkIcon, Copy, MoreHorizontal
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import PageContainer from '../components/PageContainer'
@@ -48,6 +48,7 @@ export default function ApplicationManager() {
   const EXAM_OPTIONS = TENANT_EXAM_OPTIONS[configKey] || TENANT_EXAM_OPTIONS.default
 
   const [selectedRows, setSelectedRows] = useState([])
+  const [appMenuId, setAppMenuId] = useState(null)
   const [exam, setExam] = useState('All Programs')
   const selectedExamObj = EXAM_OPTIONS.find(e => e.label === exam) || EXAM_OPTIONS[0]
   const [quickView, setQuickView] = useState('All Applications')
@@ -432,145 +433,99 @@ export default function ApplicationManager() {
           <span className="text-xs text-gray-400">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" onClick={() => { if (appMenuId) setAppMenuId(null) }}>
           <table className="w-full">
             <thead>
               <tr>
-                <th className="table-th w-10">
+                <th className="table-th w-12 pl-5">
                   <input
                     type="checkbox"
+                    aria-label="Select all applications on this page"
                     checked={selectedRows.length === pageData.length && pageData.length > 0}
                     onChange={toggleAll}
-                    className="w-4 h-4 rounded border-gray-300 text-primary-500"
+                    className="w-4 h-4 rounded border-gray-300"
                   />
                 </th>
-                <th className="table-th">Application ID</th>
-                <th className="table-th">Student Name</th>
-                <th className="table-th">Course</th>
-                <th className="table-th">Email / Mobile</th>
-                <th className="table-th">Form Status</th>
-                <th className="table-th">Payment Status</th>
-                <th className="table-th w-28">Actions</th>
+                <th className="table-th">Student</th>
+                <th className="table-th">Contact</th>
+                <th className="table-th">Form</th>
+                <th className="table-th">Payment</th>
+                <th className="table-th text-right pr-5">Next step</th>
               </tr>
             </thead>
             <tbody>
-              {pageData.map(app => (
-                <tr
-                  key={app.id}
-                  className="hover:bg-blue-50/30 transition-colors cursor-pointer border-l-4 border-primary-400"
-                  onClick={() => navigate(`/applications/${app.id}`)}
-                >
-                  <td className="table-td" onClick={e => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={selectedRows.includes(app.id)}
-                      onChange={() => toggleRow(app.id)}
-                      className="w-4 h-4 rounded border-gray-300 text-primary-500"
-                    />
-                  </td>
-                  {/* Application ID — highlighted */}
-                  <td className="table-td">
-                    <span className="font-mono text-xs text-gray-600 whitespace-nowrap select-all">
-                      {app.appNo}
-                    </span>
-                  </td>
-                  {/* Student name */}
-                  <td className="table-td">
-                    <span className="text-primary-500 hover:text-primary-700 font-medium hover:underline">
-                      {app.name}
-                    </span>
-                  </td>
-                  {/* Course */}
-                  <td className="table-td text-xs text-gray-600">{app.course || '—'}</td>
-                  {/* Email + Mobile + WA */}
-                  <td className="table-td">
-                    <div className="text-xs text-gray-600 truncate max-w-36">{app.email}</div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-xs text-gray-500">{app.mobile}</span>
-                      <a href={`https://wa.me/91${app.mobile}`} target="_blank" rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()} className="text-green-500 hover:text-green-600" title="WhatsApp">
-                        <MessageCircle size={12} />
-                      </a>
-                    </div>
-                  </td>
-                  <td className="table-td">
-                    <span className={`badge ${formStatusBadge(app.formStatus)}`}>{app.formStatus}</span>
-                  </td>
-                  {/* Payment Status — yellow highlight for pending */}
-                  <td className="table-td">
-                    <span className={`badge font-semibold ${payStatusBadge(app.payStatus)} ${app.payStatus === 'Payment Pending' ? 'ring-1 ring-warning-400' : ''}`}>
-                      {app.payStatus}
-                    </span>
-                  </td>
-                  <td className="table-td" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center gap-1">
-                      {/* Generate Payment Link — only when Payment Pending */}
-                      {(app.payStatus === 'Payment Pending' || app.payStatus === 'Pending') && (
-                        <button
-                          onClick={e => {
-                            e.stopPropagation()
-                            setLinkApp(app); setLinkResult(null); setPayAmount('25000'); setPayMode('Online'); setOfflineUtr('')
-                          }}
-                          className="p-1.5 rounded hover:bg-warning-50 text-warning-500 hover:text-warning-600 border border-warning-200"
-                          title="Generate Payment Link"
-                        >
-                          <LinkIcon size={14} />
-                        </button>
+              {pageData.map(app => {
+                const menuOpen = appMenuId === app.id
+                const needsPayment = app.payStatus === 'Payment Pending' || app.payStatus === 'Pending'
+                const menuItem = 'w-full text-left px-4 py-2.5 text-[13px] text-gray-800 hover:bg-gray-100'
+                return (
+                  <tr key={app.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/applications/${app.id}`)}>
+                    <td className="table-td pl-5 align-top pt-5" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" aria-label={`Select ${app.name}`} checked={selectedRows.includes(app.id)} onChange={() => toggleRow(app.id)} className="w-4 h-4 rounded border-gray-300" />
+                    </td>
+
+                    {/* Student: the name, then the application number and course */}
+                    <td className="table-td align-top">
+                      <div className="text-[15px] font-medium text-gray-900">{app.name}</div>
+                      <div className="mt-0.5 text-[12px] text-gray-500 whitespace-nowrap">
+                        <span className="font-mono select-all">{app.appNo}</span>
+                        {app.course ? <> · {app.course}</> : null}
+                      </div>
+                    </td>
+
+                    <td className="table-td align-top" onClick={e => e.stopPropagation()}>
+                      <div className="text-[13px] text-gray-800 truncate max-w-[14rem]">{app.email}</div>
+                      <div className="mt-1 flex items-center gap-2 text-[13px] text-gray-600 tabular-nums">
+                        {app.mobile}
+                        <a href={`https://wa.me/91${app.mobile}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" aria-label="WhatsApp"
+                          className="w-6 h-6 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600"><MessageCircle size={13} /></a>
+                      </div>
+                    </td>
+
+                    <td className="table-td align-top pt-5">
+                      <span className={`badge ${formStatusBadge(app.formStatus)}`}>{app.formStatus}</span>
+                    </td>
+                    <td className="table-td align-top pt-5">
+                      <span className={`badge ${payStatusBadge(app.payStatus)}`}>{app.payStatus}</span>
+                    </td>
+
+                    {/* Next step: the one thing to do, everything else in the menu */}
+                    <td className="table-td align-top pt-4 pr-5 relative" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {needsPayment ? (
+                          <button
+                            onClick={e => { e.stopPropagation(); setLinkApp(app); setLinkResult(null); setPayAmount('25000'); setPayMode('Online'); setOfflineUtr('') }}
+                            className="px-3 py-1.5 rounded-md bg-primary-500 hover:bg-primary-600 text-white text-[13px] font-medium whitespace-nowrap"
+                          >Payment link</button>
+                        ) : (
+                          <button onClick={() => navigate(`/applications/${app.id}`)}
+                            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-[13px] font-medium text-gray-900 whitespace-nowrap">Open</button>
+                        )}
+                        <button onClick={e => { e.stopPropagation(); setAppMenuId(menuOpen ? null : app.id) }}
+                          aria-label="More actions" aria-expanded={menuOpen}
+                          className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-200 text-gray-600"><MoreHorizontal size={18} /></button>
+                      </div>
+                      {menuOpen && (
+                        <div className="absolute right-5 top-full -mt-2 z-30 w-56 bg-white rounded-lg border border-gray-200 shadow-dropdown py-1.5 text-left">
+                          <button className={menuItem} onClick={() => { setAppMenuId(null); navigate(`/applications/${app.id}`) }}>View profile</button>
+                          <a className={`${menuItem} block`} href={`mailto:${app.email}`} onClick={() => setAppMenuId(null)}>Email the student</a>
+                          <button className={menuItem} onClick={() => { setAppMenuId(null); setAdmissionApp(app); setAdmissionEmail(app.email || '') }}>Send admission details form</button>
+                          {needsPayment ? null : (
+                            <button className={menuItem} onClick={() => { setAppMenuId(null); setLinkApp(app); setLinkResult(null); setPayAmount('25000'); setPayMode('Online'); setOfflineUtr('') }}>Generate payment link</button>
+                          )}
+                          <button className={menuItem} onClick={e => { setAppMenuId(null); handleOpenEdit(e, app) }}>Edit application</button>
+                          {currentUser?.role === 'Admin' && (
+                            <button className={`${menuItem} text-danger-700`} onClick={() => { setAppMenuId(null); setDeleteConfirm(app.id) }}>Delete application</button>
+                          )}
+                        </div>
                       )}
-                      {/* View */}
-                      <button
-                        onClick={() => navigate(`/applications/${app.id}`)}
-                        className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500"
-                        title="View profile"
-                      >
-                        <Eye size={14} />
-                      </button>
-                      {/* Mail */}
-                      <a
-                        href={`mailto:${app.email}`}
-                        onClick={e => e.stopPropagation()}
-                        className="p-1.5 rounded hover:bg-purple-50 text-gray-400 hover:text-purple-500"
-                        title="Send email"
-                      >
-                        <Mail size={14} />
-                      </a>
-                      {/* Send Admission Details */}
-                      <button
-                        onClick={e => {
-                          e.stopPropagation()
-                          setAdmissionApp(app)
-                          setAdmissionEmail(app.email || '')
-                        }}
-                        className="p-1.5 rounded hover:bg-purple-50 text-gray-400 hover:text-purple-600"
-                        title="Send admission details form"
-                      >
-                        <Mail size={14} />
-                      </button>
-                      {/* Edit */}
-                      <button
-                        onClick={e => handleOpenEdit(e, app)}
-                        className="p-1.5 rounded hover:bg-yellow-50 text-gray-400 hover:text-yellow-600"
-                        title="Edit application"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      {/* Delete — Admin only */}
-                      {currentUser?.role === 'Admin' && (
-                        <button
-                          onClick={e => { e.stopPropagation(); setDeleteConfirm(app.id) }}
-                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
-                          title="Delete application"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                )
+              })}
               {pageData.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-gray-400 text-sm">
+                  <td colSpan={6} className="text-center py-12 text-gray-500 text-sm">
                     No applications found matching your criteria.
                   </td>
                 </tr>
