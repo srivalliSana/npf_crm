@@ -135,7 +135,7 @@ function AuditTrail() {
               ['IP', detail.ip || '—'],
               ['Client', detail.userAgent || '—'],
             ].map(([k, v]) => (
-              <div key={k} className="grid grid-cols-3 gap-2">
+              <div key={k} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <span className="text-xs text-gray-400 font-medium">{k}</span>
                 <span className="col-span-2 text-gray-700 break-words">{v}</span>
               </div>
