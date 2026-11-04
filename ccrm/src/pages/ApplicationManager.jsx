@@ -9,6 +9,7 @@ import { useCcrm } from '../context/CcrmContext'
 import PageContainer from '../components/PageContainer'
 import ApplicationBoard from '../components/ApplicationBoard'
 import { Card, Modal, Button } from '../components/ui'
+import { avatarTone } from '../lib/avatar'
 
 // Tenant-specific exam/program options
 const TENANT_EXAM_OPTIONS = {
@@ -496,7 +497,7 @@ export default function ApplicationManager() {
                     {/* Student: the name, then the application number and course */}
                     <td className="table-td align-top">
                       <div className="flex items-start gap-3">
-                        <span className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-[12px] font-medium flex-shrink-0 mt-0.5" aria-hidden="true">{(app.name || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'}</span>
+                        <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-medium flex-shrink-0 mt-0.5 ${avatarTone(app.name)}`} aria-hidden="true">{(app.name || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'}</span>
                         <div className="min-w-0">
                           <div className="text-[15px] font-medium text-gray-900">{app.name}</div>
                           <div className="mt-0.5 text-[12px] text-gray-500 whitespace-nowrap">
