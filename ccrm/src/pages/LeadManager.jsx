@@ -18,6 +18,7 @@ import { Card, Table, Modal, Button, Badge } from '../components/ui'
 import { getDistrictsForState } from '../data/indiaLocations'
 import { getUrlTenantSlug } from '../tenantSlug'
 import DatePicker from '../components/ui/DatePicker'
+import { avatarTone } from '../lib/avatar'
 
 const STAGE_COLORS = {
   red:     { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-400' },
@@ -1122,7 +1123,7 @@ export default function LeadManager() {
                     {/* Lead: the name, then its id and where it came from */}
                     <td className="table-td align-top" onClick={e => e.stopPropagation()}>
                       <div className="flex items-start gap-3">
-                        <span className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-[12px] font-medium flex-shrink-0 mt-0.5" aria-hidden="true">{(lead.name || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'}</span>
+                        <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-medium flex-shrink-0 mt-0.5 ${avatarTone(lead.name)}`} aria-hidden="true">{(lead.name || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'}</span>
                         <div className="min-w-0">
                       {editingNameId === lead.id ? (
                         <span className="flex items-center gap-1">
