@@ -142,12 +142,12 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
   // viewport. On desktop it stays exactly as before.
   const shell = isMobile
     ? `w-64 z-50 transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`
-    : `z-50 transition-[width] duration-200 ${expanded ? 'w-64' : 'w-16'}`
+    : `w-64 z-50 transition-transform duration-200 ease-out ${open ? 'translate-x-0' : '-translate-x-full'}`
 
   return (
     <aside
       className={`fixed left-0 top-0 h-screen bg-canvas border-r border-gray-200/70 flex flex-col ${shell}`}
-      aria-hidden={isMobile && !open}
+      aria-hidden={!open}
     >
       {/* Logo */}
       <div
