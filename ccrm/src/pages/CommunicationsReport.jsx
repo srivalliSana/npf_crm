@@ -246,7 +246,7 @@ export default function CommunicationsReport() {
       {tab === 'whatsapp' && (
         <div className="space-y-4">
           {/* Summary cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
               { label: 'Total Campaigns', value: waLogs.length, icon: MessageCircle, color: 'text-green-600', bg: 'bg-green-50' },
               { label: 'Total Sent',      value: waLogs.reduce((s, w) => s + Number(w.recipientCount || 0), 0), icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
