@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { MessageCircle, Phone, Mail, MapPin, CreditCard } from 'lucide-react'
+import { avatarTone } from '../lib/avatar'
 
 const SHOW = 30
 
@@ -83,7 +84,7 @@ export default function ApplicationBoard({ apps, onOpen, onMove, onPaymentLink }
                     >
                       <div className="p-3.5">
                         <div className="flex items-start gap-3">
-                          <span className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-[12px] font-medium flex-shrink-0" aria-hidden="true">{initials(app.name) || '?'}</span>
+                          <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-medium flex-shrink-0 ${avatarTone(app.name)}`} aria-hidden="true">{initials(app.name) || '?'}</span>
                           <div className="min-w-0 flex-1">
                             <button onClick={() => onOpen(app)} className="block max-w-full text-left text-[15px] font-medium text-gray-900 group-hover:underline leading-snug break-words">{app.name}</button>
                             <div className="mt-0.5 text-[12px] text-gray-500 truncate"><span className="font-mono select-all">{app.appNo}</span>{app.course ? ` · ${app.course}` : ''}</div>
@@ -100,9 +101,9 @@ export default function ApplicationBoard({ apps, onOpen, onMove, onPaymentLink }
                             <span className="flex items-center gap-2 tabular-nums"><Phone size={13} className="text-gray-400" />{app.mobile}</span>
                             <span className="flex items-center gap-1">
                               <a href={`tel:${app.mobile}`} aria-label={`Call ${app.name}`} title="Call"
-                                className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-900 hover:text-white text-gray-600 transition-colors"><Phone size={13} /></a>
+                                className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-primary-600 hover:text-white text-gray-600 transition-colors"><Phone size={13} /></a>
                               <a href={`https://wa.me/91${app.mobile}`} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${app.name}`} title="WhatsApp"
-                                className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-900 hover:text-white text-gray-600 transition-colors"><MessageCircle size={13} /></a>
+                                className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-primary-600 hover:text-white text-gray-600 transition-colors"><MessageCircle size={13} /></a>
                             </span>
                           </div>
                           {app.email && <div className="flex items-center gap-2 min-w-0"><Mail size={13} className="text-gray-400 flex-shrink-0" /><span className="truncate">{app.email}</span></div>}
