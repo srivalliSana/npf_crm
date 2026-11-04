@@ -6,7 +6,7 @@ import {
   Plus, X, Save, Upload, AlertCircle,
   CheckCircle2, FileSpreadsheet, HelpCircle, Trash2,
   MessageSquare, Zap, Target, BarChart2, ArrowRight,
-  Mail, Calendar, ArrowRightLeft, Edit3, Sparkles, UserCheck
+  Mail, Calendar, ArrowRightLeft, Edit3, Sparkles, UserCheck, MoreHorizontal
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
@@ -761,6 +761,7 @@ export default function LeadManager() {
     : ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success']
 
   const [moreActionsOpen, setMoreActionsOpen] = useState(false)
+  const [rowMenuId, setRowMenuId] = useState(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Owner assign dropdowns → active users granted the relevant entity (by domain tab),
@@ -790,13 +791,13 @@ export default function LeadManager() {
           <Button variant="secondary" size="sm" icon={Phone} onClick={() => navigate('/call-outcomes')}>Call Outcomes</Button>
           {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
             <button onClick={() => { setShowRCSModal(true); setRcsCustomMsg(''); setRcsRecipientMode('filtered') }}
-              className="flex items-center gap-1.5 text-sm text-pink-600 border border-pink-200 rounded-lg px-3 py-1.5 hover:bg-pink-50">
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 border border-gray-300 bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-50">
               <Sparkles size={14} /> RCS Campaign
             </button>
           )}
           {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
             <button onClick={() => openEmail('filtered')}
-              className="flex items-center gap-1.5 text-sm text-amber-600 border border-amber-200 rounded-lg px-3 py-1.5 hover:bg-amber-50">
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 border border-gray-300 bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-50">
               <Mail size={14} /> Email Campaign
             </button>
           )}
@@ -809,18 +810,18 @@ export default function LeadManager() {
       )}
     >
       {/* Filter Tabs — Domain-based filtering */}
-      <Card className="p-3 mb-4 flex items-center gap-2 flex-wrap">
+      <div className="mb-4 flex items-center gap-2 flex-wrap">
         {leadTabs.map(tab => (
           <button key={tab.id} onClick={() => {
             console.log(`[Tab Click] Clicked tab: ${tab.id}`)
             setActiveFilter(tab.id)
             setCurrentPage(1)
           }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeFilter === tab.id ? 'bg-primary-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            className={`px-4 py-2 rounded-md text-sm font-medium transition ${activeFilter === tab.id ? 'bg-primary-500 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'}`}>
             {tab.label}
           </button>
         ))}
-      </Card>
+      </div>
 
       {/* Filter bar */}
       <Card className="p-3 mb-4">
@@ -1024,16 +1025,13 @@ export default function LeadManager() {
           {!leadsLoading && pageData.length === 0 && <p className="p-8 text-center text-sm text-gray-500">No leads found matching your criteria.</p>}
         </div>
 
-        <div className="overflow-x-auto hidden md:block">
+        <div className="overflow-x-auto hidden md:block" onClick={() => { if (rowMenuId) setRowMenuId(null) }}>
           <table className="w-full">
             <thead>
               <tr>
-                <th className="table-th w-10"><input type="checkbox" checked={selectedRows.length === pageData.length && pageData.length > 0} onChange={toggleAll} className="w-4 h-4 rounded border-gray-300 text-primary-500" /></th>
-                <th className="table-th">Lead ID</th>
-                <th className="table-th">Name</th>
-                <th className="table-th">Date Added</th>
-                <th className="table-th">Mobile</th>
-                <th className="table-th">Source</th>
+                <th className="table-th w-12 pl-5"><input type="checkbox" aria-label="Select all leads on this page" checked={selectedRows.length === pageData.length && pageData.length > 0} onChange={toggleAll} className="w-4 h-4 rounded border-gray-300" /></th>
+                <th className="table-th">Lead</th>
+                <th className="table-th">Contact</th>
                 <th className="table-th">Stage</th>
                 <th className="table-th">
                   <span
@@ -1044,172 +1042,138 @@ export default function LeadManager() {
                       '• Course tier (0-25): MBA / B.Tech CSE / M.Tech score highest\n' +
                       '• Profile completeness (0-25): Email +10, State +8, City +7\n' +
                       '• Stage engagement (0-20): Interested / Process for Payment\n\n' +
-                      'Buckets:\n' +
-                      '🔥 75+ Hot · 🌟 50-74 Warm · 🌱 25-49 Nurture · ❄️ <25 Cold'
+                      'Buckets: 75+ Hot · 50-74 Warm · 25-49 Nurture · under 25 Cold'
                     }
                   >
-                    Score <HelpCircle size={10} className="text-gray-400" />
+                    Score <HelpCircle size={11} className="text-gray-400" />
                   </span>
                 </th>
                 <th className="table-th">Owner</th>
-                <th className="table-th w-20">Actions</th>
+                <th className="table-th text-right pr-5">Next step</th>
               </tr>
             </thead>
             <tbody>
               {leadsLoading && (
-                <tr><td colSpan={10} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">
                   <span className="inline-flex items-center gap-2"><RefreshCw size={14} className="animate-spin" /> Please wait, loading leads…</span>
                 </td></tr>
               )}
               {!leadsLoading && pageData.map(lead => {
-                const colors = STAGE_COLORS[getStageColorName(lead.stage)] || STAGE_COLORS.blue
                 const score = lead.score || 0
-                const scoreColor = score >= 70 ? 'text-green-600' : score >= 40 ? 'text-yellow-600' : 'text-red-500'
+                const qual = getQualCategory(score).label
+                const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
+                const ownsIt = lead.owner === currentUser?.name || lead.owner?.split(' ')[0] === currentUser?.name?.split(' ')[0]
+                const canDelete = isAdmin || (ownsIt && lead.stage === 'Untouched')
+                const openStage = !['Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage)
+                const canUnable = !['Contacted','Follow Up','Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage)
+                const hasEmail = lead.email && !lead.email.includes('noemail')
+                const menuOpen = rowMenuId === lead.id
+                const initials = (lead.owner || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+                const leadCode = `${lead.sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}${String(lead.id).padStart(4,'0')}`
+                const menuItem = 'w-full text-left px-4 py-2.5 text-[13px] text-gray-800 hover:bg-gray-100 flex items-center gap-2'
                 return (
-                  <tr key={lead.id} className={`hover:bg-gray-50 transition-colors cursor-pointer border-l-4 ${colors.border}`}
-                    onClick={() => navigate(`/leads/${lead.id}`)}>
-                    <td className="table-td" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={selectedRows.includes(lead.id)} onChange={() => toggleRow(lead.id)} className="w-4 h-4 rounded border-gray-300 text-primary-500" />
+                  <tr key={lead.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/leads/${lead.id}`)}>
+                    <td className="table-td pl-5 align-top pt-5" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" aria-label={`Select ${lead.name}`} checked={selectedRows.includes(lead.id)} onChange={() => toggleRow(lead.id)} className="w-4 h-4 rounded border-gray-300" />
                     </td>
-                    <td className="table-td">
-                      <span className="font-mono text-[11px] text-gray-500 whitespace-nowrap">
-                        {lead.sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}{String(lead.id).padStart(4,'0')}
-                      </span>
-                    </td>
-                    <td className="table-td" onClick={e => e.stopPropagation()}>
+
+                    {/* Lead: the name, then its id and where it came from */}
+                    <td className="table-td align-top" onClick={e => e.stopPropagation()}>
                       {editingNameId === lead.id ? (
                         <span className="flex items-center gap-1">
                           <input autoFocus value={editingNameVal}
                             onChange={e => setEditingNameVal(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') saveEditName(lead); if (e.key === 'Escape') setEditingNameId(null) }}
-                            className="input-field text-sm py-1 w-44" />
-                          <button onClick={() => saveEditName(lead)} className="text-green-600 hover:text-green-700" title="Save"><Save size={14} /></button>
+                            className="input-field text-sm py-1 w-48" />
+                          <button onClick={() => saveEditName(lead)} className="text-gray-700 hover:text-gray-900" title="Save"><Save size={14} /></button>
                           <button onClick={() => setEditingNameId(null)} className="text-gray-400 hover:text-gray-600" title="Cancel"><X size={14} /></button>
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 group">
-                          <span onClick={() => navigate(`/leads/${lead.id}`)}
-                            className="text-gray-900 font-medium hover:underline cursor-pointer whitespace-nowrap">{lead.name}</span>
-                          <button onClick={() => startEditName(lead)}
-                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-600 transition-opacity" title="Edit name">
+                        <div className="group flex items-center gap-1.5">
+                          <button onClick={() => navigate(`/leads/${lead.id}`)} className="text-left text-[15px] font-medium text-gray-900 hover:underline">{lead.name}</button>
+                          <button onClick={() => startEditName(lead)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-700 transition-opacity" title="Edit name" aria-label="Edit name">
                             <Edit3 size={12} />
                           </button>
-                        </span>
+                        </div>
+                      )}
+                      <div className="mt-0.5 text-[12px] text-gray-500 whitespace-nowrap">
+                        <span className="font-mono">{leadCode}</span>
+                        {lead.source ? <> · {lead.source}</> : null}
+                        {lead.regDate ? <> · Added {lead.regDate.split(',')[0]}</> : null}
+                      </div>
+                    </td>
+
+                    {/* Contact: the number and the four ways to reach it */}
+                    <td className="table-td align-top" onClick={e => e.stopPropagation()}>
+                      <div className="text-[14px] text-gray-900 tabular-nums">{lead.mobile}</div>
+                      <div className="mt-1.5 flex items-center gap-1">
+                        <a href={`https://wa.me/91${lead.mobile}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" aria-label="WhatsApp"
+                          className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600"><MessageCircle size={14} /></a>
+                        <button onClick={() => setRcsLead(lead)} title="Send RCS message" aria-label="Send RCS message"
+                          className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600"><Sparkles size={14} /></button>
+                        <button onClick={() => { setCallLead(lead); setCallOutcome('Called'); setCallNotes('') }} title="Log a call" aria-label="Log a call"
+                          className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600"><Phone size={14} /></button>
+                        <button onClick={() => openEmail('single', lead)} title={lead.email ? `Email ${lead.email}` : 'No email on file'} aria-label="Email"
+                          className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600"><Mail size={14} /></button>
+                      </div>
+                    </td>
+
+                    <td className="table-td align-top pt-5">
+                      <Badge variant={STAGE_COLOR_TO_VARIANT[getStageColorName(lead.stage)] || 'info'} dot className="whitespace-nowrap">{stageLabel(lead.stage)}</Badge>
+                      {lead.notInterestedReason && (
+                        <div className="text-[12px] text-gray-500 mt-1 max-w-[12rem] truncate" title={lead.notInterestedReason}>{lead.notInterestedReason}</div>
                       )}
                     </td>
-                    <td className="table-td text-gray-600 text-xs whitespace-nowrap" title={lead.email ? `Email: ${lead.email}` : 'No email on file'}>
-                      {lead.regDate
-                        ? lead.regDate.split(',')[0]   // "DD/MM/YYYY, HH:MM" → "DD/MM/YYYY"
-                        : '—'}
+
+                    <td className="table-td align-top pt-5 whitespace-nowrap">
+                      <span className="text-[15px] font-medium text-gray-900 tabular-nums">{score}</span>
+                      <span className="ml-2 text-[12px] text-gray-500">{qual}</span>
                     </td>
-                    <td className="table-td" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-gray-700 text-sm">{lead.mobile}</span>
-                        <a href={`https://wa.me/91${lead.mobile}`} target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-600" title="WhatsApp">
-                          <MessageCircle size={13} />
-                        </a>
-                        <button onClick={() => setRcsLead(lead)}
-                          className="text-fuchsia-500 hover:text-fuchsia-700" title="Send RCS message">
-                          <Sparkles size={13} />
-                        </button>
-                        <button onClick={() => { setCallLead(lead); setCallOutcome('Called'); setCallNotes('') }}
-                          className="text-blue-400 hover:text-blue-600" title="Log Call">
-                          <Phone size={13} />
-                        </button>
-                        <button onClick={() => openEmail('single', lead)}
-                          className="text-amber-500 hover:text-amber-700" title={lead.email ? `Email ${lead.email}` : 'No email on file'}>
-                          <Mail size={13} />
-                        </button>
+
+                    <td className="table-td align-top pt-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-medium ${lead.owner ? 'bg-gray-200 text-gray-700' : 'border border-dashed border-gray-300 text-gray-400'}`}>{initials || '–'}</span>
+                        <span className={`text-[13px] ${lead.owner ? 'text-gray-800' : 'text-gray-400'}`}>{lead.owner || 'Unassigned'}</span>
                       </div>
                     </td>
-                    <td className="table-td text-gray-500 text-xs whitespace-nowrap">{lead.source || '—'}</td>
-                    <td className="table-td">
-                      <div className="flex flex-col gap-0.5">
-                        <Badge variant={STAGE_COLOR_TO_VARIANT[getStageColorName(lead.stage)] || 'info'} dot>{stageLabel(lead.stage)}</Badge>
-                        {lead.notInterestedReason && (
-                          <span className="text-[9px] text-red-500 italic truncate max-w-24" title={lead.notInterestedReason}>
-                            {lead.notInterestedReason}
-                          </span>
+
+                    {/* Next step: one clear action, everything else in the menu */}
+                    <td className="table-td align-top pt-4 pr-5 relative" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {openStage ? (
+                          <button onClick={() => navigate(`/leads/${lead.id}`)}
+                            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-[13px] font-medium text-gray-900 whitespace-nowrap">Mark interested</button>
+                        ) : (
+                          <button onClick={() => navigate(`/leads/${lead.id}`)}
+                            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-[13px] font-medium text-gray-900 whitespace-nowrap">Open</button>
                         )}
+                        <button onClick={e => { e.stopPropagation(); setRowMenuId(menuOpen ? null : lead.id) }}
+                          aria-label="More actions" aria-expanded={menuOpen}
+                          className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-200 text-gray-600"><MoreHorizontal size={18} /></button>
                       </div>
-                    </td>
-                    <td className="table-td">
-                      <div className="flex flex-col gap-0.5">
-                        <span className={`text-xs font-bold ${scoreColor}`}>{score}</span>
-                        <Badge variant={QUAL_VARIANT[getQualCategory(score).label] || 'neutral'} className="!text-[9px] !px-1.5">
-                          {getQualCategory(score).label}
-                        </Badge>
-                      </div>
-                    </td>
-                    <td className="table-td text-gray-600 text-xs whitespace-nowrap">{lead.owner || 'Unassigned'}</td>
-                    <td className="table-td" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-1">
-                        {/* Interested — green pill */}
-                        {!['Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
-                          <button
-                            onClick={e => { e.stopPropagation(); navigate(`/leads/${lead.id}`) }}
-                            className="text-[10px] px-2 py-1 rounded-md bg-green-100 text-green-700 hover:bg-green-200 font-semibold whitespace-nowrap"
-                            title="Open lead to mark Interested or change stage">
-                            ✓ Interested
-                          </button>
-                        )}
-                        {/* Unable to Connect — hides once you've connected (Contacted, Interested, etc.) */}
-                        {!['Contacted','Follow Up','Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
-                          <button
-                            onClick={e => { e.stopPropagation(); handleUnableToConnect(lead) }}
-                            className="text-[10px] px-2 py-1 rounded-md bg-yellow-100 text-yellow-700 hover:bg-yellow-200 font-semibold whitespace-nowrap"
-                            title="Unable to Connect — move to Follow Up">
-                            📞 Unable to Connect
-                          </button>
-                        )}
-                        {/* Not Interested — hides once they've shown interest */}
-                        {!['Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
-                          <button
-                            onClick={e => { e.stopPropagation(); setNiLead(lead); setNiReason(''); setNiOther('') }}
-                            className="text-[10px] px-2 py-1 rounded-md bg-red-100 text-red-600 hover:bg-red-200 font-semibold whitespace-nowrap"
-                            title="Mark as Not Interested with reason">
-                            ✗ Not Interested
-                          </button>
-                        )}
-                        {/* Email — opens mailto if email present */}
-                        {lead.email && !lead.email.includes('noemail') && (
-                          <a href={`mailto:${lead.email}?subject=${encodeURIComponent('Regarding your CUTM application')}`}
-                            onClick={e => e.stopPropagation()}
-                            className="p-1 rounded hover:bg-purple-50 text-gray-400 hover:text-purple-500" title={`Email ${lead.email}`}>
-                            <Mail size={12} />
-                          </a>
-                        )}
-                        {/* Schedule callback */}
-                        <button onClick={e => { e.stopPropagation(); handleSchedule(lead) }}
-                          className="p-1 rounded hover:bg-indigo-50 text-gray-400 hover:text-indigo-500" title="Schedule follow-up">
-                          <Calendar size={12} />
-                        </button>
-                        {/* Transfer (re-assign) — DISABLED */}
-                        {/* <button onClick={e => { e.stopPropagation(); setTransferLead(lead); setTransferTo(''); setTransferRemark('') }}
-                          className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500" title="Transfer lead to another counsellor">
-                          <ArrowRightLeft size={12} />
-                        </button> */}
-                        {/* Delete: Admin/Manager anytime; Counsellor only own + Untouched */}
-                        {(() => {
-                          const isAdmin = ['Admin','Manager'].includes(currentUser?.role)
-                          const ownsIt = lead.owner === currentUser?.name || lead.owner?.split(' ')[0] === currentUser?.name?.split(' ')[0]
-                          const canDelete = isAdmin || (ownsIt && lead.stage === 'Untouched')
-                          if (!canDelete) return null
-                          return (
-                            <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(lead.id) }}
-                              className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500"
-                              title={isAdmin ? 'Delete' : 'Delete your untouched lead'}>
-                              <Trash2 size={12} />
-                            </button>
-                          )
-                        })()}
-                      </div>
+                      {menuOpen && (
+                        <div className="absolute right-5 top-full -mt-2 z-30 w-56 bg-white rounded-lg border border-gray-200 shadow-dropdown py-1.5 text-left">
+                          {canUnable && (
+                            <button className={menuItem} onClick={() => { setRowMenuId(null); handleUnableToConnect(lead) }}>Unable to connect</button>
+                          )}
+                          {openStage && (
+                            <button className={menuItem} onClick={() => { setRowMenuId(null); setNiLead(lead); setNiReason(''); setNiOther('') }}>Not interested…</button>
+                          )}
+                          <button className={menuItem} onClick={() => { setRowMenuId(null); handleSchedule(lead) }}>Schedule a follow-up</button>
+                          {hasEmail && (
+                            <a className={menuItem} href={`mailto:${lead.email}?subject=${encodeURIComponent('Regarding your CUTM application')}`} onClick={() => setRowMenuId(null)}>Email {lead.email}</a>
+                          )}
+                          {canDelete && (
+                            <button className={`${menuItem} text-danger-700`} onClick={() => { setRowMenuId(null); setDeleteConfirm(lead.id) }}>Delete lead</button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )
               })}
               {!leadsLoading && pageData.length === 0 && (
-                <tr><td colSpan={10} className="text-center py-10 text-gray-400 text-sm">No leads found matching your criteria.</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-gray-500 text-sm">No leads found matching your criteria.</td></tr>
               )}
             </tbody>
           </table>
