@@ -634,44 +634,44 @@ export default function ApplicationManager() {
                   { key: 'mobile', label: 'Mobile Number',   type: 'text'  },
                 ].map(f => (
                   <div key={f.key}>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{f.label}</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">{f.label}</label>
                     <input type={f.type} value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} className="input-field text-sm" />
                   </div>
                 ))}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Campus</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Campus</label>
                   <select value={editForm.campus || ''} onChange={e => setEditForm(p => ({ ...p, campus: e.target.value }))} className="input-field text-sm">
                     <option value="">— Select campus —</option>
                     {['Bhubaneswar','Paralakhemundi','Balasore','Vizianagaram'].map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Reference College</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Reference College</label>
                   <select value={editForm.course || ''} onChange={e => setEditForm(p => ({ ...p, course: e.target.value }))} className="input-field text-sm">
                     <option value="">— Select reference college —</option>
                     {['CUTM Bhubaneswar','CUTM Paralakhemundi','CUTM Balasore','CUTM Vizianagaram','GIET University','KIIT University','SRM University AP','VIT-AP','Centurion School of Rural Enterprise','Other'].map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Form Status</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Form Status</label>
                   <select value={editForm.formStatus || ''} onChange={e => setEditForm(p => ({ ...p, formStatus: e.target.value }))} className="input-field text-sm">
                     <option>Complete</option><option>Incomplete</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Status</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Payment Status</label>
                   <select value={editForm.payStatus || ''} onChange={e => setEditForm(p => ({ ...p, payStatus: e.target.value }))} className="input-field text-sm">
                     <option>Payment Pending</option><option>Approved</option><option>Failed</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Method</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Payment Method</label>
                   <select value={editForm.payMethod || ''} onChange={e => setEditForm(p => ({ ...p, payMethod: e.target.value }))} className="input-field text-sm">
                     <option value="">None / Pending</option><option>Online</option><option>Offline</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Application Stage</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Application Stage</label>
                   <select value={editForm.stage || ''} onChange={e => setEditForm(p => ({ ...p, stage: e.target.value }))} className="input-field text-sm">
                     {['Application Started','Application Submitted','Payment Pending','Payment Approved','Enrolment','Rejected'].map(s => <option key={s}>{s}</option>)}
                   </select>
@@ -699,14 +699,14 @@ export default function ApplicationManager() {
                 <>
                   {/* Amount */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Fee Amount (₹)</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Fee Amount (₹)</label>
                     <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)}
                       className="input-field text-sm" placeholder="25000" />
                   </div>
 
                   {/* Mode toggle */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Payment Mode</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Payment Mode</label>
                     <div className="grid grid-cols-2 gap-2">
                       {[
                         { v: 'Online',  label: 'Online (Razorpay)',  desc: 'UTR auto-fetched on success', emoji: '💳' },
@@ -790,7 +790,7 @@ export default function ApplicationManager() {
         )}
       >
         <div className="flex flex-col items-center text-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-danger-100 flex items-center justify-center"><Trash2 size={22} className="text-danger-500" /></div>
+          <div className="w-12 h-12 flex items-center justify-center"><Trash2 size={22} className="text-danger-500" /></div>
           <h3 className="font-bold text-gray-900 text-base">Delete Application</h3>
           <p className="text-sm text-gray-500">This will permanently delete the application and cannot be undone.</p>
         </div>
@@ -805,7 +805,7 @@ export default function ApplicationManager() {
       >
             <form onSubmit={handleCreateApplication} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Link with Existing Lead (Optional)</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Link with Existing Lead (Optional)</label>
                 <select
                   value={chooseLeadId}
                   onChange={e => handleLeadSelect(e.target.value)}
@@ -820,7 +820,7 @@ export default function ApplicationManager() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Student Name *</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Student Name *</label>
                   <input
                     type="text"
                     required
@@ -832,7 +832,7 @@ export default function ApplicationManager() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Email Address *</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Email Address *</label>
                   <input
                     type="email"
                     required
@@ -844,7 +844,7 @@ export default function ApplicationManager() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Mobile Number *</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Mobile Number *</label>
                   <input
                     type="text"
                     required
@@ -856,7 +856,7 @@ export default function ApplicationManager() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Campus of Choice</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Campus of Choice</label>
                   <select
                     value={newApp.campus}
                     onChange={e => setNewApp(p => ({ ...p, campus: e.target.value }))}
@@ -868,7 +868,7 @@ export default function ApplicationManager() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Course Applied For</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Course Applied For</label>
                   <select
                     value={newApp.course}
                     onChange={e => setNewApp(p => ({ ...p, course: e.target.value }))}
@@ -880,7 +880,7 @@ export default function ApplicationManager() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Form Status</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Form Status</label>
                   <select
                     value={newApp.formStatus}
                     onChange={e => setNewApp(p => ({ ...p, formStatus: e.target.value }))}
@@ -891,7 +891,7 @@ export default function ApplicationManager() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Status</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Payment Status</label>
                   <select
                     value={newApp.payStatus}
                     onChange={e => setNewApp(p => ({ ...p, payStatus: e.target.value }))}
@@ -903,7 +903,7 @@ export default function ApplicationManager() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Method</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Payment Method</label>
                   <select
                     value={newApp.payMethod}
                     onChange={e => setNewApp(p => ({ ...p, payMethod: e.target.value }))}
@@ -953,7 +953,7 @@ export default function ApplicationManager() {
               />
             </div>
 
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
               <p className="text-sm text-purple-900">
                 <strong>ℹ️ Note:</strong> A secure link will be sent to this email. The link expires in 30 days.
               </p>
@@ -992,7 +992,7 @@ export default function ApplicationManager() {
                   }
                 }}
                 disabled={admissionSending}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium disabled:opacity-50 flex items-center gap-2"
+                className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-500 font-medium disabled:opacity-50 flex items-center gap-2"
               >
                 {admissionSending ? '📤 Sending...' : '✉️ Send Email'}
               </button>
