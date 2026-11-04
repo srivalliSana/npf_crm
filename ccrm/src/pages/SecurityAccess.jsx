@@ -211,7 +211,7 @@ function RolesPermissions() {
                   <div className="px-4 py-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
                     {groups.map(group => (
                       <div key={group}>
-                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{group}</div>
+                        <div className="text-[10px] font-bold text-gray-400 mb-1.5">{group}</div>
                         <div className="space-y-1">
                           {data.catalogue.filter(p => p.group === group).map(p => (
                             <label
