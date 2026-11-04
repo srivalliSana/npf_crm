@@ -1120,6 +1120,9 @@ export default function LeadManager() {
 
                     {/* Lead: the name, then its id and where it came from */}
                     <td className="table-td align-top" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-start gap-3">
+                        <span className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-[12px] font-medium flex-shrink-0 mt-0.5" aria-hidden="true">{(lead.name || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'}</span>
+                        <div className="min-w-0">
                       {editingNameId === lead.id ? (
                         <span className="flex items-center gap-1">
                           <input autoFocus value={editingNameVal}
@@ -1141,6 +1144,8 @@ export default function LeadManager() {
                         <span className="font-mono">{leadCode}</span>
                         {lead.source ? <> · {lead.source}</> : null}
                         {lead.regDate ? <> · Added {lead.regDate.split(',')[0]}</> : null}
+                      </div>
+                        </div>
                       </div>
                     </td>
 
@@ -1167,8 +1172,7 @@ export default function LeadManager() {
                     </td>
 
                     <td className="table-td align-top pt-5 whitespace-nowrap">
-                      <span className="text-[15px] font-medium text-gray-900 tabular-nums">{score}</span>
-                      <span className="ml-2 text-[12px] text-gray-500">{qual}</span>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-medium tabular-nums ${qual === 'Hot' ? 'bg-red-50 text-red-700' : qual === 'Warm' ? 'bg-amber-50 text-amber-700' : qual === 'Nurture' ? 'bg-sky-50 text-sky-700' : 'bg-gray-100 text-gray-600'}`}>{qual} · {score}</span>
                     </td>
 
                     <td className="table-td align-top pt-4 whitespace-nowrap">
