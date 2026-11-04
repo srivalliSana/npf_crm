@@ -101,7 +101,7 @@ function Hero({ application, macroStep }) {
         <div className="inline-flex items-center gap-2 bg-yellow-400/15 border border-yellow-400/30 text-yellow-300 text-xs font-bold px-4 py-1.5 rounded-full mb-5">
           🎓 CUEE 2026 Admission Journey
         </div>
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight mb-3 tracking-tight max-w-2xl">
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white leading-tight mb-3 tracking-tight max-w-2xl">
           {application ? <>Welcome, <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-300">{application.name.split(' ')[0]}</span>!</> : 'Your Admission Journey'}
         </h1>
         <p className="text-teal-100 text-base sm:text-lg max-w-xl mb-8">
@@ -111,7 +111,7 @@ function Hero({ application, macroStep }) {
         <div className="grid grid-cols-4 gap-4 sm:gap-8 max-w-lg">
           {STATS.map(stat => (
             <div key={stat.label} className="text-center sm:text-left">
-              <div className="text-xl sm:text-2xl font-extrabold text-white">{stat.value}</div>
+              <div className="text-xl sm:text-2xl font-semibold text-white">{stat.value}</div>
               <div className="text-teal-200 text-[10px] sm:text-xs mt-0.5">{stat.label}</div>
             </div>
           ))}
@@ -121,7 +121,7 @@ function Hero({ application, macroStep }) {
       {/* Macro stepper — floats as an elevated white card overlapping the hero's bottom edge */}
       {typeof macroStep === 'number' && (
         <div className="max-w-4xl mx-auto px-5 lg:px-8 relative z-10" style={{ marginBottom: '-2.75rem' }}>
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 px-5 sm:px-8 py-5">
+          <div className="bg-white rounded-xl shadow-xl border border-gray-100 px-5 sm:px-8 py-5">
             <ol className="flex items-center w-full">
               {JOURNEY_STAGES.map((label, i) => (
                 <li key={label} className="flex-1 flex items-center last:flex-none">
@@ -132,7 +132,7 @@ function Hero({ application, macroStep }) {
                     }`} style={i === macroStep ? { background: 'linear-gradient(135deg,#0d9488,#0369a1)' } : undefined}>
                       {i < macroStep ? <Check size={15} /> : i + 1}
                     </div>
-                    <span className={`mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-center leading-tight ${i <= macroStep ? 'text-gray-700' : 'text-gray-400'}`} style={{ maxWidth: 70 }}>
+                    <span className={`mt-1.5 text-[10px] font-semibold text-center leading-tight ${i <= macroStep ? 'text-gray-700' : 'text-gray-400'}`} style={{ maxWidth: 70 }}>
                       {label}
                     </span>
                   </div>
@@ -210,7 +210,7 @@ function StepWizard({ steps, onFinish, finishLabel = 'Submit', submitting }) {
       {/* Step progress */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-teal-700 uppercase tracking-wide">Step {stepIndex + 1} of {steps.length}</span>
+          <span className="text-xs font-bold text-teal-700">Step {stepIndex + 1} of {steps.length}</span>
           <span className="text-xs text-gray-400">{step.title}</span>
         </div>
         <div className="flex gap-1.5">
@@ -226,7 +226,7 @@ function StepWizard({ steps, onFinish, finishLabel = 'Submit', submitting }) {
       {step.subtitle && <p className="text-sm text-gray-500 mb-5">{step.subtitle}</p>}
 
       {stepError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
+        <div className="mb-4 p-3 bg-white border border-gray-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
           <AlertCircle size={16} className="flex-shrink-0" /> {stepError}
         </div>
       )}
@@ -312,11 +312,11 @@ function PaymentScreen({ token, feeType, amount, totalAmount, fullAmount, discou
           🎉 {discountPercent}% discount applied — ₹{Number(fullAmount || 0).toLocaleString('en-IN')} reduced to ₹{Number(amount || 0).toLocaleString('en-IN')}
         </p>
       )}
-      <div className="bg-teal-50 border border-teal-100 rounded-lg p-4 mb-5">
+      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-5">
         <p className="text-sm text-gray-600">Amount you are paying now</p>
         <p className="font-bold text-2xl text-teal-700">₹{Number(amount || 0).toLocaleString('en-IN')}</p>
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-white border border-gray-200 rounded-lg text-red-700 text-sm">{error}</div>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="UTR / Transaction Reference Number">
           <input
@@ -676,7 +676,7 @@ export default function AdmissionDetailsForm() {
       render: () => (
         <div className="space-y-5">
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">10th Grade</p>
+            <p className="text-xs font-bold text-gray-500 mb-2">10th Grade</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <input className={inputCls} type="number" name="tenthMarks" value={formData.tenthMarks} onChange={handleChange} placeholder="Marks" />
               <input className={inputCls} type="number" step="0.01" name="tenthPercentage" value={formData.tenthPercentage} onChange={handleChange} placeholder="Percentage (%)" />
@@ -684,7 +684,7 @@ export default function AdmissionDetailsForm() {
             </div>
           </div>
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">12th Grade</p>
+            <p className="text-xs font-bold text-gray-500 mb-2">12th Grade</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <input className={inputCls} type="number" name="twelfthMarks" value={formData.twelfthMarks} onChange={handleChange} placeholder="Marks" />
               <input className={inputCls} type="number" step="0.01" name="twelfthPercentage" value={formData.twelfthPercentage} onChange={handleChange} placeholder="Percentage (%)" />
@@ -692,7 +692,7 @@ export default function AdmissionDetailsForm() {
             </div>
           </div>
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Graduation (if applicable)</p>
+            <p className="text-xs font-bold text-gray-500 mb-2">Graduation (if applicable)</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <input className={inputCls} type="text" name="graduationMarks" value={formData.graduationMarks} onChange={handleChange} placeholder="Marks/CGPA" />
               <input className={inputCls} type="number" step="0.01" name="graduationPercentage" value={formData.graduationPercentage} onChange={handleChange} placeholder="Percentage (%)" />
@@ -733,7 +733,7 @@ export default function AdmissionDetailsForm() {
             ['Additional', [['Emergency Contact', formData.emergencyContactName], ['Emergency Phone', formData.emergencyContactPhone], ['Scholarship Needed', formData.scholarshipRequired ? 'Yes' : 'No']]]
           ].map(([section, rows]) => (
             <div key={section} className="border border-gray-100 rounded-lg p-4">
-              <p className="text-xs font-bold text-teal-700 uppercase tracking-wide mb-1">{section}</p>
+              <p className="text-xs font-bold text-teal-700 mb-1">{section}</p>
               {rows.map(([label, value]) => <React.Fragment key={label}>{reviewRow(label, value)}</React.Fragment>)}
             </div>
           ))}
@@ -749,7 +749,7 @@ export default function AdmissionDetailsForm() {
       <Content>
         <ApplicantBar application={j.application} />
         {rejected && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="mb-4 bg-white border border-gray-200 rounded-lg p-4">
             <p className="font-bold text-red-900 text-sm">Changes Requested</p>
             <p className="text-sm text-red-800">Your admission details need a correction — please review and resubmit below.</p>
           </div>
