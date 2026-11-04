@@ -52,7 +52,7 @@ export default function MioAI({ onClose }) {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 w-72 max-w-[88vw] bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 flex flex-col" style={{ height: '420px' }}>
+    <div className="fixed bottom-4 right-4 w-72 max-w-[88vw] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 flex flex-col" style={{ height: '420px' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 bg-ai-700 rounded-t-2xl">
         <div className="flex items-center gap-2">
@@ -91,13 +91,13 @@ export default function MioAI({ onClose }) {
         ))}
         {loading && (
           <div className="flex gap-2">
-            <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center">
+            <div className="w-7 h-7 flex items-center justify-center">
               <Bot size={14} className="text-purple-600" />
             </div>
             <div className="bg-gray-100 px-3 py-2 rounded-xl">
               <div className="flex gap-1">
                 {[0, 1, 2].map(i => (
-                  <div key={i} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                  <div key={i} className="w-2 h-2 bg-gray-400 rounded-full" style={{ animationDelay: `${i * 0.15}s` }} />
                 ))}
               </div>
             </div>
