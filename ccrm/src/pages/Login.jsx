@@ -24,15 +24,6 @@ function getEmailDomain(email) {
   return email.split('@')[1]?.toLowerCase() || ''
 }
 
-// ── Floating feature pill ──────────────────────────────────────────────────────
-function FeaturePill({ icon: Icon, label, className = '' }) {
-  return (
-    <div className={`flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-2 text-white text-xs font-medium ${className}`}>
-      <Icon size={13} className="text-blue-200" /> {label}
-    </div>
-  )
-}
-
 // ── Spinner ────────────────────────────────────────────────────────────────────
 function Spinner({ size = 4, color = 'white' }) {
   return (
@@ -225,105 +216,39 @@ export default function Login() {
   return (
     <div className="min-h-screen flex">
 
-      {/* ════════════ LEFT PANEL — Brand showcase ════════════ */}
-      <div className="hidden lg:flex lg:w-[55%] relative flex-col overflow-hidden"
-        style={{ background: 'linear-gradient(145deg, #0b1929 0%, #0f2a4a 40%, #0a3a6e 75%, #0f4c81 100%)' }}>
-
-        {/* Dot grid */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)',
-          backgroundSize: '36px 36px'
-        }} />
-
-        {/* Glow orbs */}
-        <div className="absolute -top-32 -left-32 w-80 h-80 rounded-full bg-blue-500/20 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-20 right-0 w-64 h-64 rounded-full bg-cyan-400/15 blur-3xl pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-primary-600/10 blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col h-full p-12">
-          {/* Logo */}
+      {/* ════════════ LEFT PANEL — one flat field, one statement ════════════ */}
+      <div className="hidden lg:flex lg:w-[55%] flex-col bg-primary-500 text-white">
+        <div className="flex flex-col h-full p-14">
           <div className="flex items-center gap-4">
             {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt={orgName}
-                className="h-10 w-auto brightness-0 invert"
-              />
+              <img src={logoUrl} alt={orgName} className="h-10 w-auto brightness-0 invert" />
             ) : (
-              <div className="h-10 w-10 rounded-lg bg-white/15 flex items-center justify-center text-white font-extrabold text-lg flex-shrink-0">
+              <div className="h-10 w-10 rounded-md bg-white text-primary-500 flex items-center justify-center font-bold text-lg flex-shrink-0">
                 {logoInitial}
               </div>
             )}
-            <div className="h-8 w-px bg-white/20" />
-            <div>
-              <div className="text-white font-extrabold text-base tracking-tight">CCRM</div>
-              <div className="text-blue-300 text-[11px]">Admissions Portal</div>
-            </div>
+            <div className="text-lg font-semibold tracking-tight">CCRM</div>
           </div>
 
-          {/* Main headline */}
-          <div className="flex-1 flex flex-col justify-center mt-16">
-            <div className="inline-flex items-center gap-2 bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-semibold px-3 py-1.5 rounded-full w-fit mb-8">
-              <Zap size={12}/> AI-Powered Admissions Platform
-            </div>
-
-            <h1 className="text-4xl xl:text-5xl font-extrabold text-white leading-[1.1] mb-6 tracking-tight">
-              Manage Admissions<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-300">Smarter</span> &<br />
-              Faster.
+          <div className="flex-1 flex flex-col justify-center">
+            <h1 className="text-[56px] xl:text-[72px] font-medium leading-[0.98] tracking-[-0.03em] max-w-[11ch]">
+              Every enquiry, followed through.
             </h1>
-
-            <p className="text-blue-200 text-base leading-relaxed max-w-sm mb-10">
-              CCRM gives your admissions team intelligent lead tracking, automated follow-ups,
-              and real-time analytics — all in one place.
-            </p>
-
-            {/* Feature pills */}
-            <div className="flex flex-wrap gap-2 mb-10">
-              <FeaturePill icon={Users} label="Lead Management" />
-              <FeaturePill icon={BarChart3} label="Live Analytics" />
-              <FeaturePill icon={Zap} label="Auto Follow-ups" />
-              <FeaturePill icon={ShieldCheck} label="Secure & Compliant" />
-            </div>
-
-            {/* Stats row */}
-            <div className="grid grid-cols-3 gap-4">
-              {[
-                { value: '12K+', label: 'Leads Tracked' },
-                { value: '98%',  label: 'Uptime' },
-                { value: '4.9★', label: 'Staff Rating' },
-              ].map(stat => (
-                <div key={stat.label} className="bg-white/8 border border-white/12 rounded-2xl p-4 text-center">
-                  <div className="text-white font-extrabold text-xl">{stat.value}</div>
-                  <div className="text-blue-300 text-xs mt-1">{stat.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Domain restriction note */}
-          <div className="bg-white/8 border border-white/15 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-1.5">
-              <ShieldCheck size={15} className="text-green-300" />
-              <span className="text-white text-xs font-semibold">Restricted Access</span>
-            </div>
-            <p className="text-blue-300 text-xs leading-relaxed">
-              Login is limited to official <strong className="text-white">{allowedDomains.join(' / ')}</strong> accounts.
-              Contact <a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-200 underline">{SUPPORT_EMAIL}</a> for access.
+            <p className="text-[18px] leading-relaxed text-white/80 max-w-md mt-8">
+              Leads, documents, payments and seat confirmation for {orgName}, in one place for the admissions team.
             </p>
           </div>
 
-          <p className="text-blue-500 text-xs mt-6">© {new Date().getFullYear()} {orgName}</p>
+          <p className="text-[15px] text-white/80 max-w-md leading-relaxed">
+            Sign-in is limited to official <strong className="text-white font-medium">{allowedDomains.join(' / ')}</strong> accounts.
+            Need access? Write to <a href={`mailto:${SUPPORT_EMAIL}`} className="text-white underline">{SUPPORT_EMAIL}</a>.
+          </p>
+          <p className="text-sm text-white/60 mt-6">© {new Date().getFullYear()} {orgName}</p>
         </div>
       </div>
 
       {/* ════════════ RIGHT PANEL — Login form ════════════ */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 relative">
-        {/* Subtle background pattern */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.04) 1px, transparent 0)',
-          backgroundSize: '28px 28px'
-        }} />
+      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white relative">
 
         <div className="relative w-full max-w-[420px]">
           {/* Mobile logo */}
@@ -371,10 +296,10 @@ export default function Login() {
               <button
                 onClick={() => { setError(''); googleLogin() }}
                 disabled={googleLoading}
-                className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 hover:border-primary-300 hover:bg-primary-50/30 rounded-xl py-3.5 text-sm font-semibold text-gray-700 transition-all shadow-sm hover:shadow-md disabled:opacity-60 group"
+                className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 hover:bg-gray-50 rounded-md py-3.5 text-sm font-semibold text-gray-700 transition-all shadow-sm hover:shadow-md disabled:opacity-60 group"
               >
                 {googleLoading ? <Spinner size={5} color="gray-400" /> : <GoogleIcon />}
-                <span className="group-hover:text-primary-700 transition-colors">
+                <span className="transition-colors">
                   {googleLoading ? 'Signing in...' : 'Continue with Google'}
                 </span>
               </button>
