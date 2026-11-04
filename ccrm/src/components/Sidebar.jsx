@@ -151,7 +151,7 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
     >
       {/* Logo */}
       <div
-        className="w-full flex items-center gap-3 px-4 h-16 cursor-pointer overflow-hidden flex-shrink-0"
+        className="w-full flex items-center gap-3 px-4 h-14 cursor-pointer overflow-hidden flex-shrink-0"
         onClick={() => navigate('/dashboard')}
       >
         <div className="w-8 h-8 rounded-md bg-primary-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
