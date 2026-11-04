@@ -228,7 +228,7 @@ export default function ProductivityReport() {
       </div>
 
       {/* Domain Tabs */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         {[
           { id: 'all', label: 'All Domains' },
           { id: 'cutm', label: 'CUTM (@cutm.ac.in)' },
