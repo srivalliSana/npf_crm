@@ -313,7 +313,7 @@ export default function IntegrationHub() {
                   const st = STATUS[c.status] || STATUS.not_configured
                   return (
                     <div key={c.id} className="border border-gray-200 rounded-xl p-4 flex items-start gap-3 flex-wrap">
-                      <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                      <div className="w-9 h-9 flex items-center justify-center flex-shrink-0">
                         <Icon size={17} className="text-primary-600" />
                       </div>
                       <div className="min-w-0 flex-1">
