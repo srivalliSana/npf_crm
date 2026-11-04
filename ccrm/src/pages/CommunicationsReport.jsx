@@ -155,7 +155,7 @@ export default function CommunicationsReport() {
                 <div className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50/50"
                   onClick={() => loadEmailLogs(camp)}>
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
                       <Mail size={18} className="text-purple-600" />
                     </div>
                     <div>
@@ -167,16 +167,16 @@ export default function CommunicationsReport() {
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-center">
-                      <div className="text-lg font-extrabold text-gray-800">{total}</div>
-                      <div className="text-[10px] text-gray-400 uppercase font-medium">Total</div>
+                      <div className="text-lg font-semibold text-gray-800">{total}</div>
+                      <div className="text-[10px] text-gray-400 font-medium">Total</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-extrabold text-green-600">{sent}</div>
-                      <div className="text-[10px] text-green-500 uppercase font-medium">Sent</div>
+                      <div className="text-lg font-semibold text-green-600">{sent}</div>
+                      <div className="text-[10px] text-green-500 font-medium">Sent</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-extrabold text-red-500">{failed}</div>
-                      <div className="text-[10px] text-red-400 uppercase font-medium">Failed</div>
+                      <div className="text-lg font-semibold text-red-500">{failed}</div>
+                      <div className="text-[10px] text-red-400 font-medium">Failed</div>
                     </div>
                     <div className="w-20">
                       <div className="flex items-center justify-between mb-1">
@@ -253,11 +253,11 @@ export default function CommunicationsReport() {
               { label: 'Last Sent',       value: fmtIST(waLogs[0]?.sentAt, false), icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50' },
             ].map(c => (
               <div key={c.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4">
-                <div className={`w-11 h-11 rounded-xl ${c.bg} flex items-center justify-center flex-shrink-0`}>
+                <div className={`w-11 h-11 flex items-center justify-center flex-shrink-0`}>
                   <c.icon size={20} className={c.color} />
                 </div>
                 <div>
-                  <div className={`text-xl font-extrabold ${c.color}`}>{c.value}</div>
+                  <div className={`text-xl font-semibold ${c.color}`}>{c.value}</div>
                   <div className="text-xs text-gray-500">{c.label}</div>
                 </div>
               </div>
@@ -326,7 +326,7 @@ export default function CommunicationsReport() {
                 <div className={`px-2 py-1 rounded-lg text-xs font-bold ${OUTCOME_COLORS[o.outcome] || 'bg-gray-100 text-gray-600'}`}>
                   {o.outcome}
                 </div>
-                <div className="text-xl font-extrabold text-gray-800">{o.count}</div>
+                <div className="text-xl font-semibold text-gray-800">{o.count}</div>
               </div>
             ))}
             {callData.outcomeStats.length === 0 && (
