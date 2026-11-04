@@ -114,7 +114,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
             className="flex items-center gap-1 bg-primary-500 hover:bg-primary-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors"
           >
             <Sparkles size={12} />
-            Ask CU AI
+            <span className="hidden sm:inline">Ask CU AI</span><span className="sm:hidden">AI</span>
           </button>
 
           {/* Notifications — Admin only */}
@@ -175,14 +175,14 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
 
           <button
             onClick={() => navigate('/settings')}
-            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+            className="hidden sm:inline-flex p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
             title="Settings"
           >
             <Settings size={18} />
           </button>
           <button
             onClick={() => navigate('/help')}
-            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+            className="hidden sm:inline-flex p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
             title="Help"
             aria-label="Help"
           >
@@ -241,6 +241,12 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
                     My Profile
+                  </button>
+                  <button
+                    onClick={() => { navigate('/help'); setShowProfile(false); }}
+                    className="sm:hidden w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Help
                   </button>
                   <button
                     onClick={() => { navigate('/settings'); setShowProfile(false); }}
