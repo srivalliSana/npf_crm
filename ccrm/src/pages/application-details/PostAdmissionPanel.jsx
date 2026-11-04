@@ -89,7 +89,7 @@ function PostAdmissionPanel({ application: app, currentUser, showToast, fetchAll
       )}
       {app.semesterFeeStatus === 'Pending' && (
         <button onClick={generateSemesterFeeLink} disabled={genSemLink}
-          className="w-full text-xs bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5">
+          className="w-full text-xs bg-primary-500 hover:bg-primary-500 disabled:opacity-50 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5">
           {genSemLink ? <span className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full" /> : '💰'}
           Generate Semester Fee Link
         </button>
