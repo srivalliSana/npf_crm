@@ -56,7 +56,7 @@ export default function SocialComments() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+            <thead className="bg-gray-50 text-xs text-gray-500">
               <tr>
                 <th className="px-4 py-3 text-left">Platform</th>
                 <th className="px-4 py-3 text-left">Commenter</th>
