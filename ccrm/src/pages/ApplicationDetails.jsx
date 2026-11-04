@@ -9,7 +9,7 @@ import {
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
 import LeadJourney from '../components/LeadJourney'
-import { Modal, Button, StatCard, Tabs, Workspace3Col } from '../components/ui'
+import { Modal, Button, StatCard, KpiStrip, Tabs, Workspace3Col } from '../components/ui'
 import PostAdmissionPanel from './application-details/PostAdmissionPanel'
 import InlineDocumentsTab from './application-details/InlineDocumentsTab'
 import AiInsightsPanel from '../components/application-details/AiInsightsPanel'
@@ -779,12 +779,12 @@ export default function ApplicationDetails() {
 
       {/* KPI row — presentational reads of state already in scope; the two
           AI-derived tiles are wired once AiInsightsPanel's endpoint lands. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <StatCard icon={Sparkles} label="Admission Health" value={aiInsights ? `${aiInsights.admissionHealth.score}/100` : '—'} tone="ai" />
-        <StatCard icon={Clock} label="Days Since Last Activity" value={aiInsights?.riskPrediction.daysSince != null ? aiInsights.riskPrediction.daysSince : '—'} tone="ai" />
-        <StatCard icon={CheckCircle2} label="Documents Verified" value={`${docsVerifiedCount}/${studentDocsForKpi.length}`} tone="info" />
-        <StatCard icon={Star} label="Payment Status" value={paymentStatusLabel} tone={associatedApp?.payStatus === 'Paid' ? 'success' : 'warning'} />
-      </div>
+      <KpiStrip className="mb-5" items={[
+        { label: 'Admission health', value: aiInsights ? `${aiInsights.admissionHealth.score}/100` : '—' },
+        { label: 'Days since last activity', value: aiInsights?.riskPrediction.daysSince != null ? aiInsights.riskPrediction.daysSince : '—' },
+        { label: 'Documents verified', value: `${docsVerifiedCount}/${studentDocsForKpi.length}` },
+        { label: 'Payment status', value: paymentStatusLabel },
+      ]} />
 
       {/* Journey / stage progress — full width, above the 3-column workspace */}
       {!isApp ? (
