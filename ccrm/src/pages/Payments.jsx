@@ -576,7 +576,7 @@ export default function Payments() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
                       <div className="text-2xl font-semibold text-green-700">{bulkResult.approved}</div>
                       <div className="text-xs text-green-600">Approved</div>
