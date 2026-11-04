@@ -1827,7 +1827,7 @@ export default function ApplicationDetails() {
       <form onSubmit={handleSaveFollowUp} className="space-y-3">
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-0.5">Date &amp; time</label>
-          <input type="datetime-local" required value={followUpForm.when}
+          <DatePicker withTime required value={followUpForm.when}
             onChange={e => setFollowUpForm(p => ({ ...p, when: e.target.value }))} className="input-field text-xs" />
         </div>
         <div>
