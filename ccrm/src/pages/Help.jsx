@@ -144,8 +144,8 @@ export default function Help() {
             })}
 
             {/* Quick links */}
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mt-4">
-              <p className="text-xs font-bold text-blue-700 uppercase mb-2">Quick Links</p>
+            <div className="bg-white border border-gray-200 rounded-xl p-3 mt-4">
+              <p className="text-xs font-bold text-blue-700 mb-2">Quick Links</p>
               <div className="space-y-1">
                 {[
                   { label: 'Dashboard',    to: '/dashboard',    icon: Zap        },
