@@ -165,7 +165,7 @@ export default function CallOutcomes() {
           )}
           {result.skipReasons?.length > 0 && (
             <div className="mt-4">
-              <p className="text-xs font-bold text-gray-600 uppercase mb-2">Why rows were skipped</p>
+              <p className="text-xs font-bold text-gray-600 mb-2">Why rows were skipped</p>
               <ul className="text-sm text-gray-600 space-y-1">
                 {result.skipReasons.map((r, i) => <li key={i}>• {r}</li>)}
               </ul>
@@ -173,7 +173,7 @@ export default function CallOutcomes() {
           )}
           {result.warnings?.length > 0 && (
             <div className="mt-4">
-              <p className="text-xs font-bold text-warning-600 uppercase mb-2">Warnings</p>
+              <p className="text-xs font-bold text-warning-600 mb-2">Warnings</p>
               <ul className="text-sm text-warning-700 space-y-1">
                 {result.warnings.map((r, i) => <li key={i}>• {r}</li>)}
               </ul>
