@@ -293,7 +293,7 @@ function JourneyTab({ data, manage, flash }) {
 
   const stage = (label, n, tone) => (
     <div className="flex-1 min-w-[120px] text-center">
-      <div className={`text-2xl font-extrabold ${tone}`}>{fmtInt(n)}</div>
+      <div className={`text-2xl font-semibold ${tone}`}>{fmtInt(n)}</div>
       <div className="text-[11px] text-gray-500">{label}</div>
     </div>
   )
