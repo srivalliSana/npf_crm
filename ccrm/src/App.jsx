@@ -1,65 +1,65 @@
-import React from 'react'
+import React, { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { useCcrm } from './context/CcrmContext'
 import { usePermissions } from './hooks/usePermissions'
 import { getUrlTenantSlug, isHostBasedTenant } from './tenantSlug'
 import Login from './pages/Login'
 import Layout from './components/Layout'
-import LeadManager from './pages/LeadManager'
-import ApplicationManager from './pages/ApplicationManager'
-import ApplicationDetails from './pages/ApplicationDetails'
-import Dashboard from './pages/Dashboard'
-import ProductivityReport from './pages/ProductivityReport'
-import Campaigns from './pages/Campaigns'
-import Tasks from './pages/Tasks'
-import Payments from './pages/Payments'
-import Documents from './pages/Documents'
-import CalendarPro from './pages/CalendarPro'
-import UserManagement from './pages/UserManagement'
-import Reports from './pages/Reports'
-import Settings from './pages/Settings'
-import Integrations from './pages/Integrations'
-import Leaderboard from './pages/Leaderboard'
-import EmailCampaigns from './pages/EmailCampaigns'
-import DripWorkflows from './pages/DripWorkflows'
-import CommunicationsReport from './pages/CommunicationsReport'
-import Help from './pages/Help'
-import TransferApprovals from './pages/TransferApprovals'
-import PublicInquiry from './pages/PublicInquiry'
-import StudentPortal from './pages/StudentPortal'
-import VerifyEmail from './pages/VerifyEmail'
-import DocumentUpload from './pages/DocumentUpload'
-import Analytics from './pages/Analytics'
-import SocialComments from './pages/SocialComments'
-import PlatformTenants from './pages/PlatformTenants'
-import LeadIdSettings from './pages/LeadIdSettings'
-import OrgSettings from './pages/OrgSettings'
-import ServerHealth from './pages/ServerHealth'
-import SecurityAccess from './pages/SecurityAccess'
-import UserProfile from './pages/UserProfile'
-import IntegrationSettings from './pages/IntegrationSettings'
-import FTLLeads from './pages/FTLLeads'
-import GTIBLeads from './pages/GTIBLeads'
-import GTTECHLeads from './pages/GTTECHLeads'
-import ESSELeads from './pages/ESSELeads'
-import WebsitesDashboard from './pages/WebsitesDashboard'
-import UploadLogs from './pages/UploadLogs'
-import CallOutcomes from './pages/CallOutcomes'
-import CallActivityReport from './pages/CallActivityReport'
-import WorkbookImport from './pages/WorkbookImport'
-import ProgramsManager from './pages/ProgramsManager'
-import DocumentVerification from './pages/DocumentVerification'
-import Grievances from './pages/Grievances'
-import FinanceVerification from './pages/FinanceVerification'
-import AdmissionDetailsForm from './pages/AdmissionDetailsForm'
-import StudentLogin from './pages/StudentLogin'
-import StudentDashboard from './pages/StudentDashboard'
-import CommandCentre from './pages/CommandCentre'
-import Compliance from './pages/Compliance'
-import IntegrationHub from './pages/IntegrationHub'
-import IntegrationHealth from './pages/IntegrationHealth'
-import Automation from './pages/Automation'
-import AoReview from './pages/AoReview'
+const LeadManager = lazy(() => import('./pages/LeadManager'))
+const ApplicationManager = lazy(() => import('./pages/ApplicationManager'))
+const ApplicationDetails = lazy(() => import('./pages/ApplicationDetails'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const ProductivityReport = lazy(() => import('./pages/ProductivityReport'))
+const Campaigns = lazy(() => import('./pages/Campaigns'))
+const Tasks = lazy(() => import('./pages/Tasks'))
+const Payments = lazy(() => import('./pages/Payments'))
+const Documents = lazy(() => import('./pages/Documents'))
+const CalendarPro = lazy(() => import('./pages/CalendarPro'))
+const UserManagement = lazy(() => import('./pages/UserManagement'))
+const Reports = lazy(() => import('./pages/Reports'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Integrations = lazy(() => import('./pages/Integrations'))
+const Leaderboard = lazy(() => import('./pages/Leaderboard'))
+const EmailCampaigns = lazy(() => import('./pages/EmailCampaigns'))
+const DripWorkflows = lazy(() => import('./pages/DripWorkflows'))
+const CommunicationsReport = lazy(() => import('./pages/CommunicationsReport'))
+const Help = lazy(() => import('./pages/Help'))
+const TransferApprovals = lazy(() => import('./pages/TransferApprovals'))
+const PublicInquiry = lazy(() => import('./pages/PublicInquiry'))
+const StudentPortal = lazy(() => import('./pages/StudentPortal'))
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'))
+const DocumentUpload = lazy(() => import('./pages/DocumentUpload'))
+const Analytics = lazy(() => import('./pages/Analytics'))
+const SocialComments = lazy(() => import('./pages/SocialComments'))
+const PlatformTenants = lazy(() => import('./pages/PlatformTenants'))
+const LeadIdSettings = lazy(() => import('./pages/LeadIdSettings'))
+const OrgSettings = lazy(() => import('./pages/OrgSettings'))
+const ServerHealth = lazy(() => import('./pages/ServerHealth'))
+const SecurityAccess = lazy(() => import('./pages/SecurityAccess'))
+const UserProfile = lazy(() => import('./pages/UserProfile'))
+const IntegrationSettings = lazy(() => import('./pages/IntegrationSettings'))
+const FTLLeads = lazy(() => import('./pages/FTLLeads'))
+const GTIBLeads = lazy(() => import('./pages/GTIBLeads'))
+const GTTECHLeads = lazy(() => import('./pages/GTTECHLeads'))
+const ESSELeads = lazy(() => import('./pages/ESSELeads'))
+const WebsitesDashboard = lazy(() => import('./pages/WebsitesDashboard'))
+const UploadLogs = lazy(() => import('./pages/UploadLogs'))
+const CallOutcomes = lazy(() => import('./pages/CallOutcomes'))
+const CallActivityReport = lazy(() => import('./pages/CallActivityReport'))
+const WorkbookImport = lazy(() => import('./pages/WorkbookImport'))
+const ProgramsManager = lazy(() => import('./pages/ProgramsManager'))
+const DocumentVerification = lazy(() => import('./pages/DocumentVerification'))
+const Grievances = lazy(() => import('./pages/Grievances'))
+const FinanceVerification = lazy(() => import('./pages/FinanceVerification'))
+const AdmissionDetailsForm = lazy(() => import('./pages/AdmissionDetailsForm'))
+const StudentLogin = lazy(() => import('./pages/StudentLogin'))
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard'))
+const CommandCentre = lazy(() => import('./pages/CommandCentre'))
+const Compliance = lazy(() => import('./pages/Compliance'))
+const IntegrationHub = lazy(() => import('./pages/IntegrationHub'))
+const IntegrationHealth = lazy(() => import('./pages/IntegrationHealth'))
+const Automation = lazy(() => import('./pages/Automation'))
+const AoReview = lazy(() => import('./pages/AoReview'))
 
 // ── Auth layout guard — checks auth, wraps with Layout ───────────────────────
 function AuthGuard() {
@@ -113,6 +113,7 @@ export default function App() {
 
   return (
     <BrowserRouter basename={basename}>
+      <Suspense fallback={<div style={{ minHeight: '100vh' }} aria-busy="true" />}>
       <Routes>
         {/* All routes nested under the root path */}
         <Route path="/">
@@ -239,6 +240,7 @@ export default function App() {
 
         </Route>
       </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }
