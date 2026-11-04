@@ -12,3 +12,8 @@ ccrm/.env.development
 ccrm/.env.production
 *.zip
 .DS_Store
+
+# Local-only agent skills (not pushed)
+.agents/
+.claude/skills/
+skills-lock.json
