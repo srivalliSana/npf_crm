@@ -119,7 +119,7 @@ export default function ProgramsManager() {
           <h1 className="text-2xl font-bold text-gray-900">Programs Manager</h1>
           <p className="text-sm text-gray-500 mt-1">Programs and their fees are specific to your organization — set them here and they'll drive the admission journey's application/tuition fee amounts automatically. There is no registration fee — it's always ₹0.</p>
         </div>
-        <button onClick={() => openModal()} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 font-medium whitespace-nowrap">
+        <button onClick={() => openModal()} className="flex items-center gap-2 bg-primary-500 hover:bg-primary-500 text-white rounded-lg px-4 py-2 font-medium whitespace-nowrap">
           <Plus size={16} /> Add Program
         </button>
       </div>
@@ -166,30 +166,30 @@ export default function ProgramsManager() {
         <Modal open={showModal} onClose={() => setShowModal(false)} title={editingId ? 'Edit Program' : 'Add Program'} size="md">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Program Name *</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Program Name *</label>
               <input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
                 placeholder="e.g., BBA, MBA, B.Tech" className="input-field text-sm w-full" />
             </div>
 
-            <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100 space-y-3">
+            <div className="p-3 rounded-lg bg-white border border-gray-200 space-y-3">
               <p className="text-xs font-semibold text-indigo-800">Step 1 — Application Fee</p>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Application Fee</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Application Fee</label>
                 <input type="number" value={formData.booking_fee} onChange={e => setFormData(p => ({ ...p, booking_fee: e.target.value }))}
                   placeholder="1000" className="input-field text-sm w-full" />
               </div>
             </div>
 
-            <div className="p-3 rounded-lg bg-green-50 border border-green-100 space-y-3">
+            <div className="p-3 rounded-lg bg-white border border-gray-200 space-y-3">
               <p className="text-xs font-semibold text-green-800">Step 2 — Tuition Fee → Documents + CampusOne</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Tuition Fee (Full)</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Tuition Fee (Full)</label>
                   <input type="number" value={formData.tuition_fee} onChange={e => setFormData(p => ({ ...p, tuition_fee: e.target.value }))}
                     placeholder="0" className="input-field text-sm w-full" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Min Due (Tuition)</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Min Due (Tuition)</label>
                   <input type="number" value={formData.min_amount_to_pay} onChange={e => setFormData(p => ({ ...p, min_amount_to_pay: e.target.value }))}
                     placeholder="0" className="input-field text-sm w-full" />
                 </div>
@@ -199,7 +199,7 @@ export default function ProgramsManager() {
           </div>
           <div className="mt-6 flex gap-2 justify-end">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 font-medium disabled:opacity-50">
+            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 bg-primary-500 hover:bg-primary-500 text-white rounded-lg px-4 py-2 font-medium disabled:opacity-50">
               <Save size={16} /> {saving ? 'Saving...' : (editingId ? 'Update' : 'Create')}
             </button>
           </div>
