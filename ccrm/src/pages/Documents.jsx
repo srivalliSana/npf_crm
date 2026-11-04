@@ -191,11 +191,11 @@ export default function Documents() {
           { label: 'Rejected',  value: rejected, color: 'text-red-600',    bg: 'bg-red-50',    icon: XCircle     },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center`}>
+            <div className={`w-12 h-12 flex items-center justify-center`}>
               <s.icon size={22} className={s.color} />
             </div>
             <div>
-              <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
+              <div className={`text-2xl font-semibold ${s.color}`}>{s.value}</div>
               <div className="text-xs text-gray-500">{s.label}</div>
             </div>
           </div>
@@ -337,7 +337,7 @@ export default function Documents() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
             <div className="flex flex-col items-center text-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center"><Trash2 size={22} className="text-red-500" /></div>
+              <div className="w-12 h-12 flex items-center justify-center"><Trash2 size={22} className="text-red-500" /></div>
               <h3 className="font-bold text-gray-900 text-base">Delete Document</h3>
               <p className="text-sm text-gray-500">This will permanently delete the document record. Cannot be undone.</p>
             </div>
@@ -353,7 +353,7 @@ export default function Documents() {
       {/* Upload Modal */}
       {showUpload && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
               <h2 className="text-base font-bold text-gray-900">Upload Student Document</h2>
               <button onClick={() => setShowUpload(false)} className="text-gray-400 hover:text-gray-600">
@@ -363,7 +363,7 @@ export default function Documents() {
             
             <form onSubmit={handleUploadSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Select Student *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Select Student *</label>
                 <select
                   value={uploadForm.student}
                   onChange={e => setUploadForm(p => ({ ...p, student: e.target.value }))}
@@ -378,7 +378,7 @@ export default function Documents() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Document Type</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Document Type</label>
                 <select
                   value={uploadForm.type}
                   onChange={e => setUploadForm(p => ({ ...p, type: e.target.value }))}
@@ -389,7 +389,7 @@ export default function Documents() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Upload File *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Upload File *</label>
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   onDragOver={e => e.preventDefault()}
@@ -452,13 +452,13 @@ export default function Documents() {
       {viewDoc && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setViewDoc(null)}>
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-scale-up"
+            className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-scale-up"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <div className="w-8 h-8 flex items-center justify-center">
                   <FileText size={16} className="text-blue-600" />
                 </div>
                 <div>
