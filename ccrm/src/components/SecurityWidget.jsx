@@ -51,7 +51,7 @@ export default function SecurityWidget() {
         <div className="space-y-4">
           {/* Role split */}
           {u && (
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
               <KPI label="Total"      value={u.total}      color="text-gray-700"   bg="bg-blue-50/60" />
               <KPI label="Active"     value={u.active}     color="text-green-600"  bg="bg-green-50" />
               <KPI label="Inactive"   value={u.inactive}   color="text-red-500"    bg="bg-red-50" />
