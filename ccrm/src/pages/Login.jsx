@@ -8,6 +8,7 @@ import { useCcrm } from '../context/CcrmContext'
 import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
+import PixelHeadline from '../components/ui/PixelHeadline'
 
 // ── Env config (default/Centurion branding — used when no :tenantSlug is in the URL) ──
 const ALLOWED_DOMAINS  = (import.meta.env.VITE_ALLOWED_DOMAINS || 'cutm.ac.in,cutmap.ac.in')
@@ -230,9 +231,10 @@ export default function Login() {
 
       <main className="flex-1 grid lg:grid-cols-[1.3fr_1fr] gap-[clamp(32px,6vw,150px)] items-center px-[clamp(24px,4.5vw,96px)] py-10">
         <section>
-          <h1 className="text-[clamp(48px,6.2vw,128px)] font-medium leading-[0.96] tracking-[-0.035em] text-gray-900 max-w-[11ch]">
-            Every enquiry, followed through.
-          </h1>
+          <PixelHeadline
+            lines={['Every enquiry,', 'followed through.']} as="h1" align="left" assemble="load"
+            color="#02677f" accent="#ffb500" pixelSize="clamp(5px, .72vw + 2.4px, 13px)"
+          />
           <p className="text-[clamp(18px,1.4vw,26px)] leading-relaxed text-gray-600 max-w-[36ch] mt-8">
             Leads, documents, payments and seat confirmation for {orgName}, in one place for the admissions team.
           </p>
