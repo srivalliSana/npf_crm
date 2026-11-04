@@ -10,44 +10,44 @@ export default {
         // Softer, eye-friendly blue palette
         // primary-500 is the main brand colour (links, primary buttons)
         // primary-50/100 used for tints; very pale to reduce eye strain
-        primary: {   // Cobalt Mono: primary #0F62FE
-          50:  '#f0f2ff',
-          100: '#dde5ff',
-          200: '#bccdff',
-          300: '#8fadff',
-          400: '#4f86ff',
-          500: '#0f62fe',
-          600: '#0b4fd1',
-          700: '#0a40a8',
-          800: '#0b3585',
-          900: '#0c2b66',
+        primary: {   // Lagoon Gold: primary #02677f (accent teal #03a2bc)
+          50:  '#eef5f6',
+          100: '#d9ebee',
+          200: '#b3d6dd',
+          300: '#7fbbc8',
+          400: '#03a2bc',
+          500: '#02677f',
+          600: '#025970',
+          700: '#014a5d',
+          800: '#013c4a',
+          900: '#012e39',
         },
         // the one data hue: today's series, the main bar, the current period
         data: { 500: '#1d5fbf', 100: '#dce8f8' },
-        accent: {   // Cobalt Mono: violet accent #6b46ff, secondary #edebff
-          50:  '#f6f4ff',
-          100: '#edebff',
-          200: '#d9d3ff',
-          300: '#bfb2ff',
-          400: '#9a85ff',
-          500: '#6b46ff',
-          600: '#5a38db',
-          700: '#483d8b',
-          800: '#3a3170',
-          900: '#2c2556',
+        accent: {   // Lagoon Gold: gold #ffb500
+          50:  '#fff9e6',
+          100: '#fff0bf',
+          200: '#ffe28a',
+          300: '#ffd04d',
+          400: '#ffc21f',
+          500: '#ffb500',
+          600: '#d99700',
+          700: '#a87400',
+          800: '#785300',
+          900: '#4d3500',
         },
         // Cobalt Mono neutrals: foreground #0d0d12, muted text #62627a, border #e2e2ee, muted #f1f1f8
-        gray: {
-          50:  '#f7f7fc',
-          100: '#f1f1f8',
-          200: '#e2e2ee',
-          300: '#cfcfe0',
-          400: '#9b9bb0',
-          500: '#62627a',
-          600: '#50506a',
-          700: '#3a3a50',
-          800: '#1f1f2c',
-          900: '#0d0d12',
+        gray: {   // Lagoon Gold neutrals: text #081e24, muted #5a6569, border #d4e1e4, muted fill #e4eef0
+          50:  '#f5fafb',
+          100: '#e4eef0',
+          200: '#d4e1e4',
+          300: '#b3c0c4',
+          400: '#8a9498',
+          500: '#5a6569',
+          600: '#465155',
+          700: '#2f3a3e',
+          800: '#162a30',
+          900: '#081e24',
         },
         // AI / assistant accent — Campus One Neo's purple, used only for the
         // AI Assistant panel and its badges, never as a general-purpose color.
@@ -66,8 +66,8 @@ export default {
         // Soft page background — never pure white (reduces strain), and
         // deliberately deep enough that white cards visibly "float" above it.
         canvas: {
-          DEFAULT: '#fdfdff',
-          warm:    '#f7f7fc',
+          DEFAULT: '#f5fafb',
+          warm:    '#fcffff',
         },
         // Violet/indigo/purple are remapped to one steel scale so legacy class names stay valid
         purple: {
@@ -90,9 +90,10 @@ export default {
         info:    { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 700: '#1d4ed8' },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Google Sans Flex', 'Inter', 'system-ui', 'sans-serif'],
         mono: ['Geist Mono', 'ui-monospace', 'monospace'],
       },
+      borderRadius: { DEFAULT: '0', sm: '0', md: '0', lg: '0', xl: '0', '2xl': '0', '3xl': '0' },
       boxShadow: {
         DEFAULT: 'none',
         sm: 'none',
