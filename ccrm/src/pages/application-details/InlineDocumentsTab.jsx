@@ -124,7 +124,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
       </div>
 
       {/* Inline upload area */}
-      <div className="bg-blue-50/40 border border-blue-100 rounded-xl p-4 mb-5">
+      <div className="bg-white/40 border border-gray-200 rounded-xl p-4 mb-5">
         <div className="flex justify-between items-center mb-3">
           <h4 className="text-sm font-semibold text-gray-700">Upload Documents</h4>
           <button
@@ -137,7 +137,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
           <div className="md:col-span-1">
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Document Type</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Document Type</label>
             <select value={docType} onChange={e => setDocType(e.target.value)} className="input-field text-sm">
               {REQUIRED.map(d => <option key={d}>{d}</option>)}
             </select>
@@ -327,7 +327,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
 
           {showAdmissionDetailsView && record?.admissionDetails && (
             <div className="mb-4 p-4 rounded-lg border bg-white">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Submitted Admission Details</p>
+              <p className="text-xs font-bold text-gray-500 mb-3">Submitted Admission Details</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 text-sm">
                 {Object.entries(record.admissionDetails).map(([key, value]) => (
                   value !== '' && value !== null && value !== undefined && (
@@ -402,7 +402,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
 
           {showFullDetailsView && record?.admission_full_details && (
             <div className="mb-4 p-4 rounded-lg border bg-white">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Submitted Full Admission Form</p>
+              <p className="text-xs font-bold text-gray-500 mb-3">Submitted Full Admission Form</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 text-sm">
                 {Object.entries(record.admission_full_details).map(([key, value]) => (
                   value !== '' && value !== null && value !== undefined && value !== false && (
@@ -503,7 +503,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
               )}
             </div>
             {record?.registration_number ? (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
                 <p className="text-sm text-gray-600 mb-2">Temporary Admission Number:</p>
                 <p className="text-2xl font-bold text-blue-600">{record.registration_number}</p>
                 <p className="text-xs text-gray-500 mt-2">
@@ -511,7 +511,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                 </p>
               </div>
             ) : (
-              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
                 <p className="text-sm text-gray-600 mb-3">Preconditions for temporary admission number generation:</p>
                 <ul className="space-y-2 text-sm">
                   <li className={`flex items-center gap-2 ${record?.form_status === 'Complete' ? 'text-green-600' : 'text-gray-600'}`}>
@@ -550,7 +550,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                         .catch(e => alert('Failed: ' + e.message))
                     }
                   }}
-                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                  className="mt-4 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-500 text-sm font-medium"
                 >
                   Generate Temporary Admission Number
                 </button>
@@ -576,7 +576,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
               </div>
 
               {record?.campusone_sync_status === 'Success' ? (
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <p className="text-sm text-gray-600 mb-2">CampusOne Student ID:</p>
                   <p className="text-xl font-bold text-green-600">{record.campusone_student_id}</p>
                   <p className="text-xs text-gray-500 mt-2">
@@ -584,7 +584,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                   </p>
                 </div>
               ) : record?.campusone_sync_status === 'Failed' ? (
-                <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <p className="text-sm text-red-600 font-semibold mb-2">Sync Failed</p>
                   <p className="text-sm text-red-700">{record.campusone_sync_error}</p>
                   <button
@@ -605,13 +605,13 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                         })
                         .catch(e => alert('Failed: ' + e.message))
                     }}
-                    className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                    className="mt-3 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-500 text-sm font-medium"
                   >
                     Retry Sync
                   </button>
                 </div>
               ) : (
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <p className="text-sm text-gray-600 mb-3">Ready to sync with CampusOne</p>
                   <button
                     onClick={() => {
@@ -633,7 +633,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                           .catch(e => alert('Failed: ' + e.message))
                       }
                     }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                    className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-500 text-sm font-medium"
                   >
                     Sync to CampusOne
                   </button>
