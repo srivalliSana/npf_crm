@@ -64,7 +64,7 @@ export default function IntegrationStatusWidget() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
+          <div className="w-8 h-8 flex items-center justify-center">
             <Zap size={16} className="text-primary-600" />
           </div>
           <div>
@@ -142,7 +142,7 @@ export default function IntegrationStatusWidget() {
                   </span>
                 </div>
                 <div className="text-xs font-semibold text-gray-800 truncate">{integ.name}</div>
-                <div className={`mt-1 inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${t.pill}`}>
+                <div className={`mt-1 inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border ${t.pill}`}>
                   {status.label}
                 </div>
               </button>
