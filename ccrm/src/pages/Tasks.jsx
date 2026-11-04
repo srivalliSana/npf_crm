@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useCcrm } from '../context/CcrmContext'
+import { KpiStrip } from '../components/ui'
 import {
   Plus, Search, Clock, AlertCircle, CheckCircle,
   Phone, Mail, MessageCircle, Calendar, MoreHorizontal, ChevronDown, X
@@ -103,24 +104,12 @@ export default function Tasks() {
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {[
-          { label: 'Pending Tasks',    value: pending,   color: 'text-orange-600', bg: 'bg-orange-50', icon: Clock        },
-          { label: 'Completed Today',  value: completed, color: 'text-green-600',  bg: 'bg-green-50',  icon: CheckCircle  },
-          { label: 'High Priority',    value: high,      color: 'text-red-600',    bg: 'bg-red-50',    icon: AlertCircle  },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center`}>
-              <s.icon size={22} className={s.color} />
-            </div>
-            <div>
-              <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
-              <div className="text-xs text-gray-500">{s.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Stats — ledger block */}
+      <KpiStrip className="mb-6" items={[
+        { label: 'Pending tasks', value: pending },
+        { label: 'Completed today', value: completed },
+        { label: 'High priority', value: high },
+      ]} />
 
       {/* Filters + Search */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-4 p-3 flex flex-wrap items-center gap-2">
@@ -141,26 +130,24 @@ export default function Tasks() {
       </div>
 
       {/* Task list */}
-      <div className="space-y-2">
+      <div className="card divide-y divide-gray-100 overflow-hidden">
         {filtered.map(task => {
           const Icon = TYPE_ICONS[task.type] || CheckCircle
           const pc = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.Medium
           const sc = STATUS_COLORS[task.status] || STATUS_COLORS.Pending
           return (
             <div key={task.id}
-              className={`bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4 hover:shadow-md transition-shadow ${task.status === 'Completed' ? 'opacity-60 bg-gray-50/50' : ''}`}>
+              className={`px-4 py-3.5 flex items-center gap-4 hover:bg-gray-50 transition-colors ${task.status === 'Completed' ? 'opacity-60' : ''}`}>
               <button onClick={() => toggleTaskComplete(task.id)}
                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors focus:outline-none ${task.status === 'Completed' ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-primary-400'}`}>
                 {task.status === 'Completed' && <span className="text-white text-[10px] font-bold">✓</span>}
               </button>
 
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${task.status === 'Completed' ? 'bg-gray-100' : 'bg-primary-50'}`}>
-                <Icon size={16} className={task.status === 'Completed' ? 'text-gray-400' : 'text-primary-500'} />
-              </div>
+              <Icon size={16} className="text-gray-400 flex-shrink-0" />
 
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-semibold ${task.status === 'Completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>{task.title}</p>
-                <p className="text-xs text-gray-500 mt-0.5">Lead: <span className="text-primary-500 font-medium">{task.lead}</span> · Assignee: {task.assignee}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Lead: <span className="text-gray-800 font-medium">{task.lead}</span> · Assignee: {task.assignee}</p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
@@ -175,8 +162,8 @@ export default function Tasks() {
           )
         })}
         {filtered.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-xl border border-gray-200 shadow-sm text-gray-400">
-            <CheckCircle size={40} className="mx-auto mb-3 opacity-30 text-green-500 animate-bounce" />
+          <div className="text-center py-12 text-gray-400">
+            <CheckCircle size={40} className="mx-auto mb-3 opacity-30 text-gray-400" />
             <p className="text-sm font-semibold">All caught up! No tasks found</p>
           </div>
         )}
