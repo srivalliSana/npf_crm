@@ -416,7 +416,7 @@ function RcsTemplatesManager() {
 
   return (
     <div className="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-      <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-pink-50 to-purple-50 flex items-center justify-between">
+      <div className="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
         <div>
           <h2 className="font-semibold text-gray-800 flex items-center gap-2">
             ✨ RCS Approved Templates
@@ -771,7 +771,7 @@ export default function Integrations() {
       </div>
 
       {/* How It Works banner */}
-      <div className="bg-gradient-to-r from-blue-50 to-emerald-50 border border-blue-200 rounded-xl p-4 mb-6">
+      <div className="bg-primary-50 border border-blue-200 rounded-xl p-4 mb-6">
         <div className="flex items-start gap-3">
           <Zap size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
           <div>
