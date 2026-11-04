@@ -470,7 +470,7 @@ export default function ApplicationManager() {
                   </td>
                   {/* Application ID — highlighted */}
                   <td className="table-td">
-                    <span className="font-mono text-xs font-bold text-success-700 bg-success-50 border border-success-200 px-2 py-0.5 rounded select-all">
+                    <span className="font-mono text-xs text-gray-600 whitespace-nowrap select-all">
                       {app.appNo}
                     </span>
                   </td>
