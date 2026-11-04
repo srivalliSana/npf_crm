@@ -124,7 +124,7 @@ export default function LeadIdSettings() {
       </p>
 
       {/* Global season */}
-      <div className="rounded-2xl border border-accent-200 bg-gradient-to-br from-accent-50 to-white shadow-card p-6 mb-4 flex flex-wrap items-center gap-6">
+      <div className="rounded-2xl border border-accent-200 bg-accent-50 p-6 mb-4 flex flex-wrap items-center gap-6">
         <div className="flex-1 min-w-[240px]">
           <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-white bg-accent-500 px-2 py-0.5 rounded-full mb-2">
             Shared default
