@@ -11,16 +11,16 @@ export default {
         // primary-500 is the main brand colour (links, primary buttons)
         // primary-50/100 used for tints; very pale to reduce eye strain
         primary: {
-          50:  '#eff6ff',   // background tints, hover bg
-          100: '#dbeafe',   // soft chip backgrounds
-          200: '#bfdbfe',   // borders for selected states
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#2563eb',   // brand blue — modern, easier on eyes than navy
-          600: '#1d4ed8',   // hover states
-          700: '#1e40af',   // active/pressed
-          800: '#1e3a8a',
-          900: '#172554',
+          50:  '#eef6f4',
+          100: '#d6ebe6',
+          200: '#aed6cd',
+          300: '#7bbbae',
+          400: '#3f9a8b',
+          500: '#0e7a6b',   // brand: deep teal, the one hue, on actions and active data
+          600: '#0b6558',
+          700: '#0a5147',
+          800: '#083f38',
+          900: '#062d28',
         },
         accent: {
           50:  '#fff7ed',
@@ -36,23 +36,36 @@ export default {
         },
         // AI / assistant accent — Campus One Neo's purple, used only for the
         // AI Assistant panel and its badges, never as a general-purpose color.
-        ai: {
-          50:  '#f5f3ff',
-          100: '#ede9fe',
-          200: '#ddd6fe',
-          300: '#c4b5fd',
-          400: '#a78bfa',
-          500: '#8b5cf6',
-          600: '#7c3aed',
-          700: '#6d28d9',
-          800: '#5b21b6',
-          900: '#4c1d95',
+        ai: {   // assistant panel: graphite, not violet
+          50:  '#f4f5f6',
+          100: '#e8eaec',
+          200: '#d3d7db',
+          300: '#b3bac1',
+          400: '#8a939d',
+          500: '#5f6b77',
+          600: '#47525d',
+          700: '#35404a',
+          800: '#252d35',
+          900: '#171d23',
         },
         // Soft page background — never pure white (reduces strain), and
         // deliberately deep enough that white cards visibly "float" above it.
         canvas: {
-          DEFAULT: '#eef1f7',
-          warm:    '#fafbfd',
+          DEFAULT: '#f5f6f7',
+          warm:    '#fafafa',
+        },
+        // Violet/indigo/purple are remapped to one steel scale so legacy class names stay valid
+        purple: {
+          50:  '#f1f5f9', 100: '#e1e9f0', 200: '#c4d3e0', 300: '#9bb3c8', 400: '#6f8fac',
+          500: '#4d6f8f', 600: '#3d5a76', 700: '#314a61', 800: '#263b4d', 900: '#1b2a38',
+        },
+        violet: {
+          50:  '#f1f5f9', 100: '#e1e9f0', 200: '#c4d3e0', 300: '#9bb3c8', 400: '#6f8fac',
+          500: '#4d6f8f', 600: '#3d5a76', 700: '#314a61', 800: '#263b4d', 900: '#1b2a38',
+        },
+        indigo: {
+          50:  '#f1f5f9', 100: '#e1e9f0', 200: '#c4d3e0', 300: '#9bb3c8', 400: '#6f8fac',
+          500: '#4d6f8f', 600: '#3d5a76', 700: '#314a61', 800: '#263b4d', 900: '#1b2a38',
         },
         // Semantic colors — the single vocabulary Badge/StatCard/alerts build
         // on, replacing the 17+ ad-hoc per-page color-map objects over time.
@@ -62,13 +75,16 @@ export default {
         info:    { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 700: '#1d4ed8' },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Instrument Sans', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
       boxShadow: {
-        soft: '0 1px 3px 0 rgb(15 23 42 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.06)',
-        card: '0 2px 6px -2px rgb(15 23 42 / 0.08), 0 8px 24px -6px rgb(15 23 42 / 0.12)',
-        cardHover: '0 4px 10px -2px rgb(15 23 42 / 0.10), 0 12px 32px -6px rgb(15 23 42 / 0.16)',
+        DEFAULT: 'none',
+        sm: 'none',
+        md: 'none',
+        soft: 'none',
+        card: 'none',
+        cardHover: 'none',
         dropdown: '0 8px 16px -4px rgb(15 23 42 / 0.10), 0 20px 40px -8px rgb(15 23 42 / 0.18)',
       },
     },
