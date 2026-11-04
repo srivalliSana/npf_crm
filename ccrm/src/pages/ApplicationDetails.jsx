@@ -888,10 +888,10 @@ export default function ApplicationDetails() {
                 </h2>
               )}
               <div className="flex flex-wrap justify-center gap-1.5 mt-2">
-                <span className={`badge text-[10px] uppercase font-bold tracking-wider ${stageBadgeColor(leadStage)}`}>
+                <span className={`badge text-[10px] font-bold ${stageBadgeColor(leadStage)}`}>
                   {leadStage}
                 </span>
-                <span className={`badge text-[10px] uppercase font-bold tracking-wider ${appStageBadgeColor(appStage)}`}>
+                <span className={`badge text-[10px] font-bold ${appStageBadgeColor(appStage)}`}>
                   {appStage}
                 </span>
               </div>
@@ -970,7 +970,7 @@ export default function ApplicationDetails() {
                 return (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-400 font-medium">Lead ID</span>
-                    <span className="font-mono text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded select-all">
+                    <span className="font-mono text-xs text-gray-600 px-2 py-0.5 rounded select-all">
                       {prefix}{String(lid).padStart(4,'0')}
                     </span>
                   </div>
@@ -993,7 +993,7 @@ export default function ApplicationDetails() {
                       <button
                         type="button"
                         onClick={() => { setShowAdmissionMethodModal(false); setShowAdmissionForm(true) }}
-                        className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                        className="w-full text-xs bg-primary-500 hover:bg-primary-500 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
                       >
                         <span>📝</span> Manual Entry
                       </button>
@@ -1028,7 +1028,7 @@ export default function ApplicationDetails() {
                             showToast('Error: ' + e.message, 'error')
                           }
                         }}
-                        className="w-full text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                        className="w-full text-xs bg-primary-500 hover:bg-primary-500 text-white font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
                       >
                         <span>✉️</span> Online Form (Email)
                       </button>
@@ -1087,7 +1087,7 @@ export default function ApplicationDetails() {
                   <button
                     onClick={() => handleSendLetter()}
                     disabled={letterSending}
-                    className="w-full text-xs bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                    className="w-full text-xs bg-primary-500 hover:bg-primary-500 disabled:opacity-50 text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
                   >
                     {letterSending ? <><span className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full" /> Sending...</> : associatedApp.admissionLetterSentAt ? '↻ Resend Letter' : '📨 Send Provisional Letter'}
                   </button>
@@ -1160,7 +1160,7 @@ export default function ApplicationDetails() {
               </div>
             )}
             {!isApp && leadStage === 'Not Interested' && record.notInterestedReason && (
-              <div className="mt-4 pt-3 border-t border-gray-100 bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs">
+              <div className="mt-4 pt-3 border-t border-gray-100 bg-white border border-gray-200 rounded-lg p-2.5 text-xs">
                 <p className="font-bold text-red-700 mb-0.5">Marked Not Interested</p>
                 <p className="text-red-600">Reason: <strong>{record.notInterestedReason}</strong></p>
               </div>
@@ -1180,7 +1180,7 @@ export default function ApplicationDetails() {
                   title={label}
                   className={`flex flex-col items-center gap-1 ${color} hover:opacity-75 transition-opacity focus:outline-none`}
                 >
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+                  <div className="w-8 h-8 hover:bg-gray-200 flex items-center justify-center transition-colors">
                     <Icon size={15} />
                   </div>
                   <span className="text-[9px] text-gray-500">{label}</span>
@@ -1191,7 +1191,7 @@ export default function ApplicationDetails() {
 
           {/* Assignment Details */}
           <div className="card p-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Assignment Details</h3>
+            <h3 className="text-xs font-semibold text-gray-500 mb-3">Assignment Details</h3>
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Assigned Counselor</p>
@@ -1229,7 +1229,7 @@ export default function ApplicationDetails() {
 
           {/* Important Dates */}
           <div className="card p-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Important Dates</h3>
+            <h3 className="text-xs font-semibold text-gray-500 mb-3">Important Dates</h3>
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Upcoming Followup</p>
@@ -1372,7 +1372,7 @@ export default function ApplicationDetails() {
                     <div className="space-y-5">
                       {SECTIONS.map(section => (
                         <div key={section.title}>
-                          <p className="text-xs font-bold text-primary-600 uppercase tracking-wider mb-2 border-b border-gray-200 pb-1">
+                          <p className="text-xs font-bold text-primary-600 mb-2 border-b border-gray-200 pb-1">
                             {section.title}
                           </p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1483,7 +1483,7 @@ export default function ApplicationDetails() {
                   
                   <div className="mt-6 space-y-3">
                     {localNotes.map((note, nidx) => (
-                      <div key={nidx} className="bg-yellow-50/70 border border-yellow-200/80 rounded-xl p-3 shadow-sm">
+                      <div key={nidx} className="bg-white/70 border border-gray-200/80 rounded-xl p-3 shadow-sm">
                         <p className="text-sm text-gray-700 leading-relaxed">{note.text}</p>
                         <p className="text-xs text-gray-400 mt-2 font-medium">
                           {note.author} · {note.date}
@@ -1861,7 +1861,7 @@ export default function ApplicationDetails() {
           <div className="space-y-5">
             {/* Student Info */}
             <div>
-              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">Student Information</p>
+              <p className="text-xs font-bold text-gray-700 mb-2 border-b border-gray-200 pb-1">Student Information</p>
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { k: 'studentName',   label: 'Student Name *', placeholder: 'Full name', required: true },
@@ -1880,7 +1880,7 @@ export default function ApplicationDetails() {
 
             {/* Parent Info */}
             <div>
-              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">Parent / Guardian Information</p>
+              <p className="text-xs font-bold text-gray-700 mb-2 border-b border-gray-200 pb-1">Parent / Guardian Information</p>
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { k: 'parentName',   label: 'Parent Name',   placeholder: 'Full name' },
@@ -1898,7 +1898,7 @@ export default function ApplicationDetails() {
 
             {/* Address */}
             <div>
-              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">Permanent Address</p>
+              <p className="text-xs font-bold text-gray-700 mb-2 border-b border-gray-200 pb-1">Permanent Address</p>
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Address</label>
@@ -1915,7 +1915,7 @@ export default function ApplicationDetails() {
 
             {/* 10th */}
             <div>
-              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">10th Standard</p>
+              <p className="text-xs font-bold text-gray-700 mb-2 border-b border-gray-200 pb-1">10th Standard</p>
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { k: 'tenthBoard',      label: '10th Board Name',  placeholder: 'e.g. CBSE / ICSE / State Board' },
@@ -1934,7 +1934,7 @@ export default function ApplicationDetails() {
 
             {/* 12th */}
             <div>
-              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">12th Standard</p>
+              <p className="text-xs font-bold text-gray-700 mb-2 border-b border-gray-200 pb-1">12th Standard</p>
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { k: 'twelfthBoard',      label: '12th Board Name',  placeholder: 'e.g. CBSE / ICSE / State Board' },
@@ -1953,7 +1953,7 @@ export default function ApplicationDetails() {
 
             {/* Joining course */}
             <div>
-              <p className="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1">Joining Program</p>
+              <p className="text-xs font-bold text-gray-700 mb-2 border-b border-gray-200 pb-1">Joining Program</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Joining Course / Program</label>
@@ -1999,7 +1999,7 @@ export default function ApplicationDetails() {
             Mark <strong>{studentName}</strong> as Not Interested. Please select a reason.
           </p>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Reason *</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-2">Reason *</label>
             <div className="grid grid-cols-2 gap-2 mb-3">
               {NI_REASONS.map(r => (
                 <button key={r} type="button" onClick={() => setNiReason(r)}
@@ -2048,7 +2048,7 @@ export default function ApplicationDetails() {
                 <p className="text-xs leading-relaxed">Click "Generate Link" to create a Razorpay payment link. Share it with the student. Once they pay, the UTR will be auto-fetched and status updated.</p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Amount (₹)</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Amount (₹)</label>
                 <input type="number" defaultValue="25000" className="input-field text-sm" id="pay-amount" />
               </div>
               <button
@@ -2076,7 +2076,7 @@ export default function ApplicationDetails() {
                 <p className="text-xs leading-relaxed">Student/Counselor enters the UTR or bank reference number from the payment receipt. Status changes to "Payment Done" for accounts team approval.</p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">UTR / Reference Number *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">UTR / Reference Number *</label>
                 <input type="text" value={utrNumber} onChange={e => setUtrNumber(e.target.value)}
                   placeholder="e.g. UTR123456789 or REF987654" className="input-field text-sm" />
               </div>
