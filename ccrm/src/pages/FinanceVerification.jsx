@@ -166,7 +166,7 @@ export default function FinanceVerification() {
                     <td className="text-center px-4 py-3">
                       <button
                         onClick={() => handleSelectVerif(verif)}
-                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        className="px-3 py-1 text-xs bg-primary-500 text-white rounded hover:bg-primary-500"
                       >
                         Review
                       </button>
@@ -253,7 +253,7 @@ export default function FinanceVerification() {
               </button>
               <button
                 onClick={handleSaveVerification}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-500"
               >
                 Save Verification
               </button>
