@@ -160,3 +160,12 @@
   body.record-fixed main > div > * { flex-shrink: 0; }
   body.record-fixed main > div > .xl\:flex-1 { flex: 1 1 0%; min-height: 0; }
 }
+
+/* ── Smooth scrolling across the site ───────────────────────────────────
+   Anchor jumps and scrollTo() glide instead of snapping. Skipped for people who ask for reduced motion. */
+html { scroll-behavior: smooth; scrollbar-gutter: stable; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+/* Scrolling panels (board columns, tables, dialogs) glide and do not drag the page behind them */
+.overflow-y-auto, .overflow-x-auto, .overflow-auto { scroll-behavior: smooth; overscroll-behavior: contain; }
