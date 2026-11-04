@@ -30,7 +30,7 @@ export default function AiInsightsPanel({ appId, data, loading, error, onApplySu
         <>
           <AiPanel.Section label="Admission Health">
             <div className="flex items-center gap-2.5 mb-1.5">
-              <span className="text-xl font-extrabold text-gray-900 font-mono">{data.admissionHealth.score}</span>
+              <span className="text-xl font-semibold text-gray-900 font-mono">{data.admissionHealth.score}</span>
               <span className="text-[11px] text-gray-400">/ 100</span>
               <Badge variant={data.admissionHealth.tone} className="ml-auto">{data.admissionHealth.band}</Badge>
             </div>
