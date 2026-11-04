@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Menu, Sparkles, Bell, Settings,
-  HelpCircle, ChevronDown, ChevronRight, X, LogOut, Search,
+  HelpCircle, ChevronDown, ChevronRight, X, LogOut,
 } from 'lucide-react'
 import MioAI from './MioAI'
 import { useCcrm } from '../context/CcrmContext'
@@ -95,25 +95,16 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           </nav>
         </div>
 
-        {/* Center — global search */}
-        <div className="flex-1 flex justify-center px-2 min-w-0">
-          <div className="relative w-full max-w-sm hidden md:block">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder={`Search ${orgName.split(' ')[0]}...`}
-              className="w-full bg-white border border-gray-200/70 rounded-full pointer-events-auto shadow-[0_4px_16px_rgba(13,13,18,0.08)] pl-9 pr-3 py-1.5 text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent focus:bg-white transition"
-            />
-          </div>
-        </div>
+        {/* spacer pushes the actions to the right */}
+        <div className="flex-1" />
 
         {/* Right icons */}
-        <div className="flex items-center gap-1 flex-shrink-0 pointer-events-auto bg-white rounded-full pl-1.5 pr-1.5 py-1 shadow-[0_4px_16px_rgba(13,13,18,0.08)] border border-gray-200/70">
+        <div className="flex items-center gap-2.5 flex-shrink-0 pointer-events-auto">
           {/* Ask CU AI — compact (≈50% smaller) */}
           <button
             onClick={() => setShowMioAI(true)}
             title="Ask CU AI"
-            className="flex items-center gap-1 bg-primary-500 hover:bg-primary-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors"
+            className="flex items-center gap-1 bg-primary-500 hover:bg-primary-600 text-white text-[12px] font-medium px-3.5 py-2 rounded-full shadow-[0_3px_12px_rgba(15,98,254,0.30)] transition-colors"
           >
             <Sparkles size={12} />
             <span className="hidden sm:inline">Ask CU AI</span><span className="sm:hidden">AI</span>
@@ -124,7 +115,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           <div className="relative">
             <button
               onClick={() => { setShowNotifications(!showNotifications); setShowProfile(false) }}
-              className="relative p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+              className="relative p-2 rounded-full bg-white text-gray-600 shadow-[0_3px_12px_rgba(13,13,18,0.10)] hover:text-gray-900 hover:-translate-y-px transition"
             >
               <Bell size={18} />
               {unreadCount > 0 && (
@@ -177,14 +168,14 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
 
           <button
             onClick={() => navigate('/settings')}
-            className="hidden sm:inline-flex p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+            className="hidden sm:inline-flex p-2 rounded-full bg-white text-gray-600 shadow-[0_3px_12px_rgba(13,13,18,0.10)] hover:text-gray-900 hover:-translate-y-px transition"
             title="Settings"
           >
             <Settings size={18} />
           </button>
           <button
             onClick={() => navigate('/help')}
-            className="hidden sm:inline-flex p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+            className="hidden sm:inline-flex p-2 rounded-full bg-white text-gray-600 shadow-[0_3px_12px_rgba(13,13,18,0.10)] hover:text-gray-900 hover:-translate-y-px transition"
             title="Help"
             aria-label="Help"
           >
@@ -195,7 +186,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           <div className="relative ml-1">
             <button
               onClick={() => { setShowProfile(!showProfile); setShowNotifications(false) }}
-              className="flex items-center gap-1.5 hover:bg-gray-100 rounded-lg px-2 py-1 transition-colors"
+              className="flex items-center gap-1.5 bg-white rounded-full pl-1 pr-2.5 py-1 shadow-[0_3px_12px_rgba(13,13,18,0.10)] hover:-translate-y-px transition"
             >
               {user?.picture ? (
                 <img
