@@ -59,7 +59,7 @@ export default function AdmissionMethodModal({ isOpen, onClose, app, onConfirm }
         <p className="text-gray-600 mb-6">How should {app?.name} fill their admission details?</p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+          <div className="mb-4 p-3 bg-white border border-gray-200 rounded-lg text-red-800 text-sm">
             {error}
           </div>
         )}
@@ -107,7 +107,7 @@ export default function AdmissionMethodModal({ isOpen, onClose, app, onConfirm }
             type="button"
             onClick={handleProceed}
             disabled={!method || sending}
-            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
+            className="flex-1 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-500 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
           >
             {sending ? <Loader size={16} className="animate-spin" /> : '✓'}
             {sending ? 'Sending...' : 'Proceed'}
