@@ -10,18 +10,20 @@ export default {
         // Softer, eye-friendly blue palette
         // primary-500 is the main brand colour (links, primary buttons)
         // primary-50/100 used for tints; very pale to reduce eye strain
-        primary: {
-          50:  '#eef6f4',
-          100: '#d6ebe6',
-          200: '#aed6cd',
-          300: '#7bbbae',
-          400: '#3f9a8b',
-          500: '#0e7a6b',   // brand: deep teal, the one hue, on actions and active data
-          600: '#0b6558',
-          700: '#0a5147',
-          800: '#083f38',
-          900: '#062d28',
+        primary: {   // ink: the chrome carries no brand colour
+          50:  '#f4f4f4',
+          100: '#eaeaea',
+          200: '#d4d4d4',
+          300: '#a3a3a3',
+          400: '#6b6b6b',
+          500: '#141414',
+          600: '#000000',
+          700: '#0a0a0a',
+          800: '#0a0a0a',
+          900: '#000000',
         },
+        // the one data hue: today's series, the main bar, the current period
+        data: { 500: '#1d5fbf', 100: '#dce8f8' },
         accent: {
           50:  '#fff7ed',
           100: '#ffedd5',
@@ -51,7 +53,7 @@ export default {
         // Soft page background — never pure white (reduces strain), and
         // deliberately deep enough that white cards visibly "float" above it.
         canvas: {
-          DEFAULT: '#f5f6f7',
+          DEFAULT: '#f2f4f7',
           warm:    '#fafafa',
         },
         // Violet/indigo/purple are remapped to one steel scale so legacy class names stay valid
@@ -75,8 +77,8 @@ export default {
         info:    { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 700: '#1d4ed8' },
       },
       fontFamily: {
-        sans: ['Instrument Sans', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+        sans: ['Geist', 'system-ui', 'sans-serif'],
+        mono: ['Geist Mono', 'ui-monospace', 'monospace'],
       },
       boxShadow: {
         DEFAULT: 'none',
