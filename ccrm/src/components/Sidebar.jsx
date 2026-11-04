@@ -65,6 +65,16 @@ const NAV_ITEMS = [
   { icon: HelpCircle,      label: 'Help',          to: '/help',             roles: null },
 ]
 
+// Sidebar groups (sentence-case labels). Order here is the display order.
+const GROUPS = [
+  { label: null,         items: ['Dashboard'] },
+  { label: 'Admissions', items: ['Leads', 'Website Leads', 'Applications', 'Doc Verification', 'AO Review', 'Finance Verify', 'Transfers', 'Grievances'] },
+  { label: 'Work',       items: ['Tasks', 'Calendar', 'Campaigns', 'Email Camps', 'Drip Flows', 'Automation', 'Documents', 'Payments'] },
+  { label: 'Insight',    items: ['Command Centre', 'Analytics', 'Productivity', 'Call Report', 'Reports', 'Leaderboard', 'Social Comments', 'Comms', 'Upload Logs'] },
+  { label: 'Admin',      items: ['Users', 'Programs', 'Integrations', 'Integration Hub', 'Integration Health', 'Server Health', 'Security & Access', 'Compliance', 'Organization', 'Tenants', 'Lead ID Formats'] },
+  { label: 'Account',    items: ['Settings', 'Help'] },
+]
+
 export default function Sidebar({ onLogout, user, expanded = true, isMobile = false, open = true, onClose }) {
   const navigate = useNavigate()
   const { tenantConfig } = useCcrm()
@@ -117,24 +127,34 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
     return item
   })
 
+  // Order visible items by group; anything not listed falls into 'Admin' so a new page never vanishes.
+  const groupOf = (label) => GROUPS.findIndex(g => g.items.includes(label))
+  const ordered = [...visibleItems].sort((a, b) => {
+    const ga = groupOf(a.label) < 0 ? 4 : groupOf(a.label)
+    const gb = groupOf(b.label) < 0 ? 4 : groupOf(b.label)
+    if (ga !== gb) return ga - gb
+    const ia = GROUPS[ga].items.indexOf(a.label), ib = GROUPS[gb].items.indexOf(b.label)
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)
+  })
+
   // On mobile the sidebar is a full-width-ish overlay that slides in, rather
   // than a permanently reserved column — the page below it keeps the whole
   // viewport. On desktop it stays exactly as before.
   const shell = isMobile
     ? `w-64 z-50 transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`
-    : `z-50 transition-[width] duration-200 ${expanded ? 'w-56' : 'w-16'}`
+    : `z-50 transition-[width] duration-200 ${expanded ? 'w-64' : 'w-16'}`
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-200 flex flex-col ${shell}`}
+      className={`fixed left-0 top-0 h-screen bg-canvas border-r border-gray-200/70 flex flex-col ${shell}`}
       aria-hidden={isMobile && !open}
     >
       {/* Logo */}
       <div
-        className="w-full flex items-center gap-3 px-4 h-16 cursor-pointer border-b border-gray-100 overflow-hidden flex-shrink-0"
+        className="w-full flex items-center gap-3 px-4 h-16 cursor-pointer overflow-hidden flex-shrink-0"
         onClick={() => navigate('/dashboard')}
       >
-        <div className="w-9 h-9 rounded-lg bg-primary-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+        <div className="w-8 h-8 rounded-md bg-primary-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
           {brand.logoUrl
             ? <img src={brand.logoUrl} alt="logo" className="w-full h-full object-contain" />
             : <span className="text-white font-bold text-lg leading-none">{brand.logoText || 'C'}</span>}
@@ -156,14 +176,20 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
 
       {/* Nav items */}
       <nav className="flex-1 flex flex-col w-full mt-2 overflow-y-auto scrollbar-hide">
-        {visibleItems.map((item) => {
+        {ordered.map((item, idx) => {
           const { icon: Icon, label, to, submenu } = item
+          const gi = groupOf(label) < 0 ? 4 : groupOf(label)
+          const prevGi = idx === 0 ? -1 : (groupOf(ordered[idx - 1].label) < 0 ? 4 : groupOf(ordered[idx - 1].label))
+          const groupHeader = gi !== prevGi && GROUPS[gi].label ? (
+            <div className={`px-5 pb-1.5 text-[12px] text-gray-400 font-medium ${expanded ? '' : 'hidden'} ${idx === 0 ? 'pt-1' : 'pt-6'}`}>{GROUPS[gi].label}</div>
+          ) : null
 
           // Regular nav item (no submenu)
           if (!submenu) {
             return (
+              <React.Fragment key={to}>
+              {groupHeader}
               <NavLink
-                key={to}
                 to={to}
                 className={({ isActive }) =>
                   `sidebar-icon${isActive ? ' active' : ''}`
@@ -175,6 +201,7 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
                   {label}
                 </span>
               </NavLink>
+              </React.Fragment>
             )
           }
 
@@ -182,9 +209,10 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
           const isOpen = openSubmenu === label
           return (
             <div key={label} className="flex flex-col">
+              {groupHeader}
               <button
                 onClick={() => setOpenSubmenu(isOpen ? null : label)}
-                className="flex items-center gap-3 px-4 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors rounded-lg mx-2 mb-1 w-[calc(100%-1rem)]"
+                className="flex items-center gap-3 px-4 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-200/60 transition-colors rounded-md mx-2 mb-0.5 w-[calc(100%-1rem)]"
               >
                 <Icon size={18} strokeWidth={1.8} className="flex-shrink-0" />
                 <span className="text-[13px] font-medium whitespace-nowrap flex-1 text-left">
@@ -203,7 +231,7 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
                       to={subTo}
                       className={({ isActive }) =>
                         `block px-4 py-2 ml-6 mr-2 rounded-lg text-[13px] text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors ${
-                          isActive ? 'bg-gray-100 text-gray-900 font-semibold' : ''
+                          isActive ? 'bg-gray-200/70 text-gray-900 font-medium' : ''
                         }`
                       }
                     >
