@@ -282,11 +282,11 @@ export default function PublicInquiry() {
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <a href="#" className="flex items-center">
+            <a href="#" className="flex items-center bg-white rounded-md px-2.5 py-1">
               <img
                 src="/logo.png"
                 alt="Centurion University of Technology and Management"
-                className="h-11 w-11 object-contain"
+                className="h-11 w-auto"
               />
             </a>
 
@@ -483,11 +483,11 @@ export default function PublicInquiry() {
             {/* Brand */}
             <div className="col-span-2 md:col-span-1">
               <div className="mb-4">
-                <span className="inline-flex">
+                <span className="inline-flex bg-white rounded-md p-2">
                   <img
                     src="/logo.png"
                     alt="Centurion University"
-                    className="h-16 w-16 object-contain"
+                    className="h-28 w-auto"
                   />
                 </span>
               </div>
