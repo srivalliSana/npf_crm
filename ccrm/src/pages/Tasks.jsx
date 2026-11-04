@@ -5,6 +5,7 @@ import {
   Plus, Search, Clock, AlertCircle, CheckCircle,
   Phone, Mail, MessageCircle, Calendar, MoreHorizontal, ChevronDown, X
 } from 'lucide-react'
+import DatePicker from '../components/ui/DatePicker'
 
 const PRIORITY_COLORS = {
   High:   { bg: 'bg-red-100',    text: 'text-red-700'    },
@@ -224,8 +225,8 @@ export default function Tasks() {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Due Date &amp; Time *</label>
-                <input
-                  type="datetime-local"
+                <DatePicker
+                  withTime
                   required
                   value={newTask.due}
                   onChange={e => setNewTask(p => ({ ...p, due: e.target.value }))}
