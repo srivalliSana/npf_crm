@@ -108,7 +108,7 @@ export default function EmailTemplateModal({ isOpen, onClose, app, lead, onSendS
         </h2>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+          <div className="mb-4 p-4 bg-white border border-gray-200 rounded-lg flex gap-3">
             <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
             <p className="text-red-800">{error}</p>
           </div>
@@ -194,7 +194,7 @@ export default function EmailTemplateModal({ isOpen, onClose, app, lead, onSendS
               <button
                 onClick={handleSend}
                 disabled={!selectedTemplate || sending}
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-500 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
               >
                 {sending ? <Loader size={18} className="animate-spin" /> : <Mail size={18} />}
                 {sending ? 'Sending...' : 'Send Email'}
