@@ -10,33 +10,44 @@ export default {
         // Softer, eye-friendly blue palette
         // primary-500 is the main brand colour (links, primary buttons)
         // primary-50/100 used for tints; very pale to reduce eye strain
-        primary: {   // Sage Library: sage
-          50:  '#f3f5ef',
-          100: '#e4e9db',
-          200: '#c9d3b8',
-          300: '#a9b896',
-          400: '#85986f',
-          500: '#5c6b4f',
-          600: '#4a5740',
-          700: '#3b462f',
-          800: '#2f3e28',
-          900: '#222d1c',
+        primary: {   // Cobalt Mono: primary #0F62FE
+          50:  '#f0f2ff',
+          100: '#dde5ff',
+          200: '#bccdff',
+          300: '#8fadff',
+          400: '#4f86ff',
+          500: '#0f62fe',
+          600: '#0b4fd1',
+          700: '#0a40a8',
+          800: '#0b3585',
+          900: '#0c2b66',
         },
-        // forest: the shell (sidebar) surface
-        navy: { 700: '#3b4a32', 800: '#2f3e28', 900: '#263320', 950: '#1b2517' },
         // the one data hue: today's series, the main bar, the current period
         data: { 500: '#1d5fbf', 100: '#dce8f8' },
-        accent: {   // Sage Library: copper-gold
-          50:  '#fbf5ec',
-          100: '#f5e8d3',
-          200: '#ebd3ae',
-          300: '#d4a574',
-          400: '#c98f55',
-          500: '#b87a3d',
-          600: '#965f2c',
-          700: '#774a24',
-          800: '#5c3a1f',
-          900: '#432b19',
+        accent: {   // Cobalt Mono: violet accent #6b46ff, secondary #edebff
+          50:  '#f6f4ff',
+          100: '#edebff',
+          200: '#d9d3ff',
+          300: '#bfb2ff',
+          400: '#9a85ff',
+          500: '#6b46ff',
+          600: '#5a38db',
+          700: '#483d8b',
+          800: '#3a3170',
+          900: '#2c2556',
+        },
+        // Cobalt Mono neutrals: foreground #0d0d12, muted text #62627a, border #e2e2ee, muted #f1f1f8
+        gray: {
+          50:  '#f7f7fc',
+          100: '#f1f1f8',
+          200: '#e2e2ee',
+          300: '#cfcfe0',
+          400: '#9b9bb0',
+          500: '#62627a',
+          600: '#50506a',
+          700: '#3a3a50',
+          800: '#1f1f2c',
+          900: '#0d0d12',
         },
         // AI / assistant accent — Campus One Neo's purple, used only for the
         // AI Assistant panel and its badges, never as a general-purpose color.
@@ -55,8 +66,8 @@ export default {
         // Soft page background — never pure white (reduces strain), and
         // deliberately deep enough that white cards visibly "float" above it.
         canvas: {
-          DEFAULT: '#f5f0e8',
-          warm:    '#faf6ef',
+          DEFAULT: '#fdfdff',
+          warm:    '#f7f7fc',
         },
         // Violet/indigo/purple are remapped to one steel scale so legacy class names stay valid
         purple: {
@@ -79,7 +90,7 @@ export default {
         info:    { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 700: '#1d4ed8' },
       },
       fontFamily: {
-        sans: ['Geist', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['Geist Mono', 'ui-monospace', 'monospace'],
       },
       boxShadow: {
