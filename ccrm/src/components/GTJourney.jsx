@@ -49,7 +49,7 @@ export default function GTJourney({ status, onSelect }) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Sales funnel</p>
+        <p className="text-[11px] font-semibold text-gray-400 mb-2">Sales funnel</p>
         <div className="flex items-center gap-1.5 flex-wrap">
           {PATH.map((p, i) => (
             <React.Fragment key={p.s}>
@@ -60,7 +60,7 @@ export default function GTJourney({ status, onSelect }) {
         </div>
       </div>
       <div>
-        <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">If it doesn't proceed</p>
+        <p className="text-[11px] font-semibold text-gray-400 mb-2">If it doesn't proceed</p>
         <div className="flex items-center gap-2">
           {OFFRAMP.map(o => <Node key={o.s} s={o.s} icon={o.icon} />)}
         </div>
