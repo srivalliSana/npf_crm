@@ -70,7 +70,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
 
   return (
     <>
-      <header className={`fixed top-0 ${isMobile ? 'left-0' : expanded ? 'left-64' : 'left-16'} right-0 h-14 bg-canvas flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
+      <header className={`fixed top-0 ${isMobile ? 'left-0' : expanded ? 'left-64' : 'left-0'} right-0 h-14 bg-canvas flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
         {/* Left — sidebar toggle + breadcrumb */}
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -81,7 +81,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           >
             <Menu size={19} />
           </button>
-          <nav className="hidden sm:flex items-center gap-1.5 text-sm min-w-0" aria-label="Breadcrumb">
+          <nav className={`${crumbs.length > 1 ? "hidden sm:flex" : "hidden"} items-center gap-1.5 text-sm min-w-0`} aria-label="Breadcrumb">
             {crumbs.map((c, i) => (
               <span key={i} className="flex items-center gap-1.5 min-w-0">
                 {i > 0 && <ChevronRight size={13} className="text-gray-300 flex-shrink-0" />}
