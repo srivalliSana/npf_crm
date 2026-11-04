@@ -4,6 +4,7 @@ import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import IdleLogout from './IdleLogout'
 import ImpersonationBanner from './ImpersonationBanner'
+import useResponsiveTables from '../hooks/useResponsiveTables'
 
 // Item 28 — responsive shell.
 //
@@ -20,6 +21,7 @@ export default function Layout({ onLogout, user }) {
   )
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile)
   const { pathname } = useLocation()
+  useResponsiveTables()
 
   useEffect(() => {
     const mq = window.matchMedia(MOBILE_QUERY)
