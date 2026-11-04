@@ -4,6 +4,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Calendar, Clock,
   MapPin, Users, X, Filter, Save
 } from 'lucide-react'
+import DatePicker from '../components/ui/DatePicker'
 
 const EVENT_COLORS = {
   GD:          'bg-blue-500',
@@ -288,8 +289,7 @@ export default function CalendarPro() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Date *</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     required
                     value={newEvent.date}
                     onChange={e => setNewEvent(p => ({ ...p, date: e.target.value }))}
