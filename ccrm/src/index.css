@@ -23,7 +23,7 @@
     @apply w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-900 transition;
   }
   .table-th {
-    @apply px-4 py-3 text-left text-xs font-medium text-gray-500 bg-white border-b border-gray-200;
+    @apply px-4 py-3 text-left text-xs font-medium text-gray-600 bg-gray-50 border-b border-gray-200;
   }
   .table-td {
     @apply px-4 py-3 text-sm text-gray-800 border-b border-gray-100 tabular-nums;
