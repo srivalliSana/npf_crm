@@ -334,7 +334,7 @@ function Section({ title, children, empty }) {
   const hasChildren = React.Children.count(children) > 0
   return (
     <div>
-      <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">{title}</h5>
+      <h5 className="text-xs font-bold text-gray-500 mb-2">{title}</h5>
       {hasChildren ? <div>{children}</div> : <p className="text-xs text-gray-400 py-2">{empty}</p>}
     </div>
   )
