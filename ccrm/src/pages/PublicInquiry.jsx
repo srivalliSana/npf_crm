@@ -178,9 +178,9 @@ export default function PublicInquiry() {
   const formCard = (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       {/* Form header */}
-      <div className="bg-primary-500 px-7 py-5">
-        <h3 className="text-white font-medium text-xl">Apply for CUEE 2026</h3>
-        <p className="text-white/70 text-sm mt-1">Free counselling. No application fee.</p>
+      <div className="bg-accent-500 px-7 py-5">
+        <h3 className="text-primary-900 font-semibold text-xl">Apply for CUEE 2026</h3>
+        <p className="text-primary-900/80 text-sm mt-1">Free counselling. No application fee.</p>
       </div>
 
       <div className="p-7">
@@ -276,63 +276,44 @@ export default function PublicInquiry() {
     <div className="min-h-screen bg-white font-sans">
 
       {/* ══════════════════════ NAVBAR ══════════════════════ */}
-      <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-        scrolled ? 'bg-white' : 'bg-transparent'
-      }`}>
+      <nav className="fixed top-0 inset-x-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <a href="#" className="flex items-center bg-white rounded-md px-2.5 py-1">
-              <img
-                src="/logo.png"
-                alt="Centurion University of Technology and Management"
-                className="h-11 w-auto"
-              />
+          <div className="flex items-center justify-between h-20">
+            <a href="#" className="flex items-center" aria-label="Centurion University home">
+              <img src="/logo.png" alt="Centurion University of Technology and Management" className="h-[68px] w-auto" />
             </a>
 
-            {/* Desktop links */}
-            <div className="hidden md:flex items-center gap-7">
+            <div className="hidden md:flex items-center gap-8">
               {NAV_LINKS.map(link => (
-                <a key={link.label} href={link.href}
-                  className={`text-sm font-medium transition-colors hover:text-primary-500 ${scrolled ? 'text-gray-700' : 'text-white/85 hover:text-white'}`}>
+                <a key={link.label} href={link.href} className="text-[15px] font-medium text-gray-700 hover:text-primary-500 transition-colors">
                   {link.label}
                 </a>
               ))}
             </div>
 
-            {/* CTA buttons */}
             <div className="hidden md:flex items-center gap-3">
-              <a href="/login"
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition ${scrolled ? 'text-gray-700 hover:bg-gray-100' : 'text-white/85 hover:text-white hover:bg-white/10'}`}>
-                Login
-              </a>
-              <a href="#apply"
-                className="text-sm font-semibold px-5 py-2.5 rounded-md bg-white text-gray-900 hover:bg-gray-100 transition">
-                Apply Now
-              </a>
+              <a href="/login" className="text-[15px] font-medium px-4 py-2 text-gray-700 hover:text-primary-500 transition-colors">Login</a>
+              <a href="#apply" className="text-[15px] font-semibold px-5 py-2.5 bg-primary-500 text-white hover:bg-primary-600 transition-colors">Apply now</a>
             </div>
 
-            {/* Mobile hamburger */}
-            <button onClick={() => setNavOpen(!navOpen)}
-              className={`md:hidden p-2 rounded-lg transition ${scrolled ? 'text-gray-700' : 'text-white'}`}>
+            <button onClick={() => setNavOpen(!navOpen)} aria-label="Menu" className="md:hidden p-2 text-gray-700">
               {navOpen ? <X size={22}/> : <Menu size={22}/>}
             </button>
           </div>
         </div>
 
-        {/* Mobile menu */}
         {navOpen && (
-          <div className="md:hidden bg-white border-t border-gray-100 shadow-xl">
+          <div className="md:hidden bg-white border-t border-gray-200">
             <div className="px-5 py-4 space-y-1">
               {NAV_LINKS.map(link => (
                 <a key={link.label} href={link.href} onClick={() => setNavOpen(false)}
-                  className="flex items-center gap-2 py-2.5 text-sm font-medium text-gray-700 hover:text-primary-600">
+                  className="flex items-center gap-2 py-2.5 text-[15px] font-medium text-gray-700 hover:text-primary-500">
                   <ChevronRight size={14}/> {link.label}
                 </a>
               ))}
-              <div className="border-t border-gray-100 pt-3 mt-3 flex flex-col gap-2">
-                <a href="/login" className="py-2.5 text-sm text-center font-medium text-gray-600 hover:text-primary-600">Login</a>
-                <a href="#apply" className="py-3 bg-primary-600 text-white text-sm font-bold text-center rounded-xl">Apply Now</a>
+              <div className="border-t border-gray-200 pt-3 mt-3 flex flex-col gap-2">
+                <a href="/login" className="py-2.5 text-[15px] text-center font-medium text-gray-700">Login</a>
+                <a href="#apply" onClick={() => setNavOpen(false)} className="py-3 bg-primary-500 text-white text-[15px] font-semibold text-center">Apply now</a>
               </div>
             </div>
           </div>
@@ -340,42 +321,45 @@ export default function PublicInquiry() {
       </nav>
 
       {/* ══════════════════════ HERO ══════════════════════ */}
-      <section className="min-h-screen flex items-center pt-16 bg-primary-500">
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 py-24 w-full">
-          <div className="grid lg:grid-cols-[1.15fr_1fr] gap-16 items-center">
-            <div>
-              <h1 className="text-5xl sm:text-6xl lg:text-[76px] font-medium text-white leading-[0.98] tracking-[-0.03em] mb-8">
-                Study at Centurion University.
+      <section className="pt-20 bg-gray-50">
+        <div className="grid lg:grid-cols-2 lg:min-h-[min(820px,calc(100vh-5rem))]">
+          {/* Left: what and why */}
+          <div className="flex items-center py-14 lg:py-20" style={{ paddingLeft: 'max(20px, calc((100vw - 1280px) / 2 + 32px))', paddingRight: 'clamp(20px, 4vw, 64px)' }}>
+            <div className="w-full max-w-[640px]">
+              <span className="block w-20 h-2 bg-accent-500 mb-7" aria-hidden="true" />
+              <h1 className="text-[clamp(40px,5.4vw,76px)] font-semibold text-primary-900 leading-[1.02] tracking-[-0.03em]">
+                Study at <span className="text-primary-500">Centurion University.</span>
               </h1>
-              <p className="text-white/80 text-xl leading-relaxed mb-10 max-w-xl">
+              <p className="text-gray-600 text-[clamp(17px,1.4vw,21px)] leading-relaxed mt-6 max-w-[34em]">
                 CUEE 2026 admissions are open. NAAC A+ accredited, with more than 100 programmes across four campuses.
               </p>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10 max-w-lg">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-9">
                 {STATS.map(stat => (
-                  <div key={stat.label}>
-                    <div className="text-3xl font-medium text-white tabular-nums">{stat.value}</div>
-                    <div className="text-white/70 text-sm mt-1">{stat.label}</div>
+                  <div key={stat.label} className="bg-white border border-gray-200 px-3.5 py-4">
+                    <div className="text-[22px] font-semibold text-primary-500 tabular-nums leading-none whitespace-nowrap">{stat.value}</div>
+                    <div className="text-gray-600 text-sm mt-2">{stat.label}</div>
                   </div>
                 ))}
               </div>
 
-              <div className="flex flex-wrap gap-3">
-                <a href="#apply"
-                  className="inline-flex items-center gap-2 bg-white text-gray-900 font-semibold text-base px-7 py-3.5 rounded-md hover:bg-gray-100 transition">
+              <div className="flex flex-wrap gap-3 mt-9">
+                <a href="#apply" className="inline-flex items-center gap-2 bg-primary-500 text-white font-semibold text-base px-7 py-3.5 hover:bg-primary-600 transition-colors">
                   Apply now <ArrowRight size={16}/>
                 </a>
-                <a href="#programs"
-                  className="inline-flex items-center gap-2 text-white font-medium text-base px-5 py-3.5 rounded-md hover:bg-white/10 transition">
+                <a href="#programs" className="inline-flex items-center gap-2 border border-gray-300 bg-white text-gray-900 font-medium text-base px-7 py-3.5 hover:bg-gray-100 transition-colors">
                   See programmes
                 </a>
               </div>
             </div>
+          </div>
 
-            <div id="apply">
+          {/* Right: the form, on the brand colour */}
+          <div id="apply" className="bg-primary-500 flex items-center py-12 lg:py-16" style={{ paddingLeft: 'clamp(20px, 4vw, 64px)', paddingRight: 'max(20px, calc((100vw - 1280px) / 2 + 32px))' }}>
+            <div className="w-full max-w-[560px]">
               {formCard}
               <div className="mt-4">
-                <a href="/student-portal" className="inline-flex items-center gap-1.5 text-white/80 hover:text-white text-sm transition">
+                <a href="/student-portal" className="inline-flex items-center gap-1.5 text-white hover:underline text-sm">
                   Already applied? Check your application status <ArrowRight size={14}/>
                 </a>
               </div>
@@ -458,9 +442,9 @@ export default function PublicInquiry() {
       </section>
 
       {/* ══════════════════════ FINAL CTA ══════════════════════ */}
-      <section className="py-28 bg-gray-100">
+      <section className="py-24 bg-accent-500">
         <div className="max-w-7xl mx-auto px-5 lg:px-8 grid lg:grid-cols-[1.4fr_1fr] gap-12 items-end">
-          <h2 className="text-5xl md:text-6xl font-medium text-gray-900 tracking-tight leading-[1.02]">
+          <h2 className="text-5xl md:text-6xl font-semibold text-primary-900 tracking-tight leading-[1.02]">
             Ready to start? Applying is free.
           </h2>
           <div className="flex flex-col sm:flex-row lg:flex-col gap-3">
@@ -477,7 +461,7 @@ export default function PublicInquiry() {
       </section>
 
       {/* ══════════════════════ FOOTER ══════════════════════ */}
-      <footer className="bg-primary-500 text-white/70">
+      <footer className="bg-primary-900 text-white/70">
         <div className="max-w-7xl mx-auto px-5 lg:px-8 py-14">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
             {/* Brand */}
@@ -552,7 +536,7 @@ export default function PublicInquiry() {
                   </a>
                 </li>
                 <li className="pt-2">
-                  <a href="/login" className="text-primary-400 hover:text-primary-300 font-medium transition">
+                  <a href="/login" className="text-accent-400 hover:text-accent-300 font-medium transition">
                     Staff Login →
                   </a>
                 </li>
