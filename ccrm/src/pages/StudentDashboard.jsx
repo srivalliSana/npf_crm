@@ -688,7 +688,7 @@ export default function StudentDashboard() {
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-md bg-primary-500 flex items-center justify-center text-white font-extrabold text-[12px] flex-shrink-0">CU</div>
+            <img src="/logo.png" alt="Centurion University" className="h-11 w-auto flex-shrink-0" />
             <div>
               <h1 className="text-lg font-extrabold text-gray-900 leading-tight">Student Portal</h1>
               <p className="text-[12.5px] text-gray-500">{app.name} · {app.appNo}</p>
