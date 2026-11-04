@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { MessageCircle, Phone, Loader2 } from 'lucide-react'
+import { MessageCircle, Phone, Mail, MapPin, Loader2 } from 'lucide-react'
 import { stageLabel } from '../stageLabel'
 
 const PAGE = 20
@@ -8,6 +8,28 @@ const PAGE = 20
 // They only get a column when they actually hold leads.
 const LEGACY = ['Qualified Leads', 'Unqualified Leads']
 const ALWAYS = ['Not Interested']
+
+// Colour only where it carries meaning: how warm the lead is, and which stage a column is.
+const temperature = (score = 0) =>
+  score >= 75 ? { label: 'Hot', cls: 'bg-red-50 text-red-700' }
+  : score >= 50 ? { label: 'Warm', cls: 'bg-amber-50 text-amber-700' }
+  : score >= 25 ? { label: 'Nurture', cls: 'bg-sky-50 text-sky-700' }
+  : { label: 'Cold', cls: 'bg-gray-100 text-gray-600' }
+
+const STAGE_DOT = {
+  'Untouched': 'bg-red-500', 'Contacted': 'bg-blue-500', 'Invalid Number': 'bg-gray-400', 'No Response': 'bg-gray-400',
+  'Follow Up': 'bg-purple-500', 'Interested': 'bg-green-500', 'Campus Visit Scheduled': 'bg-cyan-500', 'Campus Visit Completed': 'bg-cyan-600',
+  'Process for Payment': 'bg-orange-500', 'Payment Success': 'bg-emerald-600', 'Not Interested': 'bg-red-300',
+  'Qualified Leads': 'bg-orange-400', 'Unqualified Leads': 'bg-orange-300',
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const shortDate = (reg) => {
+  const d = String(reg || '').split(',')[0].split('/')   // "DD/MM/YYYY, HH:MM"
+  if (d.length !== 3) return ''
+  const m = MONTHS[Number(d[1]) - 1]
+  return m ? `${Number(d[0])} ${m}` : ''
+}
 
 const initials = (name = '') => name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
 
@@ -95,39 +117,63 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
               onDrop={e => onDrop(e, stage)}
               className={`relative snap-start flex-shrink-0 w-[84vw] sm:w-72 rounded-lg p-2.5 flex flex-col max-h-[70vh] md:max-h-none md:h-full min-h-[12rem] ${isOver ? 'bg-gray-300/80' : 'bg-gray-200/70'}`}
             >
-              <header className="flex items-baseline justify-between px-1.5 pb-2.5 pt-1">
-                <h3 className="text-[14px] font-medium text-gray-900">{stageLabel(stage)}</h3>
-                <span className="text-[13px] text-gray-600 tabular-nums">{c.total.toLocaleString()}</span>
+              <header className="flex items-center justify-between px-1.5 pb-3 pt-1">
+                <h3 className="flex items-center gap-2 text-[14px] font-medium text-gray-900">
+                  <span className={`w-2 h-2 rounded-full ${STAGE_DOT[stage] || 'bg-gray-400'}`} aria-hidden="true" />
+                  {stageLabel(stage)}
+                </h3>
+                <span className="min-w-[1.75rem] text-center px-2 py-0.5 rounded-full bg-white text-[12px] font-medium text-gray-700 tabular-nums">{c.total.toLocaleString()}</span>
               </header>
 
-              <div className="space-y-2 overflow-y-auto pr-0.5 flex-1">
+              <div className="space-y-2.5 overflow-y-auto pr-0.5 flex-1">
                 {c.rows.map(lead => (
                   <article
                     key={lead.id}
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('application/json', JSON.stringify({ id: lead.id, from: stage })); e.dataTransfer.effectAllowed = 'move' }}
-                    className="bg-white rounded-md border border-gray-200 p-3 cursor-grab active:cursor-grabbing"
+                    className="group bg-white rounded-lg border border-gray-200 hover:border-gray-400 transition-colors cursor-grab active:cursor-grabbing overflow-hidden"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <button onClick={() => onOpen(lead)} className="text-left text-[14px] font-medium text-gray-900 hover:underline leading-snug break-words">{lead.name}</button>
-                      <span className="text-[13px] text-gray-700 tabular-nums flex-shrink-0" title="Lead score">{lead.score || 0}</span>
-                    </div>
-                    <div className="mt-1 text-[12px] text-gray-500 truncate">{[lead.source, lead.state].filter(Boolean).join(' · ') || ' '}</div>
+                    <div className="p-3.5">
+                      <div className="flex items-start gap-3">
+                        <span className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-[12px] font-medium flex-shrink-0" aria-hidden="true">{initials(lead.name) || '?'}</span>
+                        <div className="min-w-0 flex-1">
+                          <button onClick={() => onOpen(lead)} className="block max-w-full text-left text-[15px] font-medium text-gray-900 group-hover:underline leading-snug break-words">{lead.name}</button>
+                          <div className="mt-1 flex items-center gap-2 min-w-0">
+                            {(() => {
+                              const t = temperature(lead.score || 0)
+                              return <span title={`Lead score ${lead.score || 0}`} className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium tabular-nums ${t.cls}`}>{t.label} · {lead.score || 0}</span>
+                            })()}
+                            <span className="text-[12px] text-gray-500 truncate">{lead.source || 'Unknown source'}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                    <div className="mt-2.5 flex items-center justify-between gap-2">
-                      <span className="text-[13px] text-gray-700 tabular-nums">{lead.mobile}</span>
-                      <span className="flex items-center gap-1">
-                        <a href={`tel:${lead.mobile}`} aria-label={`Call ${lead.name}`} title="Call"
-                          className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600"><Phone size={13} /></a>
-                        <a href={`https://wa.me/91${lead.mobile}`} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${lead.name}`} title="WhatsApp"
-                          className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600"><MessageCircle size={13} /></a>
-                      </span>
+                      <div className="mt-3 space-y-1.5 text-[13px] text-gray-700">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-2 tabular-nums"><Phone size={13} className="text-gray-400" />{lead.mobile}</span>
+                          <span className="flex items-center gap-1">
+                            <a href={`tel:${lead.mobile}`} aria-label={`Call ${lead.name}`} title="Call"
+                              className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-900 hover:text-white text-gray-600 transition-colors"><Phone size={13} /></a>
+                            <a href={`https://wa.me/91${lead.mobile}`} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${lead.name}`} title="WhatsApp"
+                              className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-900 hover:text-white text-gray-600 transition-colors"><MessageCircle size={13} /></a>
+                          </span>
+                        </div>
+                        {lead.email && !String(lead.email).includes('noemail') && (
+                          <div className="flex items-center gap-2 min-w-0"><Mail size={13} className="text-gray-400 flex-shrink-0" /><span className="truncate">{lead.email}</span></div>
+                        )}
+                        {lead.state && (
+                          <div className="flex items-center gap-2"><MapPin size={13} className="text-gray-400 flex-shrink-0" />{lead.state}{lead.city ? `, ${lead.city}` : ''}</div>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="mt-2.5 flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center justify-between gap-2 bg-gray-50 px-3.5 py-2.5">
+                      <span className="flex items-center gap-2 min-w-0">
                         <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${lead.owner ? 'bg-gray-200 text-gray-700' : 'border border-dashed border-gray-300 text-gray-400'}`}>{initials(lead.owner) || '–'}</span>
-                        <span className={`text-[12px] truncate ${lead.owner ? 'text-gray-700' : 'text-gray-400'}`}>{lead.owner || 'Unassigned'}</span>
+                        <span className="min-w-0">
+                          <span className={`block text-[12px] truncate leading-tight ${lead.owner ? 'text-gray-800' : 'text-gray-400'}`}>{lead.owner || 'Unassigned'}</span>
+                          {shortDate(lead.regDate) && <span className="block text-[11px] text-gray-500 leading-tight">Added {shortDate(lead.regDate)}</span>}
+                        </span>
                       </span>
                       {/* Move: the touch- and keyboard-friendly alternative to dragging */}
                       <label className="sr-only" htmlFor={`mv-${lead.id}`}>Move {lead.name} to another stage</label>
@@ -135,7 +181,7 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
                         id={`mv-${lead.id}`}
                         value={stage}
                         onChange={e => { if (e.target.value !== stage) onMove(lead, e.target.value) }}
-                        className="text-[12px] border border-gray-300 rounded-md bg-white py-1 pl-1.5 pr-1 max-w-[8.5rem] text-gray-700"
+                        className="text-[12px] border border-gray-300 rounded-md bg-white py-1 pl-1.5 pr-1 max-w-[8rem] text-gray-700"
                       >
                         {visible.map(s => <option key={s} value={s}>{stageLabel(s)}</option>)}
                       </select>
