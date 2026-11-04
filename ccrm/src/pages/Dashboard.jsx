@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useCcrm } from '../context/CcrmContext'
 import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, Download, CreditCard, Trophy } from 'lucide-react'
 import { stageLabel } from '../stageLabel'
 import PageContainer from '../components/PageContainer'
-import { Card, StatCard, KpiStrip, Table, Modal, Button, Select } from '../components/ui'
-import LeadFunnel from '../components/dashboard/LeadFunnel'
+import { Card, Table, Modal, Button, Select } from '../components/ui'
 import CounsellorPerformanceCards from '../components/dashboard/CounsellorPerformanceCards'
 
 // Default lead stages shown in the summary table (funnel order) — used as a
@@ -94,6 +94,18 @@ export default function Dashboard() {
       : _n(_src.followUp) ? `${_n(_src.followUp).toLocaleString()} waiting on a follow-up` : 'Every lead has been contacted'
   )
 
+  // Pipeline stages shown in the stacked bar, and the "needs attention" list. All from the same kpi payload.
+  const pipeline = (isCounselor
+    ? [['Untouched', _src.untouched], ['Follow up', _src.followUp], ['Interested', _src.interested], ['Not interested', _src.notInterested]]
+    : [['Untouched', _src.untouched], ['Contacted', _src.contacted], ['Interested', _src.interested], ['Process for payment', _src.processForPayment], ['Payment success', _src.paymentSuccess]]
+  ).map(([label, v]) => ({ label, value: _n(v) }))
+  const pipelineTotal = pipeline.reduce((n, x) => n + x.value, 0)
+  const attention = [
+    { label: 'Not yet contacted', value: _n(_src.untouched), to: '/leads' },
+    { label: 'Waiting on a follow-up', value: _n(_src.followUp), to: '/leads' },
+    ...(isCounselor ? [] : [{ label: 'Unassigned to a counsellor', value: _n(kpi?.unassigned), to: '/leads' }]),
+  ].filter(a => a.value > 0)
+
   const cutm   = stats?.byDomain?.cutm   || { total: 0, stages: {} }
   const cutmap = stats?.byDomain?.cutmap || { total: 0, stages: {} }
   const st = (data, stage) => data?.stages?.[stage] || 0
@@ -150,19 +162,64 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Summary — one ledger block: the lead figure first, the rest as siblings */}
-      <KpiStrip className="mb-6" items={SUMMARY_CARDS.map(c => ({ label: c.label, value: c.value }))} />
+      {/* Pipeline — one block answers "where are the leads?"; the attention list answers "what do I do next?" */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_1fr] gap-3 mb-6">
+        <Card className="p-6">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <div className="text-[13px] text-gray-500">{isCounselor ? 'Your leads' : 'Total leads'}</div>
+              <div className="text-[44px] leading-none font-medium text-gray-900 mt-2 tabular-nums tracking-tight">{SUMMARY_CARDS[0]?.value ?? '0'}</div>
+            </div>
+            {!isCounselor && hasCutmCutmap && stats?.byDomain && (
+              <div className="text-[13px] text-gray-500 tabular-nums">
+                {(cutm.total || 0).toLocaleString()} CUTM · {(cutmap.total || 0).toLocaleString()} CUTMAP · {((stats?.byDomain?.other?.total) || 0).toLocaleString()} unassigned or other
+              </div>
+            )}
+          </div>
 
-      {/* Admissions funnel — from the same kpi payload the summary cards use */}
-      {!isCounselor && (
-        <LeadFunnel stages={[
-          { label: 'Untouched',           value: kpi?.untouched || 0,        tone: 'primary' },
-          { label: 'Contacted',           value: kpi?.contacted || 0,        tone: 'info' },
-          { label: 'Interested',          value: kpi?.interested || 0,       tone: 'accent' },
-          { label: 'Process for Payment', value: kpi?.processForPayment || 0, tone: 'warning' },
-          { label: 'Payment Success',     value: kpi?.paymentSuccess || 0,   tone: 'success' },
-        ]} />
-      )}
+          {pipelineTotal > 0 && (
+            <div className="mt-6">
+              <div className="flex h-3 rounded-sm overflow-hidden bg-gray-100">
+                {pipeline.filter(x => x.value > 0).map((x, i) => (
+                  <div key={x.label} title={`${x.label}: ${x.value}`} className="h-full bg-data-500"
+                    style={{ width: `${(x.value / pipelineTotal) * 100}%`, opacity: Math.max(0.25, 1 - i * 0.2), marginRight: 2 }} />
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3 text-[13px] text-gray-600">
+                {pipeline.map((x, i) => (
+                  <span key={x.label} className="inline-flex items-center gap-1.5 tabular-nums">
+                    <span className="w-2 h-2 rounded-sm bg-data-500 inline-block" style={{ opacity: Math.max(0.25, 1 - i * 0.2) }} />
+                    {x.label} <span className="text-gray-900 font-medium">{x.value.toLocaleString()}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 mt-6">
+            {SUMMARY_CARDS.slice(1).map(c => (
+              <div key={c.label} className="flex items-baseline justify-between py-2">
+                <dt className="text-[14px] text-gray-600">{c.label}</dt>
+                <dd className="text-[14px] font-medium text-gray-900 tabular-nums">{c.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
+
+        <Card className="p-6 self-start">
+          <div className="text-base font-medium text-gray-900">Needs attention</div>
+          <div className="mt-4 space-y-1">
+            {attention.length === 0 && <p className="text-[14px] text-gray-500 py-2">Nothing is waiting. Every lead has been contacted.</p>}
+            {attention.map(a => (
+              <Link key={a.label} to={a.to} className="flex items-center justify-between py-3 px-3 -mx-3 rounded-md hover:bg-gray-100 transition-colors">
+                <span className="text-[14px] text-gray-700">{a.label}</span>
+                <span className="text-[22px] font-medium text-gray-900 tabular-nums">{a.value.toLocaleString()}</span>
+              </Link>
+            ))}
+          </div>
+          <Link to="/leads" className="mt-5 inline-flex items-center justify-center w-full bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold py-2.5 rounded-md transition-colors">Open lead manager</Link>
+        </Card>
+      </div>
 
       {/* Counsellor performance — joins byCounsellor with the Stage Summary matrix */}
       {!isCounselor && (
@@ -185,55 +242,31 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* CUTM vs CUTMAP split (admin/manager) — Centurion-specific, hidden for other tenants */}
+      {/* By domain (admin/manager) — Centurion-specific, hidden for other tenants */}
       {!isCounselor && hasCutmCutmap && stats?.byDomain && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {[
-            { key: 'cutm',   label: 'CUTM',   data: cutm,   accent: 'bg-primary-600' },
-            { key: 'cutmap', label: 'CUTMAP', data: cutmap, accent: 'bg-ai-700' },
-          ].map(d => {
-            const cells = [
-              { l: 'Total',          v: d.data.total },
-              { l: 'Untouched',      v: st(d.data, 'Untouched') },
-              { l: 'Follow Up',   v: st(d.data, 'Follow Up') },
-              { l: 'Interested',     v: st(d.data, 'Interested') },
-              { l: 'Not Interested', v: st(d.data, 'Not Interested') },
-              { l: 'Invalid Number', v: st(d.data, 'Invalid Number') },
-            ]
-            return (
-              <Card key={d.key} padding={false} className="overflow-hidden">
-                <div className="px-4 pt-4 pb-3 flex items-baseline justify-between">
-                  <span className="text-gray-900 font-medium text-base">{d.label}</span>
-                  <span className="text-gray-500 text-[13px] tabular-nums">{(d.data.total || 0).toLocaleString()} leads</span>
-                </div>
-                <div className="grid grid-cols-6 border-t border-gray-100">
-                  {cells.map(c => (
-                    <div key={c.l} className="px-2 py-3 text-center">
-                      <div className="text-lg font-medium text-gray-900 tabular-nums">{(c.v || 0).toLocaleString()}</div>
-                      <div className="text-[11px] text-gray-500 mt-0.5 leading-tight">{c.l}</div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Reconciliation — CUTM + CUTMAP + Unassigned/Other = Total Leads */}
-      {!isCounselor && hasCutmCutmap && stats?.byDomain && (
-        <Card className="p-3 mb-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm">
-          <span className="font-bold text-gray-900">{(kpi?.totalLeads || 0).toLocaleString()}</span>
-          <span className="text-gray-400 text-xs">Total</span>
-          <span className="text-gray-300">=</span>
-          <span className="font-medium text-gray-900">{(cutm.total || 0).toLocaleString()}</span>
-          <span className="text-gray-400 text-xs">CUTM</span>
-          <span className="text-gray-300">+</span>
-          <span className="font-medium text-gray-900">{(cutmap.total || 0).toLocaleString()}</span>
-          <span className="text-gray-400 text-xs">CUTMAP</span>
-          <span className="text-gray-300">+</span>
-          <span className="font-semibold text-gray-600">{((stats?.byDomain?.other?.total) || 0).toLocaleString()}</span>
-          <span className="text-gray-400 text-xs">Unassigned / Other</span>
+        <Card padding={false} className="overflow-hidden mb-6">
+          <div className="px-5 py-4 text-base font-medium text-gray-900">Leads by domain</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="table-th">Domain</th>
+                  {['Total', 'Untouched', 'Follow Up', 'Interested', 'Not Interested', 'Invalid Number'].map(h => <th key={h} className="table-th text-right">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {[{ label: 'CUTM', data: cutm }, { label: 'CUTMAP', data: cutmap }].map(d => (
+                  <tr key={d.label}>
+                    <td className="table-td font-medium text-gray-900">{d.label}</td>
+                    <td className="table-td text-right">{(d.data.total || 0).toLocaleString()}</td>
+                    {['Untouched', 'Follow Up', 'Interested', 'Not Interested', 'Invalid Number'].map(st_ => (
+                      <td key={st_} className="table-td text-right">{st(d.data, st_).toLocaleString()}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
 
