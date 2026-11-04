@@ -214,7 +214,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
           const isOpenGroup = (label) => openGroups.includes(label)
 
           const linkCls = (isActive) =>
-            `block rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${isActive ? 'bg-primary-500 text-white font-medium' : 'text-slate-300 hover:text-white hover:bg-white/10'}`
+            `block rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${isActive ? 'bg-accent-300 text-navy-900 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/10'}`
 
           // Closed rail: icons only. The group that holds the current page is marked.
           if (!expanded) {
@@ -222,7 +222,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
               <div className="flex flex-col items-center gap-1 px-2 mt-1">
                 {grouped.filter(g => !g.label).flatMap(g => g.items).map(({ icon: Icon, label, to }) => (
                   <NavLink key={to} to={to} title={label} aria-label={label}
-                    className={({ isActive }) => `w-10 h-10 flex items-center justify-center rounded-md transition-colors ${isActive ? 'bg-primary-500 text-white' : 'text-slate-400 hover:bg-white/10'}`}>
+                    className={({ isActive }) => `w-10 h-10 flex items-center justify-center rounded-md transition-colors ${isActive ? 'bg-accent-300 text-navy-900' : 'text-slate-400 hover:bg-white/10'}`}>
                     <Icon size={18} strokeWidth={1.8} />
                   </NavLink>
                 ))}
@@ -230,7 +230,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
                   const GIcon = GROUP_ICON[g.label] || Layers
                   return (
                     <span key={g.label} title={g.label} aria-label={g.label}
-                      className={`w-10 h-10 flex items-center justify-center rounded-md ${g.items.some(holdsPath) ? 'bg-primary-500 text-white' : 'text-slate-400'}`}>
+                      className={`w-10 h-10 flex items-center justify-center rounded-md ${g.items.some(holdsPath) ? 'bg-accent-300 text-navy-900' : 'text-slate-400'}`}>
                       <GIcon size={18} strokeWidth={1.8} />
                     </span>
                   )
