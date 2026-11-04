@@ -54,7 +54,7 @@ export default function MioAI({ onClose }) {
   return (
     <div className="fixed bottom-4 right-4 w-72 max-w-[88vw] bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 flex flex-col" style={{ height: '420px' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-purple-600 to-purple-700 rounded-t-2xl">
+      <div className="flex items-center justify-between px-3 py-2 bg-ai-700 rounded-t-2xl">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
             <Sparkles size={14} className="text-white" />
