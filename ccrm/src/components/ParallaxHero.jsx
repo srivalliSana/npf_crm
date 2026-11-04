@@ -4,7 +4,7 @@ import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import Lenis from 'lenis'
 
-// Layered parallax hero. As you scroll, each layer slides down at its own rate (the campus collage slowest,
+// Layered parallax hero. As you scroll, each layer slides down at its own rate (the campus photo slowest,
 // then the headline), so the scene gains depth. The campus photos are
 // small files, so they are shown at their real size as a collage rather than stretched into a backdrop.
 // Smooth scrolling (Lenis) runs only while this page is open, so it never touches the staff app.
@@ -41,9 +41,9 @@ export default function ParallaxHero({ eyebrow, title, text, primaryHref = '#app
   return (
     <section ref={rootRef} id="top" className="relative overflow-hidden bg-primary-900 mt-20 min-h-[calc(100svh-5rem)]">
       <div data-parallax-layers className="absolute inset-0 pointer-events-none">
-        {/* layer 1: the campus collage, slowest */}
-        <img data-parallax-layer="1" src="/parallax/campus-collage.webp" alt="" className="absolute inset-x-0 -top-[30%] w-full h-[130%] object-cover will-change-transform" />
-        <div className="absolute inset-0 bg-gradient-to-r from-primary-900/95 via-primary-900/80 to-primary-900/40" />
+        {/* layer 1: the campus gate photo, slowest */}
+        <img data-parallax-layer="1" src="/parallax/campus-gate.webp" alt="" className="absolute inset-x-0 -top-[30%] w-full h-[130%] object-cover will-change-transform" />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary-900/90 via-primary-900/65 to-primary-900/20" />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-5 lg:px-8 min-h-[calc(100svh-5rem)] flex items-center">
