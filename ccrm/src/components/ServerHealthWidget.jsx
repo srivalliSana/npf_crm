@@ -63,7 +63,7 @@ export default function ServerHealthWidget() {
           </div>
 
           {/* Metrics row */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <MetricCard label="Node" icon={Cpu}
               value={data.server.nodeVersion}
               hint={`${data.server.cpuCount} CPU · load ${data.server.loadAvg1m}`}
