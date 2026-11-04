@@ -194,7 +194,7 @@ function FeeCard({ title, blurb, amount, status, onSubmit, submitting, onPayGate
             <button
               onClick={() => utr.trim() && onSubmit(utr.trim())}
               disabled={submitting || !utr.trim()}
-              className="px-5 py-2.5 bg-gray-800 text-white text-sm font-semibold rounded-md hover:bg-gray-900 disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
+              className="px-5 py-2.5 bg-gray-800 text-white text-sm font-semibold rounded-md hover:bg-primary-600 disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
             >
               {submitting ? <Loader size={15} className="animate-spin" /> : null}
               Submit
@@ -299,7 +299,7 @@ function TuitionFeeCard({ semester1Amount, remaining, semester1Confirmed, amount
         <button
           onClick={() => isValid && utr.trim() && onSubmit(amount, utr.trim())}
           disabled={submitting || !utr.trim() || !isValid}
-          className="px-5 py-2.5 bg-gray-800 text-white text-sm font-semibold rounded-md hover:bg-gray-900 disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
+          className="px-5 py-2.5 bg-gray-800 text-white text-sm font-semibold rounded-md hover:bg-primary-600 disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
         >
           {submitting ? <Loader size={15} className="animate-spin" /> : null}
           Submit
@@ -409,7 +409,7 @@ function GrievanceSection() {
           {err && <p className="text-xs text-danger-600 font-semibold">{err}</p>}
           <button
             onClick={submit} disabled={submitting}
-            className="px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-primary-600 disabled:opacity-50 flex items-center gap-2"
           >
             {submitting ? <Loader size={14} className="animate-spin" /> : <Send size={14} />}
             Submit Ticket
@@ -702,7 +702,7 @@ export default function StudentDashboard() {
 
       {toast && (
         <div className="max-w-5xl mx-auto px-6 pt-4">
-          <div className="bg-gray-900 text-white text-sm font-medium rounded-md px-5 py-3">{toast}</div>
+          <div className="bg-primary-600 text-white text-sm font-medium rounded-md px-5 py-3">{toast}</div>
         </div>
       )}
 
