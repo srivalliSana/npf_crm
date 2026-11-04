@@ -48,13 +48,13 @@ export default function LeadJourney({ stage, onSelect, onSchedule, scheduled = {
                 className="group flex flex-col items-center gap-2 w-[5.5rem] flex-shrink-0 focus:outline-none"
               >
                 <span className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-medium transition-colors
-                  ${st === 'done' ? 'bg-gray-900 text-white' : st === 'current' ? 'bg-white text-gray-900 border-2 border-gray-900 ring-4 ring-gray-200' : 'bg-white text-gray-400 border border-gray-300 group-hover:border-gray-500 group-hover:text-gray-700'}`}>
+                  ${st === 'done' ? 'bg-primary-600 text-white' : st === 'current' ? 'bg-white text-gray-900 border-2 border-primary-600 ring-4 ring-primary-100' : 'bg-white text-gray-400 border border-gray-300 group-hover:border-gray-500 group-hover:text-gray-700'}`}>
                   {st === 'done' ? <Check size={15} strokeWidth={2.5} /> : i + 1}
                 </span>
                 <span className={`text-[12px] leading-tight text-center ${st === 'current' ? 'font-semibold text-gray-900' : st === 'done' ? 'text-gray-700' : 'text-gray-500'}`}>{p.label}</span>
               </button>
               {i < PATH.length - 1 && (
-                <span aria-hidden="true" className={`flex-1 h-0.5 mt-[15px] -mx-3 min-w-4 rounded-full ${st === 'done' ? 'bg-gray-900' : 'bg-gray-200'}`} />
+                <span aria-hidden="true" className={`flex-1 h-0.5 mt-[15px] -mx-3 min-w-4 rounded-full ${st === 'done' ? 'bg-primary-600' : 'bg-gray-200'}`} />
               )}
             </li>
           )
@@ -74,13 +74,13 @@ export default function LeadJourney({ stage, onSelect, onSchedule, scheduled = {
               <button
                 type="button" onClick={() => onSelect?.(o.s)} title={`Set stage: ${o.s}`} aria-pressed={active}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium border transition-colors
-                  ${active ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-300 text-gray-800 hover:bg-gray-100'}`}
+                  ${active ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white border-gray-300 text-gray-800 hover:bg-gray-100'}`}
               >
                 <Icon size={14} /> {o.label}
               </button>
               {o.hint && (
                 <button type="button" onClick={() => onSchedule?.(o.hint.kind)}
-                  className="inline-flex items-center gap-1 text-[13px] text-gray-700 hover:text-gray-900 underline underline-offset-4 decoration-gray-300 hover:decoration-gray-900">
+                  className="inline-flex items-center gap-1 text-[13px] text-gray-700 hover:text-gray-900 underline underline-offset-4 decoration-gray-300 hover:decoration-primary-600">
                   <HintIcon size={13} />
                   {when ? `${o.hint.kind === 'reminder' ? 'Reminder' : 'Next call'}: ${when}` : o.hint.label}
                 </button>
