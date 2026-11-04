@@ -145,7 +145,7 @@ export default function CalendarPro() {
                     onClick={() => setSelectedDay(day)}
                     className={`h-24 border-b border-r border-gray-100 p-1.5 cursor-pointer hover:bg-blue-50/30 transition-colors ${isSelected ? 'bg-primary-50/50' : ''}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${isToday ? 'bg-primary-500 text-white shadow-sm' : isSelected ? 'text-primary-600 font-extrabold' : 'text-gray-700'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${isToday ? 'bg-primary-500 text-white shadow-sm' : isSelected ? 'text-primary-600 font-semibold' : 'text-gray-700'}`}>
                         {day}
                       </div>
                       {dayEvents.length > 0 && (
@@ -177,7 +177,7 @@ export default function CalendarPro() {
                     <h4 className="font-semibold text-sm text-gray-800">{e.title}</h4>
                     <p className="text-xs text-gray-500 mt-0.5">Date: {e.date} · Time: {e.time}</p>
                   </div>
-                  <span className={`badge uppercase text-[9px] text-white px-2 py-0.5 rounded-full ${EVENT_COLORS[e.type] || 'bg-gray-400'}`}>
+                  <span className={`badge text-[9px] text-white px-2 py-0.5 rounded-full ${EVENT_COLORS[e.type] || 'bg-gray-400'}`}>
                     {e.type}
                   </span>
                 </div>
@@ -191,7 +191,7 @@ export default function CalendarPro() {
           {selectedDay && selectedDayEvents.length > 0 && (
             <div className="bg-primary-50/50 rounded-xl border border-primary-200 shadow-sm p-4 animate-slide-in">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-primary-800 text-xs uppercase tracking-wider">Events for May {selectedDay}</h3>
+                <h3 className="font-bold text-primary-800 text-xs">Events for May {selectedDay}</h3>
                 <button onClick={() => setSelectedDay(null)} className="text-primary-400 hover:text-primary-600 focus:outline-none">
                   ×
                 </button>
@@ -210,7 +210,7 @@ export default function CalendarPro() {
           )}
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <h3 className="font-bold text-gray-800 text-xs uppercase tracking-wider mb-3">Upcoming Events</h3>
+            <h3 className="font-bold text-gray-800 text-xs mb-3">Upcoming Events</h3>
             <div className="space-y-3">
               {allEventsSorted.slice(0, 4).map(e => (
                 <div key={e.id} className="flex gap-3">
@@ -236,7 +236,7 @@ export default function CalendarPro() {
 
           {/* Event type legend */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <h3 className="font-bold text-gray-850 text-xs uppercase tracking-wider mb-3">Event Types</h3>
+            <h3 className="font-bold text-gray-850 text-xs mb-3">Event Types</h3>
             <div className="space-y-2">
               {Object.entries(EVENT_COLORS).map(([type, color]) => (
                 <div key={type} className="flex items-center gap-2">
@@ -252,7 +252,7 @@ export default function CalendarPro() {
       {/* Create Event Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
               <h2 className="text-base font-bold text-gray-900">Schedule New Event</h2>
               <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600">
@@ -262,7 +262,7 @@ export default function CalendarPro() {
             
             <form onSubmit={handleCreateEvent} className="p-6 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Event Title *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Event Title *</label>
                 <input
                   type="text"
                   required
@@ -275,7 +275,7 @@ export default function CalendarPro() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Event Type</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Event Type</label>
                   <select
                     value={newEvent.type}
                     onChange={e => setNewEvent(p => ({ ...p, type: e.target.value }))}
@@ -287,7 +287,7 @@ export default function CalendarPro() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Date *</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Date *</label>
                   <input
                     type="date"
                     required
@@ -300,7 +300,7 @@ export default function CalendarPro() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Time *</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Time *</label>
                   <input
                     type="text"
                     required
@@ -311,7 +311,7 @@ export default function CalendarPro() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Max Participants</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Max Participants</label>
                   <input
                     type="number"
                     value={newEvent.participants}
@@ -323,7 +323,7 @@ export default function CalendarPro() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Venue *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Venue *</label>
                 <input
                   type="text"
                   required
