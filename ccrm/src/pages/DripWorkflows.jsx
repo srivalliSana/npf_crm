@@ -132,11 +132,11 @@ export default function DripWorkflows() {
           { label: 'Total Sequences',  value: sequences.length, icon: BarChart2, color: 'text-purple-600',  bg: 'bg-purple-50'   },
         ].map(c => (
           <div key={c.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4">
-            <div className={`w-11 h-11 rounded-xl ${c.bg} flex items-center justify-center flex-shrink-0`}>
+            <div className={`w-11 h-11 flex items-center justify-center flex-shrink-0`}>
               <c.icon size={20} className={c.color} />
             </div>
             <div>
-              <div className={`text-2xl font-extrabold ${c.color}`}>{c.value}</div>
+              <div className={`text-2xl font-semibold ${c.color}`}>{c.value}</div>
               <div className="text-xs text-gray-500">{c.label}</div>
             </div>
           </div>
@@ -250,7 +250,7 @@ export default function DripWorkflows() {
       {/* Enroll Modal */}
       {showEnrollModal !== null && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 <Users size={18} className="text-primary-500" /> Enroll Leads
@@ -264,14 +264,14 @@ export default function DripWorkflows() {
 
             <div className="space-y-3 mb-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Filter by Stage (optional)</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Filter by Stage (optional)</label>
                 <select value={enrollFilter.stage} onChange={e => setEnrollFilter(p => ({ ...p, stage: e.target.value }))} className="input-field text-sm">
                   <option value="">All Stages</option>
                   {stageOptions.map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Filter by Source (optional)</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Filter by Source (optional)</label>
                 <select value={enrollFilter.source} onChange={e => setEnrollFilter(p => ({ ...p, source: e.target.value }))} className="input-field text-sm">
                   <option value="">All Sources</option>
                   {sourceOptions.map(s => <option key={s}>{s}</option>)}
@@ -303,25 +303,25 @@ export default function DripWorkflows() {
       {/* New Sequence Modal */}
       {showNewSeq && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-gray-900 flex items-center gap-2"><Plus size={18} className="text-primary-500" /> New Drip Sequence</h2>
               <button onClick={() => setShowNewSeq(false)}><X size={18} className="text-gray-400" /></button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Sequence Name *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Sequence Name *</label>
                 <input value={newSeq.name} onChange={e => setNewSeq(p => ({ ...p, name: e.target.value }))} className="input-field text-sm" placeholder="e.g. Re-engagement Campaign" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Description</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Description</label>
                 <input value={newSeq.description} onChange={e => setNewSeq(p => ({ ...p, description: e.target.value }))} className="input-field text-sm" placeholder="Brief description of the sequence goal" />
               </div>
 
               {/* Step builder */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-gray-500 uppercase">Steps</label>
+                  <label className="text-xs font-semibold text-gray-500">Steps</label>
                   <button type="button" onClick={() => setNewSeq(p => ({ ...p, steps: [...p.steps, { day: p.steps.length * 3, channel: 'WhatsApp', template: '' }] }))}
                     className="text-xs text-primary-500 flex items-center gap-1"><Plus size={12} /> Add Step</button>
                 </div>
