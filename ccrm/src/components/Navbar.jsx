@@ -70,9 +70,10 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
 
   return (
     <>
-      <header className={`fixed top-0 ${isMobile ? 'left-0' : expanded ? 'left-64' : 'left-0'} right-0 h-14 bg-canvas flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
+      <header className={`fixed top-0 ${isMobile ? 'left-0' : 'left-16'} right-0 h-14 bg-canvas flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
         {/* Left — sidebar toggle + breadcrumb */}
         <div className="flex items-center gap-3 min-w-0">
+          {isMobile && (
           <button
             onClick={onToggleSidebar}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors flex-shrink-0"
@@ -81,6 +82,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           >
             <Menu size={19} />
           </button>
+          )}
           <nav className={`${crumbs.length > 1 ? "hidden sm:flex" : "hidden"} items-center gap-1.5 text-sm min-w-0`} aria-label="Breadcrumb">
             {crumbs.map((c, i) => (
               <span key={i} className="flex items-center gap-1.5 min-w-0">
