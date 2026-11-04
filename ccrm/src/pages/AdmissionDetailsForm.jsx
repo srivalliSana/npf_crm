@@ -10,7 +10,7 @@ import DatePicker from '../components/ui/DatePicker'
 const DOC_LABELS = { 'Graduation Marksheet': 'Graduation Marksheet ( Incl Vocational)' }
 const DOC_HINTS = { 'Graduation Marksheet': 'subject to eligibility' }
 
-const LOGO_URL = 'https://crm.cutmap.ac.in/landing/images/logo.jpg'
+const LOGO_URL = '/logo.png'
 const SUPPORT_EMAIL = 'admissions@cutmap.ac.in'
 const HERO_GRADIENT = 'linear-gradient(135deg, #064e3b 0%, #065f46 20%, #0d9488 50%, #0369a1 75%, #1e40af 100%)'
 const STATS = [
@@ -48,7 +48,7 @@ function PageShell({ children }) {
       <nav className="w-full bg-white border-b border-gray-100 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={LOGO_URL} alt="Centurion University" className="h-10 w-auto" />
+            <img src={LOGO_URL} alt="Centurion University" className="h-14 w-auto" />
           </div>
           <a href={`mailto:${SUPPORT_EMAIL}`} className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-teal-700 transition-colors">
             <Mail size={15} /> Need help? {SUPPORT_EMAIL}
@@ -62,7 +62,7 @@ function PageShell({ children }) {
         <div className="max-w-7xl mx-auto px-5 lg:px-8 py-10">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-8">
             <div>
-              <img src={LOGO_URL} alt="Centurion University" className="h-12 w-auto rounded-md bg-white p-1 mb-3" />
+              <img src={LOGO_URL} alt="Centurion University" className="h-20 w-auto bg-white p-1 mb-3" />
               <p className="text-xs leading-relaxed text-gray-500">Centurion University of Technology and Management — Building careers, transforming lives since 2010.</p>
             </div>
             <div>
