@@ -442,7 +442,13 @@ export default function ApplicationDetails() {
   const studentEvents = events.filter(e => e.title.toLowerCase().includes(studentName.toLowerCase()))
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [followUpModal, setFollowUpModal] = useState(null) // 'schedule' | 'reminder' | null
+  const [aiOpen, setAiOpen] = useState(false)
   const [infoSection, setInfoSection] = useState(0)        // which Lead information section is showing
+  // On wide screens this page fills the screen and never scrolls; long tabs scroll inside their own card
+  useEffect(() => {
+    document.body.classList.add('record-fixed')
+    return () => document.body.classList.remove('record-fixed')
+  }, [])
   const [followUpForm, setFollowUpForm] = useState({ when: '', note: '' })
 
   const handleSaveFollowUp = async (e) => {
@@ -770,20 +776,14 @@ export default function ApplicationDetails() {
   return (
     <>
     <div className="p-6">
-      {/* Back button */}
-      <button
-        onClick={() => navigate(isApp ? '/applications' : '/leads')}
-        className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors focus:outline-none"
-      >
-        <ArrowLeft size={16} />
-        Back to {isApp ? 'Application Manager' : 'Lead Manager'}
-      </button>
-
-      {/* Record header: who this is, where they are, and the numbers that matter */}
-      <section className="card p-6 mb-5">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div className="flex items-start gap-4 min-w-0">
-            <div className="w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center text-white text-lg font-medium select-none flex-shrink-0">
+      {/* Record header: who this is, where they are, and the numbers that matter. Everything that used to
+          sit in a separate row (score, assignment, dates) lives here so the page needs no scrolling. */}
+      <section className="card px-5 py-4 mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <button onClick={() => navigate(isApp ? '/applications' : '/leads')} aria-label={`Back to ${isApp ? 'Application Manager' : 'Lead Manager'}`} title={`Back to ${isApp ? 'Application Manager' : 'Lead Manager'}`}
+              className="w-9 h-9 flex items-center justify-center rounded-md border border-gray-300 hover:bg-gray-100 text-gray-800 flex-shrink-0"><ArrowLeft size={16} /></button>
+            <div className="w-12 h-12 rounded-full bg-gray-900 flex items-center justify-center text-white text-base font-medium select-none flex-shrink-0">
               {getInitials(studentName)}
             </div>
             <div className="min-w-0">
@@ -797,7 +797,7 @@ export default function ApplicationDetails() {
                   <button onClick={() => setEditingHeaderName(false)} className="text-gray-400 hover:text-gray-600" title="Cancel"><X size={15} /></button>
                 </div>
               ) : (
-                <h1 className="text-[26px] leading-tight font-medium tracking-tight text-gray-900 flex items-center gap-2 group">
+                <h1 className="text-[22px] leading-tight font-medium tracking-tight text-gray-900 flex items-center gap-2 group">
                   {studentName}
                   <button onClick={() => { setHeaderNameVal(studentName); setEditingHeaderName(true) }}
                     className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-600 transition-opacity" title="Edit name">
@@ -805,7 +805,6 @@ export default function ApplicationDetails() {
                   </button>
                 </h1>
               )}
-
               <p className="mt-1 text-[14px] text-gray-600">
                 <span className="font-mono">{(() => {
                   const src = (associatedLead?.source || record.source || '').toLowerCase()
@@ -816,7 +815,7 @@ export default function ApplicationDetails() {
                 {source ? <> · {source}</> : null}
                 {(studentCity || studentState) ? <> · {[studentCity, studentState].filter(Boolean).join(', ')}</> : null}
               </p>
-              <div className="flex flex-wrap gap-1.5 mt-2.5">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 <span className={`badge text-[12px] font-medium ${stageBadgeColor(leadStage)}`}>
                   {leadStage}
                 </span>
@@ -825,24 +824,57 @@ export default function ApplicationDetails() {
                 </span>
               </div>
 
+
             </div>
           </div>
-          <div className="text-right text-[13px] text-gray-600">
-            <div>Owner</div>
-            <div className="text-[15px] font-medium text-gray-900">{owner}</div>
+          <div>
+            <div className="text-[12px] text-gray-500 mb-1">Assigned counsellor</div>
+            {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && !isApp ? (
+                  <select
+                    value={owner}
+                    onChange={async (e) => {
+                      const newOwner = e.target.value
+                      await updateLead(associatedLead.id, { owner: newOwner })
+                      showToast(`Counselor changed to ${newOwner}`, 'success')
+                    }}
+                    className="min-w-[11rem] text-[14px] font-medium text-gray-900 border border-gray-300 rounded-md px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  >
+                    <option value="Unassigned">Unassigned</option>
+                    {(counselors && counselors.length > 0
+                      ? counselors.map(c => c.name)
+                      : (users || []).filter(u => ['Counselor','Manager','Admin'].includes(u.role) && u.status === 'Active').map(u => u.name)
+                    ).map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold select-none">
+                      {owner.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">{owner}</span>
+                  </div>
+                )}
           </div>
         </div>
 
-        <dl className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-x-10 gap-y-5">
+        <dl className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-x-6 gap-y-3">
+          <div>
+            <dt className="text-[12px] text-gray-500">Lead score</dt>
+            <dd className="mt-0.5 flex items-baseline gap-2">
+              <span className="text-[18px] leading-tight font-medium text-gray-900 tabular-nums">{score}<span className="text-[12px] text-gray-500">/100</span></span>
+              <span className="text-[12px] text-gray-600 truncate">{score >= 75 ? 'Hot' : score >= 50 ? 'Warm' : score >= 25 ? 'Nurture' : 'Cold'}</span>
+            </dd>
+            <div className="mt-1 h-1 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-gray-900" style={{ width: `${score}%` }} /></div>
+          </div>
           {[
             ['Admission health', aiInsights ? `${aiInsights.admissionHealth.score}/100` : '—'],
-            ['Days since last activity', aiInsights?.riskPrediction.daysSince != null ? aiInsights.riskPrediction.daysSince : '—'],
             ['Documents verified', `${docsVerifiedCount}/${studentDocsForKpi.length}`],
             ['Payment status', paymentStatusLabel],
+            ['Next follow-up', scheduledInfo.schedule || scheduledInfo.reminder || followup],
+            ['Last active', lastActive],
           ].map(([k, v]) => (
             <div key={k}>
-              <dt className="text-[13px] text-gray-500">{k}</dt>
-              <dd className="mt-1 text-[22px] leading-tight font-medium text-gray-900 tabular-nums">{v}</dd>
+              <dt className="text-[12px] text-gray-500">{k}</dt>
+              <dd className="mt-0.5 text-[18px] leading-tight font-medium text-gray-900 tabular-nums truncate">{v}</dd>
             </div>
           ))}
         </dl>
@@ -850,8 +882,7 @@ export default function ApplicationDetails() {
 
       {/* Journey / stage progress — full width, above the 3-column workspace */}
       {!isApp ? (
-        <section className="card p-6 mb-5">
-          <h2 className="text-[16px] font-medium text-gray-900 mb-5">Pipeline</h2>
+        <section className="card px-5 py-4 mb-3">
           <LeadJourney stage={activeCurrentStage} onSelect={(s) => handleStageClick(s)} onSchedule={(k) => setFollowUpModal(k)} scheduled={scheduledInfo} />
         </section>
       ) : (
@@ -908,8 +939,8 @@ export default function ApplicationDetails() {
             <PostAdmissionPanel application={associatedApp} currentUser={currentUser} showToast={showToast} fetchAllData={fetchAllData} generatePaymentLink={generatePaymentLink} />
           )}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] items-start">
-        <div className="space-y-4 min-w-0">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[minmax(0,1fr)] items-stretch xl:flex-1 xl:min-h-0">
+        <div className="flex flex-col gap-3 min-w-0 xl:min-h-0">
           {/* Tabs */}
           <div className="card p-0 overflow-hidden">
             <Tabs sticky tabs={TABS.map(t => ({ id: t, label: t }))} active={activeTab} onChange={setActiveTab} className="px-3" />
@@ -917,7 +948,7 @@ export default function ApplicationDetails() {
 
           {/* Tab content — sits in the center column; the tab BAR itself
               is full-width, directly above this 3-column split. */}
-          <div className="card p-0 overflow-hidden xl:min-h-[34rem]">
+          <div className="card p-0 xl:flex-1 xl:min-h-0 xl:overflow-y-auto">
             <div className="p-5">
               {activeTab === 'Lead Details' && (() => {
                 // Section-organised fields. Top-level (formData[key]) values for basic fields.
@@ -1500,9 +1531,8 @@ export default function ApplicationDetails() {
 
         </div>
 
-        <aside className="space-y-4">
-          <section className="card p-5">
-            <h2 className="text-[15px] font-medium text-gray-900 mb-4">Next step</h2>
+        <aside className="space-y-3 xl:h-full xl:overflow-y-auto xl:min-h-0 xl:pr-1">
+          <section className="card p-4" aria-label="Next step">
             {/* Quick stage actions — only for leads */}
             {!isApp && leadStage !== 'Payment Success' && (
               <div className="space-y-2">
@@ -1517,7 +1547,7 @@ export default function ApplicationDetails() {
                       })
                       showToast('Marked as Unable to Connect → Follow Up', 'info')
                     }}
-                    className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-gray-300 text-gray-900 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5"
+                    className="w-full text-xs font-semibold py-1.5 px-3 rounded-lg border border-gray-300 text-gray-900 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5"
                   >
                     Unable to connect, move to follow up
                   </button>
@@ -1526,7 +1556,7 @@ export default function ApplicationDetails() {
                 {!['Interested','Not Interested','Process for Payment'].includes(leadStage) && (
                   <button
                     onClick={() => setShowNiModal(true)}
-                    className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-gray-300 text-danger-700 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5"
+                    className="w-full text-xs font-semibold py-1.5 px-3 rounded-lg border border-gray-300 text-danger-700 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5"
                   >
                     <X size={13} /> Mark as not interested
                   </button>
@@ -1566,8 +1596,7 @@ export default function ApplicationDetails() {
             </div>
           </section>
 
-          <section className="card p-5">
-            <h2 className="text-[15px] font-medium text-gray-900 mb-4">Contact</h2>
+          <section className="card p-4" aria-label="Contact">
             {/* Contact info */}
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2 text-gray-600">
@@ -1634,8 +1663,7 @@ export default function ApplicationDetails() {
           </section>
 
           {associatedApp?.appNo && (
-          <section className="card p-5">
-            <h2 className="text-[15px] font-medium text-gray-900 mb-4">Admission and payment</h2>
+          <section className="card p-4" aria-label="Admission and payment">
             {/* Lead ID + Application ID */}
             <div className="space-y-2.5">
               {/* Application ID — show if application exists */}
@@ -1761,120 +1789,25 @@ export default function ApplicationDetails() {
           </section>
           )}
 
+          <section className="card overflow-hidden">
+            <button type="button" onClick={() => setAiOpen(o => !o)} aria-expanded={aiOpen}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50">
+              <span className="flex items-center gap-2 text-[15px] font-medium text-gray-900"><Sparkles size={16} /> AI assistant</span>
+              <span className="text-[13px] text-gray-500">{aiOpen ? 'Hide' : 'Show'}</span>
+            </button>
+            {aiOpen && (
+          <AiInsightsPanel
+                appId={associatedApp?.id}
+                data={aiInsights}
+                loading={aiInsightsLoading}
+                error={aiInsightsError}
+                onApplySuggestedDiscount={(pct) => { setDiscountInput(String(pct)); setActiveTab('Documents') }}
+              />
+            )}
+          </section>
         </aside>
       </div>
 
-      {/* Score, assignment and dates with the AI assistant: a full-width row so neither column leaves empty space */}
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-start">
-          <section className="card p-6 grid gap-8 md:grid-cols-3 content-start">
-          <div>
-            <h2 className="text-[15px] font-medium text-gray-900 mb-4">Lead score</h2>
-            {/* Score */}
-            <div className="">
-              <div className="flex items-center justify-between mb-1.5">
-                <span
-                  className="text-xs text-gray-500 font-medium flex items-center gap-1 cursor-help"
-                  title={
-                    'AI Lead Score (0-100) — predicts conversion likelihood.\n\n' +
-                    '• Source quality (0-30): Referral / Walk-in / Education Fair score highest\n' +
-                    '• Course tier (0-25): MBA / B.Tech CSE / M.Tech score highest\n' +
-                    '• Profile completeness (0-25): Email +10, State +8, City +7\n' +
-                    '• Stage engagement (0-20): Interested / Process for Payment\n\n' +
-                    'Buckets:\n' +
-                    '🔥 75+ Hot · 🌟 50-74 Warm · 🌱 25-49 Nurture · ❄️ <25 Cold'
-                  }
-                >
-                  Lead Score
-                  <HelpCircle size={11} className="text-gray-400" />
-                </span>
-                <span className="text-sm font-bold text-primary-600">{score}/100</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-primary-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${score}%` }}
-                ></div>
-              </div>
-              <p className="text-[13px] text-gray-600 mt-2 leading-snug">
-                {score >= 75 ? 'Hot lead: high conversion likelihood'
-                  : score >= 50 ? 'Warm lead: strong engagement signals'
-                  : score >= 25 ? 'Nurture: needs more follow-up'
-                  : 'Cold lead: low engagement, may need re-qualification'}
-              </p>
-            </div>
-
-
-          </div>
-
-          {/* Assignment Details */}
-          <div>
-            <h2 className="text-[15px] font-medium text-gray-900 mb-4">Assignment</h2>
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Assigned Counselor</p>
-                {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && !isApp ? (
-                  <select
-                    value={owner}
-                    onChange={async (e) => {
-                      const newOwner = e.target.value
-                      await updateLead(associatedLead.id, { owner: newOwner })
-                      showToast(`Counselor changed to ${newOwner}`, 'success')
-                    }}
-                    className="w-full text-sm font-medium text-gray-700 border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                  >
-                    <option value="Unassigned">Unassigned</option>
-                    {(counselors && counselors.length > 0
-                      ? counselors.map(c => c.name)
-                      : (users || []).filter(u => ['Counselor','Manager','Admin'].includes(u.role) && u.status === 'Active').map(u => u.name)
-                    ).map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold select-none">
-                      {owner.split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <span className="text-sm font-medium text-gray-700">{owner}</span>
-                  </div>
-                )}
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Lead Source</p>
-                <span className="text-sm text-gray-700 font-medium">{source}</span>
-              </div>
-            </div>
-          </div>
-
-
-          {/* Important Dates */}
-          <div>
-            <h2 className="text-[15px] font-medium text-gray-900 mb-4">Dates</h2>
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Upcoming Followup</p>
-                <div className="flex items-center gap-1.5">
-                  <Calendar size={13} className="text-orange-500" />
-                  <span className="text-sm text-gray-700 font-medium">{scheduledInfo.schedule || scheduledInfo.reminder || followup}</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Last Active</p>
-                <div className="flex items-center gap-1.5">
-                  <Clock size={13} className="text-gray-400" />
-                  <span className="text-sm text-gray-700">{lastActive}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          </section>
-          <AiInsightsPanel
-            appId={associatedApp?.id}
-            data={aiInsights}
-            loading={aiInsightsLoading}
-            error={aiInsightsError}
-            onApplySuggestedDiscount={(pct) => { setDiscountInput(String(pct)); setActiveTab('Documents') }}
-          />
-      </div>
     </div>
 
     <Modal open={!!followUpModal} onClose={() => setFollowUpModal(null)} title={followUpModal === 'reminder' ? 'Set Reminder' : 'Schedule Again'} size="sm">
