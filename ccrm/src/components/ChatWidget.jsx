@@ -120,7 +120,7 @@ export default function ChatWidget() {
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200"
+        <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden border border-gray-200"
           style={{ maxHeight: '70vh' }}>
           {/* Header */}
           <div className="bg-primary-600 px-4 py-3 flex items-center justify-between flex-shrink-0">
@@ -145,7 +145,7 @@ export default function ChatWidget() {
           <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.from === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
+                <div className={`max-w-[85%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
                   m.from === 'user'
                     ? 'bg-primary-600 text-white rounded-br-sm'
                     : 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm'
@@ -156,9 +156,9 @@ export default function ChatWidget() {
             ))}
             {typing && (
               <div className="flex justify-start">
-                <div className="bg-white border border-gray-100 shadow-sm px-4 py-2.5 rounded-2xl rounded-bl-sm flex items-center gap-1">
+                <div className="bg-white border border-gray-100 shadow-sm px-4 py-2.5 rounded-xl rounded-bl-sm flex items-center gap-1">
                   {[0,1,2].map(i => (
-                    <span key={i} className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                    <span key={i} className="w-1.5 h-1.5 bg-gray-400 rounded-full" style={{ animationDelay: `${i * 150}ms` }} />
                   ))}
                 </div>
               </div>
