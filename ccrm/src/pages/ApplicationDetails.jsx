@@ -442,6 +442,7 @@ export default function ApplicationDetails() {
   const studentEvents = events.filter(e => e.title.toLowerCase().includes(studentName.toLowerCase()))
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [followUpModal, setFollowUpModal] = useState(null) // 'schedule' | 'reminder' | null
+  const [infoSection, setInfoSection] = useState(0)        // which Lead information section is showing
   const [followUpForm, setFollowUpForm] = useState({ when: '', note: '' })
 
   const handleSaveFollowUp = async (e) => {
@@ -1034,8 +1035,22 @@ export default function ApplicationDetails() {
                     </div>
 
                     {/* Section-by-section render */}
-                    <div className="space-y-9 mt-6">
-                      {SECTIONS.map(section => (
+                    <div className="mt-6 grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] items-start">
+                      <nav aria-label="Information sections" className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible lg:sticky lg:top-4">
+                        {SECTIONS.map((sec, i) => {
+                          const filled = sec.fields.filter(f => getVal(f.key)).length
+                          const active = i === Math.min(infoSection, SECTIONS.length - 1)
+                          return (
+                            <button key={sec.title} type="button" onClick={() => setInfoSection(i)} aria-current={active ? 'true' : undefined}
+                              className={`flex-shrink-0 flex items-center justify-between gap-3 text-left px-3 py-2.5 rounded-md min-w-0 text-[14px] transition-colors ${active ? 'bg-gray-900 text-white font-medium' : 'text-gray-700 hover:bg-gray-100'}`}>
+                              <span className="whitespace-nowrap lg:whitespace-normal leading-snug">{sec.title}</span>
+                              <span className={`text-[12px] tabular-nums ${active ? 'text-white/70' : filled === sec.fields.length ? 'text-gray-900' : 'text-gray-500'}`}>{filled}/{sec.fields.length}</span>
+                            </button>
+                          )
+                        })}
+                      </nav>
+                      <div className="min-w-0">
+                      {SECTIONS.map((section, si) => si !== Math.min(infoSection, SECTIONS.length - 1) ? null : (
                         <div key={section.title}>
                           <h3 className="text-[15px] font-medium text-gray-900 mb-4">
                             {section.title}
@@ -1075,6 +1090,14 @@ export default function ApplicationDetails() {
                           </div>
                         </div>
                       ))}
+                      <div className="mt-8 flex items-center justify-between">
+                        <button type="button" disabled={infoSection <= 0} onClick={() => setInfoSection(i => Math.max(0, i - 1))}
+                          className="px-4 py-2 rounded-md border border-gray-300 text-[14px] font-medium text-gray-900 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+                        <span className="text-[13px] text-gray-500 tabular-nums">Section {Math.min(infoSection, SECTIONS.length - 1) + 1} of {SECTIONS.length}</span>
+                        <button type="button" disabled={infoSection >= SECTIONS.length - 1} onClick={() => setInfoSection(i => Math.min(SECTIONS.length - 1, i + 1))}
+                          className="px-4 py-2 rounded-md bg-primary-500 hover:bg-primary-600 text-[14px] font-medium text-white disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+                      </div>
+                      </div>
                     </div>
 
                     {editMode && (
