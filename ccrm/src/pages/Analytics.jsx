@@ -107,7 +107,7 @@ function AdmissionDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Panel title="Admission funnel" subtitle="Each stage's share of the one before it">
           <Funnel stages={stages} />
-          <div className="grid grid-cols-3 gap-2 mt-5 pt-4 border-t border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-5 pt-4 border-t border-gray-100">
             {[
               ['Lead → application', c.leadToApplication],
               ['Application → admission', c.applicationToAdmission],
