@@ -60,7 +60,7 @@ export default function RcsComposeModal({ lead, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-gray-900 flex items-center gap-2">
             <Sparkles size={18} className="text-fuchsia-500" /> Send RCS Message
@@ -76,7 +76,7 @@ export default function RcsComposeModal({ lead, onClose }) {
         </div>
 
         {approved.length === 0 ? (
-          <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+          <div className="flex items-start gap-2 p-3 bg-white border border-gray-200 rounded-lg mb-4">
             <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-amber-800">
               No approved RCS templates yet. Add/approve a template in Integrations → RCS before sending.
@@ -85,7 +85,7 @@ export default function RcsComposeModal({ lead, onClose }) {
         ) : (
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Template</label>
+              <label className="text-xs font-semibold text-gray-500 mb-1 block">Template</label>
               <select value={templateId} onChange={e => { setTemplateId(e.target.value); setVars({}) }} className="input-field text-sm">
                 <option value="">-- Select approved template --</option>
                 {approved.map(t => (
@@ -99,7 +99,7 @@ export default function RcsComposeModal({ lead, onClose }) {
               const key = `var${i + 1}`
               return (
                 <div key={key}>
-                  <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">{label}</label>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">{label}</label>
                   <input
                     type="text"
                     value={vars[key] || ''}
@@ -113,7 +113,7 @@ export default function RcsComposeModal({ lead, onClose }) {
 
             {selected?.preview && (
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Preview</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Preview</label>
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap">
                   {preview}
                 </div>
@@ -137,7 +137,7 @@ export default function RcsComposeModal({ lead, onClose }) {
         <div className="mt-5 pt-4 border-t border-gray-100">
           <div className="flex items-center gap-2 mb-2 text-gray-600">
             <History size={14} />
-            <span className="text-xs font-semibold uppercase">Sent History</span>
+            <span className="text-xs font-semibold">Sent History</span>
           </div>
           {history.length === 0 ? (
             <p className="text-xs text-gray-400">No RCS messages sent to this lead yet.</p>
