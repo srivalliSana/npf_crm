@@ -82,7 +82,7 @@ export default function WebsitesDashboard() {
               <Card key={id} className="flex flex-col">
                 <div className="flex items-start justify-between mb-5">
                   <div className="flex items-center gap-3">
-                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${ICON_TONE[tone] || ICON_TONE.primary}`}>
+                    <div className={`w-11 h-11 flex items-center justify-center flex-shrink-0 ${ICON_TONE[tone] || ICON_TONE.primary}`}>
                       <Icon size={20} strokeWidth={2} />
                     </div>
                     <div>
@@ -100,20 +100,20 @@ export default function WebsitesDashboard() {
 
                 <div className="grid grid-cols-2 gap-2.5 text-sm">
                   <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
-                    <div className="flex items-center gap-1.5 text-gray-400 text-[11px] font-semibold uppercase tracking-wide"><Users size={11} /> Total</div>
-                    <div className="text-xl font-extrabold text-gray-900 mt-0.5">{d.total.toLocaleString('en-IN')}</div>
+                    <div className="flex items-center gap-1.5 text-gray-400 text-[11px] font-semibold"><Users size={11} /> Total</div>
+                    <div className="text-xl font-semibold text-gray-900 mt-0.5">{d.total.toLocaleString('en-IN')}</div>
                   </div>
                   <div className="bg-info-50 rounded-lg px-3 py-2.5 border border-info-100">
-                    <div className="flex items-center gap-1.5 text-info-600 text-[11px] font-semibold uppercase tracking-wide"><Clock size={11} /> Not Contacted</div>
-                    <div className="text-xl font-extrabold text-info-700 mt-0.5">{d.notContacted.toLocaleString('en-IN')}</div>
+                    <div className="flex items-center gap-1.5 text-info-600 text-[11px] font-semibold"><Clock size={11} /> Not Contacted</div>
+                    <div className="text-xl font-semibold text-info-700 mt-0.5">{d.notContacted.toLocaleString('en-IN')}</div>
                   </div>
                   <div className="bg-success-50 rounded-lg px-3 py-2.5 border border-success-100">
-                    <div className="flex items-center gap-1.5 text-success-600 text-[11px] font-semibold uppercase tracking-wide"><CheckCircle size={11} /> Assigned</div>
-                    <div className="text-xl font-extrabold text-success-700 mt-0.5">{d.assigned.toLocaleString('en-IN')}</div>
+                    <div className="flex items-center gap-1.5 text-success-600 text-[11px] font-semibold"><CheckCircle size={11} /> Assigned</div>
+                    <div className="text-xl font-semibold text-success-700 mt-0.5">{d.assigned.toLocaleString('en-IN')}</div>
                   </div>
                   <div className="bg-warning-50 rounded-lg px-3 py-2.5 border border-warning-100">
-                    <div className="flex items-center gap-1.5 text-warning-600 text-[11px] font-semibold uppercase tracking-wide"><AlertCircle size={11} /> Unassigned</div>
-                    <div className="text-xl font-extrabold text-warning-700 mt-0.5">{d.unassigned.toLocaleString('en-IN')}</div>
+                    <div className="flex items-center gap-1.5 text-warning-600 text-[11px] font-semibold"><AlertCircle size={11} /> Unassigned</div>
+                    <div className="text-xl font-semibold text-warning-700 mt-0.5">{d.unassigned.toLocaleString('en-IN')}</div>
                   </div>
                 </div>
 
