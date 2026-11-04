@@ -31,7 +31,7 @@ function Field({ label, required, hint, children, className = '' }) {
 }
 
 function SectionTitle({ children }) {
-  return <p className="text-xs font-bold text-teal-700 uppercase tracking-wide mt-6 mb-3 first:mt-0">{children}</p>
+  return <p className="text-xs font-bold text-teal-700 mt-6 mb-3 first:mt-0">{children}</p>
 }
 
 const emptyData = {
@@ -151,7 +151,7 @@ export default function FullAdmissionForm({ app, initialData, onSubmit, submitti
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100">
       {rejected && (
-        <div className="m-6 mb-0 bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="m-6 mb-0 bg-white border border-gray-200 rounded-lg p-4">
           <p className="font-bold text-red-900 text-sm">Changes Requested</p>
           <p className="text-sm text-red-800">Your admission form needs a correction{reviewNote?.by ? ` (reviewed by ${reviewNote.by})` : ''} — please update and resubmit below.</p>
         </div>
@@ -185,7 +185,7 @@ export default function FullAdmissionForm({ app, initialData, onSubmit, submitti
 
       <div className="p-6 sm:p-8">
         {errors.length > 0 && (
-          <div className="mb-5 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <div className="mb-5 p-3 bg-white border border-gray-200 rounded-lg text-red-700 text-sm">
             <div className="flex items-center gap-2 font-semibold mb-1"><AlertCircle size={16} /> Please complete these required fields:</div>
             <ul className="list-disc list-inside">{errors.map((e, i) => <li key={i}>{e.label} <span className="text-red-400">({TABS.find(t => t.key === e.tab)?.label})</span></li>)}</ul>
           </div>
@@ -376,7 +376,7 @@ export default function FullAdmissionForm({ app, initialData, onSubmit, submitti
             </div>
 
             <div className="mt-6 mb-3 flex items-center justify-between">
-              <p className="text-xs font-bold text-teal-700 uppercase tracking-wide">Permanent Address</p>
+              <p className="text-xs font-bold text-teal-700">Permanent Address</p>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-600 cursor-pointer">
                 <input type="checkbox" name="sameAsPresent" checked={data.sameAsPresent} onChange={onChange} className="w-4 h-4 accent-teal-700" />
                 Same as above
