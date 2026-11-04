@@ -1,8 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { APP_VERSION, APP_RELEASED } from '../version'
 import {
-  Menu, Sparkles, Bell, Phone, Settings,
+  Menu, Sparkles, Bell, Settings,
   HelpCircle, ChevronDown, ChevronRight, X, LogOut, Search,
 } from 'lucide-react'
 import MioAI from './MioAI'
@@ -91,12 +90,6 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
                 </span>
               </span>
             ))}
-            <span
-              title={`Version ${APP_VERSION} · Released ${APP_RELEASED}`}
-              className="ml-2 text-[10px] font-mono text-gray-400 px-1 cursor-help flex-shrink-0"
-            >
-              v{APP_VERSION}
-            </span>
           </nav>
         </div>
 
@@ -180,9 +173,6 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           </div>
           )}
 
-          <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
-            <Phone size={18} />
-          </button>
           <button
             onClick={() => navigate('/settings')}
             className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
@@ -190,7 +180,12 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           >
             <Settings size={18} />
           </button>
-          <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
+          <button
+            onClick={() => navigate('/help')}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+            title="Help"
+            aria-label="Help"
+          >
             <HelpCircle size={18} />
           </button>
 
