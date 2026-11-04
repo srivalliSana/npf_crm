@@ -23,17 +23,17 @@ export default function Modal({ open, onClose, title, subtitle, children, footer
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className={`bg-white rounded-2xl shadow-lg w-full ${SIZES[size] || SIZES.md} max-h-[90vh] flex flex-col overflow-hidden`}
+        className={`bg-white rounded-xl shadow-lg w-full ${SIZES[size] || SIZES.md} max-h-[90vh] flex flex-col overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || onClose) && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white flex-shrink-0">
             <div>
-              {title && <h2 className="font-bold text-gray-900 text-base">{title}</h2>}
+              {title && <h2 className="font-semibold text-gray-900 text-base">{title}</h2>}
               {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
             </div>
             {onClose && (
