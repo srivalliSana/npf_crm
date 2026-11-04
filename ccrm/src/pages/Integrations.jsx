@@ -447,7 +447,7 @@ function RcsTemplatesManager() {
         </div>
       ) : (
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+          <thead className="bg-gray-50 text-xs text-gray-500">
             <tr>
               <th className="px-4 py-2.5 text-left">Template ID</th>
               <th className="px-4 py-2.5 text-left">Name</th>
@@ -479,44 +479,44 @@ function RcsTemplatesManager() {
 
       {showAdd && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-900">Add RCS Template</h3>
               <button onClick={() => setShowAdd(false)}><X size={18} className="text-gray-400" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Template ID *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Template ID *</label>
                 <input value={form.templateId} onChange={e => setForm(p => ({ ...p, templateId: e.target.value }))}
                   placeholder="e.g. 7U5QvSVi5e" className="input-field text-sm font-mono" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Display Name</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Display Name</label>
                 <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                   placeholder="e.g. Welcome Message" className="input-field text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Type</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Type</label>
                   <select value={form.rcsType} onChange={e => setForm(p => ({ ...p, rcsType: e.target.value }))} className="input-field text-sm">
                     <option>BASIC</option><option>RICH</option><option>RICHCASOUREL</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Status</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Status</label>
                   <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} className="input-field text-sm">
                     <option>APPROVED</option><option>PENDING</option><option>REJECTED</option>
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Variables (comma-separated, in order)</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Variables (comma-separated, in order)</label>
                 <input value={form.variables} onChange={e => setForm(p => ({ ...p, variables: e.target.value }))}
                   placeholder="e.g. name, course, date" className="input-field text-sm" />
                 <p className="text-[11px] text-gray-400 mt-1">Maps to var1, var2, … in sequence. Leave blank if the template has no variables.</p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Preview Text</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Preview Text</label>
                 <textarea value={form.preview} onChange={e => setForm(p => ({ ...p, preview: e.target.value }))}
                   rows={2} className="input-field text-sm resize-none"
                   placeholder="Hi {name}, your {course} application is confirmed." />
@@ -785,7 +785,7 @@ export default function Integrations() {
       </div>
 
       {/* Security notice */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 flex items-start gap-3">
         <Lock size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-semibold text-amber-800">Security Notice</p>
@@ -816,7 +816,7 @@ export default function Integrations() {
                 onClick={() => setExpanded(prev => ({ ...prev, [integ.id]: !isExpanded }))}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl ${integ.bg} flex items-center justify-center flex-shrink-0`}>
+                  <div className={`w-10 h-10 flex items-center justify-center flex-shrink-0`}>
                     <integ.icon size={20} className={integ.color} />
                   </div>
                   <div>
@@ -856,7 +856,7 @@ export default function Integrations() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {integ.fields.map(field => (
                           <div key={field.key} className={field.textarea ? 'md:col-span-2' : ''}>
-                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-semibold text-gray-500 mb-1">
                               {field.label}
                             </label>
                             <div className="relative">
@@ -987,7 +987,7 @@ export default function Integrations() {
 
       {/* Google Sheets Sync Action */}
       {isConnected(INTEGRATIONS.find(i => i.id === 'googlesheets')) && (
-        <div className="mt-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+        <div className="mt-4 bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="font-semibold text-emerald-800 text-sm">Google Sheets → Lead Import</h3>
@@ -1061,7 +1061,7 @@ export default function Integrations() {
       </div>
 
       {/* Counselor Mobile Setup note */}
-      <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
+      <div className="mt-4 bg-white border border-gray-200 rounded-xl p-4 flex items-start gap-3">
         <MessageCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-semibold text-green-800">Enable WhatsApp Alerts for Counselors</p>
