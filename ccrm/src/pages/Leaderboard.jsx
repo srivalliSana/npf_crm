@@ -107,11 +107,11 @@ export default function Leaderboard() {
               const bgColor = rank === 1 ? 'bg-amber-50 border-amber-200' : rank === 2 ? 'bg-gray-100 border-gray-200' : 'bg-orange-50 border-orange-200'
               return (
                 <div key={idx} className={`${podiumH} flex flex-col`}>
-                  <div className={`rounded-2xl border p-5 text-center flex flex-col items-center gap-2 shadow-sm ${bgColor}`}>
+                  <div className={`rounded-xl border p-5 text-center flex flex-col items-center gap-2 shadow-sm ${bgColor}`}>
                     <div className={`w-16 h-16 rounded-full bg-primary-100 ring-4 ${ringColor} flex items-center justify-center text-2xl font-bold text-primary-600`}>
                       {person.name.charAt(0)}
                     </div>
-                    <div className="text-3xl font-black">{rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}</div>
+                    <div className="text-3xl font-bold">{rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}</div>
                     <h3 className="font-bold text-slate-800 text-sm">{person.name.split(' ')[0]}</h3>
                     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${badge.color}`}>{badge.label}</span>
                     <div className="grid grid-cols-2 gap-2 w-full mt-2 text-center">
@@ -131,7 +131,7 @@ export default function Leaderboard() {
           </div>
 
           {/* Full table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="font-semibold text-slate-800 flex items-center gap-2">
                 <Star size={16} className="text-yellow-500" /> Full Rankings
@@ -140,7 +140,7 @@ export default function Leaderboard() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+                <thead className="bg-slate-50 text-slate-500 text-xs">
                   <tr>
                     <th className="px-4 py-3 text-left">Rank</th>
                     <th className="px-4 py-3 text-left">Counselor</th>
@@ -207,7 +207,7 @@ export default function Leaderboard() {
               { label: 'Total Calls', value: data.reduce((s, d) => s + d.calls, 0), icon: Phone, color: 'text-purple-600 bg-purple-50' },
             ].map(stat => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${stat.color}`}>
+                <div className={`w-11 h-11 flex items-center justify-center ${stat.color}`}>
                   <stat.icon size={20} />
                 </div>
                 <div>
