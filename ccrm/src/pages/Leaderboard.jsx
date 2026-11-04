@@ -104,7 +104,7 @@ export default function Leaderboard() {
               const badge = getBadge(person.enrolled)
               const podiumH = rank === 1 ? 'pt-8' : rank === 2 ? 'pt-16' : 'pt-24'
               const ringColor = rank === 1 ? 'ring-yellow-400' : rank === 2 ? 'ring-slate-400' : 'ring-amber-600'
-              const bgColor = rank === 1 ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200' : rank === 2 ? 'bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200' : 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200'
+              const bgColor = rank === 1 ? 'bg-amber-50 border-amber-200' : rank === 2 ? 'bg-gray-100 border-gray-200' : 'bg-orange-50 border-orange-200'
               return (
                 <div key={idx} className={`${podiumH} flex flex-col`}>
                   <div className={`rounded-2xl border p-5 text-center flex flex-col items-center gap-2 shadow-sm ${bgColor}`}>
