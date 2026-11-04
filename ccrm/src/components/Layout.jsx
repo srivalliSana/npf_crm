@@ -77,7 +77,7 @@ export default function Layout({ onLogout, user }) {
       />
 
       <main
-        className={`pt-14 pb-24 min-h-screen transition-[margin] duration-200 ${
+        className={`pt-16 pb-24 min-h-screen transition-[margin] duration-200 ${
           isMobile ? 'ml-0' : 'ml-16'
         }`}
       >
