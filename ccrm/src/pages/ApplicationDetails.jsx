@@ -14,6 +14,7 @@ import PostAdmissionPanel from './application-details/PostAdmissionPanel'
 import InlineDocumentsTab from './application-details/InlineDocumentsTab'
 import AiInsightsPanel from '../components/application-details/AiInsightsPanel'
 import DatePicker from '../components/ui/DatePicker'
+import { avatarTone } from '../lib/avatar'
 
 // Ameyo calls removed — use EasyGoIVR via initiateCall() from context
 
@@ -783,7 +784,7 @@ export default function ApplicationDetails() {
           <div className="flex items-center gap-4 min-w-0">
             <button onClick={() => navigate(isApp ? '/applications' : '/leads')} aria-label={`Back to ${isApp ? 'Application Manager' : 'Lead Manager'}`} title={`Back to ${isApp ? 'Application Manager' : 'Lead Manager'}`}
               className="w-9 h-9 flex items-center justify-center rounded-md border border-gray-300 hover:bg-gray-100 text-gray-800 flex-shrink-0"><ArrowLeft size={16} /></button>
-            <div className="w-12 h-12 rounded-full bg-gray-900 flex items-center justify-center text-white text-base font-medium select-none flex-shrink-0">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-medium select-none flex-shrink-0 ${avatarTone(studentName)}`}>
               {getInitials(studentName)}
             </div>
             <div className="min-w-0">
@@ -863,7 +864,7 @@ export default function ApplicationDetails() {
               <span className="text-[18px] leading-tight font-medium text-gray-900 tabular-nums">{score}<span className="text-[12px] text-gray-500">/100</span></span>
               <span className="text-[12px] text-gray-600 truncate">{score >= 75 ? 'Hot' : score >= 50 ? 'Warm' : score >= 25 ? 'Nurture' : 'Cold'}</span>
             </dd>
-            <div className="mt-1 h-1 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-gray-900" style={{ width: `${score}%` }} /></div>
+            <div className="mt-1 h-1 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-primary-600" style={{ width: `${score}%` }} /></div>
           </div>
           {[
             ['Admission health', aiInsights ? `${aiInsights.admissionHealth.score}/100` : '—'],
@@ -1073,7 +1074,7 @@ export default function ApplicationDetails() {
                           const active = i === Math.min(infoSection, SECTIONS.length - 1)
                           return (
                             <button key={sec.title} type="button" onClick={() => setInfoSection(i)} aria-current={active ? 'true' : undefined}
-                              className={`flex-shrink-0 flex items-center justify-between gap-3 text-left px-3 py-2.5 rounded-md min-w-0 text-[14px] transition-colors ${active ? 'bg-gray-900 text-white font-medium' : 'text-gray-700 hover:bg-gray-100'}`}>
+                              className={`flex-shrink-0 flex items-center justify-between gap-3 text-left px-3 py-2.5 rounded-md min-w-0 text-[14px] transition-colors ${active ? 'bg-primary-600 text-white font-medium' : 'text-gray-700 hover:bg-gray-100'}`}>
                               <span className="whitespace-nowrap lg:whitespace-normal leading-snug">{sec.title}</span>
                               <span className={`text-[12px] tabular-nums ${active ? 'text-white/70' : filled === sec.fields.length ? 'text-gray-900' : 'text-gray-500'}`}>{filled}/{sec.fields.length}</span>
                             </button>
