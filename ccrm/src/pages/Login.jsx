@@ -218,23 +218,23 @@ export default function Login() {
 
       {/* ════════════ LEFT PANEL — one flat field, one statement ════════════ */}
       <div className="hidden lg:flex lg:w-[55%] flex-col bg-primary-500 text-white">
-        <div className="flex flex-col h-full p-14">
-          <div className="text-2xl font-medium tracking-tight">CCRM</div>
+        <div className="flex flex-col h-full p-[clamp(40px,4vw,88px)]">
+          <div className="text-[clamp(22px,1.6vw,30px)] font-medium tracking-tight">CCRM</div>
 
           <div className="flex-1 flex flex-col justify-center">
-            <h1 className="text-[56px] xl:text-[72px] font-medium leading-[0.98] tracking-[-0.03em] max-w-[11ch]">
+            <h1 className="text-[clamp(56px,6.4vw,124px)] font-medium leading-[0.96] tracking-[-0.035em] max-w-[11ch]">
               Every enquiry, followed through.
             </h1>
-            <p className="text-[18px] leading-relaxed text-white/80 max-w-md mt-8">
+            <p className="text-[clamp(18px,1.4vw,26px)] leading-relaxed text-white/80 max-w-[34ch] mt-10">
               Leads, documents, payments and seat confirmation for {orgName}, in one place for the admissions team.
             </p>
           </div>
 
-          <p className="text-[15px] text-white/80 max-w-md leading-relaxed">
+          <p className="text-[clamp(15px,1.05vw,18px)] text-white/80 max-w-[48ch] leading-relaxed">
             Sign-in is limited to official <strong className="text-white font-medium">{allowedDomains.join(' / ')}</strong> accounts.
             Need access? Write to <a href={`mailto:${SUPPORT_EMAIL}`} className="text-white underline">{SUPPORT_EMAIL}</a>.
           </p>
-          <p className="text-sm text-white/60 mt-6">© {new Date().getFullYear()} {orgName}</p>
+          <p className="text-[clamp(13px,0.9vw,16px)] text-white/60 mt-6">© {new Date().getFullYear()} {orgName}</p>
         </div>
       </div>
 
@@ -242,18 +242,18 @@ export default function Login() {
       <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white relative">
         {/* Logo: the supplied image, exactly as given, top right */}
         {logoUrl ? (
-          <img src={logoUrl} alt={orgName} className="absolute top-6 right-6 h-36 w-auto" />
+          <img src={logoUrl} alt={orgName} className="absolute top-8 right-10 h-[clamp(120px,10vw,190px)] w-auto" />
         ) : (
           <div className="absolute top-6 right-6 h-14 w-14 rounded-md bg-primary-500 flex items-center justify-center text-white font-bold text-2xl">
             {logoInitial}
           </div>
         )}
 
-        <div className="relative w-full max-w-[420px]">
+        <div className="w-full max-w-[clamp(420px,26vw,520px)]">
           {/* Heading */}
           <div className="mb-8">
-            <h2 className="text-[32px] font-medium text-gray-900 tracking-tight">Welcome back</h2>
-            <p className="text-gray-500 text-sm mt-1.5">Sign in to your admissions dashboard</p>
+            <h2 className="text-[clamp(34px,2.6vw,52px)] font-medium text-gray-900 tracking-tight">Welcome back</h2>
+            <p className="text-gray-600 text-[clamp(15px,1.05vw,18px)] mt-2">Sign in to your admissions dashboard</p>
           </div>
 
           {/* Error banner */}
@@ -278,7 +278,7 @@ export default function Login() {
               <button
                 onClick={() => { setError(''); googleLogin() }}
                 disabled={googleLoading}
-                className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 hover:bg-gray-50 rounded-md py-3.5 text-sm font-semibold text-gray-700 transition-all shadow-sm hover:shadow-md disabled:opacity-60 group"
+                className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 hover:bg-gray-50 rounded-md py-4 text-base font-semibold text-gray-700 transition-all shadow-sm hover:shadow-md disabled:opacity-60 group"
               >
                 {googleLoading ? <Spinner size={5} color="gray-400" /> : <GoogleIcon />}
                 <span className="transition-colors">
@@ -296,20 +296,20 @@ export default function Login() {
           </div>
 
           {/* Email/password login removed — sign-in is via Google only */}
-          <p className="text-center text-xs text-gray-400 mt-2">
+          <p className="text-center text-sm text-gray-500 mt-3">
             Use your official <strong>{allowedDomains.join(' / ')}</strong> Google account to sign in.
           </p>
 
           {/* Footer links */}
-          <div className="mt-10 pt-6 border-t border-gray-200 flex flex-col items-center gap-2">
-            <div className="flex items-center gap-3 text-xs text-gray-400">
+          <div className="absolute bottom-8 inset-x-0 flex flex-col items-center gap-2">
+            <div className="flex items-center gap-3 text-sm text-gray-500">
               <button className="hover:text-gray-600 transition-colors">Privacy Policy</button>
               <span className="text-gray-200">|</span>
               <button className="hover:text-gray-600 transition-colors">Terms of Use</button>
               <span className="text-gray-200">|</span>
               <a href="/apply" className="hover:text-primary-500 transition-colors">Public Inquiry Form</a>
             </div>
-            <p className="text-[11px] text-gray-400">
+            <p className="text-[13px] text-gray-500">
               © {new Date().getFullYear()} {orgName}
             </p>
           </div>
