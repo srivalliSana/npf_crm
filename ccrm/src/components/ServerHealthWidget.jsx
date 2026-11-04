@@ -37,7 +37,7 @@ export default function ServerHealthWidget() {
     <div className="bg-white rounded-xl border border-blue-100 shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-8 h-8 flex items-center justify-center">
             <Server size={16} className="text-blue-600" />
           </div>
           <div>
@@ -108,8 +108,8 @@ function MetricCard({ label, value, hint, icon: Icon, tone = 'blue' }) {
     red:    'text-red-700',
   }[tone]
   return (
-    <div className="bg-blue-50/40 rounded-lg p-3 border border-blue-100/50">
-      <div className="flex items-center gap-1 text-[10px] text-gray-500 uppercase font-bold mb-1">
+    <div className="bg-white/40 rounded-lg p-3 border border-gray-200/50">
+      <div className="flex items-center gap-1 text-[10px] text-gray-500 font-bold mb-1">
         <Icon size={10} /> {label}
       </div>
       <div className={`font-bold text-sm ${toneClass}`}>{value}</div>
