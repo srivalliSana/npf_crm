@@ -917,7 +917,7 @@ export default function ApplicationDetails() {
 
           {/* Tab content — sits in the center column; the tab BAR itself
               is full-width, directly above this 3-column split. */}
-          <div className="card p-0 overflow-hidden">
+          <div className="card p-0 overflow-hidden xl:min-h-[34rem]">
             <div className="p-5">
               {activeTab === 'Lead Details' && (() => {
                 // Section-organised fields. Top-level (formData[key]) values for basic fields.
@@ -1761,7 +1761,8 @@ export default function ApplicationDetails() {
           </section>
           )}
 
-          <section className="card p-5">
+          <section className="card p-5 space-y-6">
+          <div>
             <h2 className="text-[15px] font-medium text-gray-900 mb-4">Lead score</h2>
             {/* Score */}
             <div className="">
@@ -1798,10 +1799,10 @@ export default function ApplicationDetails() {
             </div>
 
 
-          </section>
+          </div>
 
           {/* Assignment Details */}
-          <div className="card p-5">
+          <div>
             <h2 className="text-[15px] font-medium text-gray-900 mb-4">Assignment</h2>
             <div className="space-y-3">
               <div>
@@ -1840,7 +1841,7 @@ export default function ApplicationDetails() {
 
 
           {/* Important Dates */}
-          <div className="card p-5">
+          <div>
             <h2 className="text-[15px] font-medium text-gray-900 mb-4">Dates</h2>
             <div className="space-y-3">
               <div>
@@ -1860,6 +1861,7 @@ export default function ApplicationDetails() {
             </div>
           </div>
 
+          </section>
           <AiInsightsPanel
             appId={associatedApp?.id}
             data={aiInsights}
