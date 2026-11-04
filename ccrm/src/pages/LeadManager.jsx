@@ -764,6 +764,11 @@ export default function LeadManager() {
   const [viewMode, setViewModeState] = useState(() => { try { return localStorage.getItem('ccrm_leads_view') || 'board' } catch { return 'board' } })
   const setViewMode = (m) => { setViewModeState(m); try { localStorage.setItem('ccrm_leads_view', m) } catch {} }
   const [boardNonce, setBoardNonce] = useState(0)
+  // Board view fills the screen (only the columns scroll), so the page itself must not scroll
+  useEffect(() => {
+    document.body.classList.toggle('board-fixed', viewMode === 'board')
+    return () => document.body.classList.remove('board-fixed')
+  }, [viewMode])
 
   // Board: moving a card. Plain stage changes save directly; the two steps that need more than a
   // stage change (a reason, or creating an application / taking payment) hand over to the existing flow.
