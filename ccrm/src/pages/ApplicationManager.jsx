@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, Download, RefreshCw, ChevronDown,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import PageContainer from '../components/PageContainer'
+import ApplicationBoard from '../components/ApplicationBoard'
 import { Card, Modal, Button } from '../components/ui'
 
 // Tenant-specific exam/program options
@@ -49,6 +50,19 @@ export default function ApplicationManager() {
 
   const [selectedRows, setSelectedRows] = useState([])
   const [appMenuId, setAppMenuId] = useState(null)
+  const [viewMode, setViewModeState] = useState(() => { try { return localStorage.getItem('ccrm_apps_view') || 'board' } catch { return 'board' } })
+  const setViewMode = (m) => { setViewModeState(m); try { localStorage.setItem('ccrm_apps_view', m) } catch {} }
+  // Board view fills the screen (only the columns scroll), so the page itself must not scroll
+  useEffect(() => {
+    document.body.classList.toggle('board-fixed', viewMode === 'board')
+    return () => document.body.classList.remove('board-fixed')
+  }, [viewMode])
+
+  // Board: moving a card is a plain stage change on the application
+  const handleBoardMove = async (app, stage) => {
+    if (stage === app.stage) return
+    await updateApplication(app.id, { stage })
+  }
   const [exam, setExam] = useState('All Programs')
   const selectedExamObj = EXAM_OPTIONS.find(e => e.label === exam) || EXAM_OPTIONS[0]
   const [quickView, setQuickView] = useState('All Applications')
@@ -376,6 +390,12 @@ export default function ApplicationManager() {
             </button>
           ))}
         </div>
+        <div className="ml-auto inline-flex rounded-md bg-gray-100 p-1" role="group" aria-label="View">
+          {[['board', 'Board'], ['list', 'List']].map(([m, l]) => (
+            <button key={m} type="button" onClick={() => setViewMode(m)} aria-pressed={viewMode === m}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition ${viewMode === m ? 'bg-white text-gray-900 border border-gray-200' : 'text-gray-600 hover:text-gray-900'}`}>{l}</button>
+          ))}
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -421,6 +441,15 @@ export default function ApplicationManager() {
         </div>
       </Card>
 
+      {viewMode === 'board' ? (
+        <ApplicationBoard
+          apps={filtered}
+          onOpen={(app) => navigate(`/applications/${app.id}`)}
+          onMove={handleBoardMove}
+          onPaymentLink={(app) => { setLinkApp(app); setLinkResult(null); setPayAmount('25000'); setPayMode('Online'); setOfflineUtr('') }}
+        />
+      ) : (
+      <>
       {/* Table */}
       <Card padding={false} className="overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
@@ -568,6 +597,8 @@ export default function ApplicationManager() {
           </div>
         </div>
       </Card>
+      </>
+      )}
 
       {/* Edit Application Modal */}
       <Modal
