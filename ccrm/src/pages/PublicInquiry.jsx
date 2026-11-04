@@ -128,16 +128,14 @@ export default function PublicInquiry() {
   // ── Success screen ──────────────────────────────────────────────────────────
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #065f46 40%, #0d9488 100%)' }}>
-        <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full text-center space-y-6">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-            <CheckCircle size={42} className="text-green-500" />
-          </div>
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100">
+        <div className="bg-white rounded-lg border border-gray-200 p-10 max-w-md w-full text-center space-y-6">
+          <CheckCircle size={44} className="text-gray-900 mx-auto" />
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Inquiry Received! 🎉</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Inquiry received</h2>
             <p className="text-gray-600 text-sm">{serverMsg || 'Our counselor will contact you within 24 hours.'}</p>
           </div>
-          <div className="bg-blue-50 rounded-2xl p-5 text-left space-y-3">
+          <div className="bg-gray-100 rounded-lg p-5 text-left space-y-3">
             <p className="text-sm font-semibold text-gray-700 mb-2">What happens next:</p>
             {[
               'Counselor calls you within 24 hours',
@@ -145,7 +143,7 @@ export default function PublicInquiry() {
               'Schedule a campus visit or virtual tour',
             ].map((step, i) => (
               <div key={i} className="flex items-center gap-3 text-sm text-gray-700">
-                <span className="w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{i+1}</span>
+                <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-medium flex items-center justify-center flex-shrink-0">{i+1}</span>
                 {step}
               </div>
             ))}
@@ -169,7 +167,7 @@ export default function PublicInquiry() {
 
   // ── Field style helper ──────────────────────────────────────────────────────
   const fld = (err) =>
-    `w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition ${
+    `w-full border rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-900 transition ${
       err ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'
     }`
 
@@ -178,16 +176,16 @@ export default function PublicInquiry() {
 
   // The enquiry form card — shared by the full page and the embed view (form logic unchanged).
   const formCard = (
-    <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       {/* Form header */}
-      <div className="bg-gradient-to-r from-blue-600 to-sky-600 px-7 py-5">
-        <h3 className="text-white font-bold text-lg">Apply for CUEE 2026</h3>
-        <p className="text-primary-100 text-xs mt-1">Free counseling · No application fee · Quick process</p>
+      <div className="bg-primary-500 px-7 py-5">
+        <h3 className="text-white font-medium text-xl">Apply for CUEE 2026</h3>
+        <p className="text-white/70 text-sm mt-1">Free counselling. No application fee.</p>
       </div>
 
       <div className="p-7">
         {errors.submit && (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-red-700 text-sm">
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-md px-4 py-3 mb-4 text-red-700 text-sm">
             <AlertCircle size={15}/> {errors.submit}
           </div>
         )}
@@ -248,7 +246,7 @@ export default function PublicInquiry() {
           </div>
 
           <button type="submit" disabled={loading}
-            className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-primary-600/20 text-sm">
+            className="w-full bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-white font-semibold py-3.5 rounded-md flex items-center justify-center gap-2 transition shadow-lg shadow-primary-600/20 text-sm">
             {loading ? (
               <><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -259,7 +257,7 @@ export default function PublicInquiry() {
         </form>
 
         <p className="text-center text-[11px] text-gray-400 mt-4">
-          🔒 Your information is confidential and secure. No spam.
+          Your information is kept confidential and is never used for spam.
         </p>
       </div>
     </div>
@@ -279,7 +277,7 @@ export default function PublicInquiry() {
 
       {/* ══════════════════════ NAVBAR ══════════════════════ */}
       <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-        scrolled ? 'bg-white/95 backdrop-blur-sm shadow-md' : 'bg-transparent'
+        scrolled ? 'bg-white' : 'bg-transparent'
       }`}>
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -310,7 +308,7 @@ export default function PublicInquiry() {
                 Login
               </a>
               <a href="#apply"
-                className="text-sm font-bold px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/30 transition">
+                className="text-sm font-semibold px-5 py-2.5 rounded-md bg-white text-gray-900 hover:bg-gray-100 transition">
                 Apply Now
               </a>
             </div>
@@ -343,75 +341,42 @@ export default function PublicInquiry() {
       </nav>
 
       {/* ══════════════════════ HERO ══════════════════════ */}
-      <section className="relative min-h-screen flex items-center pt-16" style={{
-        background: 'linear-gradient(135deg, #064e3b 0%, #065f46 20%, #0d9488 50%, #0369a1 75%, #1e40af 100%)'
-      }}>
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0)',
-          backgroundSize: '44px 44px'
-        }} />
-        {/* Glows */}
-        <div className="absolute top-1/4 right-1/4 w-72 h-72 rounded-full bg-blue-300/20 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/3 left-1/5 w-56 h-56 rounded-full bg-sky-300/15 blur-3xl pointer-events-none" />
-
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 py-24 relative z-10 w-full">
-          <div className="grid lg:grid-cols-2 gap-14 items-center">
-            {/* Left — headline */}
+      <section className="min-h-screen flex items-center pt-16 bg-primary-500">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 py-24 w-full">
+          <div className="grid lg:grid-cols-[1.15fr_1fr] gap-16 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 bg-yellow-400/15 border border-yellow-400/30 text-yellow-300 text-xs font-bold px-4 py-2 rounded-full mb-7">
-                🎓 CUEE 2026 — Admissions Now Open
-              </div>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-6 tracking-tight">
-                Shape Your<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-300">Future</span> with<br />
-                World-Class Education
+              <h1 className="text-5xl sm:text-6xl lg:text-[76px] font-medium text-white leading-[0.98] tracking-[-0.03em] mb-8">
+                Study at Centurion University.
               </h1>
-              <p className="text-blue-200 text-lg leading-relaxed mb-10 max-w-xl">
-                Centurion University — NAAC A+ accredited, 100+ programs, and a 95% placement record.
-                Your dream career starts here.
+              <p className="text-white/80 text-xl leading-relaxed mb-10 max-w-xl">
+                CUEE 2026 admissions are open. NAAC A+ accredited, with more than 100 programmes across four campuses.
               </p>
 
-              {/* Stats */}
-              <div className="grid grid-cols-4 gap-5 mb-10">
+              <div className="grid grid-cols-4 gap-6 mb-10 max-w-lg">
                 {STATS.map(stat => (
-                  <div key={stat.label} className="text-center">
-                    <div className="text-2xl lg:text-3xl font-extrabold text-white">{stat.value}</div>
-                    <div className="text-blue-300 text-[11px] mt-1">{stat.label}</div>
+                  <div key={stat.label}>
+                    <div className="text-3xl font-medium text-white tabular-nums">{stat.value}</div>
+                    <div className="text-white/70 text-sm mt-1">{stat.label}</div>
                   </div>
                 ))}
               </div>
 
               <div className="flex flex-wrap gap-3">
                 <a href="#apply"
-                  className="inline-flex items-center gap-2 bg-white text-primary-800 font-bold text-sm px-7 py-3.5 rounded-xl hover:bg-blue-50 transition shadow-xl">
-                  Apply Now <ArrowRight size={16}/>
+                  className="inline-flex items-center gap-2 bg-white text-gray-900 font-semibold text-base px-7 py-3.5 rounded-md hover:bg-gray-100 transition">
+                  Apply now <ArrowRight size={16}/>
                 </a>
                 <a href="#programs"
-                  className="inline-flex items-center gap-2 border border-white/25 hover:border-white/50 text-white/80 hover:text-white font-medium text-sm px-7 py-3.5 rounded-xl transition">
-                  Explore Programs
+                  className="inline-flex items-center gap-2 text-white font-medium text-base px-5 py-3.5 rounded-md hover:bg-white/10 transition">
+                  See programmes
                 </a>
-              </div>
-
-              <div className="mt-10 flex items-center gap-6">
-                <div className="flex -space-x-2">
-                  {['👦','👧','🧑','👩','🧒'].map((e,i) => (
-                    <div key={i} className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-cyan-400 border-2 border-white/20 flex items-center justify-center text-sm">{e}</div>
-                  ))}
-                </div>
-                <div className="text-blue-200 text-sm">
-                  <strong className="text-white">2,400+</strong> students applied this month
-                </div>
               </div>
             </div>
 
-            {/* Right — Apply form */}
             <div id="apply">
               {formCard}
-
-              {/* Student portal link */}
-              <div className="mt-4 text-center">
-                <a href="/student-portal" className="inline-flex items-center gap-1.5 text-blue-200 hover:text-white text-sm transition">
+              <div className="mt-4">
+                <a href="/student-portal" className="inline-flex items-center gap-1.5 text-white/80 hover:text-white text-sm transition">
                   Already applied? Check your application status <ArrowRight size={14}/>
                 </a>
               </div>
@@ -421,59 +386,42 @@ export default function PublicInquiry() {
       </section>
 
       {/* ══════════════════════ PROGRAMS ══════════════════════ */}
-      <section id="programs" className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-5 lg:px-8">
-          <div className="text-center mb-12">
-            <span className="inline-flex items-center gap-2 text-xs font-bold text-primary-600 bg-primary-50 px-4 py-2 rounded-full mb-4">
-              <BookOpen size={13}/> OUR PROGRAMS
-            </span>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-4">Popular Programs at CUTM</h2>
-            <p className="text-gray-500 max-w-xl mx-auto text-base">Choose from 100+ undergraduate, postgraduate, and research programs across engineering, management, agriculture, and sciences.</p>
+      <section id="programs" className="py-28 bg-white">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 grid lg:grid-cols-[1fr_1.6fr] gap-16">
+          <div>
+            <h2 className="text-4xl md:text-5xl font-medium text-gray-900 tracking-tight leading-[1.05] mb-5">Popular programmes</h2>
+            <p className="text-gray-600 text-lg leading-relaxed">Undergraduate, postgraduate and research programmes across engineering, management, agriculture and the sciences.</p>
+            <a href="#apply" className="inline-flex items-center gap-2 text-gray-900 font-semibold text-base mt-8 hover:underline">
+              Apply to any programme <ArrowRight size={16}/>
+            </a>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid sm:grid-cols-2 gap-3">
             {PROGRAMS.map((prog, i) => (
               <a key={i} href="#apply"
-                className="bg-white rounded-2xl p-5 border border-gray-100 hover:border-primary-200 hover:shadow-lg transition-all group cursor-pointer">
-                <div className="text-3xl mb-3">{prog.icon}</div>
-                <div className="font-bold text-gray-900 text-sm mb-1 group-hover:text-primary-600 transition">{prog.name}</div>
-                <div className="text-xs text-gray-500 mb-3">{prog.duration}</div>
-                {prog.tag && (
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${prog.tagColor}`}>
-                    {prog.tag}
-                  </span>
-                )}
+                className="bg-gray-100 hover:bg-gray-200 rounded-lg p-6 transition-colors flex flex-col justify-between min-h-[120px]">
+                <div className="font-medium text-gray-900 text-lg">{prog.name}</div>
+                <div className="flex items-center justify-between text-sm text-gray-600 mt-6">
+                  <span>{prog.duration}</span>
+                  {prog.tag && <span className="text-gray-900 font-medium">{prog.tag}</span>}
+                </div>
               </a>
             ))}
-          </div>
-
-          <div className="text-center mt-8">
-            <a href="#apply" className="inline-flex items-center gap-2 text-primary-600 font-semibold text-sm hover:text-primary-700">
-              View all 100+ programs <ArrowRight size={15}/>
-            </a>
           </div>
         </div>
       </section>
 
       {/* ══════════════════════ WHY CUTM ══════════════════════ */}
-      <section id="why" className="py-20 bg-white">
+      <section id="why" className="py-28 bg-gray-100">
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
-          <div className="text-center mb-12">
-            <span className="inline-flex items-center gap-2 text-xs font-bold text-purple-600 bg-purple-50 px-4 py-2 rounded-full mb-4">
-              <Zap size={13}/> WHY CHOOSE CUTM
-            </span>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-4">Excellence in Every Dimension</h2>
-            <p className="text-gray-500 max-w-xl mx-auto text-base">From research to placement, CUTM delivers a transformative education experience.</p>
-          </div>
+          <h2 className="text-4xl md:text-5xl font-medium text-gray-900 tracking-tight leading-[1.05] mb-14 max-w-2xl">Why students choose CUTM</h2>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-12 gap-y-14">
             {FEATURES.map((feature, i) => (
-              <div key={i} className="p-6 rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all">
-                <div className={`w-12 h-12 rounded-xl ${feature.color} flex items-center justify-center mb-4`}>
-                  <feature.icon size={22}/>
-                </div>
-                <h3 className="font-bold text-gray-900 mb-2">{feature.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{feature.desc}</p>
+              <div key={i}>
+                <feature.icon size={22} className="text-gray-900 mb-4" strokeWidth={1.6}/>
+                <h3 className="font-medium text-gray-900 text-xl mb-2">{feature.title}</h3>
+                <p className="text-gray-600 text-base leading-relaxed">{feature.desc}</p>
               </div>
             ))}
           </div>
@@ -481,23 +429,17 @@ export default function PublicInquiry() {
       </section>
 
       {/* ══════════════════════ CAMPUSES ══════════════════════ */}
-      <section id="campuses" className="py-20 bg-gradient-to-br from-slate-900 to-blue-900">
+      <section id="campuses" className="py-28 bg-primary-500">
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
-          <div className="text-center mb-12">
-            <span className="inline-flex items-center gap-2 text-xs font-bold text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-4 py-2 rounded-full mb-4">
-              <MapPin size={13}/> OUR CAMPUSES
-            </span>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">4 Campuses Across India</h2>
-            <p className="text-slate-400 max-w-xl mx-auto text-base">Study at any of our world-class campuses in Odisha and Andhra Pradesh.</p>
-          </div>
+          <h2 className="text-4xl md:text-5xl font-medium text-white tracking-tight leading-[1.05] mb-4 max-w-2xl">Four campuses across Odisha and Andhra Pradesh</h2>
+          <p className="text-white/70 text-lg mb-14 max-w-xl">Study at the campus closest to the programme you want.</p>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {CAMPUSES.map((campus, i) => (
-              <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all">
-                <div className="text-4xl mb-4">{campus.emoji}</div>
-                <h3 className="font-bold text-white text-lg mb-1">{campus.name}</h3>
-                <p className="text-cyan-400 text-xs font-medium mb-3">{campus.state}</p>
-                <p className="text-slate-400 text-sm leading-relaxed">{campus.desc}</p>
+              <div key={i} className="bg-white/10 rounded-lg p-6">
+                <h3 className="font-medium text-white text-xl mb-1">{campus.name}</h3>
+                <p className="text-white/70 text-sm mb-4">{campus.state}</p>
+                <p className="text-white/80 text-base leading-relaxed">{campus.desc}</p>
               </div>
             ))}
           </div>
@@ -505,49 +447,38 @@ export default function PublicInquiry() {
       </section>
 
       {/* ══════════════════════ ACCREDITATION ══════════════════════ */}
-      <section className="py-14 bg-white border-t border-gray-100">
+      <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
-          <div className="text-center mb-8">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Recognized & Accredited By</p>
-          </div>
-          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16">
+          <p className="text-base text-gray-600 mb-6">Recognised and accredited by</p>
+          <div className="flex flex-wrap gap-x-12 gap-y-4">
             {['NAAC A+', 'NBA', 'UGC', 'AICTE', 'ICAR', 'NIRF'].map(acc => (
-              <div key={acc} className="flex items-center justify-center">
-                <div className="bg-gray-50 border border-gray-200 rounded-xl px-6 py-3 text-sm font-bold text-gray-600">{acc}</div>
-              </div>
+              <span key={acc} className="text-3xl font-medium text-gray-900 tracking-tight">{acc}</span>
             ))}
           </div>
         </div>
       </section>
 
       {/* ══════════════════════ FINAL CTA ══════════════════════ */}
-      <section className="py-20 bg-gradient-to-br from-blue-600 to-sky-700">
-        <div className="max-w-3xl mx-auto px-5 lg:px-8 text-center">
-          <div className="flex items-center justify-center gap-1 mb-4">
-            {[1,2,3,4,5].map(s => <Star key={s} size={18} className="text-yellow-400 fill-yellow-400"/>)}
-            <span className="text-white/80 text-sm ml-2">Rated 4.8/5 by students</span>
-          </div>
-          <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-5">
-            Ready to Start Your Journey?
+      <section className="py-28 bg-gray-100">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 grid lg:grid-cols-[1.4fr_1fr] gap-12 items-end">
+          <h2 className="text-5xl md:text-6xl font-medium text-gray-900 tracking-tight leading-[1.02]">
+            Ready to start? Applying is free.
           </h2>
-          <p className="text-primary-100 text-lg mb-8">
-            Thousands of students have transformed their lives through CUTM. Be the next one.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row lg:flex-col gap-3">
             <a href="#apply"
-              className="inline-flex items-center justify-center gap-2 bg-white text-primary-700 font-bold px-8 py-4 rounded-xl hover:bg-blue-50 transition shadow-xl text-base">
-              Apply Now — It's Free <ArrowRight size={18}/>
+              className="inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 text-white font-semibold px-8 py-4 rounded-md transition text-base">
+              Apply now <ArrowRight size={18}/>
             </a>
             <a href="tel:+917065569969"
-              className="inline-flex items-center justify-center gap-2 border-2 border-white/40 hover:border-white text-white font-semibold px-8 py-4 rounded-xl transition text-base">
-              <Phone size={18}/> Call Admissions Helpline
+              className="inline-flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-900 font-semibold px-8 py-4 rounded-md transition text-base">
+              <Phone size={18}/> Call admissions
             </a>
           </div>
         </div>
       </section>
 
       {/* ══════════════════════ FOOTER ══════════════════════ */}
-      <footer className="bg-gray-950 text-gray-400">
+      <footer className="bg-primary-500 text-white/70">
         <div className="max-w-7xl mx-auto px-5 lg:px-8 py-14">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
             {/* Brand */}
@@ -559,8 +490,8 @@ export default function PublicInquiry() {
                   className="h-10 w-auto brightness-0 invert opacity-80"
                 />
               </div>
-              <p className="text-xs leading-relaxed text-gray-500">
-                Centurion University of Technology and Management — Building careers, transforming lives since 2010.
+              <p className="text-xs leading-relaxed text-white/60">
+                Centurion University of Technology and Management.
               </p>
             </div>
 
@@ -628,7 +559,7 @@ export default function PublicInquiry() {
             </div>
           </div>
 
-          <div className="border-t border-gray-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-600">
+          <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/50">
             <p>© {new Date().getFullYear()} Centurion University of Technology and Management. All rights reserved.</p>
             <div className="flex items-center gap-4">
               <a href="#" className="hover:text-gray-400 transition">Privacy Policy</a>
