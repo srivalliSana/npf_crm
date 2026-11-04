@@ -125,7 +125,7 @@ export default function DripWorkflows() {
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {[
           { label: 'Active Sequences', value: activeCount,    icon: Zap,         color: 'text-primary-600', bg: 'bg-primary-50'  },
           { label: 'Leads Enrolled',   value: totalEnrolled,  icon: Users,       color: 'text-green-600',   bg: 'bg-green-50'    },
