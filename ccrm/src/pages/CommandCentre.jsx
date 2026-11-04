@@ -31,7 +31,7 @@ function AlertTile({ alert }) {
     >
       <Icon size={18} className={`${s.text} flex-shrink-0`} />
       <div className="min-w-0 flex-1">
-        <div className={`text-lg font-extrabold leading-none ${s.text}`}>{fmtInt(alert.count)}</div>
+        <div className={`text-lg font-semibold leading-none ${s.text}`}>{fmtInt(alert.count)}</div>
         <div className="text-[11px] text-gray-600 mt-1 leading-tight">{alert.label}</div>
       </div>
       <ChevronRight size={15} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
@@ -42,7 +42,7 @@ function AlertTile({ alert }) {
 function MiniStat({ label, value, hint }) {
   return (
     <div className="px-3 py-2.5">
-      <div className="text-xl font-extrabold text-gray-900 leading-none tabular-nums">{value}</div>
+      <div className="text-xl font-semibold text-gray-900 leading-none tabular-nums">{value}</div>
       <div className="text-[11px] text-gray-500 mt-1">{label}</div>
       {hint && <div className="text-[10px] text-gray-400 mt-0.5">{hint}</div>}
     </div>
@@ -119,7 +119,7 @@ export default function CommandCentre() {
           <div className="space-y-3">
             <div className="flex items-baseline justify-between">
               <span className="text-xs text-gray-500">This month</span>
-              <span className="text-xl font-extrabold text-gray-900">{fmtMoney(finance.collectedThisMonth)}</span>
+              <span className="text-xl font-semibold text-gray-900">{fmtMoney(finance.collectedThisMonth)}</span>
             </div>
             <div className="flex items-baseline justify-between">
               <span className="text-xs text-gray-500">All time</span>
