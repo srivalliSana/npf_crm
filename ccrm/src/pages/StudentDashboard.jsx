@@ -52,7 +52,7 @@ function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}` }
 // ── Small building blocks ────────────────────────────────────────────────
 
 function Card({ children, className = '' }) {
-  return <div className={`bg-white rounded-2xl border border-gray-100 shadow-card p-6 sm:p-8 ${className}`}>{children}</div>
+  return <div className={`bg-white rounded-lg border border-gray-100 shadow-card p-6 sm:p-8 ${className}`}>{children}</div>
 }
 
 function Pill({ tone = 'gray', children }) {
@@ -63,7 +63,7 @@ function Pill({ tone = 'gray', children }) {
     red:     'bg-danger-50 text-danger-700',
     blue:    'bg-primary-50 text-primary-700',
   }
-  return <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${tones[tone]}`}>{children}</span>
+  return <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${tones[tone]}`}>{children}</span>
 }
 
 // Compact info strip: Lead ID, App No, Counsellor, Email, Mobile.
@@ -80,10 +80,10 @@ function InfoStrip({ app, leadId, counsellorName }) {
       <div className="flex flex-wrap gap-x-10 gap-y-4">
         {items.map((it) => (
           <div key={it.label} className="min-w-[130px]">
-            <div className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wide text-gray-400 mb-1">
+            <div className="flex items-center gap-1.5 text-[10.5px] font-semibold   text-gray-400 mb-1">
               <it.icon size={11.5} /> {it.label}
             </div>
-            <div className={`text-[13px] font-bold text-gray-900 truncate ${it.label !== 'Counsellor' ? 'font-mono' : ''}`}>{it.value}</div>
+            <div className={`text-[13px] font-semibold text-gray-900 truncate ${it.label !== 'Counsellor' ? 'font-mono' : ''}`}>{it.value}</div>
           </div>
         ))}
       </div>
@@ -105,7 +105,7 @@ function Stepper({ steps }) {
                 : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
                 {s.state === 'done' ? '✓' : i + 1}
               </div>
-              <div className={`text-[12px] font-bold ${s.state === 'current' ? 'text-primary-600' : 'text-gray-800'}`}>{s.label}</div>
+              <div className={`text-[12px] font-semibold ${s.state === 'current' ? 'text-primary-600' : 'text-gray-800'}`}>{s.label}</div>
               <div className="text-[10.5px] text-gray-400">{s.sub}</div>
             </div>
             {i < steps.length - 1 && (
@@ -126,7 +126,7 @@ function LockedCard({ reason }) {
       <div className="w-11 h-11 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center mx-auto mb-3">
         <Lock size={18} />
       </div>
-      <p className="font-bold text-gray-900 mb-1">Locked</p>
+      <p className="font-semibold text-gray-900 mb-1">Locked</p>
       <p className="text-sm text-gray-500 max-w-sm mx-auto">{reason}</p>
     </Card>
   )
@@ -157,10 +157,10 @@ function FeeCard({ title, blurb, amount, status, onSubmit, submitting, onPayGate
   }
 
   return (
-    <div className={`border border-gray-100 rounded-2xl p-6 ${!amount && amount !== 0 ? 'opacity-50' : ''}`}>
+    <div className={`border border-gray-100 rounded-lg p-6 ${!amount && amount !== 0 ? 'opacity-50' : ''}`}>
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="font-bold text-gray-900 text-lg">{title}</h3>
+          <h3 className="font-semibold text-gray-900 text-lg">{title}</h3>
           <p className="text-sm text-gray-500">{blurb}</p>
         </div>
         {isPaid ? <CheckCircle2 size={24} className="text-success-500 flex-shrink-0" /> : <Clock size={24} className="text-warning-500 flex-shrink-0" />}
@@ -175,7 +175,7 @@ function FeeCard({ title, blurb, amount, status, onSubmit, submitting, onPayGate
             <button
               onClick={handlePayNow}
               disabled={payingGateway || submitting}
-              className="w-full py-3 px-4 bg-primary-500 text-white text-sm font-bold rounded-xl hover:bg-primary-600 disabled:opacity-50 flex items-center justify-center gap-2 shadow-soft"
+              className="w-full py-3 px-4 bg-primary-500 text-white text-sm font-semibold rounded-md hover:bg-primary-600 disabled:opacity-50 flex items-center justify-center gap-2 shadow-soft"
             >
               {payingGateway ? <Loader size={16} className="animate-spin" /> : <IndianRupee size={16} />}
               {payingGateway ? 'Opening secure payment...' : 'Pay Now'}
@@ -189,12 +189,12 @@ function FeeCard({ title, blurb, amount, status, onSubmit, submitting, onPayGate
               value={utr}
               onChange={(e) => setUtr(e.target.value)}
               placeholder="UTR / transaction reference number"
-              className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-300 focus:outline-none"
+              className="flex-1 border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-300 focus:outline-none"
             />
             <button
               onClick={() => utr.trim() && onSubmit(utr.trim())}
               disabled={submitting || !utr.trim()}
-              className="px-5 py-2.5 bg-gray-800 text-white text-sm font-bold rounded-xl hover:bg-gray-900 disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
+              className="px-5 py-2.5 bg-gray-800 text-white text-sm font-semibold rounded-md hover:bg-gray-900 disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
             >
               {submitting ? <Loader size={15} className="animate-spin" /> : null}
               Submit
@@ -241,8 +241,8 @@ function TuitionFeeCard({ semester1Amount, remaining, semester1Confirmed, amount
   }
 
   return (
-    <div className="border border-gray-100 rounded-2xl p-6">
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-4 bg-gray-50 rounded-xl px-4 py-3">
+    <div className="border border-gray-100 rounded-lg p-6">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4 bg-gray-50 rounded-md px-4 py-3">
         <div className="flex items-center gap-2">
           {semester1Confirmed && <Pill tone="green">✓ Semester 1 Confirmed</Pill>}
           {amountPaid > 0 && <span className="text-xs text-gray-500">Paid so far: <b className="font-mono text-gray-800">{money(amountPaid)}</b></span>}
@@ -256,29 +256,29 @@ function TuitionFeeCard({ semester1Amount, remaining, semester1Confirmed, amount
           <button
             key={p.key}
             onClick={() => { setPlan(p.key); if (p.key !== 'custom') setCustom(p.value) }}
-            className={`text-left rounded-xl border-2 px-4 py-3 transition ${plan === p.key ? 'border-primary-400 bg-primary-50' : 'border-gray-100 hover:border-gray-200'}`}
+            className={`text-left rounded-md border-2 px-4 py-3 transition ${plan === p.key ? 'border-primary-400 bg-primary-50' : 'border-gray-100 hover:border-gray-200'}`}
           >
-            <div className="text-[10.5px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">{p.label}</div>
+            <div className="text-[10.5px] font-semibold   text-gray-400 mb-0.5">{p.label}</div>
             <div className="font-mono font-extrabold text-[15px] text-gray-900">{p.value != null ? money(p.value) : 'You decide'}</div>
           </button>
         ))}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2.5 mb-4">
-        <div className="flex-1 flex items-center gap-2 border border-gray-200 rounded-xl px-3.5 py-2.5 bg-gray-50">
-          <span className="font-mono font-bold text-gray-400">₹</span>
+        <div className="flex-1 flex items-center gap-2 border border-gray-200 rounded-md px-3.5 py-2.5 bg-gray-50">
+          <span className="font-mono font-semibold text-gray-400">₹</span>
           <input
             type="number" min={floor} max={remaining} step="500" value={custom}
             onFocus={() => setPlan('custom')}
             onChange={(e) => { setPlan('custom'); setCustom(e.target.value) }}
-            className="flex-1 bg-transparent outline-none font-mono font-bold text-gray-900"
+            className="flex-1 bg-transparent outline-none font-mono font-semibold text-gray-900"
             placeholder={`${money(floor)} – ${money(remaining)}`}
           />
         </div>
         <button
           onClick={handlePayNow}
           disabled={!isValid || payingGateway || submitting}
-          className="px-6 py-2.5 bg-primary-500 text-white text-sm font-bold rounded-xl hover:bg-primary-600 disabled:opacity-40 flex items-center justify-center gap-2 shadow-soft flex-shrink-0"
+          className="px-6 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-md hover:bg-primary-600 disabled:opacity-40 flex items-center justify-center gap-2 shadow-soft flex-shrink-0"
         >
           {payingGateway ? <Loader size={16} className="animate-spin" /> : <IndianRupee size={16} />}
           {payingGateway ? 'Opening secure payment...' : `Pay ${money(amount)}`}
@@ -294,12 +294,12 @@ function TuitionFeeCard({ semester1Amount, remaining, semester1Confirmed, amount
           value={utr}
           onChange={(e) => setUtr(e.target.value)}
           placeholder="UTR / transaction reference number"
-          className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-300 focus:outline-none"
+          className="flex-1 border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-300 focus:outline-none"
         />
         <button
           onClick={() => isValid && utr.trim() && onSubmit(amount, utr.trim())}
           disabled={submitting || !utr.trim() || !isValid}
-          className="px-5 py-2.5 bg-gray-800 text-white text-sm font-bold rounded-xl hover:bg-gray-900 disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
+          className="px-5 py-2.5 bg-gray-800 text-white text-sm font-semibold rounded-md hover:bg-gray-900 disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
         >
           {submitting ? <Loader size={15} className="animate-spin" /> : null}
           Submit
@@ -316,9 +316,9 @@ function DocCard({ type, mandatory, uploaded, status, onUpload, uploading }) {
   const label = status === 'Verified' ? 'Verified' : status === 'Rejected' ? 'Rejected — re-upload' : uploaded ? 'Pending review' : 'Not uploaded'
 
   return (
-    <div className={`rounded-2xl border p-4 flex flex-col gap-2 ${status === 'Rejected' ? 'border-danger-200 bg-danger-50/40' : 'border-gray-100 bg-white'}`}>
-      <div className="w-full h-12 rounded-xl bg-gray-50 flex items-center justify-center text-xl">📄</div>
-      <div className="text-[12.5px] font-bold text-gray-900 leading-tight">
+    <div className={`rounded-lg border p-4 flex flex-col gap-2 ${status === 'Rejected' ? 'border-danger-200 bg-danger-50/40' : 'border-gray-100 bg-white'}`}>
+      <div className="w-full h-12 rounded-md bg-gray-50 flex items-center justify-center text-xl">📄</div>
+      <div className="text-[12.5px] font-semibold text-gray-900 leading-tight">
         {DOC_LABELS[type] || type}{mandatory && <span className="text-danger-500 ml-1">*</span>}
       </div>
       {DOC_HINTS[type] && <p className="text-[10.5px] text-gray-400 lowercase -mt-1">{DOC_HINTS[type]}</p>}
@@ -330,7 +330,7 @@ function DocCard({ type, mandatory, uploaded, status, onUpload, uploading }) {
         <button
           onClick={() => inputRef.current?.click()}
           disabled={uploading === type}
-          className="mt-1 w-full justify-center text-[12px] font-bold text-primary-600 hover:text-primary-700 border border-primary-100 hover:bg-primary-50 rounded-lg py-1.5 flex items-center gap-1.5 disabled:opacity-50"
+          className="mt-1 w-full justify-center text-[12px] font-semibold text-primary-600 hover:text-primary-700 border border-primary-100 hover:bg-primary-50 rounded-lg py-1.5 flex items-center gap-1.5 disabled:opacity-50"
         >
           {uploading === type ? <Loader size={12} className="animate-spin" /> : <Upload size={12} />}
           {uploaded || status === 'Rejected' ? 'Re-upload' : 'Upload'}
@@ -390,14 +390,14 @@ function GrievanceSection() {
         </div>
         <button
           onClick={() => setShowForm(v => !v)}
-          className="px-4 py-2 bg-primary-500 text-white text-sm font-bold rounded-xl hover:bg-primary-600 flex items-center gap-1.5"
+          className="px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-md hover:bg-primary-600 flex items-center gap-1.5"
         >
           {showForm ? 'Cancel' : 'Raise a Ticket'}
         </button>
       </div>
 
       {showForm && (
-        <div className="mt-4 p-4 bg-gray-50 rounded-xl space-y-3">
+        <div className="mt-4 p-4 bg-gray-50 rounded-md space-y-3">
           <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
             {GRIEVANCE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
           </select>
@@ -409,7 +409,7 @@ function GrievanceSection() {
           {err && <p className="text-xs text-danger-600 font-semibold">{err}</p>}
           <button
             onClick={submit} disabled={submitting}
-            className="px-4 py-2 bg-gray-800 text-white text-sm font-bold rounded-lg hover:bg-gray-900 disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 disabled:opacity-50 flex items-center gap-2"
           >
             {submitting ? <Loader size={14} className="animate-spin" /> : <Send size={14} />}
             Submit Ticket
@@ -436,9 +436,9 @@ function GrievanceSection() {
       </div>
 
       <div className="mt-5 pt-5 border-t border-gray-100 flex flex-wrap gap-x-10 gap-y-3">
-        <div><div className="text-[10.5px] font-bold uppercase text-gray-400">Helpline</div><div className="text-sm font-bold font-mono">1800-123-4560</div></div>
-        <div><div className="text-[10.5px] font-bold uppercase text-gray-400">Support Email</div><div className="text-sm font-bold">support@cuedu.in</div></div>
-        <div><div className="text-[10.5px] font-bold uppercase text-gray-400">Hours</div><div className="text-sm font-bold">24×7</div></div>
+        <div><div className="text-[10.5px] font-semibold  text-gray-400">Helpline</div><div className="text-sm font-semibold font-mono">1800-123-4560</div></div>
+        <div><div className="text-[10.5px] font-semibold  text-gray-400">Support Email</div><div className="text-sm font-semibold">support@cuedu.in</div></div>
+        <div><div className="text-[10.5px] font-semibold  text-gray-400">Hours</div><div className="text-sm font-semibold">24×7</div></div>
       </div>
     </Card>
   )
@@ -641,11 +641,11 @@ export default function StudentDashboard() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas p-4">
-        <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-card text-center">
+        <div className="bg-white rounded-lg p-8 max-w-md w-full shadow-card text-center">
           <AlertCircle size={44} className="text-danger-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
           <p className="text-gray-500 mb-4">{error}</p>
-          <button onClick={handleLogout} className="w-full px-4 py-2.5 bg-primary-500 text-white font-bold rounded-xl hover:bg-primary-600">Back to Login</button>
+          <button onClick={handleLogout} className="w-full px-4 py-2.5 bg-primary-500 text-white font-semibold rounded-md hover:bg-primary-600">Back to Login</button>
         </div>
       </div>
     )
@@ -688,13 +688,13 @@ export default function StudentDashboard() {
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary-500 flex items-center justify-center text-white font-extrabold text-[12px] flex-shrink-0">CU</div>
+            <div className="w-9 h-9 rounded-md bg-primary-500 flex items-center justify-center text-white font-extrabold text-[12px] flex-shrink-0">CU</div>
             <div>
               <h1 className="text-lg font-extrabold text-gray-900 leading-tight">Student Portal</h1>
               <p className="text-[12.5px] text-gray-500">{app.name} · {app.appNo}</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition">
+          <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-md transition">
             <LogOut size={17} /> Logout
           </button>
         </div>
@@ -702,7 +702,7 @@ export default function StudentDashboard() {
 
       {toast && (
         <div className="max-w-5xl mx-auto px-6 pt-4">
-          <div className="bg-gray-900 text-white text-sm font-medium rounded-xl px-5 py-3">{toast}</div>
+          <div className="bg-gray-900 text-white text-sm font-medium rounded-md px-5 py-3">{toast}</div>
         </div>
       )}
 
@@ -712,7 +712,7 @@ export default function StudentDashboard() {
         <Stepper steps={steps} />
 
         {allComplete && (
-          <div className="bg-success-50 rounded-2xl border-2 border-success-100 p-8 text-center">
+          <div className="bg-success-50 rounded-lg border-2 border-success-100 p-8 text-center">
             <CheckCircle2 size={48} className="text-success-500 mx-auto mb-3" />
             <h3 className="text-2xl font-extrabold text-success-700 mb-2">🎉 Admission Complete!</h3>
             <p className="text-success-700">All fees paid and documents verified.{registrationNumber && <> Registration number: <strong className="font-mono">{registrationNumber}</strong>.</>}</p>
@@ -729,13 +729,13 @@ export default function StudentDashboard() {
             bookingPaid ? (
               <p className="text-sm text-success-700 font-semibold">✓ Paid — your portal is unlocked</p>
             ) : (
-              <div className="border border-gray-100 rounded-2xl p-6 max-w-md">
+              <div className="border border-gray-100 rounded-lg p-6 max-w-md">
                 <p className="text-4xl font-extrabold text-gray-900 mb-2 font-mono">{money(bookingFeeAmount || 1000)}</p>
                 <p className="text-sm text-gray-500 mb-5">Pay once to unlock document upload — no waiting on manual review.</p>
                 <button
                   onClick={payViaGateway}
                   disabled={payingGateway}
-                  className="w-full py-3 px-4 bg-primary-500 text-white text-sm font-bold rounded-xl hover:bg-primary-600 disabled:opacity-50 flex items-center justify-center gap-2 shadow-soft"
+                  className="w-full py-3 px-4 bg-primary-500 text-white text-sm font-semibold rounded-md hover:bg-primary-600 disabled:opacity-50 flex items-center justify-center gap-2 shadow-soft"
                 >
                   {payingGateway ? <Loader size={17} className="animate-spin" /> : <IndianRupee size={17} />}
                   {payingGateway ? 'Opening secure payment...' : `Pay ${money(bookingFeeAmount || 1000)} to continue`}
@@ -793,7 +793,7 @@ export default function StudentDashboard() {
             after the fact would still show up in the Step 2 card above. */}
         {provisionalGranted && (
           <>
-            <div className="bg-primary-50 border border-primary-100 rounded-2xl p-6">
+            <div className="bg-primary-50 border border-primary-100 rounded-lg p-6">
               <h3 className="font-extrabold text-primary-700 text-lg mb-1.5 flex items-center gap-2"><GraduationCap size={20} /> Provisional Admission Granted</h3>
               <p className="text-sm text-primary-700">Pay the tuition fee below to complete your enrollment.{registrationNumber && <> Temporary admission number: <strong className="font-mono">{registrationNumber}</strong>.</>}</p>
             </div>
@@ -802,7 +802,7 @@ export default function StudentDashboard() {
             <Card>
               <h2 className="text-xl font-extrabold text-gray-900 mb-1 flex items-center gap-2.5"><IndianRupee size={22} className="text-primary-600" /> Tuition Fee</h2>
               {!tuitionFeePaid && (
-                <p className={`text-sm text-gray-500 ${tuitionFeeDiscountPercent > 0 ? 'mb-1' : 'mb-4'}`}>Total Program Fee: <span className="font-bold text-gray-700 font-mono">{money(programTotalFee)}</span></p>
+                <p className={`text-sm text-gray-500 ${tuitionFeeDiscountPercent > 0 ? 'mb-1' : 'mb-4'}`}>Total Program Fee: <span className="font-semibold text-gray-700 font-mono">{money(programTotalFee)}</span></p>
               )}
               {tuitionFeeDiscountPercent > 0 && (
                 <p className="text-sm text-success-600 font-semibold mb-4">
