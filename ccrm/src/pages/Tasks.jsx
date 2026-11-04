@@ -137,7 +137,7 @@ export default function Tasks() {
           const sc = STATUS_COLORS[task.status] || STATUS_COLORS.Pending
           return (
             <div key={task.id}
-              className={`px-4 py-3.5 flex items-center gap-4 hover:bg-gray-50 transition-colors ${task.status === 'Completed' ? 'opacity-60' : ''}`}>
+              className={`px-4 py-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 hover:bg-gray-50 transition-colors ${task.status === 'Completed' ? 'opacity-60' : ''}`}>
               <button onClick={() => toggleTaskComplete(task.id)}
                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors focus:outline-none ${task.status === 'Completed' ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-primary-400'}`}>
                 {task.status === 'Completed' && <span className="text-white text-[10px] font-bold">✓</span>}
@@ -145,12 +145,12 @@ export default function Tasks() {
 
               <Icon size={16} className="text-gray-400 flex-shrink-0" />
 
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-[11rem]">
                 <p className={`text-sm font-semibold ${task.status === 'Completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>{task.title}</p>
                 <p className="text-xs text-gray-500 mt-0.5">Lead: <span className="text-gray-800 font-medium">{task.lead}</span> · Assignee: {task.assignee}</p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:flex-shrink-0 pl-9 sm:pl-0">
                 <span className={`badge ${pc.bg} ${pc.text}`}>{task.priority}</span>
                 <span className={`badge ${sc.bg} ${sc.text}`}>{task.status}</span>
                 <div className="flex items-center gap-1 text-xs text-gray-400 font-medium">
