@@ -17,6 +17,7 @@ import PageContainer from '../components/PageContainer'
 import { Card, Table, Modal, Button, Badge } from '../components/ui'
 import { getDistrictsForState } from '../data/indiaLocations'
 import { getUrlTenantSlug } from '../tenantSlug'
+import DatePicker from '../components/ui/DatePicker'
 
 const STAGE_COLORS = {
   red:     { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-400' },
@@ -879,10 +880,10 @@ export default function LeadManager() {
           ))}
           <div className="flex flex-wrap items-center gap-1 text-xs text-gray-500">
             <span className="ml-1">From</span>
-            <input type="date" value={filters.dateFrom} onChange={e => { setFilters(p => ({ ...p, dateFrom: e.target.value })); setCurrentPage(1) }}
+            <DatePicker value={filters.dateFrom} onChange={e => { setFilters(p => ({ ...p, dateFrom: e.target.value })); setCurrentPage(1) }}
               className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400" />
             <span>To</span>
-            <input type="date" value={filters.dateTo} onChange={e => { setFilters(p => ({ ...p, dateTo: e.target.value })); setCurrentPage(1) }}
+            <DatePicker value={filters.dateTo} onChange={e => { setFilters(p => ({ ...p, dateTo: e.target.value })); setCurrentPage(1) }}
               className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400" />
           </div>
           <button onClick={() => { setFilters({ stage:'', owner:'', campaign:'', state:'', dateFrom:'', dateTo:'' }); setSearch('') }} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 flex items-center gap-1">
