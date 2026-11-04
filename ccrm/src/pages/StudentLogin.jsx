@@ -64,9 +64,7 @@ export default function StudentLogin() {
     <div className="min-h-screen bg-canvas flex items-center justify-center py-12 px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-500 rounded-lg mb-4 shadow-card">
-            <span className="text-white text-lg font-extrabold tracking-tight">CU</span>
-          </div>
+          <img src="/logo.png" alt="Centurion University" className="h-24 w-auto mx-auto mb-4" />
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Student Portal</h1>
           <p className="text-gray-500 mt-2">Pay fees and upload documents, whenever you're ready</p>
         </div>
