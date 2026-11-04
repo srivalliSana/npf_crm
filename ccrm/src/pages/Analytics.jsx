@@ -114,7 +114,7 @@ function AdmissionDashboard() {
               ['Admission → fee paid', c.admissionToEnrolment],
             ].map(([label, v]) => (
               <div key={label} className="text-center">
-                <div className="text-lg font-extrabold text-gray-900">{v}%</div>
+                <div className="text-lg font-semibold text-gray-900">{v}%</div>
                 <div className="text-[10px] text-gray-400 leading-tight mt-0.5">{label}</div>
               </div>
             ))}
@@ -247,11 +247,11 @@ function AcademicDashboard() {
           />
           <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-gray-100 text-center">
             <div>
-              <div className="text-lg font-extrabold text-gray-900">{fmtInt(s.creditsEarned)}</div>
+              <div className="text-lg font-semibold text-gray-900">{fmtInt(s.creditsEarned)}</div>
               <div className="text-[10px] text-gray-400 mt-0.5">Credits earned</div>
             </div>
             <div>
-              <div className="text-lg font-extrabold text-gray-900">{fmtInt(s.creditsRegistered)}</div>
+              <div className="text-lg font-semibold text-gray-900">{fmtInt(s.creditsRegistered)}</div>
               <div className="text-[10px] text-gray-400 mt-0.5">Credits registered</div>
             </div>
           </div>
