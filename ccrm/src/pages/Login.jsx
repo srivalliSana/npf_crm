@@ -8,7 +8,6 @@ import { useCcrm } from '../context/CcrmContext'
 import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
-import MurmurationWordmark from '../components/ui/MurmurationWordmark'
 
 // ── Env config (default/Centurion branding — used when no :tenantSlug is in the URL) ──
 const ALLOWED_DOMAINS  = (import.meta.env.VITE_ALLOWED_DOMAINS || 'cutm.ac.in,cutmap.ac.in')
@@ -230,19 +229,14 @@ export default function Login() {
       </header>
 
       <main className="flex-1 grid lg:grid-cols-[1.3fr_1fr] gap-[clamp(32px,6vw,150px)] items-center px-[clamp(24px,4.5vw,96px)] py-10">
-        <MurmurationWordmark
-          word="CENTURION" preset="dusk" reeds height="clamp(440px, 64vh, 660px)" birds={3600} flyFor={6} holdFor={3.5}
-          palette={{ skyTop: '#013c4a', skyLow: '#ffb500', sun: '#ffe28a', ink: '#081e24' }}
-        >
-          <div className="h-full flex flex-col justify-between p-[clamp(20px,2.4vw,44px)]">
-            <h1 className="text-[clamp(34px,4.2vw,72px)] font-medium leading-[0.98] tracking-[-0.03em] text-white max-w-[14ch]">
-              Every enquiry, followed through.
-            </h1>
-            <p className="text-[clamp(15px,1.15vw,20px)] leading-relaxed text-white max-w-[40ch] bg-[#081e24]/70 px-4 py-3 w-fit">
-              Leads, documents, payments and seat confirmation for {orgName}, in one place for the admissions team.
-            </p>
-          </div>
-        </MurmurationWordmark>
+        <section>
+          <h1 className="text-[clamp(48px,6.2vw,128px)] font-medium leading-[0.96] tracking-[-0.035em] text-gray-900 max-w-[11ch]">
+            Every enquiry, followed through.
+          </h1>
+          <p className="text-[clamp(18px,1.4vw,26px)] leading-relaxed text-gray-600 max-w-[36ch] mt-8">
+            Leads, documents, payments and seat confirmation for {orgName}, in one place for the admissions team.
+          </p>
+        </section>
 
         <section className="bg-white rounded-lg p-[clamp(28px,2.6vw,56px)] w-full max-w-[clamp(440px,31vw,580px)] lg:justify-self-start">
           <h2 className="text-[clamp(24px,1.7vw,34px)] font-medium text-gray-900 tracking-tight">Staff sign-in</h2>
