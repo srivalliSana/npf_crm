@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCcrm } from '../context/CcrmContext'
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../components/ui/Accordion'
 import {
   Settings as SettingsIcon, Bell, Shield, Globe, Palette,
   Database, Link, Mail, MessageSquare, Phone, Save, ChevronRight,
@@ -17,6 +18,13 @@ const SECTIONS = [
   { id: 'integrations',  label: 'Integrations',           icon: Link       },
   { id: 'backup',        label: 'Backup & Restore',       icon: Database,   adminOnly: true },
   { id: 'production',    label: 'Production Reset',       icon: AlertTriangle, adminOnly: true },
+]
+
+// The Settings list, grouped. Each group is a collapsible section (same pattern as the main menu).
+const SETTINGS_GROUPS = [
+  { value: 'Account',   icon: User,     ids: ['profile', 'notifications', 'security'] },
+  { value: 'Workspace', icon: Building, ids: ['organization', 'integrations'] },
+  { value: 'Data',      icon: Database, ids: ['backup', 'production'], adminOnly: true },
 ]
 
 // Maps integration id → keys that indicate "connected" when any is non-empty
@@ -224,19 +232,35 @@ export default function Settings() {
 
       <div className="flex gap-4 flex-col lg:flex-row">
         {/* Sidebar nav */}
-        <div className="w-full lg:w-56 bg-white rounded-xl border border-gray-200 shadow-sm p-2 h-fit">
-          {SECTIONS.filter(s => !s.adminOnly || currentUser?.role === 'Admin').map(s => (
-            <button key={s.id} onClick={() => setActiveSection(s.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors focus:outline-none ${
-                activeSection === s.id
-                  ? (s.id === 'production' ? 'bg-red-50 text-red-700 font-bold' : 'bg-primary-50 text-primary-600 font-bold')
-                  : (s.id === 'production' ? 'text-red-500 hover:bg-red-50' : 'text-gray-600 hover:bg-gray-50')
-              }`}>
-              <s.icon size={16} />
-              {s.label}
-              {activeSection === s.id && <ChevronRight size={14} className="ml-auto" />}
-            </button>
-          ))}
+        <div className="w-full lg:w-60 bg-white rounded-xl border border-gray-200 p-2 h-fit">
+          <Accordion multiple defaultValue={['Account', 'Workspace', 'Data']}>
+            {SETTINGS_GROUPS.filter(g => !g.adminOnly || currentUser?.role === 'Admin').map(g => (
+              <AccordionItem key={g.value} value={g.value}>
+                <AccordionTrigger className="rounded-md px-2.5 py-2 hover:bg-gray-100">
+                  <span className="flex items-center gap-2.5">
+                    <g.icon size={16} strokeWidth={1.8} className="text-gray-500" />
+                    <span className="text-[13px] font-medium text-gray-900">{g.value}</span>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-1.5 pt-0.5">
+                  <ul className="ml-[1.15rem] flex flex-col gap-0.5 border-l border-gray-300/70 pl-3">
+                    {g.ids.map(id => SECTIONS.find(x => x.id === id)).filter(Boolean).filter(s => !s.adminOnly || currentUser?.role === 'Admin').map(s => (
+                      <li key={s.id}>
+                        <button onClick={() => setActiveSection(s.id)} aria-current={activeSection === s.id ? 'page' : undefined}
+                          className={`w-full text-left rounded-md px-2.5 py-1.5 text-[13px] transition-colors focus:outline-none ${
+                            activeSection === s.id
+                              ? (s.id === 'production' ? 'bg-red-50 text-red-700 font-medium' : 'bg-gray-200/70 text-gray-900 font-medium')
+                              : (s.id === 'production' ? 'text-red-600 hover:bg-red-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
+                          }`}>
+                          {s.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
 
         {/* Content */}
