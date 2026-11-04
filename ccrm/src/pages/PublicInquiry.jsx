@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import ChatWidget from '../components/ChatWidget'
+import ParallaxHero from '../components/ParallaxHero'
 import {
   GraduationCap, CheckCircle, Phone, Mail, MapPin, BookOpen, Send, AlertCircle,
   ChevronRight, Award, Users, Building2, Briefcase, Globe, Menu, X,
@@ -348,34 +349,32 @@ export default function PublicInquiry() {
         )}
       </nav>
 
-      {/* ══════════════════════ HERO ══════════════════════ */}
-      <header id="top" className="relative bg-primary-500 pt-20 overflow-hidden">
-        {/* parallax layers: the emblem drifts slowly behind, a gold bar drifts the other way */}
-        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-          <img data-speed="0.18" src="/emblem-512.png" alt="" className="absolute -right-24 top-10 w-[640px] max-w-none opacity-[0.10] will-change-transform" />
-        </div>
+      {/* ══════════════════════ HERO: layered parallax scene ══════════════════════ */}
+      <ParallaxHero
+        eyebrow="CUEE 2026 admissions are open"
+        title="Study at Centurion University."
+        text="NAAC A+ accredited, with more than 100 programmes across four campuses."
+        primaryHref="#apply" primaryLabel="Apply now"
+        secondaryHref="#programs" secondaryLabel="See programmes"
+      />
 
-        <div className="relative max-w-7xl mx-auto px-5 lg:px-8 pt-16 pb-36 lg:pb-44 grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-16 items-start">
+      {/* ══════════════════════ APPLY ══════════════════════ */}
+      <section id="apply" className="scroll-mt-20 bg-primary-500 py-20 lg:py-28">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-20 items-start">
           <div>
-            <p className="text-accent-400 font-semibold text-base mb-5">CUEE 2026 admissions are open</p>
-            <h1 className="text-[clamp(42px,5.6vw,80px)] font-semibold text-white leading-[1.02] tracking-[-0.03em]">
-              Study at Centurion University.
-            </h1>
-            <p className="text-white/85 text-[clamp(17px,1.4vw,21px)] leading-relaxed mt-6 max-w-[34em]">
-              NAAC A+ accredited, with more than 100 programmes across four campuses.
-            </p>
-            <div className="flex flex-wrap gap-3 mt-9">
-              <a href="#apply" className="inline-flex items-center gap-2 bg-accent-500 text-primary-900 font-semibold text-base px-7 py-3.5 hover:bg-accent-400 transition-colors">
-                Apply now <ArrowRight size={16}/>
-              </a>
-              <a href="#programs" className="inline-flex items-center gap-2 border border-white/50 text-white font-medium text-base px-7 py-3.5 hover:bg-white/10 transition-colors">
-                See programmes
-              </a>
+            <h2 className="text-4xl md:text-5xl font-semibold text-white tracking-tight leading-[1.05] max-w-[14ch]">Start your application today.</h2>
+            <p className="text-white/85 text-lg leading-relaxed mt-5 max-w-[30em]">Tell us a little about yourself. A counsellor will call you, answer your questions and guide you through the next steps. It's free.</p>
+            <div className="grid grid-cols-2 gap-px bg-white/20 border border-white/20 mt-10 max-w-md">
+              {STATS.map(stat => (
+                <div key={stat.label} className="bg-primary-600 px-6 py-6">
+                  <div className="text-[30px] font-semibold text-white tabular-nums leading-none whitespace-nowrap">{stat.value}</div>
+                  <div className="text-white/80 text-sm mt-2">{stat.label}</div>
+                </div>
+              ))}
             </div>
           </div>
-
-          <div id="apply" className="scroll-mt-24" data-lift>
-            <div data-speed="0.05">
+          <div>
+            <div data-speed="0.04">
               {formCard}
               <div className="mt-4">
                 <a href="/student-portal" className="inline-flex items-center gap-1.5 text-white hover:underline text-sm">
@@ -385,19 +384,7 @@ export default function PublicInquiry() {
             </div>
           </div>
         </div>
-      </header>
-
-      {/* numbers overlap the hero's edge */}
-      <div className="relative z-10 max-w-7xl mx-auto px-5 lg:px-8 -mt-24 lg:-mt-28">
-        <div data-speed="0.08" className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-gray-200 border border-gray-200 lg:w-[calc(50%+2rem)] shadow-[0_8px_30px_rgba(1,46,57,0.18)]">
-          {STATS.map(stat => (
-            <div key={stat.label} className="bg-white px-6 py-6">
-              <div className="text-[30px] font-semibold text-primary-500 tabular-nums leading-none whitespace-nowrap">{stat.value}</div>
-              <div className="text-gray-600 text-sm mt-2">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      </section>
 
       {/* ══════════════════════ PROGRAMS ══════════════════════ */}
       <section id="programs" className="scroll-mt-20 py-28 lg:py-36 bg-gray-50">
