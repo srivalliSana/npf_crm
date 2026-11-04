@@ -218,7 +218,7 @@ export default function Login() {
 
       {/* ════════════ ONE PAGE: bar, statement + sign-in card, foot ════════════ */}
       <header className="flex items-start justify-between px-[clamp(24px,4.5vw,96px)] pt-8">
-        <div className="text-[clamp(22px,1.6vw,30px)] font-medium tracking-tight text-gray-900 pt-2">CCRM</div>
+        <div className="text-[clamp(22px,1.6vw,30px)] font-medium tracking-tight text-gray-900 pt-2">{tenantSlug ? (brand.shortName || orgName) : 'Centurion CRM'}</div>
         {logoUrl ? (
           <img src={logoUrl} alt={orgName} className="h-[clamp(110px,9vw,170px)] w-auto" />
         ) : (
@@ -238,16 +238,15 @@ export default function Login() {
           </p>
         </section>
 
-        <section className="bg-white rounded-lg border border-gray-200 p-[clamp(28px,2.6vw,56px)] w-full max-w-[clamp(420px,30vw,560px)] lg:justify-self-start">
-          {/* Heading */}
-          <div className="mb-8">
-            <h2 className="text-[clamp(34px,2.6vw,52px)] font-medium text-gray-900 tracking-tight">Welcome back</h2>
-            <p className="text-gray-600 text-[clamp(15px,1.05vw,18px)] mt-2">Sign in to your admissions dashboard</p>
-          </div>
+        <section className="bg-white rounded-lg p-[clamp(28px,2.6vw,56px)] w-full max-w-[clamp(440px,31vw,580px)] lg:justify-self-start">
+          <h2 className="text-[clamp(24px,1.7vw,34px)] font-medium text-gray-900 tracking-tight">Staff sign-in</h2>
+          <p className="text-gray-600 text-[clamp(15px,1.05vw,18px)] mt-2 leading-relaxed">
+            Use your official university Google account.
+          </p>
 
           {/* Error banner */}
           {error && (
-            <div className="bg-danger-50 border border-danger-200 rounded-xl px-4 py-3 flex gap-2.5 mb-5 text-sm text-danger-700">
+            <div className="bg-danger-50 border border-danger-200 rounded-md px-4 py-3 flex gap-2.5 mt-6 text-sm text-danger-700">
               <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-danger-500" />
               <div>
                 <p>{error}</p>
@@ -261,22 +260,20 @@ export default function Login() {
             </div>
           )}
 
-          {/* Google SSO — primary CTA */}
-          <div className="mb-6">
+          {/* Google SSO — the one action */}
+          <div className="mt-8">
             {isGoogleConfigured ? (
               <button
                 onClick={() => { setError(''); googleLogin() }}
                 disabled={googleLoading}
-                className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 hover:bg-gray-50 rounded-md py-4 text-base font-semibold text-gray-700 transition-all shadow-sm hover:shadow-md disabled:opacity-60 group"
+                className="w-full flex items-center justify-center gap-3 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 rounded-md py-4 text-base font-semibold text-white transition-colors"
               >
-                {googleLoading ? <Spinner size={5} color="gray-400" /> : <GoogleIcon />}
-                <span className="transition-colors">
-                  {googleLoading ? 'Signing in...' : 'Continue with Google'}
-                </span>
+                {googleLoading ? <Spinner size={5} /> : <span className="bg-white rounded-sm p-1 flex"><GoogleIcon /></span>}
+                {googleLoading ? 'Signing in...' : 'Continue with Google'}
               </button>
             ) : (
               <button disabled
-                className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 rounded-xl py-3.5 text-sm font-semibold text-gray-400 cursor-not-allowed opacity-60"
+                className="w-full flex items-center justify-center gap-3 bg-gray-100 rounded-md py-4 text-base font-semibold text-gray-400 cursor-not-allowed"
                 title="Google login not configured">
                 <GoogleIcon greyed />
                 Continue with Google
@@ -284,17 +281,23 @@ export default function Login() {
             )}
           </div>
 
-          {/* Email/password login removed — sign-in is via Google only */}
-          <p className="text-center text-sm text-gray-500 mt-3">
-            Use your official <strong>{allowedDomains.join(' / ')}</strong> Google account to sign in.
+          <p className="text-sm text-gray-500 mt-4">
+            Accounts ending in <strong className="text-gray-900 font-medium">{allowedDomains.join(' or ')}</strong> only.
           </p>
 
+          {/* Applicants and students are a different audience: give them their own way in */}
+          <div className="mt-10 bg-gray-100 rounded-md p-5">
+            <p className="text-[15px] font-medium text-gray-900">Applying or already applied?</p>
+            <div className="mt-3 flex flex-col gap-2 text-[15px]">
+              <a href="/apply" className="text-gray-700 hover:text-gray-900 underline underline-offset-4 decoration-gray-300 hover:decoration-gray-900 w-fit">Start an application</a>
+              <a href="/student-portal" className="text-gray-700 hover:text-gray-900 underline underline-offset-4 decoration-gray-300 hover:decoration-gray-900 w-fit">Check your application status</a>
+            </div>
+          </div>
         </section>
       </main>
 
       <footer className="px-[clamp(24px,4.5vw,96px)] pb-8 flex flex-wrap items-end justify-between gap-x-10 gap-y-3 text-[clamp(13px,0.95vw,16px)] text-gray-600">
         <p className="max-w-[60ch] leading-relaxed">
-          Sign-in is limited to official <strong className="text-gray-900 font-medium">{allowedDomains.join(' / ')}</strong> accounts.
           Need access? Write to <a href={`mailto:${SUPPORT_EMAIL}`} className="text-gray-900 underline">{SUPPORT_EMAIL}</a>.
         </p>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
