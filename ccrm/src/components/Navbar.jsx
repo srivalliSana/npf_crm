@@ -104,7 +104,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           <button
             onClick={() => setShowMioAI(true)}
             title="Ask CU AI"
-            className="flex items-center gap-1 bg-primary-500 hover:bg-primary-600 text-white text-[12px] font-medium px-3.5 py-2 rounded-full shadow-[0_3px_12px_rgba(15,98,254,0.30)] transition-colors"
+            className="flex items-center gap-1 bg-primary-500 hover:bg-primary-600 text-white text-[12px] font-medium px-3.5 py-2 rounded-full shadow-[0_1px_8px_rgba(0,0,0,0.20)] transition-colors"
           >
             <Sparkles size={12} />
             <span className="hidden sm:inline">Ask CU AI</span><span className="sm:hidden">AI</span>
@@ -115,7 +115,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           <div className="relative">
             <button
               onClick={() => { setShowNotifications(!showNotifications); setShowProfile(false) }}
-              className="relative p-2 rounded-full bg-white text-gray-600 shadow-[0_3px_12px_rgba(13,13,18,0.10)] hover:text-gray-900 hover:-translate-y-px transition"
+              className="relative p-2 rounded-full bg-white text-gray-600 shadow-[0_1px_8px_rgba(0,0,0,0.13)] hover:text-gray-900 hover:-translate-y-px transition"
             >
               <Bell size={18} />
               {unreadCount > 0 && (
@@ -168,14 +168,14 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
 
           <button
             onClick={() => navigate('/settings')}
-            className="hidden sm:inline-flex p-2 rounded-full bg-white text-gray-600 shadow-[0_3px_12px_rgba(13,13,18,0.10)] hover:text-gray-900 hover:-translate-y-px transition"
+            className="hidden sm:inline-flex p-2 rounded-full bg-white text-gray-600 shadow-[0_1px_8px_rgba(0,0,0,0.13)] hover:text-gray-900 hover:-translate-y-px transition"
             title="Settings"
           >
             <Settings size={18} />
           </button>
           <button
             onClick={() => navigate('/help')}
-            className="hidden sm:inline-flex p-2 rounded-full bg-white text-gray-600 shadow-[0_3px_12px_rgba(13,13,18,0.10)] hover:text-gray-900 hover:-translate-y-px transition"
+            className="hidden sm:inline-flex p-2 rounded-full bg-white text-gray-600 shadow-[0_1px_8px_rgba(0,0,0,0.13)] hover:text-gray-900 hover:-translate-y-px transition"
             title="Help"
             aria-label="Help"
           >
@@ -186,7 +186,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           <div className="relative ml-1">
             <button
               onClick={() => { setShowProfile(!showProfile); setShowNotifications(false) }}
-              className="flex items-center gap-1.5 bg-white rounded-full pl-1 pr-2.5 py-1 shadow-[0_3px_12px_rgba(13,13,18,0.10)] hover:-translate-y-px transition"
+              className="flex items-center gap-1.5 bg-white rounded-full pl-1 pr-2.5 py-1 shadow-[0_1px_8px_rgba(0,0,0,0.13)] hover:-translate-y-px transition"
             >
               {user?.picture ? (
                 <img
