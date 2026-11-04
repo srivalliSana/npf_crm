@@ -177,10 +177,10 @@ export default function Campaigns() {
           { label: 'Conversions',       value: totalConv.toLocaleString(),               icon: Target,     color: 'text-purple-600', bg: 'bg-purple-50' },
         ].map(card => (
           <div key={card.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className={`w-10 h-10 rounded-xl ${card.bg} flex items-center justify-center mb-3`}>
+            <div className={`w-10 h-10 flex items-center justify-center mb-3`}>
               <card.icon size={20} className={card.color} />
             </div>
-            <div className="text-2xl font-extrabold text-gray-900">{card.value}</div>
+            <div className="text-2xl font-semibold text-gray-900">{card.value}</div>
             <div className="text-xs text-gray-500 mt-0.5">{card.label}</div>
           </div>
         ))}
@@ -249,7 +249,7 @@ export default function Campaigns() {
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                     <td className="table-td font-semibold text-primary-600">{c.name}</td>
                     <td className="table-td">
-                      <span className={`inline-flex items-center gap-1 text-[10px] uppercase font-bold text-white px-2.5 py-0.5 rounded-full ${CHANNEL_COLORS[c.channel] || 'bg-gray-400'}`}>
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold text-white px-2.5 py-0.5 rounded-full ${CHANNEL_COLORS[c.channel] || 'bg-gray-400'}`}>
                         {c.channel}
                       </span>
                     </td>
@@ -291,7 +291,7 @@ export default function Campaigns() {
       {/* Create Campaign Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
               <h2 className="text-base font-bold text-gray-900">Create New Campaign</h2>
               <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600">
@@ -301,7 +301,7 @@ export default function Campaigns() {
             
             <form onSubmit={handleCreateCampaign} className="p-6 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Campaign Name *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Campaign Name *</label>
                 <input
                   type="text"
                   required
@@ -313,7 +313,7 @@ export default function Campaigns() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Marketing Channel</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Marketing Channel</label>
                 <select
                   value={newCampaign.channel}
                   onChange={e => setNewCampaign(p => ({ ...p, channel: e.target.value }))}
@@ -326,7 +326,7 @@ export default function Campaigns() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Budget Allocation (₹) *</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Budget Allocation (₹) *</label>
                 <input
                   type="number"
                   required
@@ -339,7 +339,7 @@ export default function Campaigns() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Start Date</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Start Date</label>
                   <input
                     type="date"
                     value={newCampaign.startDate}
@@ -348,7 +348,7 @@ export default function Campaigns() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">End Date</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">End Date</label>
                   <input
                     type="date"
                     value={newCampaign.endDate}
