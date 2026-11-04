@@ -70,9 +70,9 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
 
   return (
     <>
-      <header className={`fixed top-0 ${isMobile ? 'left-0' : 'left-16'} right-0 h-14 bg-white border-b border-gray-200 flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
+      <header className={`fixed top-0 ${isMobile ? 'left-0' : 'left-16'} right-0 h-16 bg-transparent pointer-events-none flex items-center px-4 gap-3 z-30 transition-[left] duration-200`}>
         {/* Left — sidebar toggle + breadcrumb */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0 pointer-events-auto">
           {isMobile && (
           <button
             onClick={onToggleSidebar}
@@ -102,13 +102,13 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
             <input
               type="text"
               placeholder={`Search ${orgName.split(' ')[0]}...`}
-              className="w-full bg-white border border-gray-200 rounded-md pl-9 pr-3 py-1.5 text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent focus:bg-white transition"
+              className="w-full bg-white border border-gray-200/70 rounded-full pointer-events-auto shadow-[0_4px_16px_rgba(13,13,18,0.08)] pl-9 pr-3 py-1.5 text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent focus:bg-white transition"
             />
           </div>
         </div>
 
         {/* Right icons */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0 pointer-events-auto bg-white rounded-full pl-1.5 pr-1.5 py-1 shadow-[0_4px_16px_rgba(13,13,18,0.08)] border border-gray-200/70">
           {/* Ask CU AI — compact (≈50% smaller) */}
           <button
             onClick={() => setShowMioAI(true)}
