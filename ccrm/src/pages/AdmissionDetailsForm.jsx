@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { CheckCircle2, AlertCircle, Loader, Clock, Upload, ChevronLeft, ChevronRight, Check, Pencil, Users, BookOpen, Building2, Briefcase, Phone, Mail, Globe } from 'lucide-react'
 import { INDIA_STATES, getDistrictsForState, CASTE_CATEGORIES } from '../data/indiaLocations'
 import FullAdmissionForm from '../components/FullAdmissionForm'
+import DatePicker from '../components/ui/DatePicker'
 
 // Document label overrides + a small secondary caption, where one applies —
 // the underlying `type` string stays the stable DB/checklist identifier.
@@ -622,7 +623,7 @@ export default function AdmissionDetailsForm() {
       validate: () => (!formData.dateOfBirth || !formData.fatherName || !formData.motherName) ? "Please fill Date of Birth, Father's Name, and Mother's Name to continue." : null,
       render: () => (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Date of Birth" required><input className={inputCls} type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} /></Field>
+          <Field label="Date of Birth" required><DatePicker className={inputCls} name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} /></Field>
           <Field label="Nationality"><input className={inputCls} name="nationality" value={formData.nationality} onChange={handleChange} placeholder="e.g., Indian" /></Field>
           <Field label="Father's Name" required><input className={inputCls} name="fatherName" value={formData.fatherName} onChange={handleChange} /></Field>
           <Field label="Mother's Name" required><input className={inputCls} name="motherName" value={formData.motherName} onChange={handleChange} /></Field>
