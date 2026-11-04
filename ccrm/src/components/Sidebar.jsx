@@ -169,7 +169,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-[#fdfdff] text-gray-800 border-r border-gray-200 flex flex-col ${shell}`}
+      className={`fixed left-0 top-0 h-screen bg-[#f5fafb] text-gray-800 border-r border-gray-200 flex flex-col ${shell}`}
       aria-hidden={isMobile ? !open : undefined}
       onMouseEnter={isMobile ? undefined : () => setHovered(true)}
       onMouseLeave={isMobile ? undefined : () => setHovered(false)}
@@ -214,7 +214,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
           const isOpenGroup = (label) => openGroups.includes(label)
 
           const linkCls = (isActive) =>
-            `block rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${isActive ? 'bg-primary-50 text-accent-500 font-medium' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`
+            `block rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${isActive ? 'bg-primary-50 text-primary-500 font-medium' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`
 
           // Closed rail: icons only. The group that holds the current page is marked.
           if (!expanded) {
@@ -222,7 +222,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
               <div className="flex flex-col items-center gap-1 px-2 mt-1">
                 {grouped.filter(g => !g.label).flatMap(g => g.items).map(({ icon: Icon, label, to }) => (
                   <NavLink key={to} to={to} title={label} aria-label={label}
-                    className={({ isActive }) => `w-10 h-10 flex items-center justify-center rounded-md transition-colors ${isActive ? 'bg-primary-50 text-accent-500' : 'text-gray-500 hover:bg-gray-100'}`}>
+                    className={({ isActive }) => `w-10 h-10 flex items-center justify-center rounded-md transition-colors ${isActive ? 'bg-primary-50 text-primary-500' : 'text-gray-500 hover:bg-gray-100'}`}>
                     <Icon size={18} strokeWidth={1.8} />
                   </NavLink>
                 ))}
@@ -230,7 +230,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
                   const GIcon = GROUP_ICON[g.label] || Layers
                   return (
                     <span key={g.label} title={g.label} aria-label={g.label}
-                      className={`w-10 h-10 flex items-center justify-center rounded-md ${g.items.some(holdsPath) ? 'bg-primary-50 text-accent-500' : 'text-gray-500'}`}>
+                      className={`w-10 h-10 flex items-center justify-center rounded-md ${g.items.some(holdsPath) ? 'bg-primary-50 text-primary-500' : 'text-gray-500'}`}>
                       <GIcon size={18} strokeWidth={1.8} />
                     </span>
                   )
