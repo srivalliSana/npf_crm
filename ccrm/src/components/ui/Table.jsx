@@ -24,7 +24,7 @@ Table.Body = function TableBody({ children }) {
 
 Table.Row = function TableRow({ children, className = '', ...rest }) {
   return (
-    <tr className={`hover:bg-gray-50/80 transition-colors ${className}`} {...rest}>
+    <tr className={`hover:bg-gray-50 transition-colors ${className}`} {...rest}>
       {children}
     </tr>
   )
