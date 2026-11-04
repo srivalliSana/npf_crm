@@ -2,8 +2,10 @@ import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Menu, Sparkles, Bell, Settings,
-  HelpCircle, ChevronDown, ChevronRight, X, LogOut, Search,
+  HelpCircle, ChevronDown, X, LogOut, Search,
+  LayoutDashboard, Users, FileText, CheckSquare, PieChart,
 } from 'lucide-react'
+import LiquidNavbar from './ui/LiquidNavbar'
 import MioAI from './MioAI'
 import { useCcrm } from '../context/CcrmContext'
 
@@ -53,7 +55,17 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
   const navigate = useNavigate()
   const { notifications, markNotificationRead, markAllNotificationsRead, tenantConfig } = useCcrm()
   const orgName = tenantConfig?.name || 'Centurion University of Technology and Management'
-  const crumbs = useBreadcrumb()
+  const { pathname } = useLocation()
+  // Main destinations in the pill. Analytics is for roles that can see it.
+  const canSeeAnalytics = ['Admin', 'Manager'].includes(user?.role)
+  const NAV = [
+    { label: 'Dashboard', to: '/dashboard', icon: <LayoutDashboard size={18} strokeWidth={1.8} />, fx: 'glow' },
+    { label: 'Leads', to: '/leads', icon: <Users size={18} strokeWidth={1.8} />, fx: 'wave' },
+    { label: 'Applications', to: '/applications', icon: <FileText size={18} strokeWidth={1.8} />, fx: 'pop' },
+    { label: 'Tasks', to: '/tasks', icon: <CheckSquare size={18} strokeWidth={1.8} />, fx: 'pop' },
+    ...(canSeeAnalytics ? [{ label: 'Analytics', to: '/analytics', icon: <PieChart size={18} strokeWidth={1.8} />, fx: 'spin' }] : []),
+  ]
+  const navActive = NAV.findIndex(n => pathname === n.to || pathname.startsWith(n.to + '/'))
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile]             = useState(false)
   const [showMioAI, setShowMioAI]                 = useState(false)
@@ -83,16 +95,13 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
             <Menu size={19} />
           </button>
           )}
-          <nav className={`${crumbs.length > 1 ? "hidden sm:flex" : "hidden"} items-center gap-1.5 text-sm min-w-0`} aria-label="Breadcrumb">
-            {crumbs.map((c, i) => (
-              <span key={i} className="flex items-center gap-1.5 min-w-0">
-                {i > 0 && <ChevronRight size={13} className="text-gray-300 flex-shrink-0" />}
-                <span className={`truncate ${i === crumbs.length - 1 ? 'font-semibold text-gray-800' : 'text-gray-400'}`}>
-                  {c}
-                </span>
-              </span>
-            ))}
-          </nav>
+          <div className="hidden md:block">
+            <LiquidNavbar
+              size="sm" tone="dark" tint="rgba(176,24,32,.9)" ariaLabel="Main pages"
+              items={NAV} active={navActive}
+              onChange={(i) => navigate(NAV[i].to)}
+            />
+          </div>
         </div>
 
         {/* Center — global search */}
