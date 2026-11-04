@@ -13,6 +13,7 @@ import { Modal, Button, StatCard, KpiStrip, Tabs, Workspace3Col } from '../compo
 import PostAdmissionPanel from './application-details/PostAdmissionPanel'
 import InlineDocumentsTab from './application-details/InlineDocumentsTab'
 import AiInsightsPanel from '../components/application-details/AiInsightsPanel'
+import DatePicker from '../components/ui/DatePicker'
 
 // Ameyo calls removed — use EasyGoIVR via initiateCall() from context
 
@@ -1546,8 +1547,7 @@ export default function ApplicationDetails() {
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-xs font-semibold text-gray-500 mb-0.5">Date</label>
-                              <input
-                                type="date"
+                              <DatePicker
                                 value={eventForm.date}
                                 onChange={e => setEventForm(p => ({ ...p, date: e.target.value }))}
                                 className="input-field text-xs"
