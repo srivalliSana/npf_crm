@@ -222,7 +222,7 @@ export default function EmailCampaigns() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Total Campaigns', value: stats.total, color: 'text-slate-700 bg-slate-50', icon: Mail },
           { label: 'Sent', value: stats.sent, color: 'text-green-600 bg-green-50', icon: Send },
