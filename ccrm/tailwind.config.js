@@ -10,32 +10,33 @@ export default {
         // Softer, eye-friendly blue palette
         // primary-500 is the main brand colour (links, primary buttons)
         // primary-50/100 used for tints; very pale to reduce eye strain
-        primary: {   // cobalt blue
-          50:  '#eef4ff',
-          100: '#dbe7ff',
-          200: '#bcd1ff',
-          300: '#8fb0ff',
-          400: '#5b86fb',
-          500: '#2f5fe8',
-          600: '#2349c4',
-          700: '#1c3a9c',
-          800: '#182f7a',
-          900: '#142560',
+        primary: {   // Sage Library: sage
+          50:  '#f3f5ef',
+          100: '#e4e9db',
+          200: '#c9d3b8',
+          300: '#a9b896',
+          400: '#85986f',
+          500: '#5c6b4f',
+          600: '#4a5740',
+          700: '#3b462f',
+          800: '#2f3e28',
+          900: '#222d1c',
         },
-        navy: { 700: '#1b2a4a', 800: '#12203d', 900: '#0b1530', 950: '#070e22' },
+        // forest: the shell (sidebar) surface
+        navy: { 700: '#3b4a32', 800: '#2f3e28', 900: '#263320', 950: '#1b2517' },
         // the one data hue: today's series, the main bar, the current period
         data: { 500: '#1d5fbf', 100: '#dce8f8' },
-        accent: {   // warm amber highlight
-          50:  '#fff8eb',
-          100: '#ffecc7',
-          200: '#ffd88a',
-          300: '#ffc04d',
-          400: '#ffa71f',
-          500: '#f58a07',
-          600: '#d96a02',
-          700: '#b34e06',
-          800: '#903d0c',
-          900: '#76340d',
+        accent: {   // Sage Library: copper-gold
+          50:  '#fbf5ec',
+          100: '#f5e8d3',
+          200: '#ebd3ae',
+          300: '#d4a574',
+          400: '#c98f55',
+          500: '#b87a3d',
+          600: '#965f2c',
+          700: '#774a24',
+          800: '#5c3a1f',
+          900: '#432b19',
         },
         // AI / assistant accent — Campus One Neo's purple, used only for the
         // AI Assistant panel and its badges, never as a general-purpose color.
@@ -54,8 +55,8 @@ export default {
         // Soft page background — never pure white (reduces strain), and
         // deliberately deep enough that white cards visibly "float" above it.
         canvas: {
-          DEFAULT: '#eaeffa',
-          warm:    '#f3f6fd',
+          DEFAULT: '#f5f0e8',
+          warm:    '#faf6ef',
         },
         // Violet/indigo/purple are remapped to one steel scale so legacy class names stay valid
         purple: {
