@@ -159,7 +159,7 @@ export default function IntegrationSettings() {
           </button>
         </form>
 
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <div className="mt-6 p-4 bg-white rounded-lg border border-gray-200">
           <div className="flex items-start gap-3">
             <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
             <div className="text-sm text-blue-800">
