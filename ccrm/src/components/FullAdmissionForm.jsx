@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { User, Users, MapPin, GraduationCap, BookOpen, Check, Loader, AlertCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { INDIA_STATES, CASTE_CATEGORIES } from '../data/indiaLocations'
+import DatePicker from './ui/DatePicker'
 
 // The fuller admission form — Step 2 of the journey, unlocked once the booking
 // fee is paid AND every mandatory document (its own standalone step right
@@ -198,7 +199,7 @@ export default function FullAdmissionForm({ app, initialData, onSubmit, submitti
               <Field label="First Name" required><input className={inputCls} name="firstName" value={data.firstName} onChange={onChange} /></Field>
               <Field label="Middle Name"><input className={inputCls} name="middleName" value={data.middleName} onChange={onChange} /></Field>
               <Field label="Last Name" required><input className={inputCls} name="lastName" value={data.lastName} onChange={onChange} /></Field>
-              <Field label="Date of Birth" required><input className={inputCls} type="date" name="dob" value={data.dob} onChange={onChange} /></Field>
+              <Field label="Date of Birth" required><DatePicker className={inputCls} name="dob" value={data.dob} onChange={onChange} /></Field>
 
               <Field label="Gender" required>
                 <select className={inputCls} name="gender" value={data.gender} onChange={onChange}>
