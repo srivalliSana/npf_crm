@@ -27,7 +27,7 @@ export default function SecurityWidget() {
     <div className="bg-white rounded-xl border border-blue-100 shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-8 h-8 flex items-center justify-center">
             <Shield size={16} className="text-blue-600" />
           </div>
           <div>
@@ -63,7 +63,7 @@ export default function SecurityWidget() {
           {/* Integration / security checks */}
           <div className="pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold text-gray-600 uppercase">Security & Integration Checks</p>
+              <p className="text-xs font-bold text-gray-600">Security & Integration Checks</p>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${allOk ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                 {checksOk} / {checks.length} OK
               </span>
@@ -80,7 +80,7 @@ export default function SecurityWidget() {
 
           {/* Failed payment / suspicious activity */}
           {failed > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 flex items-center gap-2 text-xs">
+            <div className="bg-white border border-gray-200 rounded-lg p-2.5 flex items-center gap-2 text-xs">
               <AlertTriangle size={14} className="text-yellow-600 flex-shrink-0" />
               <span className="text-yellow-700">
                 <strong>{failed}</strong> failed payment attempt{failed === 1 ? '' : 's'} on record — review in Payments
@@ -91,7 +91,7 @@ export default function SecurityWidget() {
           {/* Recent logins */}
           {data.recentLogins?.length > 0 && (
             <div className="pt-3 border-t border-gray-100">
-              <p className="text-xs font-bold text-gray-600 uppercase mb-2 flex items-center gap-1">
+              <p className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
                 <Lock size={11} /> Recent Active Sessions
               </p>
               <div className="space-y-1 max-h-32 overflow-y-auto">
@@ -129,8 +129,8 @@ export default function SecurityWidget() {
 function KPI({ label, value, color, bg }) {
   return (
     <div className={`${bg} rounded-md px-2 py-2 text-center`}>
-      <div className={`text-base font-extrabold ${color}`}>{value}</div>
-      <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5 truncate">{label}</div>
+      <div className={`text-base font-semibold ${color}`}>{value}</div>
+      <div className="text-[9px] text-gray-500 mt-0.5 truncate">{label}</div>
     </div>
   )
 }
