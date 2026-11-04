@@ -81,9 +81,9 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
   }
 
   return (
-    <div>
+    <div className="relative flex flex-col md:flex-1 md:min-h-0">
       {error && <div className="mb-3 text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-md px-4 py-2">{error}</div>}
-      <div className="flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory md:snap-none" aria-label="Lead pipeline">
+      <div className="relative flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory md:snap-none md:flex-1 md:min-h-0 md:overflow-y-hidden" aria-label="Lead pipeline">
         {visible.map(stage => {
           const c = cols[stage] || { rows: [], total: 0, loading: true }
           const isOver = dragOver === stage
@@ -93,7 +93,7 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
               onDragOver={e => { e.preventDefault(); if (dragOver !== stage) setDragOver(stage) }}
               onDragLeave={() => setDragOver(d => (d === stage ? null : d))}
               onDrop={e => onDrop(e, stage)}
-              className={`snap-start flex-shrink-0 w-[84vw] sm:w-72 rounded-lg p-2.5 flex flex-col max-h-[calc(100vh-15rem)] min-h-[12rem] ${isOver ? 'bg-gray-300/80' : 'bg-gray-200/70'}`}
+              className={`relative snap-start flex-shrink-0 w-[84vw] sm:w-72 rounded-lg p-2.5 flex flex-col max-h-[70vh] md:max-h-none md:h-full min-h-[12rem] ${isOver ? 'bg-gray-300/80' : 'bg-gray-200/70'}`}
             >
               <header className="flex items-baseline justify-between px-1.5 pb-2.5 pt-1">
                 <h3 className="text-[14px] font-medium text-gray-900">{stageLabel(stage)}</h3>
