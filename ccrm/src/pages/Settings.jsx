@@ -249,7 +249,7 @@ export default function Settings() {
                         <button onClick={() => setActiveSection(s.id)} aria-current={activeSection === s.id ? 'page' : undefined}
                           className={`w-full text-left rounded-md px-2.5 py-1.5 text-[13px] transition-colors focus:outline-none ${
                             activeSection === s.id
-                              ? (s.id === 'production' ? 'bg-red-50 text-red-700 font-medium' : 'bg-gray-200/70 text-gray-900 font-medium')
+                              ? (s.id === 'production' ? 'bg-red-50 text-red-700 font-medium' : 'bg-primary-100/70 text-primary-800 font-medium')
                               : (s.id === 'production' ? 'text-red-600 hover:bg-red-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
                           }`}>
                           {s.label}
@@ -627,7 +627,7 @@ export default function Settings() {
                 <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
                   Alternative: run from the server terminal
                 </summary>
-                <div className="mt-2 bg-gray-900 text-green-300 text-xs font-mono p-3 rounded-lg overflow-x-auto">
+                <div className="mt-2 bg-primary-600 text-green-300 text-xs font-mono p-3 rounded-lg overflow-x-auto">
                   sudo -u postgres psql ccrm_db -f /var/www/ccrm/server/reset_for_production.sql
                 </div>
               </details>
