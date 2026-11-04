@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useCcrm } from '../context/CcrmContext'
 import RcsComposeModal from '../components/RcsComposeModal'
+import LeadBoard from '../components/LeadBoard'
 import EmailTemplateModal from '../components/EmailTemplateModal'
 import { stageLabel } from '../stageLabel'
 import PageContainer from '../components/PageContainer'
@@ -760,6 +761,24 @@ export default function LeadManager() {
     ? tenantConfig.stages
     : ['Untouched','Contacted','Invalid Number','No Response','Follow Up','Interested','Campus Visit Scheduled','Campus Visit Completed','Process for Payment','Payment Success']
 
+  const [viewMode, setViewModeState] = useState(() => { try { return localStorage.getItem('ccrm_leads_view') || 'board' } catch { return 'board' } })
+  const setViewMode = (m) => { setViewModeState(m); try { localStorage.setItem('ccrm_leads_view', m) } catch {} }
+  const [boardNonce, setBoardNonce] = useState(0)
+
+  // Board: moving a card. Plain stage changes save directly; the two steps that need more than a
+  // stage change (a reason, or creating an application / taking payment) hand over to the existing flow.
+  const handleBoardMove = async (lead, stage) => {
+    if (stage === lead.stage) return
+    if (stage === 'Not Interested') { setNiLead(lead); setNiReason(''); setNiOther(''); return }
+    if (stage === 'Process for Payment' || stage === 'Payment Success') {
+      showToast(`Open ${lead.name} to move it to ${stage}. That step creates the application and payment.`, 'info')
+      navigate(`/leads/${lead.id}`)
+      return
+    }
+    await updateLead(lead.id, { stage, stageColor: getStageColorName(stage) })
+    showToast(`${lead.name} moved to ${stageLabel(stage)}`, 'success')
+    setBoardNonce(n => n + 1)
+  }
   const [moreActionsOpen, setMoreActionsOpen] = useState(false)
   const [rowMenuId, setRowMenuId] = useState(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -821,6 +840,12 @@ export default function LeadManager() {
             {tab.label}
           </button>
         ))}
+        <div className="ml-auto inline-flex rounded-md bg-gray-100 p-1" role="group" aria-label="View">
+          {[['board','Board'],['list','List']].map(([m,l]) => (
+            <button key={m} type="button" onClick={() => setViewMode(m)} aria-pressed={viewMode === m}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition ${viewMode === m ? 'bg-white text-gray-900 border border-gray-200' : 'text-gray-600 hover:text-gray-900'}`}>{l}</button>
+          ))}
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -862,6 +887,17 @@ export default function LeadManager() {
         </div>
       </Card>
 
+      {viewMode === 'board' ? (
+        <LeadBoard
+          stages={stageOptions}
+          query={Object.fromEntries(Object.entries(buildQuery()).filter(([k, v]) => !['page', 'limit', 'stage'].includes(k) && v !== '' && v !== undefined))}
+          fetchPage={fetchLeadsPage}
+          onOpen={(lead) => navigate(`/leads/${lead.id}`)}
+          onMove={handleBoardMove}
+          nonce={boardNonce}
+        />
+      ) : (
+      <>
       {/* Prominent Loading Banner */}
       {leadsLoading && (
         <div className="mb-4 p-4 bg-info-50 border-l-4 border-info-500 rounded-lg flex items-center gap-3 shadow-soft">
@@ -1199,6 +1235,8 @@ export default function LeadManager() {
           </div>
         </div>
       </Card>
+      </>
+      )}
 
       {/* ============ ADD LEAD MODAL ============ */}
       <Modal
