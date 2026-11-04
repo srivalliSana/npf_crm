@@ -108,7 +108,7 @@ function Hero({ application, macroStep }) {
           {application ? <>You're on your way to <strong className="text-white">{application.course || 'Centurion University'}</strong>. Just a few quick steps left.</> : 'NAAC A+ accredited, 100+ programs, 95% placement record.'}
         </p>
 
-        <div className="grid grid-cols-4 gap-4 sm:gap-8 max-w-lg">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 max-w-lg">
           {STATS.map(stat => (
             <div key={stat.label} className="text-center sm:text-left">
               <div className="text-xl sm:text-2xl font-semibold text-white">{stat.value}</div>
