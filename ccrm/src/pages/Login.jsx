@@ -15,7 +15,7 @@ const ALLOWED_DOMAINS  = (import.meta.env.VITE_ALLOWED_DOMAINS || 'cutm.ac.in,cu
 const MIN_PASSWORD_LEN = Number(import.meta.env.VITE_MIN_PASSWORD_LENGTH) || 6
 const SUPPORT_EMAIL    = import.meta.env.VITE_SUPPORT_EMAIL || 'it-support@cutm.ac.in'
 const ORG_NAME         = import.meta.env.VITE_ORG_NAME || 'Centurion University of Technology and Management'
-const DEFAULT_LOGO_URL = '/logo.png'
+const DEFAULT_LOGO_URL = '/logo.jpg'
 
 const rawClientId      = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 const isGoogleConfigured = rawClientId && rawClientId !== 'YOUR_GOOGLE_CLIENT_ID_HERE'
@@ -240,19 +240,16 @@ export default function Login() {
 
       {/* ════════════ RIGHT PANEL — Login form ════════════ */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white relative">
+        {/* Logo: the supplied image, exactly as given, top right */}
+        {logoUrl ? (
+          <img src={logoUrl} alt={orgName} className="absolute top-6 right-6 h-32 w-auto rounded-md" />
+        ) : (
+          <div className="absolute top-6 right-6 h-14 w-14 rounded-md bg-primary-500 flex items-center justify-center text-white font-bold text-2xl">
+            {logoInitial}
+          </div>
+        )}
 
         <div className="relative w-full max-w-[420px]">
-          {/* Logo */}
-          <div className="mb-8">
-            {logoUrl ? (
-              <img src={logoUrl} alt={orgName} className="h-28 w-28 object-contain" />
-            ) : (
-              <div className="h-16 w-16 rounded-md bg-primary-500 flex items-center justify-center text-white font-bold text-2xl">
-                {logoInitial}
-              </div>
-            )}
-          </div>
-
           {/* Heading */}
           <div className="mb-8">
             <h2 className="text-[32px] font-medium text-gray-900 tracking-tight">Welcome back</h2>
