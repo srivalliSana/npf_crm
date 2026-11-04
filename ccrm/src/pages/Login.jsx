@@ -214,42 +214,31 @@ export default function Login() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex flex-col bg-canvas">
 
-      {/* ════════════ LEFT PANEL — one flat field, one statement ════════════ */}
-      <div className="hidden lg:flex lg:w-[55%] flex-col bg-primary-500 text-white">
-        <div className="flex flex-col h-full p-[clamp(40px,4vw,88px)]">
-          <div className="text-[clamp(22px,1.6vw,30px)] font-medium tracking-tight">CCRM</div>
-
-          <div className="flex-1 flex flex-col justify-center">
-            <h1 className="text-[clamp(56px,6.4vw,124px)] font-medium leading-[0.96] tracking-[-0.035em] max-w-[11ch]">
-              Every enquiry, followed through.
-            </h1>
-            <p className="text-[clamp(18px,1.4vw,26px)] leading-relaxed text-white/80 max-w-[34ch] mt-10">
-              Leads, documents, payments and seat confirmation for {orgName}, in one place for the admissions team.
-            </p>
-          </div>
-
-          <p className="text-[clamp(15px,1.05vw,18px)] text-white/80 max-w-[48ch] leading-relaxed">
-            Sign-in is limited to official <strong className="text-white font-medium">{allowedDomains.join(' / ')}</strong> accounts.
-            Need access? Write to <a href={`mailto:${SUPPORT_EMAIL}`} className="text-white underline">{SUPPORT_EMAIL}</a>.
-          </p>
-          <p className="text-[clamp(13px,0.9vw,16px)] text-white/60 mt-6">© {new Date().getFullYear()} {orgName}</p>
-        </div>
-      </div>
-
-      {/* ════════════ RIGHT PANEL — Login form ════════════ */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white relative">
-        {/* Logo: the supplied image, exactly as given, top right */}
+      {/* ════════════ ONE PAGE: bar, statement + sign-in card, foot ════════════ */}
+      <header className="flex items-start justify-between px-[clamp(24px,4.5vw,96px)] pt-8">
+        <div className="text-[clamp(22px,1.6vw,30px)] font-medium tracking-tight text-gray-900 pt-2">CCRM</div>
         {logoUrl ? (
-          <img src={logoUrl} alt={orgName} className="absolute top-8 right-10 h-[clamp(120px,10vw,190px)] w-auto" />
+          <img src={logoUrl} alt={orgName} className="h-[clamp(110px,9vw,170px)] w-auto" />
         ) : (
-          <div className="absolute top-6 right-6 h-14 w-14 rounded-md bg-primary-500 flex items-center justify-center text-white font-bold text-2xl">
+          <div className="h-14 w-14 rounded-md bg-primary-500 flex items-center justify-center text-white font-bold text-2xl">
             {logoInitial}
           </div>
         )}
+      </header>
 
-        <div className="w-full max-w-[clamp(420px,26vw,520px)]">
+      <main className="flex-1 grid lg:grid-cols-[1.3fr_1fr] gap-[clamp(32px,6vw,150px)] items-center px-[clamp(24px,4.5vw,96px)] py-10">
+        <section>
+          <h1 className="text-[clamp(48px,6.2vw,128px)] font-medium leading-[0.96] tracking-[-0.035em] text-gray-900 max-w-[11ch]">
+            Every enquiry, followed through.
+          </h1>
+          <p className="text-[clamp(18px,1.4vw,26px)] leading-relaxed text-gray-600 max-w-[36ch] mt-8">
+            Leads, documents, payments and seat confirmation for {orgName}, in one place for the admissions team.
+          </p>
+        </section>
+
+        <section className="bg-white rounded-lg border border-gray-200 p-[clamp(28px,2.6vw,56px)] w-full max-w-[clamp(420px,30vw,560px)] lg:justify-self-start">
           {/* Heading */}
           <div className="mb-8">
             <h2 className="text-[clamp(34px,2.6vw,52px)] font-medium text-gray-900 tracking-tight">Welcome back</h2>
@@ -300,21 +289,21 @@ export default function Login() {
             Use your official <strong>{allowedDomains.join(' / ')}</strong> Google account to sign in.
           </p>
 
-          {/* Footer links */}
-          <div className="absolute bottom-8 inset-x-0 flex flex-col items-center gap-2">
-            <div className="flex items-center gap-3 text-sm text-gray-500">
-              <button className="hover:text-gray-600 transition-colors">Privacy Policy</button>
-              <span className="text-gray-200">|</span>
-              <button className="hover:text-gray-600 transition-colors">Terms of Use</button>
-              <span className="text-gray-200">|</span>
-              <a href="/apply" className="hover:text-primary-500 transition-colors">Public Inquiry Form</a>
-            </div>
-            <p className="text-[13px] text-gray-500">
-              © {new Date().getFullYear()} {orgName}
-            </p>
-          </div>
+        </section>
+      </main>
+
+      <footer className="px-[clamp(24px,4.5vw,96px)] pb-8 flex flex-wrap items-end justify-between gap-x-10 gap-y-3 text-[clamp(13px,0.95vw,16px)] text-gray-600">
+        <p className="max-w-[60ch] leading-relaxed">
+          Sign-in is limited to official <strong className="text-gray-900 font-medium">{allowedDomains.join(' / ')}</strong> accounts.
+          Need access? Write to <a href={`mailto:${SUPPORT_EMAIL}`} className="text-gray-900 underline">{SUPPORT_EMAIL}</a>.
+        </p>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+          <button className="hover:text-gray-900 transition-colors">Privacy Policy</button>
+          <button className="hover:text-gray-900 transition-colors">Terms of Use</button>
+          <a href="/apply" className="hover:text-gray-900 transition-colors">Public Inquiry Form</a>
+          <span className="text-gray-500">© {new Date().getFullYear()} {orgName}</span>
         </div>
-      </div>
+      </footer>
 
       {/* ════════════ FORGOT PASSWORD MODAL ════════════ */}
       <Modal
