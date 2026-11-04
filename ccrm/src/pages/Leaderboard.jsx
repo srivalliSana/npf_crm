@@ -96,7 +96,7 @@ export default function Leaderboard() {
       ) : (
         <>
           {/* Podium — top 3 */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[1, 0, 2].map(idx => {
               const person = top3[idx]
               if (!person) return <div key={idx} />
@@ -199,7 +199,7 @@ export default function Leaderboard() {
           </div>
 
           {/* Weekly Target widget */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: 'Total Leads', value: data.reduce((s, d) => s + d.leads, 0), icon: Users, color: 'text-blue-600 bg-blue-50' },
               { label: 'Converted', value: data.reduce((s, d) => s + d.converted, 0), icon: TrendingUp, color: 'text-green-600 bg-green-50' },
