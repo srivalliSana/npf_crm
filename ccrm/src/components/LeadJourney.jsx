@@ -71,7 +71,7 @@ export default function LeadJourney({ stage, onSelect, onSchedule, scheduled = {
       {/* Outcomes after Contacted */}
       <div>
         <div className="text-[13px] font-medium text-gray-500 mb-2.5">After contacted, pick one outcome</div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-2.5 gap-y-3 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-2.5 gap-y-3 items-start">
           <Node s="Invalid Number" label="Invalid Number" icon={Ban} />
           <div className="flex flex-col items-start gap-1.5">
             <Node s="No Response" label="No Response" icon={PhoneMissed} />
