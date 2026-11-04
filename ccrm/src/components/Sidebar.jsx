@@ -126,7 +126,7 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-100 shadow-soft flex flex-col ${shell}`}
+      className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-200 flex flex-col ${shell}`}
       aria-hidden={isMobile && !open}
     >
       {/* Logo */}
@@ -134,13 +134,13 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
         className="w-full flex items-center gap-3 px-4 h-16 cursor-pointer border-b border-gray-100 overflow-hidden flex-shrink-0"
         onClick={() => navigate('/dashboard')}
       >
-        <div className="w-9 h-9 rounded-xl bg-primary-500 flex items-center justify-center shadow-soft flex-shrink-0 overflow-hidden">
+        <div className="w-9 h-9 rounded-lg bg-primary-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
           {brand.logoUrl
             ? <img src={brand.logoUrl} alt="logo" className="w-full h-full object-contain" />
-            : <span className="text-white font-extrabold text-xl leading-none">{brand.logoText || 'C'}</span>}
+            : <span className="text-white font-bold text-lg leading-none">{brand.logoText || 'C'}</span>}
         </div>
         <div className={`overflow-hidden transition-opacity duration-200 flex-1 ${expanded ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="text-gray-900 font-extrabold text-sm leading-tight whitespace-nowrap">{brand.shortName || 'CCRM'}</div>
+          <div className="text-gray-900 font-bold text-sm leading-tight whitespace-nowrap">{brand.shortName || 'CCRM'}</div>
           <div className="text-gray-400 text-[10px] leading-tight whitespace-nowrap">{brand.tagline || 'Admissions'}</div>
         </div>
         {isMobile && (
@@ -196,14 +196,14 @@ export default function Sidebar({ onLogout, user, expanded = true, isMobile = fa
                 />
               </button>
               {isOpen && (
-                <div className="bg-gray-50 rounded-lg mx-2 mb-2 overflow-hidden py-1">
+                <div className="rounded-lg mx-2 mb-2 overflow-hidden py-1">
                   {submenu.map(({ label: subLabel, to: subTo }) => (
                     <NavLink
                       key={subTo}
                       to={subTo}
                       className={({ isActive }) =>
                         `block px-4 py-2 ml-6 mr-2 rounded-lg text-[13px] text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors ${
-                          isActive ? 'bg-primary-50 text-primary-700 font-semibold' : ''
+                          isActive ? 'bg-gray-100 text-gray-900 font-semibold' : ''
                         }`
                       }
                     >
