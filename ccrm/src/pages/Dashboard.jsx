@@ -3,7 +3,7 @@ import { useCcrm } from '../context/CcrmContext'
 import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, Download, CreditCard, Trophy } from 'lucide-react'
 import { stageLabel } from '../stageLabel'
 import PageContainer from '../components/PageContainer'
-import { Card, StatCard, Table, Modal, Button, Select } from '../components/ui'
+import { Card, StatCard, KpiStrip, Table, Modal, Button, Select } from '../components/ui'
 import LeadFunnel from '../components/dashboard/LeadFunnel'
 import CounsellorPerformanceCards from '../components/dashboard/CounsellorPerformanceCards'
 
@@ -85,6 +85,15 @@ export default function Dashboard() {
     ...(isAdmin ? [{ label: 'Revenue Collected', value: `₹${(((stats?.revenue ?? 0))/100000).toFixed(1)}L`, icon: CheckCircle, tone: 'success' }] : []),
   ]
 
+  // One finding, stated under the title: what most needs attention today.
+  const _n = (v) => Number(v || 0)
+  const _src = isCounselor ? byCounsellor : kpi
+  const dashboardFinding = statsLoading ? 'Loading the latest numbers…' : (
+    _n(_src.untouched) > 0
+      ? `${_n(_src.untouched).toLocaleString()} lead${_n(_src.untouched) === 1 ? '' : 's'} not yet contacted${_n(_src.followUp) ? ` · ${_n(_src.followUp).toLocaleString()} waiting on a follow-up` : ''}`
+      : _n(_src.followUp) ? `${_n(_src.followUp).toLocaleString()} waiting on a follow-up` : 'Every lead has been contacted'
+  )
+
   const cutm   = stats?.byDomain?.cutm   || { total: 0, stages: {} }
   const cutmap = stats?.byDomain?.cutmap || { total: 0, stages: {} }
   const st = (data, stage) => data?.stages?.[stage] || 0
@@ -134,19 +143,15 @@ export default function Dashboard() {
   }
 
   return (
-    <PageContainer title="User Dashboard" description="Overview of team performance and lead activity">
+    <PageContainer title="Dashboard" description={dashboardFinding}>
       {statsLoading && (
         <div className="flex items-center justify-center py-12 text-gray-400 text-sm gap-2 mb-6">
           <RefreshCw size={16} className="animate-spin text-primary-500" /> Please wait, loading dashboard…
         </div>
       )}
 
-      {/* Summary cards — compact */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-        {SUMMARY_CARDS.map(card => (
-          <StatCard key={card.label} icon={card.icon} label={card.label} value={card.value} tone={card.tone} />
-        ))}
-      </div>
+      {/* Summary — one ledger block: the lead figure first, the rest as siblings */}
+      <KpiStrip className="mb-6" items={SUMMARY_CARDS.map(c => ({ label: c.label, value: c.value }))} />
 
       {/* Admissions funnel — from the same kpi payload the summary cards use */}
       {!isCounselor && (
