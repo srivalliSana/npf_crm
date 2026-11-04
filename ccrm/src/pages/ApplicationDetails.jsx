@@ -1899,7 +1899,7 @@ export default function ApplicationDetails() {
             {/* Address */}
             <div>
               <p className="text-xs font-bold text-gray-700 mb-2 border-b border-gray-200 pb-1">Permanent Address</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Address</label>
                   <input type="text" value={adForm.address || ''} onChange={e => setAdForm(p => ({ ...p, address: e.target.value }))}
