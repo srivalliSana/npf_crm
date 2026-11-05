@@ -78,21 +78,21 @@ export default function Grievances() {
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono text-[11px] text-gray-400">GRV{String(t.id).padStart(4, '0')}</span>
+                    <span className="font-mono text-[12px] text-gray-400">GRV{String(t.id).padStart(4, '0')}</span>
                     <Badge variant="primary">{t.category}</Badge>
                     <Badge variant={t.status === 'Resolved' ? 'success' : 'warning'}>{t.status}</Badge>
                   </div>
-                  <p className="font-bold text-gray-900">{t.student_name} <span className="text-gray-400 font-normal font-mono text-[12px]">· {t.app_no}</span></p>
-                  <p className="text-[12.5px] text-gray-500">{t.email} · {t.mobile} · Counsellor: {t.counsellor_name || 'Unassigned'}</p>
+                  <p className="font-bold text-gray-900">{t.student_name} <span className="text-gray-400 font-normal font-mono text-[13px]">· {t.app_no}</span></p>
+                  <p className="text-[13.5px] text-gray-500">{t.email} · {t.mobile} · Counsellor: {t.counsellor_name || 'Unassigned'}</p>
                 </div>
-                <span className="text-[11px] text-gray-400 flex-shrink-0">{new Date(t.created_at).toLocaleString('en-IN')}</span>
+                <span className="text-[12px] text-gray-400 flex-shrink-0">{new Date(t.created_at).toLocaleString('en-IN')}</span>
               </div>
 
               <p className="text-sm text-gray-700 mt-3 bg-gray-50 rounded-xl px-4 py-3">{t.message}</p>
 
               {t.response && (
                 <div className="mt-3 bg-success-50 rounded-xl px-4 py-3">
-                  <p className="text-[11px] font-bold text-success-700 mb-1 flex items-center gap-1.5"><CheckCircle2 size={12} /> Responded by {t.responded_by}</p>
+                  <p className="text-[12px] font-bold text-success-700 mb-1 flex items-center gap-1.5"><CheckCircle2 size={12} /> Responded by {t.responded_by}</p>
                   <p className="text-sm text-success-800">{t.response}</p>
                 </div>
               )}
