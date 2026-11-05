@@ -21,15 +21,15 @@ export default function CounsellorPerformanceCards({ byCounsellor, byCounsellorS
           return (
             <div key={c.name} className="rounded-xl border border-gray-100 p-3.5 bg-gray-50/60">
               <div className="flex items-center gap-2.5 mb-2.5">
-                <div className="w-8 h-8 rounded-full bg-ai-100 text-ai-700 flex items-center justify-center text-[11px] font-bold flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-ai-100 text-ai-700 flex items-center justify-center text-[12px] font-bold flex-shrink-0">
                   {initials}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[12.5px] font-bold text-gray-800 truncate">{c.name}</div>
-                  <div className="text-[10.5px] text-gray-400">{won} converted</div>
+                  <div className="text-[13.5px] font-bold text-gray-800 truncate">{c.name}</div>
+                  <div className="text-[11.5px] text-gray-400">{won} converted</div>
                 </div>
               </div>
-              <div className="flex justify-between text-[11px] text-gray-500 mb-1">
+              <div className="flex justify-between text-[12px] text-gray-500 mb-1">
                 <span>Leads worked</span>
                 <span className="font-mono font-semibold text-gray-700">{c.interested || 0}/{leads}</span>
               </div>
