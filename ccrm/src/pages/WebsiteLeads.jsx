@@ -556,7 +556,7 @@ export default function WebsiteLeads({ website }) {
                 setJourneyLead(prev => prev ? { ...prev, status: s } : prev)
               }}
             />
-            <p className="text-[11px] text-gray-400 mt-4">Click any stage to update this lead's status.</p>
+            <p className="text-[12px] text-gray-400 mt-4">Click any stage to update this lead's status.</p>
           </>
         )}
       </Modal>
