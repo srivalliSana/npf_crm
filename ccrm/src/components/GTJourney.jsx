@@ -38,7 +38,7 @@ function tone(s, cur) {
 export default function GTJourney({ status, onSelect }) {
   const Node = ({ s, icon: Icon }) => (
     <button type="button" onClick={() => onSelect?.(s)} title={`Set: ${s}`}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold whitespace-nowrap transition hover:shadow-sm ${TONE[tone(s, status)] || TONE.red}`}>
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[12px] font-semibold whitespace-nowrap transition hover:shadow-sm ${TONE[tone(s, status)] || TONE.red}`}>
       {Icon && <Icon size={13} className="flex-shrink-0" />}
       <span>{s}</span>
       {status === s && <BadgeCheck size={12} className="flex-shrink-0" />}
@@ -49,7 +49,7 @@ export default function GTJourney({ status, onSelect }) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-[11px] font-semibold text-gray-400 mb-2">Sales funnel</p>
+        <p className="text-[12px] font-semibold text-gray-400 mb-2">Sales funnel</p>
         <div className="flex items-center gap-1.5 flex-wrap">
           {PATH.map((p, i) => (
             <React.Fragment key={p.s}>
@@ -60,12 +60,12 @@ export default function GTJourney({ status, onSelect }) {
         </div>
       </div>
       <div>
-        <p className="text-[11px] font-semibold text-gray-400 mb-2">If it doesn't proceed</p>
+        <p className="text-[12px] font-semibold text-gray-400 mb-2">If it doesn't proceed</p>
         <div className="flex items-center gap-2">
           {OFFRAMP.map(o => <Node key={o.s} s={o.s} icon={o.icon} />)}
         </div>
       </div>
-      <div className="flex items-center gap-3 text-[10px] text-gray-500 pt-1 border-t border-gray-100">
+      <div className="flex items-center gap-3 text-[11px] text-gray-500 pt-1 border-t border-gray-100">
         <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-green-500" />Completed</span>
         <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-orange-500" />Current</span>
         <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-500" />Not done</span>
