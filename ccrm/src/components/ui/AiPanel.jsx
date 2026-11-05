@@ -13,7 +13,7 @@ export default function AiPanel({ title = 'AI Assistant', subtitle, loading, chi
         </div>
         <div className="min-w-0">
           <div className="text-sm font-bold text-ai-700 leading-tight">{title}</div>
-          {subtitle && <div className="text-[11px] text-ai-600/80 truncate">{subtitle}</div>}
+          {subtitle && <div className="text-[12px] text-ai-600/80 truncate">{subtitle}</div>}
         </div>
         {loading && <Loader size={14} className="animate-spin text-ai-500 ml-auto flex-shrink-0" />}
       </div>
@@ -25,7 +25,7 @@ export default function AiPanel({ title = 'AI Assistant', subtitle, loading, chi
 AiPanel.Section = function AiPanelSection({ label, children, className = '' }) {
   return (
     <div className={`pb-4 border-b border-gray-100 last:border-b-0 last:pb-0 ${className}`}>
-      {label && <div className="text-[10.5px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">{label}</div>}
+      {label && <div className="text-[11.5px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">{label}</div>}
       {children}
     </div>
   )
