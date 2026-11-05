@@ -242,7 +242,7 @@ export default function Documents() {
                     return (
                       <div key={d.id} className="flex items-center justify-between py-0.5 border-b border-gray-50 last:border-0">
                         <span className="text-xs text-gray-600 font-medium truncate max-w-44">{d.type}</span>
-                        <span className={`badge ${sc.bg} ${sc.text} text-[10px] font-bold`}>{d.status}</span>
+                        <span className={`badge ${sc.bg} ${sc.text} text-[11px] font-bold`}>{d.status}</span>
                       </div>
                     )
                   })}
