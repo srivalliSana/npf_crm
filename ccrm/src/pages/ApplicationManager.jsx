@@ -487,7 +487,7 @@ export default function ApplicationManager() {
               {pageData.map(app => {
                 const menuOpen = appMenuId === app.id
                 const needsPayment = app.payStatus === 'Payment Pending' || app.payStatus === 'Pending'
-                const menuItem = 'w-full text-left px-4 py-2.5 text-[13px] text-gray-800 hover:bg-gray-100'
+                const menuItem = 'w-full text-left px-4 py-2.5 text-[14px] text-gray-800 hover:bg-gray-100'
                 return (
                   <tr key={app.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/applications/${app.id}`)}>
                     <td className="table-td pl-5 align-top pt-5" onClick={e => e.stopPropagation()}>
@@ -497,10 +497,10 @@ export default function ApplicationManager() {
                     {/* Student: the name, then the application number and course */}
                     <td className="table-td align-top">
                       <div className="flex items-start gap-3">
-                        <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-medium flex-shrink-0 mt-0.5 ${avatarTone(app.name)}`} aria-hidden="true">{(app.name || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'}</span>
+                        <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-medium flex-shrink-0 mt-0.5 ${avatarTone(app.name)}`} aria-hidden="true">{(app.name || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'}</span>
                         <div className="min-w-0">
-                          <div className="text-[15px] font-medium text-gray-900">{app.name}</div>
-                          <div className="mt-0.5 text-[12px] text-gray-500 whitespace-nowrap">
+                          <div className="text-[16px] font-medium text-gray-900">{app.name}</div>
+                          <div className="mt-0.5 text-[13px] text-gray-500 whitespace-nowrap">
                             <span className="font-mono select-all">{app.appNo}</span>
                             {app.course ? <> · {app.course}</> : null}
                           </div>
@@ -509,8 +509,8 @@ export default function ApplicationManager() {
                     </td>
 
                     <td className="table-td align-top" onClick={e => e.stopPropagation()}>
-                      <div className="text-[13px] text-gray-800 truncate max-w-[14rem]">{app.email}</div>
-                      <div className="mt-1 flex items-center gap-2 text-[13px] text-gray-600 tabular-nums">
+                      <div className="text-[14px] text-gray-800 truncate max-w-[14rem]">{app.email}</div>
+                      <div className="mt-1 flex items-center gap-2 text-[14px] text-gray-600 tabular-nums">
                         {app.mobile}
                         <a href={`https://wa.me/91${app.mobile}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" aria-label="WhatsApp"
                           className="w-6 h-6 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600"><MessageCircle size={13} /></a>
@@ -530,11 +530,11 @@ export default function ApplicationManager() {
                         {needsPayment ? (
                           <button
                             onClick={e => { e.stopPropagation(); setLinkApp(app); setLinkResult(null); setPayAmount('25000'); setPayMode('Online'); setOfflineUtr('') }}
-                            className="px-3 py-1.5 rounded-md bg-primary-500 hover:bg-primary-600 text-white text-[13px] font-medium whitespace-nowrap"
+                            className="px-3 py-1.5 rounded-md bg-primary-500 hover:bg-primary-600 text-white text-[14px] font-medium whitespace-nowrap"
                           >Payment link</button>
                         ) : (
                           <button onClick={() => navigate(`/applications/${app.id}`)}
-                            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-[13px] font-medium text-gray-900 whitespace-nowrap">Open</button>
+                            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-[14px] font-medium text-gray-900 whitespace-nowrap">Open</button>
                         )}
                         <button onClick={e => { e.stopPropagation(); setAppMenuId(menuOpen ? null : app.id) }}
                           aria-label="More actions" aria-expanded={menuOpen}
@@ -709,7 +709,7 @@ export default function ApplicationManager() {
                           <div className="flex items-center gap-1.5 font-semibold text-gray-700">
                             <span>{m.emoji}</span> {m.label}
                           </div>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{m.desc}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">{m.desc}</p>
                         </button>
                       ))}
                     </div>
@@ -738,7 +738,7 @@ export default function ApplicationManager() {
                       className="block text-center text-xs bg-success-600 hover:bg-success-700 text-white rounded-lg py-2 transition-colors font-medium">
                       Open Payment Page →
                     </a>
-                    <p className="text-[10px] text-success-700 text-center">UTR will be auto-fetched on successful payment.</p>
+                    <p className="text-[11px] text-success-700 text-center">UTR will be auto-fetched on successful payment.</p>
                   </div>
                   <a href={`https://wa.me/91${linkApp.mobile}?text=${encodeURIComponent(`Dear ${linkApp.name}, please complete your CUTM admission fee payment:\n${linkResult.paymentLink}\n\nApp ID: ${linkApp.appNo}`)}`}
                     target="_blank" rel="noopener noreferrer"
@@ -762,7 +762,7 @@ export default function ApplicationManager() {
                     className="w-full bg-warning-600 hover:bg-warning-700 text-white font-semibold py-2.5 text-sm rounded-lg">
                     Save UTR → Mark as Payment Done
                   </button>
-                  <p className="text-[10px] text-gray-400 text-center">Accounts team will approve to mark as Paid.</p>
+                  <p className="text-[11px] text-gray-400 text-center">Accounts team will approve to mark as Paid.</p>
                 </>
               )}
             </div>
