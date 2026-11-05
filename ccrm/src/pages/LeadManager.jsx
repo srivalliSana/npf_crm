@@ -1014,7 +1014,7 @@ export default function LeadManager() {
                     <button onClick={() => navigate(`/leads/${lead.id}`)} className="text-left text-base font-medium text-gray-900 leading-snug break-words">
                       {lead.name}
                     </button>
-                    <div className="text-[13px] text-gray-500 mt-0.5 tabular-nums">
+                    <div className="text-[14px] text-gray-500 mt-0.5 tabular-nums">
                       {lead.sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}{String(lead.id).padStart(4,'0')}
                     </div>
                   </div>
@@ -1035,7 +1035,7 @@ export default function LeadManager() {
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-gray-600">
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px] text-gray-600">
                   {lead.source && <span>{lead.source}</span>}
                   <span>{lead.owner || 'Unassigned'}</span>
                   <span className="tabular-nums">Score <span className="font-medium text-gray-900">{score}</span> · {getQualCategory(score).label}</span>
@@ -1044,18 +1044,18 @@ export default function LeadManager() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {open && (
                     <button onClick={() => navigate(`/leads/${lead.id}`)}
-                      className="px-3 py-2 rounded-md bg-green-100 text-green-700 text-[13px] font-semibold">✓ Interested</button>
+                      className="px-3 py-2 rounded-md bg-green-100 text-green-700 text-[14px] font-semibold">✓ Interested</button>
                   )}
                   {!['Contacted','Follow Up','Interested','Not Interested','Process for Payment','Payment Success'].includes(lead.stage) && (
                     <button onClick={() => handleUnableToConnect(lead)}
-                      className="px-3 py-2 rounded-md bg-yellow-100 text-yellow-700 text-[13px] font-semibold">Unable to connect</button>
+                      className="px-3 py-2 rounded-md bg-yellow-100 text-yellow-700 text-[14px] font-semibold">Unable to connect</button>
                   )}
                   {open && (
                     <button onClick={() => { setNiLead(lead); setNiReason(''); setNiOther('') }}
-                      className="px-3 py-2 rounded-md bg-red-100 text-red-600 text-[13px] font-semibold">✗ Not interested</button>
+                      className="px-3 py-2 rounded-md bg-red-100 text-red-600 text-[14px] font-semibold">✗ Not interested</button>
                   )}
                   <button onClick={() => handleSchedule(lead)} aria-label="Schedule follow-up"
-                    className="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-[13px] font-semibold inline-flex items-center gap-1.5"><Calendar size={14} /> Follow-up</button>
+                    className="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-[14px] font-semibold inline-flex items-center gap-1.5"><Calendar size={14} /> Follow-up</button>
                   {canDelete && (
                     <button onClick={() => setDeleteConfirm(lead.id)} aria-label="Delete lead"
                       className="px-3 py-2 rounded-md bg-gray-100 text-gray-500 inline-flex items-center"><Trash2 size={14} /></button>
@@ -1113,7 +1113,7 @@ export default function LeadManager() {
                 const menuOpen = rowMenuId === lead.id
                 const initials = (lead.owner || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
                 const leadCode = `${lead.sourceType === 'sm' ? 'CULDSM26' : 'CULDAI26'}${String(lead.id).padStart(4,'0')}`
-                const menuItem = 'w-full text-left px-4 py-2.5 text-[13px] text-gray-800 hover:bg-gray-100 flex items-center gap-2'
+                const menuItem = 'w-full text-left px-4 py-2.5 text-[14px] text-gray-800 hover:bg-gray-100 flex items-center gap-2'
                 return (
                   <tr key={lead.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/leads/${lead.id}`)}>
                     <td className="table-td pl-5 align-top pt-5" onClick={e => e.stopPropagation()}>
@@ -1123,7 +1123,7 @@ export default function LeadManager() {
                     {/* Lead: the name, then its id and where it came from */}
                     <td className="table-td align-top" onClick={e => e.stopPropagation()}>
                       <div className="flex items-start gap-3">
-                        <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-medium flex-shrink-0 mt-0.5 ${avatarTone(lead.name)}`} aria-hidden="true">{(lead.name || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'}</span>
+                        <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-medium flex-shrink-0 mt-0.5 ${avatarTone(lead.name)}`} aria-hidden="true">{(lead.name || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'}</span>
                         <div className="min-w-0">
                       {editingNameId === lead.id ? (
                         <span className="flex items-center gap-1">
@@ -1136,13 +1136,13 @@ export default function LeadManager() {
                         </span>
                       ) : (
                         <div className="group flex items-center gap-1.5">
-                          <button onClick={() => navigate(`/leads/${lead.id}`)} className="text-left text-[15px] font-medium text-gray-900 hover:underline">{lead.name}</button>
+                          <button onClick={() => navigate(`/leads/${lead.id}`)} className="text-left text-[16px] font-medium text-gray-900 hover:underline">{lead.name}</button>
                           <button onClick={() => startEditName(lead)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-700 transition-opacity" title="Edit name" aria-label="Edit name">
                             <Edit3 size={12} />
                           </button>
                         </div>
                       )}
-                      <div className="mt-0.5 text-[12px] text-gray-500 whitespace-nowrap">
+                      <div className="mt-0.5 text-[13px] text-gray-500 whitespace-nowrap">
                         <span className="font-mono">{leadCode}</span>
                         {lead.source ? <> · {lead.source}</> : null}
                         {lead.regDate ? <> · Added {lead.regDate.split(',')[0]}</> : null}
@@ -1153,7 +1153,7 @@ export default function LeadManager() {
 
                     {/* Contact: the number and the four ways to reach it */}
                     <td className="table-td align-top" onClick={e => e.stopPropagation()}>
-                      <div className="text-[14px] text-gray-900 tabular-nums">{lead.mobile}</div>
+                      <div className="text-[15px] text-gray-900 tabular-nums">{lead.mobile}</div>
                       <div className="mt-1.5 flex items-center gap-1">
                         <a href={`https://wa.me/91${lead.mobile}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" aria-label="WhatsApp"
                           className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600"><MessageCircle size={14} /></a>
@@ -1169,18 +1169,18 @@ export default function LeadManager() {
                     <td className="table-td align-top pt-5">
                       <Badge variant={STAGE_COLOR_TO_VARIANT[getStageColorName(lead.stage)] || 'info'} dot className="whitespace-nowrap">{stageLabel(lead.stage)}</Badge>
                       {lead.notInterestedReason && (
-                        <div className="text-[12px] text-gray-500 mt-1 max-w-[12rem] truncate" title={lead.notInterestedReason}>{lead.notInterestedReason}</div>
+                        <div className="text-[13px] text-gray-500 mt-1 max-w-[12rem] truncate" title={lead.notInterestedReason}>{lead.notInterestedReason}</div>
                       )}
                     </td>
 
                     <td className="table-td align-top pt-5 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-medium tabular-nums ${qual === 'Hot' ? 'bg-red-50 text-red-700' : qual === 'Warm' ? 'bg-amber-50 text-amber-700' : qual === 'Nurture' ? 'bg-sky-50 text-sky-700' : 'bg-gray-100 text-gray-600'}`}>{qual} · {score}</span>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[13px] font-medium tabular-nums ${qual === 'Hot' ? 'bg-red-50 text-red-700' : qual === 'Warm' ? 'bg-amber-50 text-amber-700' : qual === 'Nurture' ? 'bg-sky-50 text-sky-700' : 'bg-gray-100 text-gray-600'}`}>{qual} · {score}</span>
                     </td>
 
                     <td className="table-td align-top pt-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-medium ${lead.owner ? 'bg-gray-200 text-gray-700' : 'border border-dashed border-gray-300 text-gray-400'}`}>{initials || '–'}</span>
-                        <span className={`text-[13px] ${lead.owner ? 'text-gray-800' : 'text-gray-400'}`}>{lead.owner || 'Unassigned'}</span>
+                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-medium ${lead.owner ? 'bg-gray-200 text-gray-700' : 'border border-dashed border-gray-300 text-gray-400'}`}>{initials || '–'}</span>
+                        <span className={`text-[14px] ${lead.owner ? 'text-gray-800' : 'text-gray-400'}`}>{lead.owner || 'Unassigned'}</span>
                       </div>
                     </td>
 
@@ -1189,10 +1189,10 @@ export default function LeadManager() {
                       <div className="flex items-center justify-end gap-1.5">
                         {openStage ? (
                           <button onClick={() => navigate(`/leads/${lead.id}`)}
-                            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-[13px] font-medium text-gray-900 whitespace-nowrap">Mark interested</button>
+                            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-[14px] font-medium text-gray-900 whitespace-nowrap">Mark interested</button>
                         ) : (
                           <button onClick={() => navigate(`/leads/${lead.id}`)}
-                            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-[13px] font-medium text-gray-900 whitespace-nowrap">Open</button>
+                            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-[14px] font-medium text-gray-900 whitespace-nowrap">Open</button>
                         )}
                         <button onClick={e => { e.stopPropagation(); setRowMenuId(menuOpen ? null : lead.id) }}
                           aria-label="More actions" aria-expanded={menuOpen}
@@ -1437,7 +1437,7 @@ export default function LeadManager() {
                   All leads in current filter <strong>({Math.min(total, RCS_CAMPAIGN_CAP).toLocaleString()}{total > RCS_CAMPAIGN_CAP ? `, capped from ${total.toLocaleString()}` : ''})</strong>
                 </label>
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">Tip: set the Stage/Owner/Source filters first, then choose "All leads in current filter".</p>
+              <p className="text-[12px] text-gray-400 mt-1">Tip: set the Stage/Owner/Source filters first, then choose "All leads in current filter".</p>
             </div>
 
             {/* Template picker */}
@@ -1462,7 +1462,7 @@ export default function LeadManager() {
                     ))}
                   </select>
                   {rcsTemplateId && (
-                    <div className="text-[10px] text-gray-400 mt-1">
+                    <div className="text-[11px] text-gray-400 mt-1">
                       Type: <strong className="text-pink-600">{rcsType}</strong> · Variables: as defined in template (will be filled with the message text below)
                     </div>
                   )}
@@ -1522,7 +1522,7 @@ export default function LeadManager() {
                   onClick={() => setSendChannels(p => ({ ...p, [ch.key]: !p[ch.key] }))}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${sendChannels[ch.key] ? ch.color : 'border-gray-200 bg-white text-gray-400'}`}>
                   <span>{ch.icon}</span> {ch.label}
-                  {sendChannels[ch.key] && <span className="text-[10px] bg-current/20 rounded px-1">ON</span>}
+                  {sendChannels[ch.key] && <span className="text-[11px] bg-current/20 rounded px-1">ON</span>}
                 </button>
               ))}
             </div>
@@ -1750,7 +1750,7 @@ export default function LeadManager() {
               {[{n:1,label:'Upload'},{n:2,label:'Preview & Map'},{n:3,label:'Importing'},{n:4,label:'Done'}].map((s, i, arr) => (
                 <React.Fragment key={s.n}>
                   <div className="flex items-center gap-1.5">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${bulkStep === s.n ? 'bg-primary-500 text-white' : bulkStep > s.n ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${bulkStep === s.n ? 'bg-primary-500 text-white' : bulkStep > s.n ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
                       {bulkStep > s.n ? '✓' : s.n}
                     </div>
                     <span className={bulkStep === s.n ? 'text-primary-600 font-bold' : bulkStep > s.n ? 'text-gray-600' : 'text-gray-400'}>{s.label}</span>
@@ -1843,7 +1843,7 @@ export default function LeadManager() {
                         <label key={o.v} className={`flex-1 min-w-[140px] cursor-pointer p-3 rounded-lg border-2 transition ${dupHandling === o.v ? 'border-primary-500 bg-white shadow-sm' : 'border-gray-200 bg-white/50 hover:border-primary-300'}`}>
                           <input type="radio" name="dup" value={o.v} checked={dupHandling === o.v} onChange={e => setDupHandling(e.target.value)} className="hidden" />
                           <div className={`text-sm font-semibold ${dupHandling === o.v ? 'text-primary-700' : 'text-gray-700'}`}>{o.label}</div>
-                          <div className="text-[10px] text-gray-500 mt-0.5">{o.desc}</div>
+                          <div className="text-[11px] text-gray-500 mt-0.5">{o.desc}</div>
                         </label>
                       ))}
                     </div>
@@ -1867,7 +1867,7 @@ export default function LeadManager() {
                               onChange={e => setAssignMode(e.target.value)}
                               className="hidden" />
                             <div className={`font-semibold text-sm ${assignMode === o.v ? 'text-primary-700' : 'text-gray-600'}`}>{o.label}</div>
-                            <div className="text-[10px] text-gray-500 mt-0.5">{o.desc}</div>
+                            <div className="text-[11px] text-gray-500 mt-0.5">{o.desc}</div>
                           </label>
                         ))}
                       </div>
@@ -1881,7 +1881,7 @@ export default function LeadManager() {
                               <option key={c.id || c.name} value={c.name}>{c.name}</option>
                             ))}
                           </select>
-                          {!assignedTo && <p className="text-[11px] text-red-500 mt-1">Please pick a counsellor before importing.</p>}
+                          {!assignedTo && <p className="text-[12px] text-red-500 mt-1">Please pick a counsellor before importing.</p>}
                         </div>
                       )}
                     </div>
@@ -1965,7 +1965,7 @@ export default function LeadManager() {
                       <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
                         {uploadResult.skipReasons.map((r, i) => <li key={i}>{r}</li>)}
                       </ul>
-                      <p className="text-[11px] text-gray-400 mt-3">
+                      <p className="text-[12px] text-gray-400 mt-3">
                         Tip: switch the <strong>Duplicate Handling</strong> option above from "Skip" to <strong>"Update existing"</strong> if you want these rows to refresh existing leads.
                       </p>
                     </div>
