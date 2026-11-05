@@ -31,11 +31,11 @@ export default function AiInsightsPanel({ appId, data, loading, error, onApplySu
           <AiPanel.Section label="Admission Health">
             <div className="flex items-center gap-2.5 mb-1.5">
               <span className="text-xl font-semibold text-gray-900 font-mono">{data.admissionHealth.score}</span>
-              <span className="text-[11px] text-gray-400">/ 100</span>
+              <span className="text-[12px] text-gray-400">/ 100</span>
               <Badge variant={data.admissionHealth.tone} className="ml-auto">{data.admissionHealth.band}</Badge>
             </div>
             {data.admissionHealth.drivers?.length > 0 && (
-              <ul className="text-[11px] text-gray-500 space-y-0.5 list-disc list-inside">
+              <ul className="text-[12px] text-gray-500 space-y-0.5 list-disc list-inside">
                 {data.admissionHealth.drivers.map((d, i) => <li key={i}>{d}</li>)}
               </ul>
             )}
