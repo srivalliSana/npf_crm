@@ -11,13 +11,13 @@ export default function KpiStrip({ items = [], className = '' }) {
   return (
     <div className={`card grid grid-cols-1 lg:grid-cols-[minmax(200px,260px)_1fr] ${className}`}>
       <div className="p-5">
-        <div className="text-[13px] text-gray-500">{lead.label}</div>
+        <div className="text-[14px] text-gray-500">{lead.label}</div>
         <div className="text-[34px] leading-none font-medium text-gray-900 mt-2 tabular-nums tracking-tight">{lead.value}</div>
       </div>
       <div className="overflow-hidden"><div className={`grid grid-cols-2 ${cols} -mt-px -ml-px`}>
         {rest.map((it) => (
           <div key={it.label} className="px-5 py-4 border-t border-l border-gray-200">
-            <div className="text-[13px] text-gray-500 truncate">{it.label}</div>
+            <div className="text-[14px] text-gray-500 truncate">{it.label}</div>
             <div className="text-[20px] font-medium text-gray-900 mt-1 tabular-nums">{it.value}</div>
           </div>
         ))}
