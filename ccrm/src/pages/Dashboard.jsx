@@ -167,11 +167,11 @@ export default function Dashboard() {
         <Card className="p-6">
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
-              <div className="text-[13px] text-gray-500">{isCounselor ? 'Your leads' : 'Total leads'}</div>
+              <div className="text-[14px] text-gray-500">{isCounselor ? 'Your leads' : 'Total leads'}</div>
               <div className="text-[44px] leading-none font-medium text-gray-900 mt-2 tabular-nums tracking-tight">{SUMMARY_CARDS[0]?.value ?? '0'}</div>
             </div>
             {!isCounselor && hasCutmCutmap && stats?.byDomain && (
-              <div className="text-[13px] text-gray-500 tabular-nums">
+              <div className="text-[14px] text-gray-500 tabular-nums">
                 {(cutm.total || 0).toLocaleString()} CUTM · {(cutmap.total || 0).toLocaleString()} CUTMAP · {((stats?.byDomain?.other?.total) || 0).toLocaleString()} unassigned or other
               </div>
             )}
@@ -185,7 +185,7 @@ export default function Dashboard() {
                     style={{ width: `${(x.value / pipelineTotal) * 100}%`, opacity: Math.max(0.25, 1 - i * 0.2), marginRight: 2 }} />
                 ))}
               </div>
-              <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3 text-[13px] text-gray-600">
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3 text-[14px] text-gray-600">
                 {pipeline.map((x, i) => (
                   <span key={x.label} className="inline-flex items-center gap-1.5 tabular-nums">
                     <span className="w-2 h-2 rounded-sm bg-data-500 inline-block" style={{ opacity: Math.max(0.25, 1 - i * 0.2) }} />
@@ -199,8 +199,8 @@ export default function Dashboard() {
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 mt-6">
             {SUMMARY_CARDS.slice(1).map(c => (
               <div key={c.label} className="flex items-baseline justify-between py-2">
-                <dt className="text-[14px] text-gray-600">{c.label}</dt>
-                <dd className="text-[14px] font-medium text-gray-900 tabular-nums">{c.value}</dd>
+                <dt className="text-[15px] text-gray-600">{c.label}</dt>
+                <dd className="text-[15px] font-medium text-gray-900 tabular-nums">{c.value}</dd>
               </div>
             ))}
           </dl>
@@ -209,10 +209,10 @@ export default function Dashboard() {
         <Card className="p-6 self-start">
           <div className="text-base font-medium text-gray-900">Needs attention</div>
           <div className="mt-4 space-y-1">
-            {attention.length === 0 && <p className="text-[14px] text-gray-500 py-2">Nothing is waiting. Every lead has been contacted.</p>}
+            {attention.length === 0 && <p className="text-[15px] text-gray-500 py-2">Nothing is waiting. Every lead has been contacted.</p>}
             {attention.map(a => (
               <Link key={a.label} to={a.to} className="flex items-center justify-between py-3 px-3 -mx-3 rounded-md hover:bg-gray-100 transition-colors">
-                <span className="text-[14px] text-gray-700">{a.label}</span>
+                <span className="text-[15px] text-gray-700">{a.label}</span>
                 <span className="text-[22px] font-medium text-gray-900 tabular-nums">{a.value.toLocaleString()}</span>
               </Link>
             ))}
@@ -233,9 +233,9 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {stats.gtEntities.map(e => (
               <Card key={e.entity} className="p-3">
-                <div className="text-[11px] font-bold text-primary-600">{e.entity}</div>
+                <div className="text-[12px] font-bold text-primary-600">{e.entity}</div>
                 <div className="text-xl font-semibold text-gray-900 leading-tight">{(e.total || 0).toLocaleString()}</div>
-                <div className="text-[11px] text-gray-500">leads · {(e.untouched || 0).toLocaleString()} not contacted</div>
+                <div className="text-[12px] text-gray-500">leads · {(e.untouched || 0).toLocaleString()} not contacted</div>
               </Card>
             ))}
           </div>
