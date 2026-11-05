@@ -126,7 +126,7 @@ export default function LeadIdSettings() {
       {/* Global season */}
       <div className="rounded-xl border border-accent-200 bg-accent-50 p-6 mb-4 flex flex-wrap items-center gap-6">
         <div className="flex-1 min-w-[240px]">
-          <span className="inline-block text-[10px] font-bold text-white bg-accent-500 px-2 py-0.5 rounded-full mb-2">
+          <span className="inline-block text-[11px] font-bold text-white bg-accent-500 px-2 py-0.5 rounded-full mb-2">
             Shared default
           </span>
           <h2 className="font-bold text-gray-800 text-base mb-1">Active admission season</h2>
@@ -136,7 +136,7 @@ export default function LeadIdSettings() {
         </div>
         <div className="flex items-center gap-3.5 bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-soft">
           <div>
-            <div className="text-[10px] text-gray-400 font-semibold">Season code</div>
+            <div className="text-[11px] text-gray-400 font-semibold">Season code</div>
             <div className="font-mono text-3xl font-bold text-accent-600 leading-none">{defaultSeason}</div>
           </div>
           <Button variant="primary" className="!bg-accent-500 hover:!bg-accent-600" onClick={() => setSeasonConfirm(true)}>
@@ -158,7 +158,7 @@ export default function LeadIdSettings() {
         </div>
       )}
 
-      <div className="flex items-center gap-3 text-[11px] font-bold text-gray-400 my-6">
+      <div className="flex items-center gap-3 text-[12px] font-bold text-gray-400 my-6">
         Tenants <span className="flex-1 h-px bg-gray-200" />
       </div>
 
@@ -182,9 +182,9 @@ export default function LeadIdSettings() {
                     </div>
                   </div>
                   {t._prefix || t._prefixSocial ? (
-                    <span className="text-[11px] font-bold bg-success-100 text-success-700 px-2.5 py-1 rounded-full">Customized</span>
+                    <span className="text-[12px] font-bold bg-success-100 text-success-700 px-2.5 py-1 rounded-full">Customized</span>
                   ) : (
-                    <span className="text-[11px] font-bold bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full">Using platform default</span>
+                    <span className="text-[12px] font-bold bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full">Using platform default</span>
                   )}
                 </div>
 
@@ -259,7 +259,7 @@ export default function LeadIdSettings() {
         </div>
       )}
 
-      <div className="flex items-center gap-3 text-[11px] font-bold text-gray-400 my-6">
+      <div className="flex items-center gap-3 text-[12px] font-bold text-gray-400 my-6">
         How an ID is built <span className="flex-1 h-px bg-gray-200" />
       </div>
       <Card className="!p-6">
