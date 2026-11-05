@@ -292,7 +292,7 @@ export default function PublicInquiry() {
           </button>
         </form>
 
-        <p className="text-center text-[11px] text-gray-400 mt-4">
+        <p className="text-center text-[12px] text-gray-400 mt-4">
           Your information is kept confidential and is never used for spam.
         </p>
       </div>
@@ -320,12 +320,12 @@ export default function PublicInquiry() {
             </a>
             <div className="hidden md:flex items-center gap-8">
               {NAV_LINKS.map(link => (
-                <a key={link.label} href={link.href} className="text-[15px] font-medium text-gray-700 hover:text-primary-500 transition-colors">{link.label}</a>
+                <a key={link.label} href={link.href} className="text-[16px] font-medium text-gray-700 hover:text-primary-500 transition-colors">{link.label}</a>
               ))}
             </div>
             <div className="hidden md:flex items-center gap-3">
-              <a href="/login" className="text-[15px] font-medium px-4 py-2 text-gray-700 hover:text-primary-500 transition-colors">Login</a>
-              <a href="#apply" className="text-[15px] font-semibold px-5 py-2.5 bg-primary-500 text-white hover:bg-primary-600 transition-colors">Apply now</a>
+              <a href="/login" className="text-[16px] font-medium px-4 py-2 text-gray-700 hover:text-primary-500 transition-colors">Login</a>
+              <a href="#apply" className="text-[16px] font-semibold px-5 py-2.5 bg-primary-500 text-white hover:bg-primary-600 transition-colors">Apply now</a>
             </div>
             <button onClick={() => setNavOpen(!navOpen)} aria-label="Menu" className="md:hidden p-2 text-gray-700">
               {navOpen ? <X size={22}/> : <Menu size={22}/>}
@@ -336,13 +336,13 @@ export default function PublicInquiry() {
           <div className="md:hidden bg-white border-t border-gray-200">
             <div className="px-5 py-4 space-y-1">
               {NAV_LINKS.map(link => (
-                <a key={link.label} href={link.href} onClick={() => setNavOpen(false)} className="flex items-center gap-2 py-2.5 text-[15px] font-medium text-gray-700 hover:text-primary-500">
+                <a key={link.label} href={link.href} onClick={() => setNavOpen(false)} className="flex items-center gap-2 py-2.5 text-[16px] font-medium text-gray-700 hover:text-primary-500">
                   <ChevronRight size={14}/> {link.label}
                 </a>
               ))}
               <div className="border-t border-gray-200 pt-3 mt-3 flex flex-col gap-2">
-                <a href="/login" className="py-2.5 text-[15px] text-center font-medium text-gray-700">Login</a>
-                <a href="#apply" onClick={() => setNavOpen(false)} className="py-3 bg-primary-500 text-white text-[15px] font-semibold text-center">Apply now</a>
+                <a href="/login" className="py-2.5 text-[16px] text-center font-medium text-gray-700">Login</a>
+                <a href="#apply" onClick={() => setNavOpen(false)} className="py-3 bg-primary-500 text-white text-[16px] font-semibold text-center">Apply now</a>
               </div>
             </div>
           </div>
