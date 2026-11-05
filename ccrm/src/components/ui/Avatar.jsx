@@ -1,6 +1,6 @@
 import React from 'react'
 
-const SIZES = { sm: 'w-7 h-7 text-[10px]', md: 'w-9 h-9 text-xs', lg: 'w-12 h-12 text-sm' }
+const SIZES = { sm: 'w-7 h-7 text-[11px]', md: 'w-9 h-9 text-xs', lg: 'w-12 h-12 text-sm' }
 
 function initials(name = '') {
   return name.trim().split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase()
