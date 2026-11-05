@@ -177,7 +177,7 @@ export default function FullAdmissionForm({ app, initialData, onSubmit, submitti
                 }`} style={active ? primaryBtnStyle : undefined}>
                   {done ? <Check size={15} /> : <Icon size={15} />}
                 </div>
-                <span className="text-[11px] font-semibold whitespace-nowrap">{t.label}</span>
+                <span className="text-[12px] font-semibold whitespace-nowrap">{t.label}</span>
               </button>
             )
           })}
