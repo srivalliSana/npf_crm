@@ -112,7 +112,7 @@ export default function ChatWidget() {
       >
         {open ? <X size={22} /> : <MessageCircle size={24} />}
         {!open && unread > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center">
             {unread}
           </span>
         )}
@@ -132,7 +132,7 @@ export default function ChatWidget() {
                 <div className="text-white text-sm font-semibold leading-tight">CUTM Admissions</div>
                 <div className="flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-                  <span className="text-primary-200 text-[10px]">Online · typically replies instantly</span>
+                  <span className="text-primary-200 text-[11px]">Online · typically replies instantly</span>
                 </div>
               </div>
             </div>
@@ -171,7 +171,7 @@ export default function ChatWidget() {
             <div className="px-3 py-2 border-t border-gray-100 flex gap-1.5 overflow-x-auto scrollbar-hide flex-shrink-0">
               {QUICK_REPLIES.map(q => (
                 <button key={q} onClick={() => send(q)}
-                  className="text-[11px] whitespace-nowrap bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-200 rounded-full px-2.5 py-1 transition-colors flex-shrink-0">
+                  className="text-[12px] whitespace-nowrap bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-200 rounded-full px-2.5 py-1 transition-colors flex-shrink-0">
                   {q}
                 </button>
               ))}
