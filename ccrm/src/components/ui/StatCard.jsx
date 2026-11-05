@@ -17,7 +17,7 @@ const TONE = {
 export default function StatCard({ icon: Icon, label, value, tone = 'primary', trend, className = '' }) {
   return (
     <div className={`card p-4 ${className}`}>
-      <div className="flex items-center gap-2 text-[13px] text-gray-500 font-medium min-w-0">
+      <div className="flex items-center gap-2 text-[14px] text-gray-500 font-medium min-w-0">
         {Icon && <Icon size={15} strokeWidth={1.8} className={`flex-shrink-0 ${TONE[tone] || TONE.primary}`} />}
         <span className="truncate">{label}</span>
       </div>
