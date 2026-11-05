@@ -141,7 +141,7 @@ export default function Tasks() {
               className={`px-4 py-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 hover:bg-gray-50 transition-colors ${task.status === 'Completed' ? 'opacity-60' : ''}`}>
               <button onClick={() => toggleTaskComplete(task.id)}
                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors focus:outline-none ${task.status === 'Completed' ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-primary-400'}`}>
-                {task.status === 'Completed' && <span className="text-white text-[10px] font-bold">✓</span>}
+                {task.status === 'Completed' && <span className="text-white text-[11px] font-bold">✓</span>}
               </button>
 
               <Icon size={16} className="text-gray-400 flex-shrink-0" />
