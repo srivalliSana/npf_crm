@@ -104,7 +104,7 @@ export default function TransferApprovals() {
                     </p>
                   )}
                   {/* Meta */}
-                  <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+                  <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1">
                     <Clock size={9} /> Requested by <strong>{t.requestedBy || '—'}</strong> · {t.requestedAt && new Date(t.requestedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     {t.decidedAt && <> · Decided by <strong>{t.decidedBy}</strong> on {new Date(t.decidedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</>}
                   </p>
