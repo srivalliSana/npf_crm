@@ -155,12 +155,12 @@ export default function CalendarPro() {
                     </div>
                     <div className="space-y-1 overflow-hidden">
                       {dayEvents.slice(0, 2).map(e => (
-                        <div key={e.id} className={`text-white text-[9px] px-1 py-0.5 rounded truncate font-medium ${EVENT_COLORS[e.type] || 'bg-gray-400'}`} title={e.title}>
+                        <div key={e.id} className={`text-white text-[10px] px-1 py-0.5 rounded truncate font-medium ${EVENT_COLORS[e.type] || 'bg-gray-400'}`} title={e.title}>
                           {e.title}
                         </div>
                       ))}
                       {dayEvents.length > 2 && (
-                        <div className="text-[9px] text-gray-400 pl-1 font-semibold">+{dayEvents.length - 2} more</div>
+                        <div className="text-[10px] text-gray-400 pl-1 font-semibold">+{dayEvents.length - 2} more</div>
                       )}
                     </div>
                   </div>
@@ -178,7 +178,7 @@ export default function CalendarPro() {
                     <h4 className="font-semibold text-sm text-gray-800">{e.title}</h4>
                     <p className="text-xs text-gray-500 mt-0.5">Date: {e.date} · Time: {e.time}</p>
                   </div>
-                  <span className={`badge text-[9px] text-white px-2 py-0.5 rounded-full ${EVENT_COLORS[e.type] || 'bg-gray-400'}`}>
+                  <span className={`badge text-[10px] text-white px-2 py-0.5 rounded-full ${EVENT_COLORS[e.type] || 'bg-gray-400'}`}>
                     {e.type}
                   </span>
                 </div>
@@ -200,10 +200,10 @@ export default function CalendarPro() {
               <div className="space-y-3">
                 {selectedDayEvents.map(e => (
                   <div key={e.id} className="p-3 bg-white rounded-lg border border-primary-100 shadow-sm space-y-1">
-                    <span className={`badge text-[9px] text-white font-bold ${EVENT_COLORS[e.type] || 'bg-gray-400'}`}>{e.type}</span>
+                    <span className={`badge text-[10px] text-white font-bold ${EVENT_COLORS[e.type] || 'bg-gray-400'}`}>{e.type}</span>
                     <h4 className="font-bold text-xs text-gray-850 truncate">{e.title}</h4>
-                    <p className="text-[10px] text-gray-500">⏰ {e.time} · 👥 {e.participants} candidates</p>
-                    <p className="text-[10px] text-gray-400 truncate">📍 {e.venue}</p>
+                    <p className="text-[11px] text-gray-500">⏰ {e.time} · 👥 {e.participants} candidates</p>
+                    <p className="text-[11px] text-gray-400 truncate">📍 {e.venue}</p>
                   </div>
                 ))}
               </div>
@@ -219,14 +219,14 @@ export default function CalendarPro() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-gray-800 truncate">{e.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-gray-500 flex items-center gap-1 font-medium">
+                      <span className="text-[11px] text-gray-500 flex items-center gap-1 font-medium">
                         <Clock size={10} /> {e.time}
                       </span>
-                      <span className="text-[10px] text-gray-500 flex items-center gap-1 font-medium">
+                      <span className="text-[11px] text-gray-500 flex items-center gap-1 font-medium">
                         <Users size={10} /> {e.participants}
                       </span>
                     </div>
-                    <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5 truncate">
+                    <p className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5 truncate">
                       <MapPin size={10} /> {e.venue}
                     </p>
                   </div>
