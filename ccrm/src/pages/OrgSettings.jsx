@@ -113,41 +113,41 @@ export default function OrgSettings() {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4 mt-4">
         <div>
-          <label className="block text-[11px] font-semibold text-gray-500 mb-1 flex items-center gap-1">
+          <label className="block text-[12px] font-semibold text-gray-500 mb-1 flex items-center gap-1">
             <Globe size={12} /> Custom domain (optional)
           </label>
           <input value={customDomain} onChange={e => setCustomDomain(e.target.value)} placeholder="crm.acme.edu"
             className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400" />
-          <p className="text-[11px] text-gray-400 mt-1">
+          <p className="text-[12px] text-gray-400 mt-1">
             Your organization's domain. Users visiting this domain will automatically access your tenant. Point your DNS A record to the app server.
           </p>
         </div>
         <div>
-          <label className="block text-[11px] font-semibold text-gray-500 mb-1 flex items-center gap-1">
+          <label className="block text-[12px] font-semibold text-gray-500 mb-1 flex items-center gap-1">
             <Globe size={12} /> Allowed login domains
           </label>
           <input value={domains} onChange={e => setDomains(e.target.value)} placeholder="acme.edu, acme.org"
             className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400" />
-          <p className="text-[11px] text-gray-400 mt-1">
+          <p className="text-[12px] text-gray-400 mt-1">
             Only Google sign-ins from these email domains can self-register into your org. Comma-separated. Existing users always keep access.
           </p>
         </div>
         <div>
-          <label className="block text-[11px] font-semibold text-gray-500 mb-1">Lead stages (pipeline)</label>
+          <label className="block text-[12px] font-semibold text-gray-500 mb-1">Lead stages (pipeline)</label>
           <input value={stages} onChange={e => setStages(e.target.value)} placeholder="New, Contacted, Interested, Converted"
             className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400" />
-          <p className="text-[11px] text-gray-400 mt-1">Comma-separated, in funnel order.</p>
+          <p className="text-[12px] text-gray-400 mt-1">Comma-separated, in funnel order.</p>
         </div>
 
         <div>
-          <label className="block text-[11px] font-semibold text-gray-500 mb-1">Lead assignment method</label>
+          <label className="block text-[12px] font-semibold text-gray-500 mb-1">Lead assignment method</label>
           <select value={assignmentMethod} onChange={e => setAssignmentMethod(e.target.value)}
             className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400">
             <option value="random">Random — distribute evenly at random</option>
             <option value="roundrobin">Round-robin — cycle through counselors in order</option>
             <option value="loadbased">Load-based — assign to counselor with fewest leads</option>
           </select>
-          <p className="text-[11px] text-gray-400 mt-1">How new leads are distributed among active counselors.</p>
+          <p className="text-[12px] text-gray-400 mt-1">How new leads are distributed among active counselors.</p>
         </div>
       </div>
 
@@ -208,7 +208,7 @@ export default function OrgSettings() {
 function Field({ label, value, onChange, placeholder }) {
   return (
     <div>
-      <label className="block text-[11px] font-semibold text-gray-500 mb-1">{label}</label>
+      <label className="block text-[12px] font-semibold text-gray-500 mb-1">{label}</label>
       <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400" />
     </div>
