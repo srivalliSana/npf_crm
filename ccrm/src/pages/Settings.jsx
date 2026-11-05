@@ -239,7 +239,7 @@ export default function Settings() {
                 <AccordionTrigger className="rounded-md px-2.5 py-2 hover:bg-gray-100">
                   <span className="flex items-center gap-2.5">
                     <g.icon size={16} strokeWidth={1.8} className="text-gray-500" />
-                    <span className="text-[13px] font-medium text-gray-900">{g.value}</span>
+                    <span className="text-[14px] font-medium text-gray-900">{g.value}</span>
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="pb-1.5 pt-0.5">
@@ -247,7 +247,7 @@ export default function Settings() {
                     {g.ids.map(id => SECTIONS.find(x => x.id === id)).filter(Boolean).filter(s => !s.adminOnly || currentUser?.role === 'Admin').map(s => (
                       <li key={s.id}>
                         <button onClick={() => setActiveSection(s.id)} aria-current={activeSection === s.id ? 'page' : undefined}
-                          className={`w-full text-left rounded-md px-2.5 py-1.5 text-[13px] transition-colors focus:outline-none ${
+                          className={`w-full text-left rounded-md px-2.5 py-1.5 text-[14px] transition-colors focus:outline-none ${
                             activeSection === s.id
                               ? (s.id === 'production' ? 'bg-red-50 text-red-700 font-medium' : 'bg-primary-100/70 text-primary-800 font-medium')
                               : (s.id === 'production' ? 'text-red-600 hover:bg-red-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
@@ -491,7 +491,7 @@ export default function Settings() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                        <span className={`badge text-[11px] font-semibold ${connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <span className={`badge text-[12px] font-semibold ${connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                           {connected ? 'Connected' : 'Not configured'}
                         </span>
                         <button
@@ -718,7 +718,7 @@ function BackupSection({ showToast }) {
               <CheckCircle size={14} /> Backup completed
             </p>
             {output && (
-              <pre className="text-[10px] text-green-700 mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono bg-white p-2 rounded border border-green-100">
+              <pre className="text-[11px] text-green-700 mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono bg-white p-2 rounded border border-green-100">
                 {output}
               </pre>
             )}
@@ -734,7 +734,7 @@ function BackupSection({ showToast }) {
       {/* Setup steps */}
       <div className="bg-white border border-gray-200 rounded-xl p-4">
         <h3 className="text-sm font-bold text-yellow-800 mb-2">⚙️ One-time setup (on the server)</h3>
-        <pre className="text-[11px] font-mono bg-white text-yellow-900 p-3 rounded border border-yellow-100 overflow-x-auto whitespace-pre">
+        <pre className="text-[12px] font-mono bg-white text-yellow-900 p-3 rounded border border-yellow-100 overflow-x-auto whitespace-pre">
 {`# 1. Copy backup script
 sudo cp /opt/npf_crm/server/backup.sh /usr/local/bin/ccrm-backup.sh
 sudo chmod +x /usr/local/bin/ccrm-backup.sh
