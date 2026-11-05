@@ -118,11 +118,11 @@ export function Funnel({ stages }) {
                   className={`${s.color || 'bg-primary-500'} h-7 rounded-lg transition-all duration-500 flex items-center px-2`}
                   style={{ width: `${Math.max(((s.value || 0) / top) * 100, 2)}%` }}
                 />
-                <span className="absolute inset-y-0 left-2 flex items-center text-[11px] font-bold text-white mix-blend-luminosity">
+                <span className="absolute inset-y-0 left-2 flex items-center text-[12px] font-bold text-white mix-blend-luminosity">
                   {(s.value ?? 0).toLocaleString('en-IN')}
                 </span>
               </div>
-              <span className="text-[11px] text-gray-400 w-12 text-right flex-shrink-0">
+              <span className="text-[12px] text-gray-400 w-12 text-right flex-shrink-0">
                 {dropPct == null ? '' : `${dropPct}%`}
               </span>
             </div>
