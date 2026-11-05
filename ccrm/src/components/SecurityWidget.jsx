@@ -64,7 +64,7 @@ export default function SecurityWidget() {
           <div className="pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold text-gray-600">Security & Integration Checks</p>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${allOk ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${allOk ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                 {checksOk} / {checks.length} OK
               </span>
             </div>
@@ -98,22 +98,22 @@ export default function SecurityWidget() {
                 {data.recentLogins.slice(0, 6).map((u, i) => (
                   <div key={i} className="flex items-center justify-between text-xs py-1 px-2 rounded hover:bg-blue-50/50">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700 flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[11px] font-bold text-blue-700 flex-shrink-0">
                         {u.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <div className="font-medium text-gray-700 truncate">{u.name}</div>
-                        <div className="text-[10px] text-gray-400 truncate">{u.email}</div>
+                        <div className="text-[11px] text-gray-400 truncate">{u.email}</div>
                       </div>
                     </div>
                     <div className="flex flex-col items-end flex-shrink-0 ml-2">
-                      <span className={`text-[9px] font-bold px-1.5 rounded ${
+                      <span className={`text-[10px] font-bold px-1.5 rounded ${
                         u.role === 'Admin'     ? 'bg-red-100 text-red-700' :
                         u.role === 'Manager'   ? 'bg-purple-100 text-purple-700' :
                         u.role === 'Counselor' ? 'bg-blue-100 text-blue-700' :
                                                  'bg-green-100 text-green-700'
                       }`}>{u.role}</span>
-                      <span className="text-[9px] text-gray-400 mt-0.5">{u.lastLogin}</span>
+                      <span className="text-[10px] text-gray-400 mt-0.5">{u.lastLogin}</span>
                     </div>
                   </div>
                 ))}
@@ -130,7 +130,7 @@ function KPI({ label, value, color, bg }) {
   return (
     <div className={`${bg} rounded-md px-2 py-2 text-center`}>
       <div className={`text-base font-semibold ${color}`}>{value}</div>
-      <div className="text-[9px] text-gray-500 mt-0.5 truncate">{label}</div>
+      <div className="text-[10px] text-gray-500 mt-0.5 truncate">{label}</div>
     </div>
   )
 }
