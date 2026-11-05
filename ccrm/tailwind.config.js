@@ -6,6 +6,12 @@ export default {
   ],
   theme: {
     extend: {
+      fontSize: {
+        xs: ['0.8125rem', '1.15rem'],
+        sm: ['0.9375rem', '1.4rem'],
+        base: ['1.0625rem', '1.6rem'],
+        lg: ['1.1875rem', '1.75rem'],
+      },
       colors: {
         // Softer, eye-friendly blue palette
         // primary-500 is the main brand colour (links, primary buttons)
