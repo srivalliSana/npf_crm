@@ -65,11 +65,11 @@ export default function ApplicationBoard({ apps, onOpen, onMove, onPaymentLink }
               className={`relative snap-start flex-shrink-0 w-[84vw] sm:w-72 rounded-lg p-2.5 flex flex-col max-h-[70vh] md:max-h-none md:h-full min-h-[12rem] ${isOver ? 'bg-gray-300/80' : 'bg-gray-200/70'}`}
             >
               <header className="flex items-center justify-between px-1.5 pb-3 pt-1">
-                <h3 className="flex items-center gap-2 text-[14px] font-medium text-gray-900">
+                <h3 className="flex items-center gap-2 text-[15px] font-medium text-gray-900">
                   <span className={`w-2 h-2 rounded-full ${STAGE_DOT[stage] || 'bg-gray-400'}`} aria-hidden="true" />
                   {stage}
                 </h3>
-                <span className="min-w-[1.75rem] text-center px-2 py-0.5 rounded-full bg-white text-[12px] font-medium text-gray-700 tabular-nums">{list.length.toLocaleString()}</span>
+                <span className="min-w-[1.75rem] text-center px-2 py-0.5 rounded-full bg-white text-[13px] font-medium text-gray-700 tabular-nums">{list.length.toLocaleString()}</span>
               </header>
 
               <div className="space-y-2.5 overflow-y-auto pr-0.5 flex-1">
@@ -84,19 +84,19 @@ export default function ApplicationBoard({ apps, onOpen, onMove, onPaymentLink }
                     >
                       <div className="p-3.5">
                         <div className="flex items-start gap-3">
-                          <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-medium flex-shrink-0 ${avatarTone(app.name)}`} aria-hidden="true">{initials(app.name) || '?'}</span>
+                          <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-medium flex-shrink-0 ${avatarTone(app.name)}`} aria-hidden="true">{initials(app.name) || '?'}</span>
                           <div className="min-w-0 flex-1">
-                            <button onClick={() => onOpen(app)} className="block max-w-full text-left text-[15px] font-medium text-gray-900 group-hover:underline leading-snug break-words">{app.name}</button>
-                            <div className="mt-0.5 text-[12px] text-gray-500 truncate"><span className="font-mono select-all">{app.appNo}</span>{app.course ? ` · ${app.course}` : ''}</div>
+                            <button onClick={() => onOpen(app)} className="block max-w-full text-left text-[16px] font-medium text-gray-900 group-hover:underline leading-snug break-words">{app.name}</button>
+                            <div className="mt-0.5 text-[13px] text-gray-500 truncate"><span className="font-mono select-all">{app.appNo}</span>{app.course ? ` · ${app.course}` : ''}</div>
                           </div>
                         </div>
 
                         <div className="mt-2.5 flex flex-wrap gap-1.5">
-                          {app.formStatus && <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${formChip(app.formStatus)}`}>Form {String(app.formStatus).toLowerCase()}</span>}
-                          {app.payStatus && <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${payChip(app.payStatus)}`}>{app.payStatus}</span>}
+                          {app.formStatus && <span className={`px-2 py-0.5 rounded-full text-[12px] font-medium ${formChip(app.formStatus)}`}>Form {String(app.formStatus).toLowerCase()}</span>}
+                          {app.payStatus && <span className={`px-2 py-0.5 rounded-full text-[12px] font-medium ${payChip(app.payStatus)}`}>{app.payStatus}</span>}
                         </div>
 
-                        <div className="mt-3 space-y-1.5 text-[13px] text-gray-700">
+                        <div className="mt-3 space-y-1.5 text-[14px] text-gray-700">
                           <div className="flex items-center justify-between gap-2">
                             <span className="flex items-center gap-2 tabular-nums"><Phone size={13} className="text-gray-400" />{app.mobile}</span>
                             <span className="flex items-center gap-1">
@@ -112,7 +112,7 @@ export default function ApplicationBoard({ apps, onOpen, onMove, onPaymentLink }
 
                         {needsPayment && (
                           <button onClick={() => onPaymentLink(app)}
-                            className="mt-3 w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-primary-500 hover:bg-primary-600 text-white text-[13px] font-medium">
+                            className="mt-3 w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-primary-500 hover:bg-primary-600 text-white text-[14px] font-medium">
                             <CreditCard size={14} /> Send payment link
                           </button>
                         )}
@@ -120,15 +120,15 @@ export default function ApplicationBoard({ apps, onOpen, onMove, onPaymentLink }
 
                       <div className="flex items-center justify-between gap-2 bg-gray-50 px-3.5 py-2.5">
                         <span className="flex items-center gap-2 min-w-0">
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${app.owner ? 'bg-gray-200 text-gray-700' : 'border border-dashed border-gray-300 text-gray-400'}`}>{initials(app.owner) || '–'}</span>
-                          <span className={`text-[12px] truncate ${app.owner ? 'text-gray-800' : 'text-gray-400'}`}>{app.owner || 'Unassigned'}</span>
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium flex-shrink-0 ${app.owner ? 'bg-gray-200 text-gray-700' : 'border border-dashed border-gray-300 text-gray-400'}`}>{initials(app.owner) || '–'}</span>
+                          <span className={`text-[13px] truncate ${app.owner ? 'text-gray-800' : 'text-gray-400'}`}>{app.owner || 'Unassigned'}</span>
                         </span>
                         <label className="sr-only" htmlFor={`mva-${app.id}`}>Move {app.name} to another stage</label>
                         <select
                           id={`mva-${app.id}`}
                           value={stage}
                           onChange={e => { if (e.target.value !== stage) onMove(app, e.target.value) }}
-                          className="text-[12px] border border-gray-300 rounded-md bg-white py-1 pl-1.5 pr-1 max-w-[8.5rem] text-gray-700"
+                          className="text-[13px] border border-gray-300 rounded-md bg-white py-1 pl-1.5 pr-1 max-w-[8.5rem] text-gray-700"
                         >
                           {stages.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
@@ -137,10 +137,10 @@ export default function ApplicationBoard({ apps, onOpen, onMove, onPaymentLink }
                   )
                 })}
 
-                {list.length === 0 && <p className="py-8 text-center text-[13px] text-gray-500">No applications in this stage.</p>}
+                {list.length === 0 && <p className="py-8 text-center text-[14px] text-gray-500">No applications in this stage.</p>}
                 {list.length > count && (
                   <button onClick={() => setShown(p => ({ ...p, [stage]: count + SHOW }))}
-                    className="w-full py-2 text-[13px] font-medium text-gray-700 hover:bg-gray-200 rounded-md">
+                    className="w-full py-2 text-[14px] font-medium text-gray-700 hover:bg-gray-200 rounded-md">
                     Show more ({(list.length - count).toLocaleString()} left)
                   </button>
                 )}
