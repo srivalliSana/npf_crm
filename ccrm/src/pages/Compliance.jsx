@@ -102,7 +102,7 @@ function AuditTrail() {
                     <td className="table-td whitespace-nowrap text-gray-500">{fmtDateTime(r.createdAt)}</td>
                     <td className="table-td">
                       <div className="font-medium text-gray-800 truncate max-w-[180px]">{r.actorEmail || 'system'}</div>
-                      {r.actorRole && <div className="text-[10px] text-gray-400">{r.actorRole}</div>}
+                      {r.actorRole && <div className="text-[11px] text-gray-400">{r.actorRole}</div>}
                     </td>
                     <td className="table-td"><Badge variant={r.action === 'DELETE' ? 'danger' : r.action === 'CREATE' ? 'success' : 'neutral'}>{r.action}</Badge></td>
                     <td className="table-td text-gray-600">{r.entityType}{r.entityId ? ` #${r.entityId}` : ''}</td>
@@ -142,7 +142,7 @@ function AuditTrail() {
             ))}
             <div>
               <div className="text-xs text-gray-400 font-medium mb-1">Payload (secrets redacted)</div>
-              <pre className="bg-gray-50 rounded-lg p-3 text-[11px] text-gray-700 overflow-x-auto max-h-64">
+              <pre className="bg-gray-50 rounded-lg p-3 text-[12px] text-gray-700 overflow-x-auto max-h-64">
                 {JSON.stringify(detail.changes, null, 2)}
               </pre>
             </div>
@@ -214,7 +214,7 @@ function StudentRecords() {
                     <tr key={r.id} className="hover:bg-gray-50/80 transition-colors">
                       <td className="table-td">
                         <div className="font-medium text-gray-800">{r.name}</div>
-                        <div className="text-[10px] text-gray-400">{r.email}</div>
+                        <div className="text-[11px] text-gray-400">{r.email}</div>
                       </td>
                       <td className="table-td font-mono text-xs text-gray-600">{r.appNo}</td>
                       <td className="table-td font-mono text-xs text-gray-600">{r.registrationNumber || '—'}</td>
@@ -271,7 +271,7 @@ function StudentFile({ id, onClose }) {
                 <FileText size={14} className="text-gray-400 flex-shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm text-gray-800 truncate">{d.type}{d.isMandatory && <span className="text-danger-500 ml-1">*</span>}</div>
-                  <div className="text-[10px] text-gray-400">
+                  <div className="text-[11px] text-gray-400">
                     {d.uploadDate || '—'}{d.sizeBytes ? ` · ${fmtBytes(d.sizeBytes)}` : ''}
                     {d.retentionUntil ? ` · retain until ${fmtDate(d.retentionUntil)}` : ''}
                   </div>
@@ -286,7 +286,7 @@ function StudentFile({ id, onClose }) {
               <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 text-sm">
                 <div>
                   <div className="text-gray-800">{p.feeType || 'Fee'} · ₹{Number(p.amount).toLocaleString('en-IN')}</div>
-                  <div className="text-[10px] text-gray-400">{p.date} · {p.utrNumber || p.txnId || 'no reference'}</div>
+                  <div className="text-[11px] text-gray-400">{p.date} · {p.utrNumber || p.txnId || 'no reference'}</div>
                 </div>
                 <Badge variant={/approved|paid/i.test(p.status) ? 'success' : 'warning'}>{p.status}</Badge>
               </div>
@@ -396,7 +396,7 @@ function RequiredReports() {
                 {/* Columns the CRM cannot fill are named up front, so nobody
                     files a return assuming they were captured. */}
                 {r.unavailable?.length > 0 && (
-                  <div className="flex items-start gap-1.5 text-[11px] text-warning-700 bg-warning-50 rounded-lg px-2.5 py-1.5">
+                  <div className="flex items-start gap-1.5 text-[12px] text-warning-700 bg-warning-50 rounded-lg px-2.5 py-1.5">
                     <ShieldAlert size={12} className="flex-shrink-0 mt-0.5" />
                     <span>Exported empty — not captured anywhere in the CRM: <strong>{r.unavailable.join(', ')}</strong></span>
                   </div>
@@ -412,7 +412,7 @@ function RequiredReports() {
                     Download CSV
                   </Button>
                   {!can('compliance.export') && (
-                    <span className="text-[11px] text-gray-400 ml-2">Requires the compliance.export permission</span>
+                    <span className="text-[12px] text-gray-400 ml-2">Requires the compliance.export permission</span>
                   )}
                 </div>
               </div>
@@ -608,12 +608,12 @@ function Retention() {
           </tbody>
         </table>
       </ScrollX>
-      <p className="text-[11px] text-gray-400 mt-4">
+      <p className="text-[12px] text-gray-400 mt-4">
         Setting a policy records the intent and surfaces what has aged out. Deletion is not automated —
         purging a student record is irreversible and stays a deliberate, human action.
       </p>
       {!can('retention.manage') && (
-        <p className="text-[11px] text-gray-400 mt-1">Editing requires the retention.manage permission.</p>
+        <p className="text-[12px] text-gray-400 mt-1">Editing requires the retention.manage permission.</p>
       )}
     </Panel>
   )
