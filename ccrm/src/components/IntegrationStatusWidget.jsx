@@ -95,7 +95,7 @@ export default function IntegrationStatusWidget() {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-[11px] text-gray-500 mb-4 pb-3 border-b border-gray-100">
+      <div className="flex items-center gap-4 text-[12px] text-gray-500 mb-4 pb-3 border-b border-gray-100">
         <span className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-green-500 shadow shadow-green-300/50" /> Connected
         </span>
@@ -142,7 +142,7 @@ export default function IntegrationStatusWidget() {
                   </span>
                 </div>
                 <div className="text-xs font-semibold text-gray-800 truncate">{integ.name}</div>
-                <div className={`mt-1 inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border ${t.pill}`}>
+                <div className={`mt-1 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border ${t.pill}`}>
                   {status.label}
                 </div>
               </button>
