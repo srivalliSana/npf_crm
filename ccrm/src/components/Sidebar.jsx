@@ -186,7 +186,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
         </div>
         <div className={`overflow-hidden transition-opacity duration-200 flex-1 ${expanded ? 'opacity-100' : 'opacity-0'}`}>
           <div className="text-gray-900 font-bold text-sm leading-tight whitespace-nowrap">{brand.shortName || 'CCRM'}</div>
-          <div className="text-gray-500 text-[10px] leading-tight whitespace-nowrap">{brand.tagline || 'Admissions'}</div>
+          <div className="text-gray-500 text-[11px] leading-tight whitespace-nowrap">{brand.tagline || 'Admissions'}</div>
         </div>
         {isMobile && (
           <button
@@ -212,7 +212,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
           const isOpenGroup = (label) => openGroups.includes(label)
 
           const linkCls = (isActive) =>
-            `block rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${isActive ? 'bg-primary-50 text-primary-500 font-medium' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`
+            `block rounded-md px-2.5 py-1.5 text-[14px] transition-colors ${isActive ? 'bg-primary-50 text-primary-500 font-medium' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`
 
           // Closed rail: icons only. The group that holds the current page is marked.
           if (!expanded) {
@@ -243,7 +243,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
               {grouped.filter(g => !g.label).flatMap(g => g.items).map(({ icon: Icon, label, to }) => (
                 <NavLink key={to} to={to} className={({ isActive }) => `sidebar-icon${isActive ? ' active' : ''}`}>
                   <Icon size={18} strokeWidth={1.8} className="flex-shrink-0" />
-                  <span className="text-[13px] font-medium whitespace-nowrap">{label}</span>
+                  <span className="text-[14px] font-medium whitespace-nowrap">{label}</span>
                 </NavLink>
               ))}
 
@@ -256,7 +256,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
                       <AccordionTrigger className={`rounded-md px-2.5 py-2 hover:bg-gray-100 ${hasActive && !isOpenGroup(g.label) ? 'bg-primary-50' : ''}`}>
                         <span className="flex items-center gap-2.5">
                           <GIcon size={16} strokeWidth={1.8} className="text-gray-500" />
-                          <span className="text-[13px] font-medium text-gray-900">{g.label}</span>
+                          <span className="text-[14px] font-medium text-gray-900">{g.label}</span>
                         </span>
                       </AccordionTrigger>
                       <AccordionContent className="pb-1.5 pt-0.5">
@@ -271,7 +271,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
                                     type="button"
                                     onClick={() => setOpenSubmenu(openSubmenu === label ? null : label)}
                                     aria-expanded={openSubmenu === label || submenu.some(sm => pathname === sm.to)}
-                                    className="w-full flex items-center justify-between rounded-md px-2.5 py-1.5 text-[13px] text-gray-600 hover:text-gray-900 hover:bg-gray-200/50 transition-colors"
+                                    className="w-full flex items-center justify-between rounded-md px-2.5 py-1.5 text-[14px] text-gray-600 hover:text-gray-900 hover:bg-gray-200/50 transition-colors"
                                   >
                                     <span>{label}</span>
                                     <ChevronDown size={13} className={`text-gray-400 transition-transform ${(openSubmenu === label || submenu.some(sm => pathname === sm.to)) ? 'rotate-180' : ''}`} />
@@ -307,7 +307,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
           title={!expanded ? 'Public Inquiry Form' : undefined}
         >
           <Globe size={18} strokeWidth={1.8} className="flex-shrink-0" />
-          <span className={`text-[13px] font-medium whitespace-nowrap overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0 w-0'}`}>
+          <span className={`text-[14px] font-medium whitespace-nowrap overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0 w-0'}`}>
             Inquiry
           </span>
         </a>
@@ -320,13 +320,13 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
         title={!expanded ? 'Logout' : undefined}
       >
         <LogOut size={18} strokeWidth={1.8} className="flex-shrink-0" />
-        <span className={`text-[13px] font-medium whitespace-nowrap overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0 w-0'}`}>
+        <span className={`text-[14px] font-medium whitespace-nowrap overflow-hidden transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0 w-0'}`}>
           Logout
         </span>
       </button>
 
       {/* App version — single source: src/version.js */}
-      <div className="text-center text-[10px] text-gray-400 pb-2 select-none">
+      <div className="text-center text-[11px] text-gray-400 pb-2 select-none">
         v{APP_VERSION}
       </div>
     </aside>
