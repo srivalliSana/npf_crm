@@ -806,7 +806,7 @@ export default function ApplicationDetails() {
                   </button>
                 </h1>
               )}
-              <p className="mt-1 text-[14px] text-gray-600">
+              <p className="mt-1 text-[15px] text-gray-600">
                 <span className="font-mono">{(() => {
                   const src = (associatedLead?.source || record.source || '').toLowerCase()
                   const isSM = ['facebook','google ads','linkedin','instagram','social media','sm'].some(x => src.includes(x))
@@ -817,10 +817,10 @@ export default function ApplicationDetails() {
                 {(studentCity || studentState) ? <> · {[studentCity, studentState].filter(Boolean).join(', ')}</> : null}
               </p>
               <div className="flex flex-wrap gap-1.5 mt-2">
-                <span className={`badge text-[12px] font-medium ${stageBadgeColor(leadStage)}`}>
+                <span className={`badge text-[13px] font-medium ${stageBadgeColor(leadStage)}`}>
                   {leadStage}
                 </span>
-                <span className={`badge text-[12px] font-medium ${appStageBadgeColor(appStage)}`}>
+                <span className={`badge text-[13px] font-medium ${appStageBadgeColor(appStage)}`}>
                   {appStage}
                 </span>
               </div>
@@ -829,7 +829,7 @@ export default function ApplicationDetails() {
             </div>
           </div>
           <div>
-            <div className="text-[12px] text-gray-500 mb-1">Assigned counsellor</div>
+            <div className="text-[13px] text-gray-500 mb-1">Assigned counsellor</div>
             {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && !isApp ? (
                   <select
                     value={owner}
@@ -838,7 +838,7 @@ export default function ApplicationDetails() {
                       await updateLead(associatedLead.id, { owner: newOwner })
                       showToast(`Counselor changed to ${newOwner}`, 'success')
                     }}
-                    className="min-w-[11rem] text-[14px] font-medium text-gray-900 border border-gray-300 rounded-md px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    className="min-w-[11rem] text-[15px] font-medium text-gray-900 border border-gray-300 rounded-md px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary-400"
                   >
                     <option value="Unassigned">Unassigned</option>
                     {(counselors && counselors.length > 0
@@ -859,10 +859,10 @@ export default function ApplicationDetails() {
 
         <dl className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-x-6 gap-y-3">
           <div>
-            <dt className="text-[12px] text-gray-500">Lead score</dt>
+            <dt className="text-[13px] text-gray-500">Lead score</dt>
             <dd className="mt-0.5 flex items-baseline gap-2">
-              <span className="text-[18px] leading-tight font-medium text-gray-900 tabular-nums">{score}<span className="text-[12px] text-gray-500">/100</span></span>
-              <span className="text-[12px] text-gray-600 truncate">{score >= 75 ? 'Hot' : score >= 50 ? 'Warm' : score >= 25 ? 'Nurture' : 'Cold'}</span>
+              <span className="text-[18px] leading-tight font-medium text-gray-900 tabular-nums">{score}<span className="text-[13px] text-gray-500">/100</span></span>
+              <span className="text-[13px] text-gray-600 truncate">{score >= 75 ? 'Hot' : score >= 50 ? 'Warm' : score >= 25 ? 'Nurture' : 'Cold'}</span>
             </dd>
             <div className="mt-1 h-1 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-primary-600" style={{ width: `${score}%` }} /></div>
           </div>
@@ -874,7 +874,7 @@ export default function ApplicationDetails() {
             ['Last active', lastActive],
           ].map(([k, v]) => (
             <div key={k}>
-              <dt className="text-[12px] text-gray-500">{k}</dt>
+              <dt className="text-[13px] text-gray-500">{k}</dt>
               <dd className="mt-0.5 text-[18px] leading-tight font-medium text-gray-900 tabular-nums truncate">{v}</dd>
             </div>
           ))}
@@ -915,7 +915,7 @@ export default function ApplicationDetails() {
                   }`}>
                     {isCompleted ? <CheckCircle2 size={16} /> : idx + 1}
                   </div>
-                  <span className={`text-[9px] mt-1.5 text-center max-w-16 leading-tight font-medium ${
+                  <span className={`text-[10px] mt-1.5 text-center max-w-16 leading-tight font-medium ${
                     isCurrent ? 'text-primary-600 font-bold' : isCompleted ? 'text-gray-600' : 'text-gray-400'
                   }`}>
                     {stage}
@@ -1051,11 +1051,11 @@ export default function ApplicationDetails() {
                     <div className="flex items-center justify-between mb-5">
                       <div>
                         <h2 className="text-[18px] font-medium text-gray-900">Lead information</h2>
-                        <p className="text-[13px] text-gray-500 mt-1">Fill these once the candidate shows interest — auto-copied to the Provisional Admission Letter on payment.</p>
+                        <p className="text-[14px] text-gray-500 mt-1">Fill these once the candidate shows interest — auto-copied to the Provisional Admission Letter on payment.</p>
                       </div>
                       <button
                         onClick={() => setEditMode(!editMode)}
-                        className={`flex items-center gap-1.5 text-[13px] px-3.5 py-2 rounded-md font-medium transition-colors focus:outline-none ${
+                        className={`flex items-center gap-1.5 text-[14px] px-3.5 py-2 rounded-md font-medium transition-colors focus:outline-none ${
                           editMode
                             ? 'bg-primary-500 text-white hover:bg-primary-600'
                             : 'border border-gray-300 text-gray-900 hover:bg-gray-100'
@@ -1074,9 +1074,9 @@ export default function ApplicationDetails() {
                           const active = i === Math.min(infoSection, SECTIONS.length - 1)
                           return (
                             <button key={sec.title} type="button" onClick={() => setInfoSection(i)} aria-current={active ? 'true' : undefined}
-                              className={`flex-shrink-0 flex items-center justify-between gap-3 text-left px-3 py-2.5 rounded-md min-w-0 text-[14px] transition-colors ${active ? 'bg-primary-600 text-white font-medium' : 'text-gray-700 hover:bg-gray-100'}`}>
+                              className={`flex-shrink-0 flex items-center justify-between gap-3 text-left px-3 py-2.5 rounded-md min-w-0 text-[15px] transition-colors ${active ? 'bg-primary-600 text-white font-medium' : 'text-gray-700 hover:bg-gray-100'}`}>
                               <span className="whitespace-nowrap lg:whitespace-normal leading-snug">{sec.title}</span>
-                              <span className={`text-[12px] tabular-nums ${active ? 'text-white/70' : filled === sec.fields.length ? 'text-gray-900' : 'text-gray-500'}`}>{filled}/{sec.fields.length}</span>
+                              <span className={`text-[13px] tabular-nums ${active ? 'text-white/70' : filled === sec.fields.length ? 'text-gray-900' : 'text-gray-500'}`}>{filled}/{sec.fields.length}</span>
                             </button>
                           )
                         })}
@@ -1084,13 +1084,13 @@ export default function ApplicationDetails() {
                       <div className="min-w-0">
                       {SECTIONS.map((section, si) => si !== Math.min(infoSection, SECTIONS.length - 1) ? null : (
                         <div key={section.title}>
-                          <h3 className="text-[15px] font-medium text-gray-900 mb-4">
+                          <h3 className="text-[16px] font-medium text-gray-900 mb-4">
                             {section.title}
                           </h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-5">
                             {section.fields.map(({ label, key, required, wide, select, options }) => (
                               <div key={key} className={wide ? 'md:col-span-2' : ''}>
-                                <label className="block text-[13px] text-gray-500 mb-1">
+                                <label className="block text-[14px] text-gray-500 mb-1">
                                   {label}{required ? ' *' : ''}
                                 </label>
                                 {editMode ? (
@@ -1114,7 +1114,7 @@ export default function ApplicationDetails() {
                                   )
                                 ) : (
                                   <div className="min-h-[1.5rem]">
-                                    <span className="text-[15px] text-gray-900">{getVal(key) || <span className="text-gray-400">—</span>}</span>
+                                    <span className="text-[16px] text-gray-900">{getVal(key) || <span className="text-gray-400">—</span>}</span>
                                   </div>
                                 )}
                               </div>
@@ -1124,10 +1124,10 @@ export default function ApplicationDetails() {
                       ))}
                       <div className="mt-8 flex items-center justify-between">
                         <button type="button" disabled={infoSection <= 0} onClick={() => setInfoSection(i => Math.max(0, i - 1))}
-                          className="px-4 py-2 rounded-md border border-gray-300 text-[14px] font-medium text-gray-900 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
-                        <span className="text-[13px] text-gray-500 tabular-nums">Section {Math.min(infoSection, SECTIONS.length - 1) + 1} of {SECTIONS.length}</span>
+                          className="px-4 py-2 rounded-md border border-gray-300 text-[15px] font-medium text-gray-900 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+                        <span className="text-[14px] text-gray-500 tabular-nums">Section {Math.min(infoSection, SECTIONS.length - 1) + 1} of {SECTIONS.length}</span>
                         <button type="button" disabled={infoSection >= SECTIONS.length - 1} onClick={() => setInfoSection(i => Math.min(SECTIONS.length - 1, i + 1))}
-                          className="px-4 py-2 rounded-md bg-primary-500 hover:bg-primary-600 text-[14px] font-medium text-white disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+                          className="px-4 py-2 rounded-md bg-primary-500 hover:bg-primary-600 text-[15px] font-medium text-white disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
                       </div>
                       </div>
                     </div>
@@ -1355,12 +1355,12 @@ export default function ApplicationDetails() {
                               🎫 Ticket #{q.id}
                             </span>
                             <div className="flex gap-1.5">
-                              <span className={`badge text-[10px] font-bold ${
+                              <span className={`badge text-[11px] font-bold ${
                                 q.priority === 'High' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
                               }`}>
                                 {q.priority}
                               </span>
-                              <span className={`badge text-[10px] font-bold ${
+                              <span className={`badge text-[11px] font-bold ${
                                 q.status === 'Open' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
                               }`}>
                                 {q.status}
@@ -1492,12 +1492,12 @@ export default function ApplicationDetails() {
                       <div key={idx} className="p-3 bg-gray-50 border border-gray-100 rounded-xl flex items-start justify-between shadow-sm">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                               log.channel === 'Email' ? 'bg-green-100 text-green-700' : log.channel === 'WhatsApp' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
                             }`}>
                               {log.channel}
                             </span>
-                            <span className="text-[10px] text-gray-400 font-semibold">{log.time}</span>
+                            <span className="text-[11px] text-gray-400 font-semibold">{log.time}</span>
                           </div>
                           <h4 className="text-sm font-semibold text-gray-800 mt-1">{log.subject}</h4>
                           <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{log.detail}</p>
@@ -1590,7 +1590,7 @@ export default function ApplicationDetails() {
                   <div className="flex items-center justify-center">
                     <Icon size={15} />
                   </div>
-                  <span className="text-[12px] font-medium text-gray-700">{label}</span>
+                  <span className="text-[13px] font-medium text-gray-700">{label}</span>
                 </button>
               ))}
             </div>
@@ -1684,7 +1684,7 @@ export default function ApplicationDetails() {
                       <button
                         type="button"
                         onClick={() => { setShowAdmissionMethodModal(false); setShowAdmissionForm(true) }}
-                        className="w-full text-[13px] bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 rounded-md flex items-center justify-center gap-2 transition-colors"
+                        className="w-full text-[14px] bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 rounded-md flex items-center justify-center gap-2 transition-colors"
                       >
                         Manual entry
                       </button>
@@ -1719,7 +1719,7 @@ export default function ApplicationDetails() {
                             showToast('Error: ' + e.message, 'error')
                           }
                         }}
-                        className="w-full text-[13px] bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 rounded-md flex items-center justify-center gap-2 transition-colors"
+                        className="w-full text-[14px] bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 rounded-md flex items-center justify-center gap-2 transition-colors"
                       >
                         Online form by email
                       </button>
@@ -1735,7 +1735,7 @@ export default function ApplicationDetails() {
                     <button
                       type="button"
                       onClick={() => setShowAdmissionMethodModal(true)}
-                      className={`w-full text-[13px] font-medium py-2 rounded-md flex items-center justify-center gap-1.5 transition-colors ${
+                      className={`w-full text-[14px] font-medium py-2 rounded-md flex items-center justify-center gap-1.5 transition-colors ${
                         associatedApp.admissionDetails && associatedApp.admissionDetails.studentName
                           ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
                           : 'bg-primary-500 hover:bg-primary-600 text-white'
@@ -1752,7 +1752,7 @@ export default function ApplicationDetails() {
               {associatedApp && !['Paid','Payment Done'].includes(associatedApp.payStatus) && (
                 <button
                   onClick={() => { setShowPayModal(true); setPayMode('online'); setUtrNumber('') }}
-                  className="w-full text-[13px] bg-white border border-gray-300 hover:bg-gray-100 text-gray-900 font-medium py-2 rounded-md flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full text-[14px] bg-white border border-gray-300 hover:bg-gray-100 text-gray-900 font-medium py-2 rounded-md flex items-center justify-center gap-1.5 transition-colors"
                 >
                   Generate or record payment
                 </button>
@@ -1771,7 +1771,7 @@ export default function ApplicationDetails() {
               {associatedApp?.appNo && ['Paid','Payment Done'].includes(associatedApp.payStatus) && (
                 <>
                   {associatedApp.admissionLetterSentAt ? (
-                    <div className="text-center text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-1.5 font-semibold">
+                    <div className="text-center text-[12px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-1.5 font-semibold">
                       📧 Letter sent {new Date(associatedApp.admissionLetterSentAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </div>
                   ) : null}
@@ -1793,8 +1793,8 @@ export default function ApplicationDetails() {
           <section className="card overflow-hidden">
             <button type="button" onClick={() => setAiOpen(o => !o)} aria-expanded={aiOpen}
               className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50">
-              <span className="flex items-center gap-2 text-[15px] font-medium text-gray-900"><Sparkles size={16} /> AI assistant</span>
-              <span className="text-[13px] text-gray-500">{aiOpen ? 'Hide' : 'Show'}</span>
+              <span className="flex items-center gap-2 text-[16px] font-medium text-gray-900"><Sparkles size={16} /> AI assistant</span>
+              <span className="text-[14px] text-gray-500">{aiOpen ? 'Hide' : 'Show'}</span>
             </button>
             {aiOpen && (
           <AiInsightsPanel
