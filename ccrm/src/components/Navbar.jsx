@@ -104,7 +104,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
           <button
             onClick={() => setShowMioAI(true)}
             title="Ask CU AI"
-            className="flex items-center gap-1 bg-primary-500 hover:bg-primary-600 text-white text-[12px] font-medium px-3.5 py-2 rounded-full shadow-[0_1px_8px_rgba(0,0,0,0.20)] transition-colors"
+            className="flex items-center gap-1 bg-primary-500 hover:bg-primary-600 text-white text-[13px] font-medium px-3.5 py-2 rounded-full shadow-[0_1px_8px_rgba(0,0,0,0.20)] transition-colors"
           >
             <Sparkles size={12} />
             <span className="hidden sm:inline">Ask CU AI</span><span className="sm:hidden">AI</span>
@@ -142,7 +142,7 @@ export default function Navbar({ onToggleSidebar, onLogout, user, expanded = tru
                         {n.title && n.text !== n.title && (
                           <p className="text-xs text-gray-500 mt-0.5">{n.text}</p>
                         )}
-                        <p className="text-[10px] text-gray-400 mt-1">{relativeTime(n.createdAt, n.time)}</p>
+                        <p className="text-[11px] text-gray-400 mt-1">{relativeTime(n.createdAt, n.time)}</p>
                       </div>
                       {n.unread && <span className="w-1.5 h-1.5 bg-primary-500 rounded-full shrink-0 mt-1.5"></span>}
                     </div>
