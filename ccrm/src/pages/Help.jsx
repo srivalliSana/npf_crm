@@ -113,7 +113,7 @@ export default function Help() {
               <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-sm font-semibold text-gray-800">{item.q}</p>
-                  <span className="text-[10px] text-gray-400">{item.section}</span>
+                  <span className="text-[11px] text-gray-400">{item.section}</span>
                 </div>
                 <p className="text-sm text-gray-600 leading-relaxed">{item.a}</p>
               </div>
