@@ -147,15 +147,15 @@ export default function RcsComposeModal({ lead, onClose }) {
                 <div key={h.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-gray-800 truncate">{h.templateId}</div>
-                    <div className="text-[11px] text-gray-400">
+                    <div className="text-[12px] text-gray-400">
                       {h.createdAt ? new Date(h.createdAt).toLocaleString('en-IN') : ''}
                       {h.sentBy ? ` · ${h.sentBy}` : ''}
                     </div>
                     {h.status === 'failed' && h.errorCode && (
-                      <div className="text-[11px] text-red-500 truncate">{h.errorCode}</div>
+                      <div className="text-[12px] text-red-500 truncate">{h.errorCode}</div>
                     )}
                   </div>
-                  <span className={`badge text-[11px] font-bold flex items-center gap-1 ${statusBadge(h.status)}`}>
+                  <span className={`badge text-[12px] font-bold flex items-center gap-1 ${statusBadge(h.status)}`}>
                     {(h.status || '').toLowerCase() === 'failed'
                       ? <AlertCircle size={11} />
                       : (['delivered', 'read'].includes((h.status || '').toLowerCase()) ? <CheckCircle2 size={11} /> : <Clock size={11} />)}
