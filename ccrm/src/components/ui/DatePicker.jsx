@@ -126,7 +126,7 @@ export default function DatePicker({
   const blocked = (c) => { const v = dateStr(c.y, c.m, c.d); return (min && v < min.slice(0, 10)) || (max && v > max.slice(0, 10)) }
 
   const label = value ? format(value, withTime) : (placeholder || (withTime ? 'Select date and time' : 'Select date'))
-  const hdrBtn = 'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[14px] font-medium text-gray-900 hover:bg-gray-100 transition-colors'
+  const hdrBtn = 'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[15px] font-medium text-gray-900 hover:bg-gray-100 transition-colors'
 
   return (
     <div ref={root} className="relative inline-block max-w-full">
@@ -162,7 +162,7 @@ export default function DatePicker({
             <div className="grid grid-cols-3 gap-1.5 py-1">
               {MONTHS.map((m, i) => (
                 <button key={m} type="button" onClick={() => { setView(v => ({ ...v, m: i })); setMode('days') }}
-                  className={`h-11 rounded-md text-[14px] transition-colors ${view.m === i ? 'bg-primary-500 text-white font-medium' : 'text-gray-900 hover:bg-gray-100'}`}>{m.slice(0, 3)}</button>
+                  className={`h-11 rounded-md text-[15px] transition-colors ${view.m === i ? 'bg-primary-500 text-white font-medium' : 'text-gray-900 hover:bg-gray-100'}`}>{m.slice(0, 3)}</button>
               ))}
             </div>
           )}
@@ -171,7 +171,7 @@ export default function DatePicker({
             <div className="grid grid-cols-4 gap-1.5 py-1 max-h-[17rem] overflow-y-auto pr-0.5">
               {years.map(y => (
                 <button key={y} type="button" ref={y === view.y ? yearRef : null} onClick={() => { setView(v => ({ ...v, y })); setMode('days') }}
-                  className={`h-10 rounded-md text-[14px] tabular-nums transition-colors ${view.y === y ? 'bg-primary-500 text-white font-medium' : y === today.getFullYear() ? 'border border-primary-600 text-gray-900 hover:bg-gray-100' : 'text-gray-900 hover:bg-gray-100'}`}>{y}</button>
+                  className={`h-10 rounded-md text-[15px] tabular-nums transition-colors ${view.y === y ? 'bg-primary-500 text-white font-medium' : y === today.getFullYear() ? 'border border-primary-600 text-gray-900 hover:bg-gray-100' : 'text-gray-900 hover:bg-gray-100'}`}>{y}</button>
               ))}
             </div>
           )}
@@ -179,7 +179,7 @@ export default function DatePicker({
           {mode === 'days' && (
             <>
               <div className="grid grid-cols-7 mb-1">
-                {DAYS.map(d => <div key={d} className="h-8 flex items-center justify-center text-[12px] font-medium text-gray-500">{d}</div>)}
+                {DAYS.map(d => <div key={d} className="h-8 flex items-center justify-center text-[13px] font-medium text-gray-500">{d}</div>)}
               </div>
               <div className="grid grid-cols-7 gap-y-0.5">
                 {cells.map((c, i) => {
@@ -189,7 +189,7 @@ export default function DatePicker({
                       key={i} type="button" disabled={blocked(c)}
                       onClick={() => pickDay(c.y, c.m, c.d)}
                       aria-label={`${c.d} ${MONTHS[c.m]} ${c.y}`} aria-pressed={!!s}
-                      className={`h-9 w-full flex items-center justify-center rounded-md text-[13px] tabular-nums transition-colors disabled:opacity-30 disabled:cursor-not-allowed
+                      className={`h-9 w-full flex items-center justify-center rounded-md text-[14px] tabular-nums transition-colors disabled:opacity-30 disabled:cursor-not-allowed
                         ${s ? 'bg-primary-500 text-white font-medium' : isToday(c) ? 'border border-primary-600 text-gray-900 font-medium hover:bg-gray-100' : c.other ? 'text-gray-400 hover:bg-gray-100' : 'text-gray-900 hover:bg-gray-100'}`}
                     >{c.d}</button>
                   )
@@ -200,19 +200,19 @@ export default function DatePicker({
 
           {withTime && mode === 'days' && (
             <div className="mt-3 pt-3 bg-gray-50 -mx-3 px-3 pb-3 flex items-center justify-between gap-2">
-              <span className="text-[13px] font-medium text-gray-700">Time</span>
+              <span className="text-[14px] font-medium text-gray-700">Time</span>
               <div className="flex items-center gap-1.5">
                 <input aria-label="Hour" inputMode="numeric" value={t12.h}
                   onChange={e => { const n = Math.min(12, Math.max(1, parseInt(e.target.value.replace(/\D/g, '') || '1', 10))); setTime(n, nowM, t12.pm) }}
-                  className="w-11 h-9 text-center text-[14px] tabular-nums rounded-md border border-gray-300 bg-white" />
+                  className="w-11 h-9 text-center text-[15px] tabular-nums rounded-md border border-gray-300 bg-white" />
                 <span className="text-gray-500">:</span>
                 <input aria-label="Minute" inputMode="numeric" value={pad(nowM)}
                   onChange={e => { const n = Math.min(59, Math.max(0, parseInt(e.target.value.replace(/\D/g, '') || '0', 10))); setTime(t12.h, n, t12.pm) }}
-                  className="w-11 h-9 text-center text-[14px] tabular-nums rounded-md border border-gray-300 bg-white" />
+                  className="w-11 h-9 text-center text-[15px] tabular-nums rounded-md border border-gray-300 bg-white" />
                 <div className="inline-flex rounded-md bg-gray-200 p-0.5 ml-1">
                   {[['AM', false], ['PM', true]].map(([l, pm]) => (
                     <button key={l} type="button" aria-pressed={t12.pm === pm} onClick={() => setTime(t12.h, nowM, pm)}
-                      className={`px-2.5 h-8 rounded text-[13px] font-medium ${t12.pm === pm ? 'bg-white text-gray-900' : 'text-gray-600'}`}>{l}</button>
+                      className={`px-2.5 h-8 rounded text-[14px] font-medium ${t12.pm === pm ? 'bg-white text-gray-900' : 'text-gray-600'}`}>{l}</button>
                   ))}
                 </div>
               </div>
@@ -220,11 +220,11 @@ export default function DatePicker({
           )}
 
           <div className="flex items-center justify-between mt-3">
-            <button type="button" onClick={() => { emit(''); setOpen(false) }} className="px-2 py-1.5 text-[13px] font-medium text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100">Clear</button>
+            <button type="button" onClick={() => { emit(''); setOpen(false) }} className="px-2 py-1.5 text-[14px] font-medium text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100">Clear</button>
             {withTime ? (
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-1.5 text-[13px] font-semibold text-white bg-primary-500 hover:bg-primary-600 rounded-md">Done</button>
+              <button type="button" onClick={() => setOpen(false)} className="px-4 py-1.5 text-[14px] font-semibold text-white bg-primary-500 hover:bg-primary-600 rounded-md">Done</button>
             ) : (
-              <button type="button" onClick={() => pickDay(today.getFullYear(), today.getMonth(), today.getDate())} className="px-2 py-1.5 text-[13px] font-medium text-gray-900 rounded-md hover:bg-gray-100">Today</button>
+              <button type="button" onClick={() => pickDay(today.getFullYear(), today.getMonth(), today.getDate())} className="px-2 py-1.5 text-[14px] font-medium text-gray-900 rounded-md hover:bg-gray-100">Today</button>
             )}
           </div>
         </div>,
