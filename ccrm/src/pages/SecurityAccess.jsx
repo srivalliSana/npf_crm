@@ -99,7 +99,7 @@ function Overview() {
               <span className="text-xs text-gray-700">{e.transport}</span>
             </div>
             {!e.keyConfigured && (
-              <p className="text-[11px] text-warning-700 bg-warning-50 rounded-lg px-2.5 py-2">
+              <p className="text-[12px] text-warning-700 bg-warning-50 rounded-lg px-2.5 py-2">
                 Set <code className="font-mono">SETTINGS_ENC_KEY</code> in the server environment and re-save each
                 credential — existing plaintext values are read as-is and only encrypted when next written.
               </p>
@@ -211,7 +211,7 @@ function RolesPermissions() {
                   <div className="px-4 py-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
                     {groups.map(group => (
                       <div key={group}>
-                        <div className="text-[10px] font-bold text-gray-400 mb-1.5">{group}</div>
+                        <div className="text-[11px] font-bold text-gray-400 mb-1.5">{group}</div>
                         <div className="space-y-1">
                           {data.catalogue.filter(p => p.group === group).map(p => (
                             <label
@@ -238,7 +238,7 @@ function RolesPermissions() {
           })}
         </div>
         {!editable && (
-          <p className="text-[11px] text-gray-400 mt-4">Editing requires the roles.manage permission.</p>
+          <p className="text-[12px] text-gray-400 mt-4">Editing requires the roles.manage permission.</p>
         )}
       </Panel>
     </div>
@@ -291,7 +291,7 @@ function Sessions() {
               <tr key={s.jti} className="hover:bg-gray-50/80 transition-colors">
                 <td className="table-td">
                   <div className="font-medium text-gray-800">{s.name || s.email}</div>
-                  <div className="text-[10px] text-gray-400">{s.email}</div>
+                  <div className="text-[11px] text-gray-400">{s.email}</div>
                 </td>
                 <td className="table-td text-gray-600">{s.role || '—'}</td>
                 <td className="table-td"><Badge variant="neutral">{s.loginMethod}</Badge></td>
@@ -463,7 +463,7 @@ function Backups() {
                 : <Badge variant="warning">Not configured</Badge>}
             </div>
             {!data.s3Configured && (
-              <p className="text-[11px] text-gray-500 flex items-start gap-1.5">
+              <p className="text-[12px] text-gray-500 flex items-start gap-1.5">
                 <Cloud size={12} className="flex-shrink-0 mt-0.5" />
                 Add <code className="font-mono">aws_s3_bucket</code>, <code className="font-mono">aws_access_key_id</code> and
                 <code className="font-mono"> aws_secret_access_key</code> under Integration Settings to enable the nightly
@@ -475,7 +475,7 @@ function Backups() {
                 <Button size="sm" variant="secondary" icon={DatabaseBackup} loading={running} onClick={runNow}>
                   Run backup now
                 </Button>
-                <p className="text-[11px] text-gray-400 mt-2">
+                <p className="text-[12px] text-gray-400 mt-2">
                   Executes <code className="font-mono">/usr/local/bin/ccrm-backup.sh</code> on the server and can take
                   several minutes.
                 </p>
