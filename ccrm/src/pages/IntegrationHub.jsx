@@ -120,7 +120,7 @@ function Field({ label, hint, children }) {
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
       {children}
-      {hint && <p className="text-[11px] text-gray-400 mt-1">{hint}</p>}
+      {hint && <p className="text-[12px] text-gray-400 mt-1">{hint}</p>}
     </div>
   )
 }
@@ -324,12 +324,12 @@ export default function IntegrationHub() {
                           {!c.enabled && <Badge variant="warning">Disabled</Badge>}
                         </div>
                         <p className="text-xs text-gray-500 mt-1 break-all">{c.baseUrl || 'No base URL set'}</p>
-                        <p className="text-[11px] text-gray-400 mt-0.5">
+                        <p className="text-[12px] text-gray-400 mt-0.5">
                           {c.authType === 'none' ? 'No authentication' : `${c.authType} auth`}
                           {c.hasSecret ? ' · credential stored' : ''}
                           {c.lastCheckedAt ? ` · checked ${fmtDateTime(c.lastCheckedAt)}` : ' · never checked'}
                         </p>
-                        {c.lastError && <p className="text-[11px] text-danger-600 mt-1">{c.lastError}</p>}
+                        {c.lastError && <p className="text-[12px] text-danger-600 mt-1">{c.lastError}</p>}
                       </div>
                       {manage && (
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -403,7 +403,7 @@ export default function IntegrationHub() {
                     <tr key={j.id} className="hover:bg-gray-50/80 transition-colors">
                       <td className="table-td">
                         <div className="text-gray-800 font-medium">{j.connectorName}</div>
-                        <div className="text-[10px] text-gray-400">{j.systemType.toUpperCase()}</div>
+                        <div className="text-[11px] text-gray-400">{j.systemType.toUpperCase()}</div>
                       </td>
                       <td className="table-td text-gray-600">{j.entity}</td>
                       <td className="table-td"><Badge variant="neutral">{j.direction}</Badge></td>
@@ -415,7 +415,7 @@ export default function IntegrationHub() {
                         {j.lastRunAt ? (
                           <>
                             <Badge variant={RUN_STATUS[j.lastStatus] || 'neutral'}>{j.lastStatus}</Badge>
-                            <div className="text-[10px] text-gray-400 mt-0.5">
+                            <div className="text-[11px] text-gray-400 mt-0.5">
                               {fmtDateTime(j.lastRunAt)} · {fmtInt(j.lastRecords)} records
                             </div>
                           </>
@@ -468,7 +468,7 @@ export default function IntegrationHub() {
                       <td className="table-td text-gray-500 text-xs">{r.triggerSource}</td>
                       <td className="table-td">
                         <Badge variant={RUN_STATUS[r.status] || 'neutral'}>{r.status}</Badge>
-                        {r.error && <div className="text-[10px] text-danger-600 mt-0.5 max-w-[220px] truncate" title={r.error}>{r.error}</div>}
+                        {r.error && <div className="text-[11px] text-danger-600 mt-0.5 max-w-[220px] truncate" title={r.error}>{r.error}</div>}
                       </td>
                       <td className="table-td text-right tabular-nums">{fmtInt(r.recordsRead)}</td>
                       <td className="table-td text-right tabular-nums font-semibold">{fmtInt(r.recordsWritten)}</td>
