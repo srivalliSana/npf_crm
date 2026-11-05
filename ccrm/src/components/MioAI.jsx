@@ -61,7 +61,7 @@ export default function MioAI({ onClose }) {
           </div>
           <div>
             <p className="text-white font-semibold text-sm leading-tight">CU AI</p>
-            <p className="text-purple-200 text-[10px] leading-tight">CCRM Assistant</p>
+            <p className="text-purple-200 text-[11px] leading-tight">CCRM Assistant</p>
           </div>
         </div>
         <button onClick={onClose} title="Close"
