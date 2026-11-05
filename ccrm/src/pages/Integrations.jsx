@@ -513,14 +513,14 @@ function RcsTemplatesManager() {
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Variables (comma-separated, in order)</label>
                 <input value={form.variables} onChange={e => setForm(p => ({ ...p, variables: e.target.value }))}
                   placeholder="e.g. name, course, date" className="input-field text-sm" />
-                <p className="text-[11px] text-gray-400 mt-1">Maps to var1, var2, … in sequence. Leave blank if the template has no variables.</p>
+                <p className="text-[12px] text-gray-400 mt-1">Maps to var1, var2, … in sequence. Leave blank if the template has no variables.</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Preview Text</label>
                 <textarea value={form.preview} onChange={e => setForm(p => ({ ...p, preview: e.target.value }))}
                   rows={2} className="input-field text-sm resize-none"
                   placeholder="Hi {name}, your {course} application is confirmed." />
-                <p className="text-[11px] text-gray-400 mt-1">Use {'{variableName}'} placeholders — shown as a live preview when composing.</p>
+                <p className="text-[12px] text-gray-400 mt-1">Use {'{variableName}'} placeholders — shown as a live preview when composing.</p>
               </div>
             </div>
             <div className="flex gap-3 mt-5">
@@ -822,11 +822,11 @@ export default function Integrations() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-gray-900 text-sm">{integ.name}</h3>
-                      <span className={`badge text-[10px] font-bold ${CATEGORY_COLORS[integ.category] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`badge text-[11px] font-bold ${CATEGORY_COLORS[integ.category] || 'bg-gray-100 text-gray-600'}`}>
                         {integ.category}
                       </span>
                       {connected && (
-                        <span className="badge bg-green-100 text-green-700 text-[10px] font-bold flex items-center gap-0.5">
+                        <span className="badge bg-green-100 text-green-700 text-[11px] font-bold flex items-center gap-0.5">
                           <CheckCircle2 size={10} /> Connected
                         </span>
                       )}
