@@ -405,7 +405,7 @@ export default function UserManagement({ currentUser }) {
                     className="text-xs bg-primary-500 hover:bg-primary-500 text-white rounded-lg px-3 py-1">Set Entities</button>
                   {showBulkEnt && (
                     <div className="absolute right-0 top-8 z-30 bg-white border border-gray-200 rounded-lg shadow-xl p-3 w-60">
-                      <p className="text-[10px] font-semibold text-gray-500 mb-2">Grant entities to {selectedIds.length} user(s)</p>
+                      <p className="text-[11px] font-semibold text-gray-500 mb-2">Grant entities to {selectedIds.length} user(s)</p>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 mb-2">
                         {ENTITY_CODES.map(ent => {
                           const on = bulkEnt.includes(ent)
@@ -466,7 +466,7 @@ export default function UserManagement({ currentUser }) {
                           </div>
                           <div>
                             <span className="font-medium text-gray-800">{u.name}</span>
-                            {self && <span className="ml-1 text-[10px] text-primary-500 font-semibold">(you)</span>}
+                            {self && <span className="ml-1 text-[11px] text-primary-500 font-semibold">(you)</span>}
                           </div>
                         </div>
                       </td>
@@ -481,7 +481,7 @@ export default function UserManagement({ currentUser }) {
                       <td className="table-td">
                         <div className="flex flex-wrap gap-1 max-w-[140px]">
                           {parseEntities(u.entities).map(e => (
-                            <span key={e} className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">{e}</span>
+                            <span key={e} className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">{e}</span>
                           ))}
                         </div>
                       </td>
@@ -666,7 +666,7 @@ export default function UserManagement({ currentUser }) {
               {/* Entity Access — which lead sets this user can view */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Entity Access <span className="text-[10px] text-gray-400">(which lead sets this user can view)</span>
+                  Entity Access <span className="text-[11px] text-gray-400">(which lead sets this user can view)</span>
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
                   {ENTITY_CODES.map(ent => {
@@ -680,13 +680,13 @@ export default function UserManagement({ currentUser }) {
                     )
                   })}
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">They see only their own assigned leads within these entities.</p>
+                <p className="text-[11px] text-gray-400 mt-1">They see only their own assigned leads within these entities.</p>
               </div>
 
               {/* Reports To — Manager / Dean */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Reports To <span className="text-[10px] text-gray-400">(Manager / Dean)</span>
+                  Reports To <span className="text-[11px] text-gray-400">(Manager / Dean)</span>
                 </label>
                 <select
                   value={form.reportsTo}
@@ -698,14 +698,14 @@ export default function UserManagement({ currentUser }) {
                     .filter(u => ['Admin','Manager'].includes(u.role) && u.name !== form.name)
                     .map(u => <option key={u.id} value={u.name}>{u.name} ({u.role})</option>)}
                 </select>
-                <p className="text-[10px] text-gray-400 mt-0.5">Counsellor's reporting manager/dean — used for team-wise reporting.</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Counsellor's reporting manager/dean — used for team-wise reporting.</p>
               </div>
 
               {/* Mobile (for WhatsApp alerts) */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Mobile Number
-                  <span className="ml-1 text-[10px] text-green-600 font-medium">(for WhatsApp alerts)</span>
+                  <span className="ml-1 text-[11px] text-green-600 font-medium">(for WhatsApp alerts)</span>
                 </label>
                 <input
                   type="tel"
@@ -779,7 +779,7 @@ export default function UserManagement({ currentUser }) {
                     <div key={t.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
                       <div>
                         <p className="text-sm font-medium text-gray-800">{t.name}</p>
-                        <p className="text-[10px] text-gray-400">{t.memberCount || 0} member{t.memberCount === 1 ? '' : 's'}</p>
+                        <p className="text-[11px] text-gray-400">{t.memberCount || 0} member{t.memberCount === 1 ? '' : 's'}</p>
                       </div>
                       <button onClick={() => deleteTeam(t.id, t.name)}
                         className="text-danger-400 hover:text-danger-600 p-1" title="Delete team">
@@ -816,10 +816,10 @@ export default function UserManagement({ currentUser }) {
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium text-gray-800">{r.name}</p>
-                          {r.isSystem && <span className="badge bg-info-100 text-info-700 text-[9px] font-bold">SYSTEM</span>}
-                          <span className="text-[10px] text-gray-400">· {r.memberCount || 0} user{r.memberCount === 1 ? '' : 's'}</span>
+                          {r.isSystem && <span className="badge bg-info-100 text-info-700 text-[10px] font-bold">SYSTEM</span>}
+                          <span className="text-[11px] text-gray-400">· {r.memberCount || 0} user{r.memberCount === 1 ? '' : 's'}</span>
                         </div>
-                        {r.description && <p className="text-[10px] text-gray-500 mt-0.5">{r.description}</p>}
+                        {r.description && <p className="text-[11px] text-gray-500 mt-0.5">{r.description}</p>}
                       </div>
                       {!r.isSystem && (
                         <button onClick={() => deleteRole(r.id, r.name)}
@@ -897,17 +897,17 @@ export default function UserManagement({ currentUser }) {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-gray-800">{u.name}</p>
-                          <p className="text-[10px] text-gray-400">{u.email}</p>
+                          <p className="text-[11px] text-gray-400">{u.email}</p>
                         </div>
                       </div>
                       <div className="flex flex-col items-end">
-                        <span className={`badge text-[10px] font-bold ${
+                        <span className={`badge text-[11px] font-bold ${
                           u.role === 'Admin'     ? 'bg-danger-100 text-danger-700' :
                           u.role === 'Manager'   ? 'bg-purple-100 text-purple-700' :
                           u.role === 'Counselor' ? 'bg-info-100 text-info-700' :
                                                    'bg-success-100 text-success-700'
                         }`}>{u.role}</span>
-                        <span className="text-[10px] text-gray-500 mt-1">{u.lastLogin}</span>
+                        <span className="text-[11px] text-gray-500 mt-1">{u.lastLogin}</span>
                       </div>
                     </div>
                   ))}
@@ -925,7 +925,7 @@ export default function UserManagement({ currentUser }) {
                   ) : activity.activity.map((a, i) => (
                     <div key={i} className="text-xs px-2 py-1.5 border-l-2 border-primary-200 bg-primary-50/30 ml-1">
                       <p className="text-gray-700">{a.text}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">{a.time}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{a.time}</p>
                     </div>
                   ))}
                 </div>
