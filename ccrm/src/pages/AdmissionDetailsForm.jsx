@@ -113,7 +113,7 @@ function Hero({ application, macroStep }) {
           {STATS.map(stat => (
             <div key={stat.label} className="text-center sm:text-left">
               <div className="text-xl sm:text-2xl font-semibold text-white">{stat.value}</div>
-              <div className="text-teal-200 text-[10px] sm:text-xs mt-0.5">{stat.label}</div>
+              <div className="text-teal-200 text-[11px] sm:text-xs mt-0.5">{stat.label}</div>
             </div>
           ))}
         </div>
@@ -133,7 +133,7 @@ function Hero({ application, macroStep }) {
                     }`} style={i === macroStep ? { background: 'linear-gradient(135deg,#0d9488,#0369a1)' } : undefined}>
                       {i < macroStep ? <Check size={15} /> : i + 1}
                     </div>
-                    <span className={`mt-1.5 text-[10px] font-semibold text-center leading-tight ${i <= macroStep ? 'text-gray-700' : 'text-gray-400'}`} style={{ maxWidth: 70 }}>
+                    <span className={`mt-1.5 text-[11px] font-semibold text-center leading-tight ${i <= macroStep ? 'text-gray-700' : 'text-gray-400'}`} style={{ maxWidth: 70 }}>
                       {label}
                     </span>
                   </div>
