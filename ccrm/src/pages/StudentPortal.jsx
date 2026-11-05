@@ -164,7 +164,7 @@ export default function StudentPortal() {
                           }`}>
                             {done && !current ? '✓' : i + 1}
                           </div>
-                          <span className={`text-[9px] mt-1 text-center leading-tight ${done ? 'text-primary-600 font-semibold' : 'text-gray-500'}`}>
+                          <span className={`text-[10px] mt-1 text-center leading-tight ${done ? 'text-primary-600 font-semibold' : 'text-gray-500'}`}>
                             {stage.replace('Application ', '')}
                           </span>
                         </div>
