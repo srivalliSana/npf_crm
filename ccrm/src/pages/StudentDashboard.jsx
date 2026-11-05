@@ -80,10 +80,10 @@ function InfoStrip({ app, leadId, counsellorName }) {
       <div className="flex flex-wrap gap-x-10 gap-y-4">
         {items.map((it) => (
           <div key={it.label} className="min-w-[130px]">
-            <div className="flex items-center gap-1.5 text-[10.5px] font-semibold   text-gray-400 mb-1">
+            <div className="flex items-center gap-1.5 text-[11.5px] font-semibold   text-gray-400 mb-1">
               <it.icon size={11.5} /> {it.label}
             </div>
-            <div className={`text-[13px] font-semibold text-gray-900 truncate ${it.label !== 'Counsellor' ? 'font-mono' : ''}`}>{it.value}</div>
+            <div className={`text-[14px] font-semibold text-gray-900 truncate ${it.label !== 'Counsellor' ? 'font-mono' : ''}`}>{it.value}</div>
           </div>
         ))}
       </div>
@@ -99,14 +99,14 @@ function Stepper({ steps }) {
         {steps.map((s, i) => (
           <React.Fragment key={s.label}>
             <div className="flex flex-col items-center gap-1.5 flex-shrink-0 w-[110px] text-center">
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-[13px] border-2 ${
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-[14px] border-2 ${
                 s.state === 'done' ? 'bg-success-500 text-white border-success-500'
                 : s.state === 'current' ? 'bg-primary-500 text-white border-primary-500 ring-4 ring-primary-100'
                 : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
                 {s.state === 'done' ? '✓' : i + 1}
               </div>
-              <div className={`text-[12px] font-semibold ${s.state === 'current' ? 'text-primary-600' : 'text-gray-800'}`}>{s.label}</div>
-              <div className="text-[10.5px] text-gray-400">{s.sub}</div>
+              <div className={`text-[13px] font-semibold ${s.state === 'current' ? 'text-primary-600' : 'text-gray-800'}`}>{s.label}</div>
+              <div className="text-[11.5px] text-gray-400">{s.sub}</div>
             </div>
             {i < steps.length - 1 && (
               <div className={`flex-1 h-0.5 mt-4 min-w-[16px] ${s.state === 'done' ? 'bg-success-500' : 'bg-gray-200'}`} />
@@ -258,8 +258,8 @@ function TuitionFeeCard({ semester1Amount, remaining, semester1Confirmed, amount
             onClick={() => { setPlan(p.key); if (p.key !== 'custom') setCustom(p.value) }}
             className={`text-left rounded-md border-2 px-4 py-3 transition ${plan === p.key ? 'border-primary-400 bg-primary-50' : 'border-gray-100 hover:border-gray-200'}`}
           >
-            <div className="text-[10.5px] font-semibold   text-gray-400 mb-0.5">{p.label}</div>
-            <div className="font-mono font-extrabold text-[15px] text-gray-900">{p.value != null ? money(p.value) : 'You decide'}</div>
+            <div className="text-[11.5px] font-semibold   text-gray-400 mb-0.5">{p.label}</div>
+            <div className="font-mono font-extrabold text-[16px] text-gray-900">{p.value != null ? money(p.value) : 'You decide'}</div>
           </button>
         ))}
       </div>
@@ -318,19 +318,19 @@ function DocCard({ type, mandatory, uploaded, status, onUpload, uploading }) {
   return (
     <div className={`rounded-lg border p-4 flex flex-col gap-2 ${status === 'Rejected' ? 'border-danger-200 bg-danger-50/40' : 'border-gray-100 bg-white'}`}>
       <div className="w-full h-12 rounded-md bg-gray-50 flex items-center justify-center text-xl">📄</div>
-      <div className="text-[12.5px] font-semibold text-gray-900 leading-tight">
+      <div className="text-[13.5px] font-semibold text-gray-900 leading-tight">
         {DOC_LABELS[type] || type}{mandatory && <span className="text-danger-500 ml-1">*</span>}
       </div>
-      {DOC_HINTS[type] && <p className="text-[10.5px] text-gray-400 lowercase -mt-1">{DOC_HINTS[type]}</p>}
+      {DOC_HINTS[type] && <p className="text-[11.5px] text-gray-400 lowercase -mt-1">{DOC_HINTS[type]}</p>}
       <Pill tone={tone}>{isLocked && '🔒 '}{label}</Pill>
       <input ref={inputRef} type="file" hidden onChange={(e) => e.target.files[0] && onUpload(type, e.target.files[0])} />
       {isLocked ? (
-        <div className="text-[10.5px] text-gray-400 mt-1">Locked — verified, cannot be changed</div>
+        <div className="text-[11.5px] text-gray-400 mt-1">Locked — verified, cannot be changed</div>
       ) : (
         <button
           onClick={() => inputRef.current?.click()}
           disabled={uploading === type}
-          className="mt-1 w-full justify-center text-[12px] font-semibold text-primary-600 hover:text-primary-700 border border-primary-100 hover:bg-primary-50 rounded-lg py-1.5 flex items-center gap-1.5 disabled:opacity-50"
+          className="mt-1 w-full justify-center text-[13px] font-semibold text-primary-600 hover:text-primary-700 border border-primary-100 hover:bg-primary-50 rounded-lg py-1.5 flex items-center gap-1.5 disabled:opacity-50"
         >
           {uploading === type ? <Loader size={12} className="animate-spin" /> : <Upload size={12} />}
           {uploaded || status === 'Rejected' ? 'Re-upload' : 'Upload'}
@@ -424,10 +424,10 @@ function GrievanceSection() {
           <div key={t.id} className="border-b border-dashed border-gray-100 last:border-b-0 pb-3 last:pb-0">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <span className="font-mono text-[11px] text-gray-400">GRV{String(t.id).padStart(4, '0')}</span>
-                <span className="text-[12.5px] font-semibold text-gray-800 ml-2">{t.category}</span>
-                <p className="text-[12.5px] text-gray-500 mt-0.5">{t.message}</p>
-                {t.response && <p className="text-[12.5px] text-success-700 mt-1.5 bg-success-50 rounded-lg px-3 py-2"><strong>Response:</strong> {t.response}</p>}
+                <span className="font-mono text-[12px] text-gray-400">GRV{String(t.id).padStart(4, '0')}</span>
+                <span className="text-[13.5px] font-semibold text-gray-800 ml-2">{t.category}</span>
+                <p className="text-[13.5px] text-gray-500 mt-0.5">{t.message}</p>
+                {t.response && <p className="text-[13.5px] text-success-700 mt-1.5 bg-success-50 rounded-lg px-3 py-2"><strong>Response:</strong> {t.response}</p>}
               </div>
               <Pill tone={t.status === 'Resolved' ? 'green' : 'amber'}>{t.status}</Pill>
             </div>
@@ -436,9 +436,9 @@ function GrievanceSection() {
       </div>
 
       <div className="mt-5 pt-5 border-t border-gray-100 flex flex-wrap gap-x-10 gap-y-3">
-        <div><div className="text-[10.5px] font-semibold  text-gray-400">Helpline</div><div className="text-sm font-semibold font-mono">1800-123-4560</div></div>
-        <div><div className="text-[10.5px] font-semibold  text-gray-400">Support Email</div><div className="text-sm font-semibold">support@cuedu.in</div></div>
-        <div><div className="text-[10.5px] font-semibold  text-gray-400">Hours</div><div className="text-sm font-semibold">24×7</div></div>
+        <div><div className="text-[11.5px] font-semibold  text-gray-400">Helpline</div><div className="text-sm font-semibold font-mono">1800-123-4560</div></div>
+        <div><div className="text-[11.5px] font-semibold  text-gray-400">Support Email</div><div className="text-sm font-semibold">support@cuedu.in</div></div>
+        <div><div className="text-[11.5px] font-semibold  text-gray-400">Hours</div><div className="text-sm font-semibold">24×7</div></div>
       </div>
     </Card>
   )
@@ -691,7 +691,7 @@ export default function StudentDashboard() {
             <img src="/logo.png" alt="Centurion University" className="h-11 w-auto flex-shrink-0" />
             <div>
               <h1 className="text-lg font-extrabold text-gray-900 leading-tight">Student Portal</h1>
-              <p className="text-[12.5px] text-gray-500">{app.name} · {app.appNo}</p>
+              <p className="text-[13.5px] text-gray-500">{app.name} · {app.appNo}</p>
             </div>
           </div>
           <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-md transition">
