@@ -155,7 +155,7 @@ export default function DripWorkflows() {
                   <h3 className="font-semibold text-gray-800 text-sm">{seq.name}</h3>
                   <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{seq.description}</p>
                 </div>
-                <span className={`badge text-[10px] font-bold flex-shrink-0 ml-2 ${seq.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                <span className={`badge text-[11px] font-bold flex-shrink-0 ml-2 ${seq.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                   {seq.status}
                 </span>
               </div>
@@ -219,7 +219,7 @@ export default function DripWorkflows() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`badge text-[10px] font-bold ${ch.bg} ${ch.color} border ${ch.border}`}>{step.channel}</span>
+                            <span className={`badge text-[11px] font-bold ${ch.bg} ${ch.color} border ${ch.border}`}>{step.channel}</span>
                             <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
                               <Clock size={10} /> Day {step.day}
                             </span>
