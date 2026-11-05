@@ -100,19 +100,19 @@ export default function WebsitesDashboard() {
 
                 <div className="grid grid-cols-2 gap-2.5 text-sm">
                   <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
-                    <div className="flex items-center gap-1.5 text-gray-400 text-[11px] font-semibold"><Users size={11} /> Total</div>
+                    <div className="flex items-center gap-1.5 text-gray-400 text-[12px] font-semibold"><Users size={11} /> Total</div>
                     <div className="text-xl font-semibold text-gray-900 mt-0.5">{d.total.toLocaleString('en-IN')}</div>
                   </div>
                   <div className="bg-info-50 rounded-lg px-3 py-2.5 border border-info-100">
-                    <div className="flex items-center gap-1.5 text-info-600 text-[11px] font-semibold"><Clock size={11} /> Not Contacted</div>
+                    <div className="flex items-center gap-1.5 text-info-600 text-[12px] font-semibold"><Clock size={11} /> Not Contacted</div>
                     <div className="text-xl font-semibold text-info-700 mt-0.5">{d.notContacted.toLocaleString('en-IN')}</div>
                   </div>
                   <div className="bg-success-50 rounded-lg px-3 py-2.5 border border-success-100">
-                    <div className="flex items-center gap-1.5 text-success-600 text-[11px] font-semibold"><CheckCircle size={11} /> Assigned</div>
+                    <div className="flex items-center gap-1.5 text-success-600 text-[12px] font-semibold"><CheckCircle size={11} /> Assigned</div>
                     <div className="text-xl font-semibold text-success-700 mt-0.5">{d.assigned.toLocaleString('en-IN')}</div>
                   </div>
                   <div className="bg-warning-50 rounded-lg px-3 py-2.5 border border-warning-100">
-                    <div className="flex items-center gap-1.5 text-warning-600 text-[11px] font-semibold"><AlertCircle size={11} /> Unassigned</div>
+                    <div className="flex items-center gap-1.5 text-warning-600 text-[12px] font-semibold"><AlertCircle size={11} /> Unassigned</div>
                     <div className="text-xl font-semibold text-warning-700 mt-0.5">{d.unassigned.toLocaleString('en-IN')}</div>
                   </div>
                 </div>
