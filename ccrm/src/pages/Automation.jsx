@@ -256,7 +256,7 @@ function EscalationsTab({ data, manage, onChange, flash }) {
                 {list.data.map(e => (
                   <tr key={e.id} className="border-b border-gray-100">
                     <td className="py-2 pr-3 whitespace-nowrap text-xs">{fmtDateTime(e.created_at)}</td>
-                    <td className="py-2 pr-3">{e.rule_name || e.rule_code}{e.detail && <div className="text-[11px] text-danger-600 max-w-xs truncate" title={e.detail}>{e.detail}</div>}</td>
+                    <td className="py-2 pr-3">{e.rule_name || e.rule_code}{e.detail && <div className="text-[12px] text-danger-600 max-w-xs truncate" title={e.detail}>{e.detail}</div>}</td>
                     <td className="py-2 pr-3"><Badge variant="neutral">{e.entity_type}</Badge> {e.entity_label}</td>
                     <td className="py-2 pr-3 text-xs">{e.owner || '—'}</td>
                     <td className="py-2 pr-3 text-xs text-gray-500 max-w-xs truncate" title={e.notified_to}>{e.notified_to || '—'}</td>
@@ -294,7 +294,7 @@ function JourneyTab({ data, manage, flash }) {
   const stage = (label, n, tone) => (
     <div className="flex-1 min-w-[120px] text-center">
       <div className={`text-2xl font-semibold ${tone}`}>{fmtInt(n)}</div>
-      <div className="text-[11px] text-gray-500">{label}</div>
+      <div className="text-[12px] text-gray-500">{label}</div>
     </div>
   )
 
@@ -328,8 +328,8 @@ function JourneyTab({ data, manage, flash }) {
                     <div className="min-w-0">
                       <span className={s.done ? 'text-gray-900' : 'text-gray-500'}>{s.label}</span>
                       {s.value && <span className="text-xs text-gray-400 ml-1 font-mono">{s.value}</span>}
-                      {s.at && <span className="text-[11px] text-gray-400 ml-1">· {fmtDateTime(s.at)}</span>}
-                      {!s.done && s.error && <div className="text-[11px] text-danger-600">{s.error}</div>}
+                      {s.at && <span className="text-[12px] text-gray-400 ml-1">· {fmtDateTime(s.at)}</span>}
+                      {!s.done && s.error && <div className="text-[12px] text-danger-600">{s.error}</div>}
                     </div>
                   </li>
                 ))}
@@ -404,7 +404,7 @@ function ActivityTab({ data }) {
                     <td className="py-2 pr-3 font-mono text-xs">{e.event_type}</td>
                     <td className="py-2 pr-3 text-xs">{e.entity_type} #{e.entity_id}</td>
                     <td className="py-2 pr-3">{e.rules_matched}</td>
-                    <td className="py-2 text-[11px] text-gray-400 font-mono max-w-md truncate" title={JSON.stringify(e.payload)}>{JSON.stringify(e.payload)}</td>
+                    <td className="py-2 text-[12px] text-gray-400 font-mono max-w-md truncate" title={JSON.stringify(e.payload)}>{JSON.stringify(e.payload)}</td>
                   </tr>
                 ))}
               </tbody>
