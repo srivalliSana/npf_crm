@@ -250,7 +250,7 @@ export default function Campaigns() {
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                     <td className="table-td font-semibold text-primary-600">{c.name}</td>
                     <td className="table-td">
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold text-white px-2.5 py-0.5 rounded-full ${CHANNEL_COLORS[c.channel] || 'bg-gray-400'}`}>
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold text-white px-2.5 py-0.5 rounded-full ${CHANNEL_COLORS[c.channel] || 'bg-gray-400'}`}>
                         {c.channel}
                       </span>
                     </td>
