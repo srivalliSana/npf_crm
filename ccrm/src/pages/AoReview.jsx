@@ -98,16 +98,16 @@ function ReviewPanel({ appId, onDone, flash }) {
                     <span className="text-sm font-medium text-gray-900">{d.type}</span>
                     {d.is_mandatory && <Badge variant="neutral">Mandatory</Badge>}
                     <Badge variant={DOC_VARIANT[d.status] || 'neutral'}>{d.status}</Badge>
-                    {d.file_size > 0 && <span className="text-[11px] text-gray-400">{fmtBytes(d.file_size)}</span>}
+                    {d.file_size > 0 && <span className="text-[12px] text-gray-400">{fmtBytes(d.file_size)}</span>}
                     <span className="flex-1" />
-                    {href ? <a href={href} target="_blank" rel="noreferrer" className="text-xs text-primary-600 inline-flex items-center gap-1 hover:underline"><ExternalLink size={12} />Open</a> : <span className="text-[11px] text-gray-400">No file</span>}
+                    {href ? <a href={href} target="_blank" rel="noreferrer" className="text-xs text-primary-600 inline-flex items-center gap-1 hover:underline"><ExternalLink size={12} />Open</a> : <span className="text-[12px] text-gray-400">No file</span>}
                     {app.ao_status !== 'Approved' && (
                       <label className="text-xs text-danger-700 inline-flex items-center gap-1.5 ml-2">
                         <input type="checkbox" className="accent-danger-600" checked={picked} onChange={() => toggle(d)} /> Send back
                       </label>
                     )}
                   </div>
-                  <div className="text-[11px] text-gray-500 mt-1">
+                  <div className="text-[12px] text-gray-500 mt-1">
                     Uploaded {d.upload_date || '—'}{d.verified_by ? ` · ${d.status.toLowerCase()} by ${d.verified_by} ${fmtDateTime(d.verified_at)}` : ''}
                     {d.rejection_reason && <span className="text-danger-600"> · reason: {d.rejection_reason}</span>}
                   </div>
@@ -127,7 +127,7 @@ function ReviewPanel({ appId, onDone, flash }) {
               {detailRows.map(([k, v]) => <React.Fragment key={k}><dt className="text-gray-500 capitalize">{k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}</dt><dd className="text-gray-900 break-words">{String(v)}</dd></React.Fragment>)}
             </dl>
           )}
-          <p className="text-[11px] text-gray-400 mt-2">Details status: {app.admission_details_status || 'Pending'}</p>
+          <p className="text-[12px] text-gray-400 mt-2">Details status: {app.admission_details_status || 'Pending'}</p>
         </div>
       </div>
 
@@ -207,11 +207,11 @@ export default function AoReview() {
                 <button key={a.id} onClick={() => setSelected(a.id)} className={`w-full text-left px-2 py-2.5 hover:bg-gray-50 rounded-lg ${selected === a.id ? 'bg-primary-50' : ''}`}>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-900 truncate">{a.name}</span>
-                    <span className="font-mono text-[11px] text-gray-500">{a.app_no}</span>
+                    <span className="font-mono text-[12px] text-gray-500">{a.app_no}</span>
                     <span className="flex-1" />
                     <Badge variant={a.docs_rejected ? 'danger' : a.docs_verified === a.docs_total ? 'success' : 'warning'}>{a.docs_verified}/{a.docs_total} docs</Badge>
                   </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">{a.course} · {a.owner || 'Unassigned'} · {tab === 'approved' ? `approved ${fmtDateTime(a.ao_reviewed_at)}` : `queued ${fmtDateTime(a.ao_queued_at)}`}</div>
+                  <div className="text-[12px] text-gray-500 mt-0.5">{a.course} · {a.owner || 'Unassigned'} · {tab === 'approved' ? `approved ${fmtDateTime(a.ao_reviewed_at)}` : `queued ${fmtDateTime(a.ao_queued_at)}`}</div>
                 </button>
               ))}
             </div>
