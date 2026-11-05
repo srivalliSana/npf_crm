@@ -91,11 +91,11 @@ function StatusCard({ label, up, subtext, icon: Icon }) {
       <div className="flex items-center gap-2 mb-1">
         <Icon size={13} className={up ? 'text-green-600' : 'text-red-500'} />
         <span className="text-xs font-semibold text-gray-700">{label}</span>
-        <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded ${up ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+        <span className={`ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded ${up ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
           {up ? '● UP' : '● DOWN'}
         </span>
       </div>
-      <div className="text-[11px] text-gray-500">{subtext}</div>
+      <div className="text-[12px] text-gray-500">{subtext}</div>
     </div>
   )
 }
@@ -109,11 +109,11 @@ function MetricCard({ label, value, hint, icon: Icon, tone = 'blue' }) {
   }[tone]
   return (
     <div className="bg-white/40 rounded-lg p-3 border border-gray-200/50">
-      <div className="flex items-center gap-1 text-[10px] text-gray-500 font-bold mb-1">
+      <div className="flex items-center gap-1 text-[11px] text-gray-500 font-bold mb-1">
         <Icon size={10} /> {label}
       </div>
       <div className={`font-bold text-sm ${toneClass}`}>{value}</div>
-      <div className="text-[10px] text-gray-400 mt-0.5 truncate" title={hint}>{hint}</div>
+      <div className="text-[11px] text-gray-400 mt-0.5 truncate" title={hint}>{hint}</div>
     </div>
   )
 }
