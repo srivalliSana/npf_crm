@@ -32,7 +32,7 @@ function AlertTile({ alert }) {
       <Icon size={18} className={`${s.text} flex-shrink-0`} />
       <div className="min-w-0 flex-1">
         <div className={`text-lg font-semibold leading-none ${s.text}`}>{fmtInt(alert.count)}</div>
-        <div className="text-[11px] text-gray-600 mt-1 leading-tight">{alert.label}</div>
+        <div className="text-[12px] text-gray-600 mt-1 leading-tight">{alert.label}</div>
       </div>
       <ChevronRight size={15} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
     </Link>
@@ -43,8 +43,8 @@ function MiniStat({ label, value, hint }) {
   return (
     <div className="px-3 py-2.5">
       <div className="text-xl font-semibold text-gray-900 leading-none tabular-nums">{value}</div>
-      <div className="text-[11px] text-gray-500 mt-1">{label}</div>
-      {hint && <div className="text-[10px] text-gray-400 mt-0.5">{hint}</div>}
+      <div className="text-[12px] text-gray-500 mt-1">{label}</div>
+      {hint && <div className="text-[11px] text-gray-400 mt-0.5">{hint}</div>}
     </div>
   )
 }
@@ -202,7 +202,7 @@ export default function CommandCentre() {
         )}
       </Panel>
 
-      <p className="text-[11px] text-gray-400 mt-4 flex items-center gap-1.5">
+      <p className="text-[12px] text-gray-400 mt-4 flex items-center gap-1.5">
         <Clock size={11} /> Figures are cached for up to a minute; Refresh forces a rebuild.
       </p>
     </PageContainer>
