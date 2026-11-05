@@ -168,15 +168,15 @@ export default function CommunicationsReport() {
                   <div className="flex items-center gap-6">
                     <div className="text-center">
                       <div className="text-lg font-semibold text-gray-800">{total}</div>
-                      <div className="text-[10px] text-gray-400 font-medium">Total</div>
+                      <div className="text-[11px] text-gray-400 font-medium">Total</div>
                     </div>
                     <div className="text-center">
                       <div className="text-lg font-semibold text-green-600">{sent}</div>
-                      <div className="text-[10px] text-green-500 font-medium">Sent</div>
+                      <div className="text-[11px] text-green-500 font-medium">Sent</div>
                     </div>
                     <div className="text-center">
                       <div className="text-lg font-semibold text-red-500">{failed}</div>
-                      <div className="text-[10px] text-red-400 font-medium">Failed</div>
+                      <div className="text-[11px] text-red-400 font-medium">Failed</div>
                     </div>
                     <div className="w-20">
                       <div className="flex items-center justify-between mb-1">
