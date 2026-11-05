@@ -289,8 +289,8 @@ export default function Login() {
 
           {/* Applicants and students are a different audience: give them their own way in */}
           <div className="mt-10 bg-gray-100 rounded-md p-5">
-            <p className="text-[15px] font-medium text-gray-900">Applying or already applied?</p>
-            <div className="mt-3 flex flex-col gap-2 text-[15px]">
+            <p className="text-[16px] font-medium text-gray-900">Applying or already applied?</p>
+            <div className="mt-3 flex flex-col gap-2 text-[16px]">
               <a href="/apply" className="text-gray-700 hover:text-gray-900 underline underline-offset-4 decoration-gray-300 hover:decoration-primary-600 w-fit">Start an application</a>
               <a href="/student-portal" className="text-gray-700 hover:text-gray-900 underline underline-offset-4 decoration-gray-300 hover:decoration-primary-600 w-fit">Check your application status</a>
             </div>
