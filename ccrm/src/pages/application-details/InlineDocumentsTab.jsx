@@ -163,7 +163,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
                 <>
                   <Plus size={20} className="mx-auto text-gray-400 mb-1" />
                   <p className="text-xs text-gray-600 font-semibold">Click to upload or drag & drop</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">PDF, JPG, PNG up to 5MB</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">PDF, JPG, PNG up to 5MB</p>
                 </>
               )}
               <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
@@ -192,7 +192,7 @@ function InlineDocumentsTab({ studentName, documents, uploadDocument, updateDocS
               {uploaded ? <CheckCircle2 size={12} className="flex-shrink-0" /> : <Circle size={12} className="flex-shrink-0" />}
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{type}</p>
-                <p className="text-[10px] opacity-75">{status}</p>
+                <p className="text-[11px] opacity-75">{status}</p>
               </div>
             </div>
           )
