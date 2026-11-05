@@ -181,7 +181,7 @@ export default function QueryManagement() {
             </div>
             <div className="p-4 flex-1 overflow-y-auto space-y-4">
               <div>
-                <span className="text-[10px] font-bold bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+                <span className="text-[11px] font-bold bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
                   Ticket #{selectedQuery.id}
                 </span>
                 <h4 className="font-semibold text-gray-900 text-sm mt-2">{selectedQuery.subject}</h4>
