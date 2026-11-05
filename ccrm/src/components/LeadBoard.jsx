@@ -119,11 +119,11 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
               className={`relative snap-start flex-shrink-0 w-[84vw] sm:w-72 rounded-lg p-2.5 flex flex-col max-h-[70vh] md:max-h-none md:h-full min-h-[12rem] ${isOver ? 'bg-gray-300/80' : 'bg-gray-200/70'}`}
             >
               <header className="flex items-center justify-between px-1.5 pb-3 pt-1">
-                <h3 className="flex items-center gap-2 text-[14px] font-medium text-gray-900">
+                <h3 className="flex items-center gap-2 text-[15px] font-medium text-gray-900">
                   <span className={`w-2 h-2 rounded-full ${STAGE_DOT[stage] || 'bg-gray-400'}`} aria-hidden="true" />
                   {stageLabel(stage)}
                 </h3>
-                <span className="min-w-[1.75rem] text-center px-2 py-0.5 rounded-full bg-white text-[12px] font-medium text-gray-700 tabular-nums">{c.total.toLocaleString()}</span>
+                <span className="min-w-[1.75rem] text-center px-2 py-0.5 rounded-full bg-white text-[13px] font-medium text-gray-700 tabular-nums">{c.total.toLocaleString()}</span>
               </header>
 
               <div className="space-y-2.5 overflow-y-auto pr-0.5 flex-1">
@@ -136,20 +136,20 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
                   >
                     <div className="p-3.5">
                       <div className="flex items-start gap-3">
-                        <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-medium flex-shrink-0 ${avatarTone(lead.name)}`} aria-hidden="true">{initials(lead.name) || '?'}</span>
+                        <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-medium flex-shrink-0 ${avatarTone(lead.name)}`} aria-hidden="true">{initials(lead.name) || '?'}</span>
                         <div className="min-w-0 flex-1">
-                          <button onClick={() => onOpen(lead)} className="block max-w-full text-left text-[15px] font-medium text-gray-900 group-hover:underline leading-snug break-words">{lead.name}</button>
+                          <button onClick={() => onOpen(lead)} className="block max-w-full text-left text-[16px] font-medium text-gray-900 group-hover:underline leading-snug break-words">{lead.name}</button>
                           <div className="mt-1 flex items-center gap-2 min-w-0">
                             {(() => {
                               const t = temperature(lead.score || 0)
-                              return <span title={`Lead score ${lead.score || 0}`} className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium tabular-nums ${t.cls}`}>{t.label} · {lead.score || 0}</span>
+                              return <span title={`Lead score ${lead.score || 0}`} className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[12px] font-medium tabular-nums ${t.cls}`}>{t.label} · {lead.score || 0}</span>
                             })()}
-                            <span className="text-[12px] text-gray-500 truncate">{lead.source || 'Unknown source'}</span>
+                            <span className="text-[13px] text-gray-500 truncate">{lead.source || 'Unknown source'}</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 space-y-1.5 text-[13px] text-gray-700">
+                      <div className="mt-3 space-y-1.5 text-[14px] text-gray-700">
                         <div className="flex items-center justify-between gap-2">
                           <span className="flex items-center gap-2 tabular-nums"><Phone size={13} className="text-gray-400" />{lead.mobile}</span>
                           <span className="flex items-center gap-1">
@@ -170,10 +170,10 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
 
                     <div className="flex items-center justify-between gap-2 bg-gray-50 px-3.5 py-2.5">
                       <span className="flex items-center gap-2 min-w-0">
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${lead.owner ? 'bg-gray-200 text-gray-700' : 'border border-dashed border-gray-300 text-gray-400'}`}>{initials(lead.owner) || '–'}</span>
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium flex-shrink-0 ${lead.owner ? 'bg-gray-200 text-gray-700' : 'border border-dashed border-gray-300 text-gray-400'}`}>{initials(lead.owner) || '–'}</span>
                         <span className="min-w-0">
-                          <span className={`block text-[12px] truncate leading-tight ${lead.owner ? 'text-gray-800' : 'text-gray-400'}`}>{lead.owner || 'Unassigned'}</span>
-                          {shortDate(lead.regDate) && <span className="block text-[11px] text-gray-500 leading-tight">Added {shortDate(lead.regDate)}</span>}
+                          <span className={`block text-[13px] truncate leading-tight ${lead.owner ? 'text-gray-800' : 'text-gray-400'}`}>{lead.owner || 'Unassigned'}</span>
+                          {shortDate(lead.regDate) && <span className="block text-[12px] text-gray-500 leading-tight">Added {shortDate(lead.regDate)}</span>}
                         </span>
                       </span>
                       {/* Move: the touch- and keyboard-friendly alternative to dragging */}
@@ -182,7 +182,7 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
                         id={`mv-${lead.id}`}
                         value={stage}
                         onChange={e => { if (e.target.value !== stage) onMove(lead, e.target.value) }}
-                        className="text-[12px] border border-gray-300 rounded-md bg-white py-1 pl-1.5 pr-1 max-w-[8rem] text-gray-700"
+                        className="text-[13px] border border-gray-300 rounded-md bg-white py-1 pl-1.5 pr-1 max-w-[8rem] text-gray-700"
                       >
                         {visible.map(s => <option key={s} value={s}>{stageLabel(s)}</option>)}
                       </select>
@@ -194,11 +194,11 @@ export default function LeadBoard({ stages, query, fetchPage, onOpen, onMove, no
                   <div className="py-8 flex justify-center text-gray-400"><Loader2 size={18} className="animate-spin" /></div>
                 )}
                 {!c.loading && c.rows.length === 0 && (
-                  <p className="py-8 text-center text-[13px] text-gray-500">No leads in this stage.</p>
+                  <p className="py-8 text-center text-[14px] text-gray-500">No leads in this stage.</p>
                 )}
                 {c.rows.length < c.total && (
                   <button onClick={() => loadMore(stage)} disabled={c.loading}
-                    className="w-full py-2 text-[13px] font-medium text-gray-700 hover:bg-gray-200 rounded-md disabled:opacity-60">
+                    className="w-full py-2 text-[14px] font-medium text-gray-700 hover:bg-gray-200 rounded-md disabled:opacity-60">
                     {c.loading ? 'Loading…' : `Show more (${(c.total - c.rows.length).toLocaleString()} left)`}
                   </button>
                 )}
