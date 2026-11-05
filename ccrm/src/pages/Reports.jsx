@@ -377,7 +377,7 @@ export default function Reports() {
                     <tr key={i} className="hover:bg-gray-50 border-t border-gray-100">
                       <td className="table-td text-xs font-medium text-gray-800 max-w-32 truncate" title={c.fullName}>{c.name}</td>
                       <td className="table-td text-xs text-gray-500">{c.channel}</td>
-                      <td className="table-td"><span className={`badge text-[10px] font-bold ${c.status === 'Active' ? 'bg-green-100 text-green-700' : c.status === 'Paused' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>{c.status}</span></td>
+                      <td className="table-td"><span className={`badge text-[11px] font-bold ${c.status === 'Active' ? 'bg-green-100 text-green-700' : c.status === 'Paused' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>{c.status}</span></td>
                       <td className="table-td text-xs text-gray-600">₹{c.budget.toLocaleString()}</td>
                       <td className="table-td text-xs text-gray-600">₹{c.spent.toLocaleString()}</td>
                       <td className="table-td text-xs font-semibold text-primary-600">{c.leads.toLocaleString()}</td>
@@ -752,7 +752,7 @@ export default function Reports() {
                         <div key={s.stage}>
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-2">
-                              {isBottleneck && <span className="text-[10px] bg-red-100 text-red-600 font-bold px-1.5 py-0.5 rounded">BOTTLENECK</span>}
+                              {isBottleneck && <span className="text-[11px] bg-red-100 text-red-600 font-bold px-1.5 py-0.5 rounded">BOTTLENECK</span>}
                               <span className="text-xs font-medium text-gray-700">{s.stage}</span>
                             </div>
                             <span className="text-xs font-semibold text-gray-600">{s.count} leads ({pct}%)</span>
@@ -809,7 +809,7 @@ export default function Reports() {
                           <td className="table-td font-semibold text-sm text-gray-800">{l.name}</td>
                           <td className="table-td font-mono text-xs text-gray-600">{l.mobile}</td>
                           <td className="table-td text-xs text-gray-500">{l.course || '—'}</td>
-                          <td className="table-td"><span className="badge bg-yellow-100 text-yellow-700 text-[10px] font-bold">{l.stage}</span></td>
+                          <td className="table-td"><span className="badge bg-yellow-100 text-yellow-700 text-[11px] font-bold">{l.stage}</span></td>
                           <td className="table-td"><span className="text-sm font-semibold text-red-500">{l.score}</span></td>
                           <td className="table-td text-xs text-gray-500">{l.owner || 'Unassigned'}</td>
                           <td className="table-td">
