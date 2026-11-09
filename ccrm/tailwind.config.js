@@ -16,44 +16,44 @@ export default {
         // Softer, eye-friendly blue palette
         // primary-500 is the main brand colour (links, primary buttons)
         // primary-50/100 used for tints; very pale to reduce eye strain
-        primary: {   // Lagoon Gold: primary #02677f (accent teal #03a2bc)
-          50:  '#eef5f6',
-          100: '#d9ebee',
-          200: '#b3d6dd',
-          300: '#7fbbc8',
-          400: '#03a2bc',
-          500: '#02677f',
-          600: '#025970',
-          700: '#014a5d',
-          800: '#013c4a',
-          900: '#012e39',
+        primary: {   // Ultramarine & Ember
+          50: '#eef2ff',
+          100: '#dfe6ff',
+          200: '#bccaff',
+          300: '#8da4ff',
+          400: '#5a78ff',
+          500: '#2f52f0',
+          600: '#2442d1',
+          700: '#1c35a8',
+          800: '#172c85',
+          900: '#0b1330',
         },
         // the one data hue: today's series, the main bar, the current period
-        data: { 500: '#1d5fbf', 100: '#dce8f8' },
-        accent: {   // Lagoon Gold: gold #ffb500
-          50:  '#fff9e6',
-          100: '#fff0bf',
-          200: '#ffe28a',
-          300: '#ffd04d',
-          400: '#ffc21f',
-          500: '#ffb500',
-          600: '#d99700',
-          700: '#a87400',
-          800: '#785300',
-          900: '#4d3500',
+        data: { 500: '#2f52f0', 100: '#e0e7ff' },
+        accent: {   // Ultramarine & Ember
+          50: '#fff3ed',
+          100: '#ffe2d3',
+          200: '#ffc4a6',
+          300: '#ff9e72',
+          400: '#ff7a45',
+          500: '#f9591f',
+          600: '#d84611',
+          700: '#ad360d',
+          800: '#7d2709',
+          900: '#4f1906',
         },
         // Cobalt Mono neutrals: foreground #0d0d12, muted text #62627a, border #e2e2ee, muted #f1f1f8
-        gray: {   // Lagoon Gold neutrals: text #081e24, muted #5a6569, border #d4e1e4, muted fill #e4eef0
-          50:  '#f5fafb',
-          100: '#e4eef0',
-          200: '#d4e1e4',
-          300: '#b3c0c4',
-          400: '#8a9498',
-          500: '#5a6569',
-          600: '#465155',
-          700: '#2f3a3e',
-          800: '#162a30',
-          900: '#081e24',
+        gray: {   // Ultramarine & Ember
+          50: '#f6f7fb',
+          100: '#eceef5',
+          200: '#dde1ec',
+          300: '#bcc3d4',
+          400: '#8b94ab',
+          500: '#5d667d',
+          600: '#464e63',
+          700: '#313850',
+          800: '#1c2238',
+          900: '#0b1228',
         },
         // AI / assistant accent — Campus One Neo's purple, used only for the
         // AI Assistant panel and its badges, never as a general-purpose color.
@@ -72,8 +72,8 @@ export default {
         // Soft page background — never pure white (reduces strain), and
         // deliberately deep enough that white cards visibly "float" above it.
         canvas: {
-          DEFAULT: '#f5fafb',
-          warm:    '#fcffff',
+          DEFAULT: '#f4f6fb',
+          warm:    '#fafbff',
         },
         // Violet/indigo/purple are remapped to one steel scale so legacy class names stay valid
         purple: {
@@ -99,15 +99,15 @@ export default {
         sans: ['Google Sans Flex', 'Inter', 'system-ui', 'sans-serif'],
         mono: ['Geist Mono', 'ui-monospace', 'monospace'],
       },
-      borderRadius: { DEFAULT: '0', sm: '0', md: '0', lg: '0', xl: '0', '2xl': '0', '3xl': '0' },
+      borderRadius: { DEFAULT: '8px', sm: '6px', md: '8px', lg: '12px', xl: '16px', '2xl': '20px', '3xl': '24px' },
       boxShadow: {
-        DEFAULT: 'none',
-        sm: 'none',
-        md: 'none',
-        soft: 'none',
-        card: 'none',
-        cardHover: 'none',
-        dropdown: '0 8px 16px -4px rgb(15 23 42 / 0.10), 0 20px 40px -8px rgb(15 23 42 / 0.18)',
+        DEFAULT: '0 1px 2px rgb(11 18 48 / 0.06)',
+        sm: '0 1px 2px rgb(11 18 48 / 0.06)',
+        md: '0 4px 12px -2px rgb(11 18 48 / 0.08)',
+        soft: '0 2px 8px rgb(11 18 48 / 0.06)',
+        card: '0 1px 3px rgb(11 18 48 / 0.06), 0 1px 2px rgb(11 18 48 / 0.04)',
+        cardHover: '0 8px 24px -4px rgb(11 18 48 / 0.12)',
+        dropdown: '0 8px 16px -4px rgb(11 18 48 / 0.10), 0 20px 40px -8px rgb(11 18 48 / 0.18)',
       },
     },
   },
