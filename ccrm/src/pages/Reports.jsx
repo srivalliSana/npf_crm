@@ -955,10 +955,10 @@ export default function Reports() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Reports &amp; Analytics</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className="page-band-title">Reports &amp; Analytics</h1>
+          <p className="page-band-desc">
             {ovLoading
               ? <span className="text-primary-600 font-medium">Please wait, loading reports…</span>
               : <>Showing data from <strong className="text-primary-600">{dateRange}</strong> · {totalLeads.toLocaleString()} leads · {totalApps.toLocaleString()} apps · {payments.length.toLocaleString()} payments</>}
