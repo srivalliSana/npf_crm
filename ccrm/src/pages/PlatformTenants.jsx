@@ -221,12 +221,12 @@ export default function PlatformTenants() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="page-band-title">
             <Building2 size={20} className="text-primary-500" /> Tenants
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">Platform admin — create and manage organizations on this CRM.</p>
+          <p className="page-band-desc">Platform admin — create and manage organizations on this CRM.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={load} className="flex items-center gap-1.5 text-sm border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
