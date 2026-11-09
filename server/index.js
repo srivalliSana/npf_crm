@@ -829,10 +829,56 @@ app.post('/api/auth/login', async (req, res) => {
   }
 })
 
+// Ask Google who an access token belongs to. Never trust an email sent by the browser.
+// Returns { email, name, picture } or throws an Error with .status and .publicMessage.
+async function verifyGoogleAccessToken(accessToken) {
+  const fail = (status, msg) => Object.assign(new Error(msg), { status, publicMessage: msg })
+  if (!accessToken || typeof accessToken !== 'string') throw fail(400, 'Google access token required.')
+  let infoRes, tokRes
+  try {
+    ;[infoRes, tokRes] = await Promise.all([
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${accessToken}` } }),
+      fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(accessToken)),
+    ])
+  } catch (e) {
+    console.error('[auth] google verification failed:', e.message)
+    throw fail(502, 'Could not reach Google to verify sign-in. Try again.')
+  }
+  if (!infoRes.ok || !tokRes.ok) throw fail(401, 'Google sign-in could not be verified.')
+  const info = await infoRes.json()
+  const tok = await tokRes.json()
+  // The token must have been issued to THIS app, not to some other site.
+  const wanted = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID
+  if (wanted && tok.aud !== wanted && tok.azp !== wanted) throw fail(401, 'Google sign-in could not be verified.')
+  if (!wanted) console.warn('[auth] GOOGLE_CLIENT_ID is not set on the server: token audience is not being checked.')
+  if (!info.email || info.email_verified === false || info.email_verified === 'false') throw fail(401, 'Google account email is not verified.')
+  return { email: String(info.email).toLowerCase(), name: info.name, picture: info.picture }
+}
+
 // --- GOOGLE OAUTH SIGN-IN / UPSERT ---
 app.post('/api/auth/google', async (req, res) => {
-  const { email, name, picture, tenantSlug } = req.body
-  if (!email) return res.status(400).json({ error: 'Email required.' })
+  const { accessToken, tenantSlug } = req.body
+  let email, name, picture
+  try { ({ email, name, picture } = await verifyGoogleAccessToken(accessToken)) }
+  catch (e) { return res.status(e.status || 401).json({ error: e.publicMessage || 'Google sign-in could not be verified.' }) }
+  try {
+    const [infoRes, tokRes] = await Promise.all([
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${accessToken}` } }),
+      fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(accessToken)),
+    ])
+    if (!infoRes.ok || !tokRes.ok) return res.status(401).json({ error: 'Google sign-in could not be verified.' })
+    const info = await infoRes.json()
+    const tok = await tokRes.json()
+    // The token must have been issued to THIS app, not to some other site.
+    const wanted = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID
+    if (wanted && tok.aud !== wanted && tok.azp !== wanted) return res.status(401).json({ error: 'Google sign-in could not be verified.' })
+    if (!wanted) console.warn('[auth] GOOGLE_CLIENT_ID is not set on the server: token audience is not being checked.')
+    if (!info.email || info.email_verified === false || info.email_verified === 'false') return res.status(401).json({ error: 'Google account email is not verified.' })
+    email = String(info.email).toLowerCase(); name = info.name; picture = info.picture
+  } catch (e) {
+    console.error('[auth] google verification failed:', e.message)
+    return res.status(502).json({ error: 'Could not reach Google to verify sign-in. Try again.' })
+  }
   try {
     const lastLoginStr = new Date().toLocaleString('en-IN', { hour12: true })
     // Email is unique per tenant, not globally — resolve which tenant this
@@ -9500,8 +9546,10 @@ app.post('/api/student-login', (req, res) => {
 // admissions process, not by signing in).
 app.post('/api/student-login/google', async (req, res) => {
   try {
-    const { email, tenantSlug } = req.body
-    if (!email) return res.status(400).json({ error: 'Email required.' })
+    const { accessToken, tenantSlug } = req.body
+    let email
+    try { ({ email } = await verifyGoogleAccessToken(accessToken)) }
+    catch (e) { return res.status(e.status || 401).json({ error: e.publicMessage || 'Google sign-in could not be verified.' }) }
 
     const tenantId = await resolveSlugTenant(tenantSlug)
     const r = await pool.query(
