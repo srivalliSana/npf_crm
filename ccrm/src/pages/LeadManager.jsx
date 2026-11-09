@@ -807,29 +807,33 @@ export default function LeadManager() {
       title="Lead Manager"
       action={(
         <>
-          <button type="button" onClick={() => setMoreActionsOpen(v => !v)} aria-expanded={moreActionsOpen}
-            className="md:hidden inline-flex items-center gap-1.5 text-xs font-semibold border border-gray-300 bg-white rounded-md px-3 py-2">
-            More {moreActionsOpen ? '▴' : '▾'}
-          </button>
-          <div className={`${moreActionsOpen ? 'flex' : 'hidden'} md:contents order-last md:order-none w-full flex-col items-stretch gap-2`}>
-          <Button variant="secondary" size="sm" icon={Download} onClick={handleExport}>Export</Button>
-          <Button variant="secondary" size="sm" icon={Upload} onClick={() => setShowBulkModal(true)}>Bulk Upload</Button>
-          <Button variant="secondary" size="sm" icon={Phone} onClick={() => navigate('/call-outcomes')}>Call Outcomes</Button>
-          {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
-            <button onClick={() => { setShowRCSModal(true); setRcsCustomMsg(''); setRcsRecipientMode('filtered') }}
-              className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 border border-gray-300 bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-50">
-              <Sparkles size={14} /> RCS Campaign
+          <div className="relative">
+            <button type="button" onClick={() => setMoreActionsOpen(v => !v)} aria-expanded={moreActionsOpen} aria-haspopup="menu"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold border border-gray-300 bg-white px-3.5 py-2 hover:bg-gray-50">
+              Actions {moreActionsOpen ? '▴' : '▾'}
             </button>
-          )}
-          {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
-            <button onClick={() => openEmail('filtered')}
-              className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 border border-gray-300 bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-50">
-              <Mail size={14} /> Email Campaign
-            </button>
-          )}
-          {(currentUser?.role === 'Admin' || currentUser?.role === 'Manager') && (
-            <Button variant="secondary" size="sm" icon={FileSpreadsheet} onClick={() => navigate('/workbook-import')}>Workbook Import</Button>
-          )}
+            {moreActionsOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMoreActionsOpen(false)} />
+                <div role="menu" className="absolute right-0 top-full mt-1 z-50 w-60 bg-white border border-gray-200 py-1" onClick={() => setMoreActionsOpen(false)}>
+                  {[
+                    { icon: Download, label: 'Export leads', on: handleExport },
+                    { icon: Upload, label: 'Bulk upload', on: () => setShowBulkModal(true) },
+                    { icon: Phone, label: 'Call outcomes', on: () => navigate('/call-outcomes') },
+                    ...((currentUser?.role === 'Admin' || currentUser?.role === 'Manager') ? [
+                      { icon: Sparkles, label: 'RCS campaign', on: () => { setShowRCSModal(true); setRcsCustomMsg(''); setRcsRecipientMode('filtered') } },
+                      { icon: Mail, label: 'Email campaign', on: () => openEmail('filtered') },
+                      { icon: FileSpreadsheet, label: 'Workbook import', on: () => navigate('/workbook-import') },
+                    ] : []),
+                  ].map(a => (
+                    <button key={a.label} type="button" role="menuitem" onClick={a.on}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[15px] text-gray-800 hover:bg-gray-100 text-left">
+                      <a.icon size={16} className="text-gray-500" /> {a.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           <Button size="sm" icon={Plus} onClick={() => setShowAddModal(true)}>Add Lead</Button>
         </>
