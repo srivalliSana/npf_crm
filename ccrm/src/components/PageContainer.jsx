@@ -8,10 +8,10 @@ export default function PageContainer({ title, description, action, children, cl
   return (
     <div className={`p-6 ${className}`}>
       {(title || action) && (
-        <div className="flex items-start justify-between gap-4 mb-6 flex-wrap rounded-xl bg-white border border-gray-200 border-l-4 border-l-primary-500 px-5 py-4">
+        <div className="flex items-end justify-between gap-4 mb-7 flex-wrap pb-5 border-b border-gray-200">
           <div>
-            {title && <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">{title}</h1>}
-            {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
+            {title && <h1 className="text-[30px] leading-tight font-bold text-gray-900 tracking-tight">{title}</h1>}
+            {description && <p className="text-[15px] text-gray-500 mt-1.5">{description}</p>}
           </div>
           {action && <div className="flex items-center gap-2 flex-shrink-0">{action}</div>}
         </div>
