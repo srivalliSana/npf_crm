@@ -64,12 +64,12 @@ export default function CallActivityReport() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="page-band-title">
             <BarChart2 size={22} className="text-primary-500" /> Call Activity Report
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Breakdown by stage. Click any number to see the leads behind it.</p>
+          <p className="page-band-desc">Breakdown by stage. Click any number to see the leads behind it.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
