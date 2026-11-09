@@ -95,10 +95,10 @@ export default function FinanceVerification() {
 
   return (
     <PageContainer>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Finance Verification</h1>
-        <p className="text-gray-600 mt-2">Verify application fees, booking fees, and full course fees</p>
-        <div className="mt-4 inline-block px-4 py-2 bg-blue-100 text-blue-800 rounded-lg font-semibold">
+      <div className="page-band">
+        <div><h1 className="page-band-title">Finance Verification</h1>
+<p className="page-band-desc">Verify application fees, booking fees, and full course fees</p></div>
+        <div className="inline-block px-4 py-2 bg-blue-100 text-blue-800 rounded-lg font-semibold">
           {getPendingCount()} Pending Verifications
         </div>
       </div>
