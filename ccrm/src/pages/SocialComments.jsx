@@ -33,12 +33,12 @@ export default function SocialComments() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="page-band-title">
             <MessageCircle size={20} className="text-primary-500" /> Social Comments
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">Facebook &amp; Instagram comments captured via the Meta webhook (each commenter is also a lead).</p>
+          <p className="page-band-desc">Facebook &amp; Instagram comments captured via the Meta webhook (each commenter is also a lead).</p>
         </div>
         <div className="flex items-center gap-2">
           <select value={platform} onChange={e => { setPlatform(e.target.value); setPage(1) }}
