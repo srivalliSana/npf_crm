@@ -94,10 +94,10 @@ export default function Tasks() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Tasks &amp; Follow-ups</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage all counselor tasks and follow-up activities</p>
+          <h1 className="page-band-title">Tasks &amp; Follow-ups</h1>
+          <p className="page-band-desc">Manage all counselor tasks and follow-up activities</p>
         </div>
         <button onClick={() => setShowCreate(true)}
           className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 transition-colors focus:outline-none">
