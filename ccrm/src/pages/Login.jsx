@@ -167,13 +167,7 @@ export default function Login() {
       setGoogleLoading(true)
       setError('')
       try {
-        // Step 1: fetch Google profile
-        const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        })
-        const profile   = await profileRes.json()
-        const userEmail = profile.email || ''
-
+        // The server verifies this token with Google itself; the browser only passes it along.
         // Domain authorization is enforced server-side: existing users are always allowed
         // (but rejected if they don't belong to this URL's tenant), and new users are
         // routed to the tenant whose allowed_domains match — scoped to this URL's tenant
@@ -183,12 +177,7 @@ export default function Login() {
         const authRes = await fetch('/api/auth/google', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            email:   userEmail,
-            name:    profile.name   || userEmail.split('@')[0],
-            picture: profile.picture || '',
-            tenantSlug
-          })
+          body:    JSON.stringify({ accessToken: tokenResponse.access_token, tenantSlug })
         })
         const data = await authRes.json()
         if (!authRes.ok) {
