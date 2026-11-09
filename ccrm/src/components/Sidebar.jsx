@@ -169,7 +169,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-[#f5fafb] text-gray-800 border-r border-gray-200 flex flex-col ${shell}`}
+      className={`fixed left-0 top-0 h-screen bg-primary-900 text-white border-r border-white/10 flex flex-col ${shell}`}
       aria-hidden={isMobile ? !open : undefined}
       onMouseEnter={isMobile ? undefined : () => setHovered(true)}
       onMouseLeave={isMobile ? undefined : () => setHovered(false)}
@@ -185,13 +185,13 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
           <img src={brand.logoUrl || '/emblem-192.png'} alt="logo" className="w-full h-full object-contain" />
         </div>
         <div className={`overflow-hidden transition-opacity duration-200 flex-1 ${expanded ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="text-gray-900 font-bold text-sm leading-tight whitespace-nowrap">{brand.shortName || 'CCRM'}</div>
-          <div className="text-gray-500 text-[11px] leading-tight whitespace-nowrap">{brand.tagline || 'Admissions'}</div>
+          <div className="text-white font-bold text-sm leading-tight whitespace-nowrap">{brand.shortName || 'CCRM'}</div>
+          <div className="text-white/60 text-[11px] leading-tight whitespace-nowrap">{brand.tagline || 'Admissions'}</div>
         </div>
         {isMobile && (
           <button
             onClick={(e) => { e.stopPropagation(); onClose?.() }}
-            className="p-1.5 -mr-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+            className="p-1.5 -mr-1 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition"
             aria-label="Close menu"
           >
             <X size={18} />
@@ -212,7 +212,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
           const isOpenGroup = (label) => openGroups.includes(label)
 
           const linkCls = (isActive) =>
-            `block rounded-md px-2.5 py-1.5 text-[14px] transition-colors ${isActive ? 'bg-primary-50 text-primary-500 font-medium' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`
+            `block rounded-md px-2.5 py-1.5 text-[14px] transition-colors ${isActive ? 'bg-white/15 text-accent-400 font-medium' : 'text-white/70 hover:text-white hover:bg-white/10'}`
 
           // Closed rail: icons only. The group that holds the current page is marked.
           if (!expanded) {
@@ -220,7 +220,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
               <div className="flex flex-col items-center gap-1 px-2 mt-1">
                 {grouped.filter(g => !g.label).flatMap(g => g.items).map(({ icon: Icon, label, to }) => (
                   <NavLink key={to} to={to} title={label} aria-label={label}
-                    className={({ isActive }) => `w-10 h-10 flex items-center justify-center rounded-md transition-colors ${isActive ? 'bg-primary-50 text-primary-500' : 'text-gray-500 hover:bg-gray-100'}`}>
+                    className={({ isActive }) => `w-10 h-10 flex items-center justify-center rounded-md transition-colors ${isActive ? 'bg-white/15 text-accent-400' : 'text-white/60 hover:bg-white/10'}`}>
                     <Icon size={18} strokeWidth={1.8} />
                   </NavLink>
                 ))}
@@ -228,7 +228,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
                   const GIcon = GROUP_ICON[g.label] || Layers
                   return (
                     <span key={g.label} title={g.label} aria-label={g.label}
-                      className={`w-10 h-10 flex items-center justify-center rounded-md ${g.items.some(holdsPath) ? 'bg-primary-50 text-primary-500' : 'text-gray-500'}`}>
+                      className={`w-10 h-10 flex items-center justify-center rounded-md ${g.items.some(holdsPath) ? 'bg-white/15 text-accent-400' : 'text-white/60'}`}>
                       <GIcon size={18} strokeWidth={1.8} />
                     </span>
                   )
@@ -253,14 +253,14 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
                   const hasActive = g.items.some(holdsPath)
                   return (
                     <AccordionItem key={g.label} value={g.label}>
-                      <AccordionTrigger className={`rounded-md px-2.5 py-2 hover:bg-gray-100 ${hasActive && !isOpenGroup(g.label) ? 'bg-primary-50' : ''}`}>
+                      <AccordionTrigger className={`rounded-md px-2.5 py-2 hover:bg-white/10 ${hasActive && !isOpenGroup(g.label) ? 'bg-white/15' : ''}`}>
                         <span className="flex items-center gap-2.5">
-                          <GIcon size={16} strokeWidth={1.8} className="text-gray-500" />
-                          <span className="text-[14px] font-medium text-gray-900">{g.label}</span>
+                          <GIcon size={16} strokeWidth={1.8} className="text-white/60" />
+                          <span className="text-[14px] font-medium text-white">{g.label}</span>
                         </span>
                       </AccordionTrigger>
                       <AccordionContent className="pb-1.5 pt-0.5">
-                        <ul className="ml-[1.15rem] flex flex-col gap-0.5 border-l border-gray-200 pl-3">
+                        <ul className="ml-[1.15rem] flex flex-col gap-0.5 border-l border-white/10 pl-3">
                           {g.items.map(({ label, to, submenu }) => (
                             <li key={to || label}>
                               {!submenu ? (
@@ -271,13 +271,13 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
                                     type="button"
                                     onClick={() => setOpenSubmenu(openSubmenu === label ? null : label)}
                                     aria-expanded={openSubmenu === label || submenu.some(sm => pathname === sm.to)}
-                                    className="w-full flex items-center justify-between rounded-md px-2.5 py-1.5 text-[14px] text-gray-600 hover:text-gray-900 hover:bg-gray-200/50 transition-colors"
+                                    className="w-full flex items-center justify-between rounded-md px-2.5 py-1.5 text-[14px] text-white/70 hover:text-white hover:bg-white/10 transition-colors"
                                   >
                                     <span>{label}</span>
-                                    <ChevronDown size={13} className={`text-gray-400 transition-transform ${(openSubmenu === label || submenu.some(sm => pathname === sm.to)) ? 'rotate-180' : ''}`} />
+                                    <ChevronDown size={13} className={`text-white/40 transition-transform ${(openSubmenu === label || submenu.some(sm => pathname === sm.to)) ? 'rotate-180' : ''}`} />
                                   </button>
                                   {(openSubmenu === label || submenu.some(sm => pathname === sm.to)) && (
-                                    <ul className="ml-2.5 mt-0.5 mb-1 flex flex-col gap-0.5 border-l border-gray-200 pl-2.5">
+                                    <ul className="ml-2.5 mt-0.5 mb-1 flex flex-col gap-0.5 border-l border-white/10 pl-2.5">
                                       {submenu.map(({ label: subLabel, to: subTo }) => (
                                         <li key={subTo}><NavLink to={subTo} className={({ isActive }) => linkCls(isActive)}>{subLabel}</NavLink></li>
                                       ))}
@@ -298,7 +298,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
         })()}
 
         {/* Divider + Inquiry */}
-        <div className="mx-4 h-px bg-gray-200 my-2" />
+        <div className="mx-4 h-px bg-white/15 my-2" />
         <a
           href="/apply"
           target="_blank"
@@ -316,7 +316,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
       {/* Logout */}
       <button
         onClick={onLogout}
-        className="sidebar-icon mb-2 mt-1 border-t border-gray-200 pt-3.5 !text-gray-500 hover:!text-gray-900 hover:!bg-gray-100 w-[calc(100%-1rem)]"
+        className="sidebar-icon mb-2 mt-1 border-t border-white/10 pt-3.5 !text-white/60 hover:!text-white hover:!bg-white/10 w-[calc(100%-1rem)]"
         title={!expanded ? 'Logout' : undefined}
       >
         <LogOut size={18} strokeWidth={1.8} className="flex-shrink-0" />
@@ -326,7 +326,7 @@ export default function Sidebar({ onLogout, user, isMobile = false, open = true,
       </button>
 
       {/* App version — single source: src/version.js */}
-      <div className="text-center text-[11px] text-gray-400 pb-2 select-none">
+      <div className="text-center text-[11px] text-white/40 pb-2 select-none">
         v{APP_VERSION}
       </div>
     </aside>
