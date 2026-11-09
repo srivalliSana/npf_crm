@@ -116,7 +116,7 @@ export default function LeadIdSettings() {
       <div className="text-xs text-gray-400 mb-2 flex items-center gap-1.5">
         Platform <ArrowRight size={11} /> Tenants <ArrowRight size={11} /> <span className="text-gray-600 font-medium">Lead ID Formats</span>
       </div>
-      <h1 className="text-xl font-bold text-gray-800 mb-1.5">Lead ID Formats</h1>
+      <div className="page-band"><h1 className="page-band-title">Lead ID Formats</h1></div>
       <p className="text-sm text-gray-500 max-w-2xl mb-6">
         Every lead gets a reference like <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">CULDAI26226287</code> the
         moment it's created. Nothing about it is fixed platform-wide — the prefix and the admission season are both set per tenant here,
