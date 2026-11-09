@@ -161,10 +161,10 @@ export default function Documents() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Document Verification</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Collect, verify and manage student documents</p>
+          <h1 className="page-band-title">Document Verification</h1>
+          <p className="page-band-desc">Collect, verify and manage student documents</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={handleExport} className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
