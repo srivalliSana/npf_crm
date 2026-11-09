@@ -41,13 +41,13 @@ export default function WorkbookImport() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+      <div className="page-band">
+        <div><h1 className="page-band-title">
           <Layers size={22} className="text-primary-500" /> Admission Workbook Import
         </h1>
-        <p className="text-gray-500 text-sm mt-1">
+<p className="page-band-desc">
           Upload the full multi-sheet admission workbook. Every sheet is imported as a separate <strong>program</strong>.
-        </p>
+        </p></div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-5">
