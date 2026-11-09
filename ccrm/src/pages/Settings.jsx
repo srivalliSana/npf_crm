@@ -219,10 +219,10 @@ export default function Settings() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Settings</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Configure CCRM for Centurion University</p>
+          <h1 className="page-band-title">Settings</h1>
+          <p className="page-band-desc">Configure CCRM for Centurion University</p>
         </div>
         <button onClick={handleSave}
           className={`flex items-center gap-1.5 text-sm rounded-lg px-4 py-1.5 transition-colors focus:outline-none ${saved ? 'bg-green-500 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'}`}>
