@@ -114,10 +114,10 @@ export default function ProgramsManager() {
 
   return (
     <PageContainer>
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Programs Manager</h1>
-          <p className="text-sm text-gray-500 mt-1">Programs and their fees are specific to your organization — set them here and they'll drive the admission journey's application/tuition fee amounts automatically. There is no registration fee — it's always ₹0.</p>
+          <h1 className="page-band-title">Programs Manager</h1>
+          <p className="page-band-desc">Programs and their fees are specific to your organization — set them here and they'll drive the admission journey's application/tuition fee amounts automatically. There is no registration fee — it's always ₹0.</p>
         </div>
         <button onClick={() => openModal()} className="flex items-center gap-2 bg-primary-500 hover:bg-primary-500 text-white rounded-lg px-4 py-2 font-medium whitespace-nowrap">
           <Plus size={16} /> Add Program
