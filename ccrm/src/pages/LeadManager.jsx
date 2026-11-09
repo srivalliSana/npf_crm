@@ -809,7 +809,7 @@ export default function LeadManager() {
         <>
           <div className="relative">
             <button type="button" onClick={() => setMoreActionsOpen(v => !v)} aria-expanded={moreActionsOpen} aria-haspopup="menu"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold border border-gray-300 bg-white px-3.5 py-2 hover:bg-gray-50">
+              className="inline-flex items-center gap-1.5 text-sm font-semibold border border-gray-300 bg-white rounded-lg px-3.5 py-2 hover:bg-gray-50">
               Actions {moreActionsOpen ? '▴' : '▾'}
             </button>
             {moreActionsOpen && (
