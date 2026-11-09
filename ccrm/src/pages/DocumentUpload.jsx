@@ -53,7 +53,7 @@ export default function DocumentUpload() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <header className="bg-white px-6 py-4">
+      <header className="bg-white px-6 py-3 border-b border-gray-200">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <img src="/logo.png" alt="Centurion University" className="h-12 w-auto flex-shrink-0" />
           <div>
@@ -63,7 +63,12 @@ export default function DocumentUpload() {
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 py-12">
+      <div className="bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 pt-12 pb-24 px-4 text-center border-b-4 border-accent-500">
+        <h2 className="text-[clamp(28px,4vw,46px)] font-bold text-white tracking-tight">Upload your documents</h2>
+        <p className="text-white/80 text-lg mt-2">Securely send the documents your counsellor asked for.</p>
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 -mt-14 pb-12 relative">
         {loading ? (
           <div className="text-center text-gray-600 py-20">
             <span className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full inline-block" />
@@ -75,8 +80,8 @@ export default function DocumentUpload() {
             <p className="text-sm text-slate-500">{error || 'Please contact your counsellor for a new upload link.'}</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg p-6">
-            <h1 className="text-xl font-semibold text-slate-800">Upload Your Documents</h1>
+          <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
+            <h1 className="text-xl font-semibold text-slate-800">Your documents</h1>
             <p className="text-sm text-slate-500 mt-1 mb-5">
               Hi {link.lead_name}, upload each required document below. Accepted: PDF, JPG, PNG (max 5MB each).
             </p>
