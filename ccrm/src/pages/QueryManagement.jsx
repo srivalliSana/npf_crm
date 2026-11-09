@@ -85,10 +85,10 @@ export default function QueryManagement() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Query Management</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Student queries, tickets &amp; support management</p>
+          <h1 className="page-band-title">Query Management</h1>
+          <p className="page-band-desc">Student queries, tickets &amp; support management</p>
         </div>
         <button onClick={() => setShowCreate(true)}
           className="flex items-center gap-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-lg px-3 py-1.5 transition-colors focus:outline-none">
