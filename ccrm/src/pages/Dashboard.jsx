@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useCcrm } from '../context/CcrmContext'
-import { TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, Download, CreditCard, Trophy } from 'lucide-react'
+import { PhoneCall, UserPlus, CalendarClock, AlertTriangle, TrendingUp, Users, FileText, CheckCircle, RefreshCw, Filter, Trash2, Download, CreditCard, Trophy } from 'lucide-react'
 import { stageLabel } from '../stageLabel'
 import PageContainer from '../components/PageContainer'
 import { Card, Table, Modal, Button, Select } from '../components/ui'
@@ -88,10 +88,11 @@ export default function Dashboard() {
   // One finding, stated under the title: what most needs attention today.
   const _n = (v) => Number(v || 0)
   const _src = isCounselor ? byCounsellor : kpi
-  const dashboardFinding = statsLoading ? 'Loading the latest numbers…' : (
+  const loadFailed = !statsLoading && !stats
+  const dashboardFinding = statsLoading ? 'Loading the latest numbers…' : loadFailed ? 'Could not load the latest numbers' : (
     _n(_src.untouched) > 0
       ? `${_n(_src.untouched).toLocaleString()} lead${_n(_src.untouched) === 1 ? '' : 's'} not yet contacted${_n(_src.followUp) ? ` · ${_n(_src.followUp).toLocaleString()} waiting on a follow-up` : ''}`
-      : _n(_src.followUp) ? `${_n(_src.followUp).toLocaleString()} waiting on a follow-up` : 'Every lead has been contacted'
+      : _n(_src.followUp) ? `${_n(_src.followUp).toLocaleString()} waiting on a follow-up` : _n(kpi.totalLeads || byCounsellor.leads) > 0 ? 'Every lead has been contacted' : 'No leads yet'
   )
 
   // Pipeline stages shown in the stacked bar, and the "needs attention" list. All from the same kpi payload.
@@ -162,6 +163,40 @@ export default function Dashboard() {
         </div>
       )}
 
+      {loadFailed && (
+        <div className="mb-5 flex items-center justify-between gap-4 border border-danger-200 bg-danger-50 px-5 py-4">
+          <div className="flex items-center gap-3 text-danger-700 text-[15px]"><AlertTriangle size={20} /> The dashboard numbers could not be loaded. Nothing below should be read as an all-clear.</div>
+          <Button variant="secondary" size="sm" icon={RefreshCw} onClick={loadStats}>Retry</Button>
+        </div>
+      )}
+
+      {/* Quick actions: the routine tasks, one click away */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+        {[
+          { to: '/leads', icon: PhoneCall, title: 'Call next lead', sub: 'Open the lead board', tone: 'bg-primary-500 text-white hover:bg-primary-600' },
+          { to: '/leads', icon: UserPlus, title: 'Add a lead', sub: 'Capture a new enquiry', tone: 'bg-accent-500 text-primary-900 hover:bg-accent-400' },
+          { to: '/tasks', icon: CalendarClock, title: "Today's follow-ups", sub: 'Reminders and scheduled calls', tone: 'bg-primary-900 text-white hover:bg-primary-800' },
+        ].map(a => (
+          <Link key={a.title} to={a.to} className={`flex items-center gap-4 px-5 py-4 transition-colors ${a.tone}`}>
+            <a.icon size={28} strokeWidth={1.7} className="flex-shrink-0" />
+            <span><span className="block text-lg font-semibold leading-tight">{a.title}</span><span className="block text-sm opacity-80 mt-0.5">{a.sub}</span></span>
+          </Link>
+        ))}
+      </div>
+
+      {/* Headline numbers */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        {(isCounselor
+          ? [['Untouched', _src.untouched, 'bg-accent-50 text-accent-800'], ['Follow up', _src.followUp, 'bg-primary-50 text-primary-800'], ['Interested', _src.interested, 'bg-green-50 text-green-800'], ['Not interested', _src.notInterested, 'bg-gray-100 text-gray-800']]
+          : [['Untouched', _src.untouched, 'bg-accent-50 text-accent-800'], ['Follow up', _src.followUp, 'bg-primary-50 text-primary-800'], ['Process for payment', _src.processForPayment, 'bg-blue-50 text-blue-800'], ['Payment success', _src.paymentSuccess, 'bg-green-50 text-green-800']]
+        ).map(([label, v, tone]) => (
+          <div key={label} className={`px-5 py-5 ${tone}`}>
+            <div className="text-[34px] leading-none font-semibold tabular-nums">{_n(v).toLocaleString()}</div>
+            <div className="text-[15px] mt-2 opacity-90">{label}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Pipeline — one block answers "where are the leads?"; the attention list answers "what do I do next?" */}
       <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_1fr] gap-3 mb-6">
         <Card className="p-6">
@@ -209,7 +244,7 @@ export default function Dashboard() {
         <Card className="p-6 self-start">
           <div className="text-base font-medium text-gray-900">Needs attention</div>
           <div className="mt-4 space-y-1">
-            {attention.length === 0 && <p className="text-[15px] text-gray-500 py-2">Nothing is waiting. Every lead has been contacted.</p>}
+            {attention.length === 0 && <p className="text-[15px] text-gray-500 py-2">{loadFailed ? 'Numbers are not available right now.' : 'Nothing is waiting.'}</p>}
             {attention.map(a => (
               <Link key={a.label} to={a.to} className="flex items-center justify-between py-3 px-3 -mx-3 rounded-md hover:bg-gray-100 transition-colors">
                 <span className="text-[15px] text-gray-700">{a.label}</span>
