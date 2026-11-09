@@ -169,3 +169,20 @@ html { scroll-behavior: smooth; scrollbar-gutter: stable; }
 }
 /* Scrolling panels (board columns, tables, dialogs) glide and do not drag the page behind them */
 .overflow-y-auto, .overflow-x-auto, .overflow-auto { scroll-behavior: smooth; overscroll-behavior: contain; }
+
+/* ── Page header band: every staff page opens with the same navy band (title, line, actions) ── */
+.page-band {
+  position: relative;
+  display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+  margin: -5.5rem -1.5rem 1.75rem;
+  padding: 6.25rem 1.75rem 1.75rem;
+  background: linear-gradient(120deg, #0b1330 0%, #172c85 62%, #2442d1 100%);
+  color: #fff;
+}
+.page-band::after { content: ''; position: absolute; left: 0; bottom: 0; width: 120px; height: 4px; background: #f9591f; }
+.page-band-title { font-size: 1.875rem; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; color: #fff; display: flex; align-items: center; gap: .5rem; }
+.page-band-title svg { color: #ffc4a6 !important; }
+.page-band-desc { font-size: 1rem; color: rgb(255 255 255 / .75); margin-top: .35rem; }
+.page-band > div:last-child:not(:first-child) { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.page-band button:not([class*="bg-"]):not([class*="border"]) { color: #fff; }
+@media (max-width: 1023px) { .page-band { margin: -5rem -1rem 1.25rem; padding: 5.5rem 1rem 1.25rem; } .page-band-title { font-size: 1.5rem; } }
