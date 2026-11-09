@@ -206,12 +206,12 @@ export default function EmailCampaigns() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="page-band">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+          <h1 className="page-band-title">
             <Mail size={26} className="text-primary-500" /> Email Campaigns
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Create, personalize and send email campaigns to lead segments</p>
+          <p className="page-band-desc">Create, personalize and send email campaigns to lead segments</p>
         </div>
         <button
           onClick={() => { setShowForm(true); setEditId(null); setForm({ name:'', subject:'', template:'', segment:'All Leads' }); setSelectedTemplate('blank') }}
