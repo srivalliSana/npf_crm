@@ -61,7 +61,7 @@ export default function StudentPortal() {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
-      <header className="bg-white px-6 py-4">
+      <header className="bg-white px-6 py-3 border-b border-gray-200">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="Centurion University" className="h-12 w-auto flex-shrink-0" />
@@ -74,13 +74,14 @@ export default function StudentPortal() {
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 py-12">
+      <div className="bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 pt-14 pb-28 px-4 text-center border-b-4 border-accent-500">
+        <h1 className="text-[clamp(30px,4.4vw,52px)] font-bold text-white tracking-tight leading-tight">Check Application Status</h1>
+        <p className="text-white/80 text-lg mt-3">Track your CUEE 2026 application progress</p>
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 -mt-16 pb-12 relative">
         {/* Search box */}
-        <div className="bg-white rounded-lg p-8 border border-gray-200 mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900 mb-2 text-center">Check Application Status</h1>
-          <p className="text-gray-600 text-sm text-center mb-6">
-            Track your CUEE 2026 application progress
-          </p>
+        <div className="bg-white rounded-xl p-8 border border-gray-200 shadow-md mb-6">
 
           {/* Toggle */}
           <div className="flex bg-gray-100 rounded-md p-1 mb-6">
