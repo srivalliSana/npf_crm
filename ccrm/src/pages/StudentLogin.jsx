@@ -32,14 +32,10 @@ export default function StudentLogin() {
       setGoogleLoading(true)
       setError('')
       try {
-        const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-        })
-        const profile = await profileRes.json()
         const res = await fetch('/api/student-login/google', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: profile.email || '', tenantSlug })
+          body: JSON.stringify({ accessToken: tokenResponse.access_token, tenantSlug })
         })
         const data = await res.json()
         if (!res.ok) { setError(data.error || 'Google sign-in failed.'); return }
