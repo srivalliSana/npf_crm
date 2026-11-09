@@ -94,11 +94,12 @@ export default function OrgSettings() {
   const allEntityLabels = entities.map(e => e.label || e.code).join(', ')
 
   return (
-    <div className="p-6 max-w-2xl">
-      <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-1">
-        <Building2 size={20} className="text-primary-500" /> Organization Settings
+    <div className="p-6">
+      <div className="page-band"><div><h1 className="page-band-title">
+        <Building2 size={26} /> Organization Settings
       </h1>
-      <p className="text-sm text-gray-500 mb-6">Branding, login control, and lead assignment for your organization.</p>
+      <p className="page-band-desc">Branding, login control, and lead assignment for your organization.</p></div></div>
+      <div className="max-w-2xl">
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
         <Field label="Organization name" value={name} onChange={setName} placeholder="Acme University" />
@@ -201,6 +202,7 @@ export default function OrgSettings() {
         className="mt-5 inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg px-5 py-2 text-sm disabled:opacity-50">
         <Save size={15} /> {saving ? 'Saving…' : 'Save changes'}
       </button>
+      </div>
     </div>
   )
 }
