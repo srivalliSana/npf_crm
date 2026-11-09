@@ -79,9 +79,9 @@ export default function UserProfile() {
 
   return (
     <div className="p-6">
+      <div className="page-band"><div><h1 className="page-band-title">My Profile</h1>
+        <p className="page-band-desc">Manage your account settings and contact information</p></div></div>
       <div className="max-w-2xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">My Profile</h1>
-        <p className="text-gray-500 mb-6">Manage your account settings and contact information</p>
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           {/* Basic Info */}
