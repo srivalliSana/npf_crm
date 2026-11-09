@@ -40,12 +40,12 @@ export default function UploadLogs() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="page-band-title">
             <Upload size={22} className="text-primary-500" /> Upload Logs
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Audit trail of bulk lead uploads — who uploaded, when, and the outcome.</p>
+          <p className="page-band-desc">Audit trail of bulk lead uploads — who uploaded, when, and the outcome.</p>
         </div>
         <button onClick={load} className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
