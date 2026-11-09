@@ -233,7 +233,7 @@ export default function Login() {
         <section>
           <PixelHeadline
             lines={['Every enquiry,', 'followed through.']} as="h1" align="left" assemble="load"
-            color="#02677f" accent="#ffb500" pixelSize="clamp(5px, .72vw + 2.4px, 13px)"
+            color="#2f52f0" accent="#f9591f" pixelSize="clamp(5px, .72vw + 2.4px, 13px)"
           />
           <p className="text-[clamp(18px,1.4vw,26px)] leading-relaxed text-gray-600 max-w-[36ch] mt-8">
             Leads, documents, payments and seat confirmation for {orgName}, in one place for the admissions team.
