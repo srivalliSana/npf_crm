@@ -739,10 +739,10 @@ export default function Integrations() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Integrations & Social Media</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className="page-band-title">Integrations & Social Media</h1>
+          <p className="page-band-desc">
             Connect CCRM to social media platforms, messaging, payments, and analytics — leads auto-import and counselors get instant alerts.
           </p>
         </div>
