@@ -685,16 +685,16 @@ export default function StudentDashboard() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <header className="bg-gradient-to-r from-primary-900 via-primary-800 to-primary-600 border-b-4 border-accent-500 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Centurion University" className="h-11 w-auto flex-shrink-0" />
+            <span className="bg-white rounded-lg p-1.5 flex-shrink-0"><img src="/logo.png" alt="Centurion University" className="h-10 w-auto" /></span>
             <div>
-              <h1 className="text-lg font-extrabold text-gray-900 leading-tight">Student Portal</h1>
-              <p className="text-[13.5px] text-gray-500">{app.name} · {app.appNo}</p>
+              <h1 className="text-xl font-bold text-white leading-tight">Student Portal</h1>
+              <p className="text-[14.5px] text-white/75">{app.name} · {app.appNo}</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-md transition">
+          <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white border border-white/40 hover:bg-white/10 rounded-lg transition">
             <LogOut size={17} /> Logout
           </button>
         </div>
