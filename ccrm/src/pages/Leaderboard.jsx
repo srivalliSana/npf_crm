@@ -51,12 +51,12 @@ export default function Leaderboard() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="page-band">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+          <h1 className="page-band-title">
             <Trophy className="text-yellow-500" size={28} /> Counselor Leaderboard
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Live performance rankings — updated in real time</p>
+          <p className="page-band-desc">Live performance rankings — updated in real time</p>
         </div>
         <div className="flex items-center gap-3">
           <select
