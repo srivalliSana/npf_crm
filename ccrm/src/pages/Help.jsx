@@ -85,12 +85,12 @@ export default function Help() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-band">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="page-band-title">
             <HelpCircle size={26} className="text-primary-500" /> Help & Documentation
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Quick answers, how-to guides, and shortcuts for {currentUser?.role || 'all users'}.</p>
+          <p className="page-band-desc">Quick answers, how-to guides, and shortcuts for {currentUser?.role || 'all users'}.</p>
         </div>
       </div>
 
